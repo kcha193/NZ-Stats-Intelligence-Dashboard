@@ -66,20 +66,27 @@ in production. Python 3.12 in Docker; ruff line-length 100; pytest.
 
 ## 5. Data model (SQLite)
 
-- `raw_artifact(id, url, sha256, fetched_at, http_status, path, release_id?)` —
+All timestamps are stored as UTC ISO-8601 (`YYYY-MM-DDTHH:MM:SSZ`) so text ordering is correct
+across NZST/NZDT; they are converted to Pacific/Auckland at the API boundary.
+
+- `raw_artifact(id, url, sha256, fetched_at, http_status, content_type, size_bytes, path)` —
   raw bytes kept on disk; same sha256 is never re-processed.
-- `release(id, statsnz_id, series_key, title, reference_period, published_at,
-  status, page_url, headline)` — status: scheduled | published | delayed |
+- `release(id, release_key, series_slug, title, period_label, reference_period, published_at,
+  status, page_url, headline, statsnz_id, ...)` — `release_key` (normalised title) is the
+  natural key shared by the ICS and month endpoints; status: scheduled | published | delayed |
   corrected | unavailable (only set when evidence supports it).
-- `vintage(id, release_id, series_key, captured_at, source_kind, layout_version)`
-  — `source_kind`: `release_files` (true vintage) or `snapshot` (captured by the
-  monitor); the UI states which applies.
-- `series(id, key, name, unit, frequency, seasonal_adjustment, definition,
-  category, source_url)`.
-- `observation(vintage_id, series_id, period, value, status)` — status:
-  provisional | final | unknown. Unique on `(vintage_id, series_id, period)`.
-- `ingest_run(id, release_id, started_at, finished_at, outcome, error_class,
-  detail)` and `source_health(source, last_checked_at, last_success_at, state)`.
+- `series(id, key, name, unit, frequency, seasonal_adjustment, definition, definition_id,
+  category, source_url)` — series sharing a `definition_id` measure the same concept; this
+  drives comparison compatibility.
+- `vintage(id, release_id, series_id, captured_at, source_kind, layout_version, bundle_sha256)`
+  — `source_kind`: `release_files` (true vintage) or `snapshot` (captured by the monitor); the
+  UI states which applies. Unique on `(release_id, series_id, bundle_sha256)`.
+- `observation(vintage_id, period, value, status, std_error, released_in)` — status:
+  provisional | final | unknown; `std_error` as published (zero on final estimates);
+  `released_in` is the 'YYYY-MM' release that last published the value (the source's
+  `month_of_release`). Primary key `(vintage_id, period)`.
+- `ingest_run(id, release_key, started_at, finished_at, outcome, error_class, detail)` and
+  `source_health(source, state, last_checked_at, last_success_at, detail)`.
 
 Revision = difference in value for the same `(series, period)` between vintages;
 computed in `stats/`, never stored as an observation. Frequency, unit,

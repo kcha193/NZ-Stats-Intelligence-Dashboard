@@ -1,0 +1,281 @@
+"""All SQL lives here. Timestamps in/out are UTC ISO strings (see clock.py)."""
+
+from __future__ import annotations
+
+import sqlite3
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime
+
+from nzstats.clock import to_utc_iso
+from nzstats.domain import Observation, ObsStatus, Point, ReleaseRef, ReleaseStatus, SeriesDef
+
+
+@dataclass(frozen=True)
+class ArtifactRecord:
+    url: str
+    sha256: str
+    fetched_at: datetime
+    http_status: int
+    content_type: str | None
+    size_bytes: int
+    path: str
+
+
+@dataclass(frozen=True)
+class VintageInfo:
+    vintage_id: int
+    release_key: str
+    title: str
+    published_at: str
+    captured_at: str
+    source_kind: str
+    layout_version: str
+
+
+def upsert_release(conn: sqlite3.Connection, ref: ReleaseRef, now: datetime) -> int:
+    now_s, pub = to_utc_iso(now), to_utc_iso(ref.published_at)
+    row = conn.execute("SELECT * FROM release WHERE release_key = ?", (ref.release_key,)).fetchone()
+    if row is None:
+        cur = conn.execute(
+            "INSERT INTO release(release_key, series_slug, title, period_label, reference_period,"
+            " published_at, status, page_url, headline, statsnz_id, first_seen_at, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                ref.release_key,
+                ref.series_slug,
+                ref.title,
+                ref.period_label,
+                ref.reference_period,
+                pub,
+                ref.status.value,
+                ref.page_url,
+                ref.headline,
+                ref.statsnz_id,
+                now_s,
+                now_s,
+            ),
+        )
+        return int(cur.lastrowid)
+
+    status = ReleaseStatus(row["status"])
+    published_at = row["published_at"]
+    if ref.status is ReleaseStatus.PUBLISHED:
+        status = ReleaseStatus.PUBLISHED if status is not ReleaseStatus.CORRECTED else status
+        published_at = pub
+    elif status in (ReleaseStatus.SCHEDULED, ReleaseStatus.DELAYED):
+        if pub > published_at:
+            status = ReleaseStatus.DELAYED
+        published_at = pub
+    conn.execute(
+        "UPDATE release SET title=?, period_label=?, reference_period=?, published_at=?, status=?,"
+        " page_url=COALESCE(?, page_url), headline=COALESCE(?, headline),"
+        " statsnz_id=COALESCE(?, statsnz_id), updated_at=? WHERE id=?",
+        (
+            ref.title,
+            ref.period_label,
+            ref.reference_period,
+            published_at,
+            status.value,
+            ref.page_url,
+            ref.headline,
+            ref.statsnz_id,
+            now_s,
+            row["id"],
+        ),
+    )
+    return int(row["id"])
+
+
+def get_release(conn: sqlite3.Connection, release_key: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM release WHERE release_key = ?", (release_key,)).fetchone()
+
+
+def set_release_status(
+    conn: sqlite3.Connection, release_key: str, status: ReleaseStatus, now: datetime
+) -> None:
+    conn.execute(
+        "UPDATE release SET status=?, updated_at=? WHERE release_key=?",
+        (status.value, to_utc_iso(now), release_key),
+    )
+
+
+def set_release_headline(
+    conn: sqlite3.Connection, release_key: str, headline: str | None, page_url: str | None
+) -> None:
+    conn.execute(
+        "UPDATE release SET headline=COALESCE(?, headline), page_url=COALESCE(?, page_url)"
+        " WHERE release_key=?",
+        (headline, page_url, release_key),
+    )
+
+
+def upsert_series(conn: sqlite3.Connection, d: SeriesDef) -> int:
+    conn.execute(
+        "INSERT INTO series(key, name, unit, frequency, seasonal_adjustment, definition,"
+        " definition_id, category, source_url) VALUES (?,?,?,?,?,?,?,?,?)"
+        " ON CONFLICT(key) DO UPDATE SET name=excluded.name, unit=excluded.unit,"
+        " frequency=excluded.frequency, seasonal_adjustment=excluded.seasonal_adjustment,"
+        " definition=excluded.definition, definition_id=excluded.definition_id,"
+        " category=excluded.category, source_url=excluded.source_url",
+        (
+            d.key,
+            d.name,
+            d.unit,
+            d.frequency.value,
+            d.adjustment.value,
+            d.definition,
+            d.definition_id,
+            d.category,
+            d.source_url,
+        ),
+    )
+    return int(conn.execute("SELECT id FROM series WHERE key=?", (d.key,)).fetchone()[0])
+
+
+def record_artifact(conn: sqlite3.Connection, rec: ArtifactRecord) -> int:
+    conn.execute(
+        "INSERT OR IGNORE INTO raw_artifact(url, sha256, fetched_at, http_status, content_type,"
+        " size_bytes, path) VALUES (?,?,?,?,?,?,?)",
+        (
+            rec.url,
+            rec.sha256,
+            to_utc_iso(rec.fetched_at),
+            rec.http_status,
+            rec.content_type,
+            rec.size_bytes,
+            rec.path,
+        ),
+    )
+    return int(
+        conn.execute(
+            "SELECT id FROM raw_artifact WHERE url=? AND sha256=?", (rec.url, rec.sha256)
+        ).fetchone()[0]
+    )
+
+
+def create_vintage(
+    conn: sqlite3.Connection,
+    release_id: int,
+    series_id: int,
+    captured_at: datetime,
+    source_kind: str,
+    layout_version: str,
+    bundle_sha256: str,
+) -> int | None:
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO vintage(release_id, series_id, captured_at, source_kind,"
+        " layout_version, bundle_sha256) VALUES (?,?,?,?,?,?)",
+        (
+            release_id,
+            series_id,
+            to_utc_iso(captured_at),
+            source_kind,
+            layout_version,
+            bundle_sha256,
+        ),
+    )
+    return int(cur.lastrowid) if cur.rowcount else None
+
+
+def insert_observations(
+    conn: sqlite3.Connection, vintage_id: int, obs: Iterable[Observation]
+) -> int:
+    rows = [
+        (vintage_id, o.period, o.value, o.status.value, o.std_error, o.released_in) for o in obs
+    ]
+    conn.executemany(
+        "INSERT INTO observation(vintage_id, period, value, status, std_error, released_in)"
+        " VALUES (?,?,?,?,?,?)",
+        rows,
+    )
+    return len(rows)
+
+
+def has_vintage(conn: sqlite3.Connection, release_id: int, bundle_sha256: str) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM vintage WHERE release_id=? AND bundle_sha256=? LIMIT 1",
+            (release_id, bundle_sha256),
+        ).fetchone()
+        is not None
+    )
+
+
+def has_any_vintage(conn: sqlite3.Connection, release_id: int) -> bool:
+    return (
+        conn.execute("SELECT 1 FROM vintage WHERE release_id=? LIMIT 1", (release_id,)).fetchone()
+        is not None
+    )
+
+
+_VINTAGE_ORDER = "r.published_at, v.id"
+
+
+def list_vintages(conn: sqlite3.Connection, series_key: str) -> list[VintageInfo]:
+    rows = conn.execute(
+        f"SELECT v.id, r.release_key, r.title, r.published_at, v.captured_at, v.source_kind,"
+        f" v.layout_version FROM vintage v JOIN release r ON r.id=v.release_id"
+        f" JOIN series s ON s.id=v.series_id WHERE s.key=? ORDER BY {_VINTAGE_ORDER}",
+        (series_key,),
+    ).fetchall()
+    return [VintageInfo(*tuple(r)) for r in rows]
+
+
+def vintage_points(conn: sqlite3.Connection, vintage_id: int) -> dict[str, Point]:
+    rows = conn.execute(
+        "SELECT period, value, status FROM observation WHERE vintage_id=? ORDER BY period",
+        (vintage_id,),
+    ).fetchall()
+    return {r["period"]: Point(r["period"], r["value"], ObsStatus(r["status"])) for r in rows}
+
+
+def latest_points(conn: sqlite3.Connection, series_key: str) -> dict[str, Point]:
+    infos = list_vintages(conn, series_key)
+    return vintage_points(conn, infos[-1].vintage_id) if infos else {}
+
+
+def previous_points(
+    conn: sqlite3.Connection, series_key: str, published_before: datetime
+) -> dict[str, Point]:
+    cutoff = to_utc_iso(published_before)
+    prior = [i for i in list_vintages(conn, series_key) if i.published_at < cutoff]
+    return vintage_points(conn, prior[-1].vintage_id) if prior else {}
+
+
+def record_ingest_run(
+    conn: sqlite3.Connection,
+    release_key: str,
+    started_at: datetime,
+    finished_at: datetime,
+    outcome: str,
+    error_class: str | None,
+    detail: str | None,
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO ingest_run(release_key, started_at, finished_at, outcome, error_class,"
+        " detail) VALUES (?,?,?,?,?,?)",
+        (
+            release_key,
+            to_utc_iso(started_at),
+            to_utc_iso(finished_at),
+            outcome,
+            error_class,
+            detail,
+        ),
+    )
+    return int(cur.lastrowid)
+
+
+def set_source_health(
+    conn: sqlite3.Connection, source: str, now: datetime, *, ok: bool, detail: str | None
+) -> None:
+    now_s = to_utc_iso(now)
+    conn.execute(
+        "INSERT INTO source_health(source, state, last_checked_at, last_success_at, detail)"
+        " VALUES (?,?,?,?,?) ON CONFLICT(source) DO UPDATE SET state=excluded.state,"
+        " last_checked_at=excluded.last_checked_at,"
+        " last_success_at=COALESCE(excluded.last_success_at, source_health.last_success_at),"
+        " detail=excluded.detail",
+        (source, "ok" if ok else "degraded", now_s, now_s if ok else None, detail),
+    )
