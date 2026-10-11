@@ -279,3 +279,68 @@ def set_source_health(
         " detail=excluded.detail",
         (source, "ok" if ok else "degraded", now_s, now_s if ok else None, detail),
     )
+
+
+@dataclass(frozen=True)
+class ObservationRow:
+    period: str
+    value: float
+    status: ObsStatus
+    std_error: float | None
+    released_in: str | None
+
+
+def get_series_row(conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM series WHERE key = ?", (key,)).fetchone()
+
+
+def get_release_by_id(conn: sqlite3.Connection, release_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM release WHERE id = ?", (release_id,)).fetchone()
+
+
+def vintage_observations(conn: sqlite3.Connection, vintage_id: int) -> dict[str, ObservationRow]:
+    rows = conn.execute(
+        "SELECT period, value, status, std_error, released_in FROM observation"
+        " WHERE vintage_id = ? ORDER BY period",
+        (vintage_id,),
+    ).fetchall()
+    return {
+        r["period"]: ObservationRow(
+            r["period"], r["value"], ObsStatus(r["status"]), r["std_error"], r["released_in"]
+        )
+        for r in rows
+    }
+
+
+def release_vintage(
+    conn: sqlite3.Connection, series_key: str, release_id: int
+) -> VintageInfo | None:
+    row = conn.execute(
+        "SELECT v.id, r.release_key, r.title, r.published_at, v.captured_at, v.source_kind,"
+        " v.layout_version FROM vintage v JOIN release r ON r.id = v.release_id"
+        " JOIN series s ON s.id = v.series_id WHERE s.key = ? AND v.release_id = ?"
+        " ORDER BY v.id DESC LIMIT 1",
+        (series_key, release_id),
+    ).fetchone()
+    return VintageInfo(*tuple(row)) if row else None
+
+
+def previous_vintage(
+    conn: sqlite3.Connection, series_key: str, published_before_utc: str
+) -> VintageInfo | None:
+    prior = [i for i in list_vintages(conn, series_key) if i.published_at < published_before_utc]
+    return prior[-1] if prior else None
+
+
+def series_overview(
+    conn: sqlite3.Connection, category_prefix: str | None = None
+) -> list[sqlite3.Row]:
+    like = None if category_prefix is None else category_prefix + "%"
+    return conn.execute(
+        "SELECT s.*, (SELECT COUNT(*) FROM vintage v WHERE v.series_id = s.id) AS n_vintages,"
+        " (SELECT MAX(o.period) FROM observation o WHERE o.vintage_id = ("
+        "   SELECT v.id FROM vintage v JOIN release r ON r.id = v.release_id"
+        "   WHERE v.series_id = s.id ORDER BY r.published_at DESC, v.id DESC LIMIT 1))"
+        " AS latest_period FROM series s WHERE (? IS NULL OR s.category LIKE ?) ORDER BY s.key",
+        (like, like),
+    ).fetchall()

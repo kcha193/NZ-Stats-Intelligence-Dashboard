@@ -88,3 +88,17 @@ class FakeSite:
     def fetcher(self) -> Fetcher:
         client = httpx.Client(transport=httpx.MockTransport(self.handler))
         return Fetcher(client, sleep=lambda s: None, clock=lambda: 0.0)
+
+
+def ingest_months(rt, *months: str) -> dict[str, int]:
+    """Seed releases as published and ingest their real fixture files, oldest first."""
+    from nzstats.pipeline.ingest import ingest_release
+    from nzstats.store import repo
+
+    ids: dict[str, int] = {}
+    for month in months:
+        ref = release_ref_for(month)
+        ids[month] = repo.upsert_release(rt.conn, ref, NOW)
+        outcome = ingest_release(rt, ref.release_key, now_fn=lambda: NOW)
+        assert outcome.outcome == "ingested", outcome.detail
+    return ids
