@@ -9,6 +9,7 @@ import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 from nzstats.clock import AKL, parse_akl_naive
 from nzstats.domain import ErrorClass, IngestError, ReleaseRef, ReleaseStatus
@@ -121,6 +122,20 @@ def events_to_refs(events: Iterable[CalendarEvent]) -> list[ReleaseRef]:
     ]
 
 
+def _same_site_url(base_url: str, path: str) -> str:
+    """Join an upstream-supplied path onto our base URL, refusing anything that changes host.
+
+    A value such as '@evil.example/x' would otherwise turn 'https://host' + path into a URL whose
+    authority is evil.example.
+    """
+    if not isinstance(path, str) or not path.startswith("/") or path.startswith(("//", "/\\")):
+        raise ValueError(f"page link is not a site-relative path: {path!r}")
+    url = base_url + path
+    if urlsplit(url).netloc != urlsplit(base_url).netloc:
+        raise ValueError(f"page link changes host: {path!r}")
+    return url
+
+
 def parse_release_month(payload: Mapping, base_url: str) -> list[ReleaseRef]:
     items = payload.get("items") if isinstance(payload, Mapping) else None
     if not isinstance(items, Mapping) or not {"published", "upcoming"} & items.keys():
@@ -134,7 +149,7 @@ def parse_release_month(payload: Mapping, base_url: str) -> list[ReleaseRef]:
                     term["DisplayName"],
                     parse_akl_naive(term["PublicationDate"]),
                     ReleaseStatus.PUBLISHED,
-                    page_url=base_url + p["PageLink"],
+                    page_url=_same_site_url(base_url, p["PageLink"]),
                     headline=(p.get("MetaDescription") or "").strip() or None,
                     statsnz_id=str(p.get("ID") or ""),
                 )
