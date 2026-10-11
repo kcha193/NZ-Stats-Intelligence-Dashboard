@@ -52,6 +52,9 @@ def validate_migration(
     for key in REQUIRED:
         if key not in by_key:
             error("required_series", f"required series missing: {key}")
+    for key in REQUIRED:
+        if key in by_key and not by_key[key].observations:
+            error("empty_series", f"required series has no observations: {key}")
     if findings:
         return findings
 
