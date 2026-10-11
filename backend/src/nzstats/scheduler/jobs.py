@@ -9,7 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from nzstats.clock import AKL, utc_now
-from nzstats.pipeline.discover import DiscoveryResult, current_and_next_months, discover
+from nzstats.pipeline.discover import DiscoveryResult, discover, discovery_months
 from nzstats.pipeline.ingest import IngestOutcome, ingest_release
 from nzstats.runtime import Runtime
 from nzstats.scheduler.planner import mark_unavailable, poll_candidates, releases_needing_ingest
@@ -20,7 +20,7 @@ NowFn = Callable[[], datetime]
 
 def job_refresh_calendar(rt: Runtime, *, now_fn: NowFn = utc_now) -> DiscoveryResult:
     with rt.lock:
-        return discover(rt, months=current_and_next_months(now_fn()), now_fn=now_fn)
+        return discover(rt, months=discovery_months(now_fn()), now_fn=now_fn)
 
 
 def job_release_watch(rt: Runtime, *, now_fn: NowFn = utc_now) -> list[IngestOutcome]:

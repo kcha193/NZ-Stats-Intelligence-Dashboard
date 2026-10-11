@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from nzstats.clock import utc_now
 from nzstats.config import load_settings
-from nzstats.pipeline.discover import current_and_next_months, discover
+from nzstats.pipeline.discover import discover, discovery_months
 from nzstats.pipeline.ingest import backfill, ingest_release
 from nzstats.runtime import build_runtime
 from nzstats.scheduler.planner import releases_needing_ingest
@@ -84,7 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     rt = build_runtime(settings)
     if args.command == "discover":
-        result = discover(rt, months=current_and_next_months(utc_now()))
+        result = discover(rt, months=discovery_months(utc_now()))
         print(f"{result.refs} releases seen; errors: {list(result.errors)}")
         return 1 if result.errors else 0
     if args.command == "ingest":

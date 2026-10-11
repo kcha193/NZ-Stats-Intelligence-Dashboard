@@ -28,6 +28,12 @@ def current_and_next_months(now: datetime) -> list[str]:
     return [current, add_months(current, 1)]
 
 
+def discovery_months(now: datetime) -> list[str]:
+    """Previous, current and next Auckland month: published history plus what is coming."""
+    current, following = current_and_next_months(now)
+    return [add_months(current, -1), current, following]
+
+
 def _store(rt: Runtime, refs: Sequence[ReleaseRef], now: datetime) -> None:
     with transaction(rt.conn):
         for ref in refs:
