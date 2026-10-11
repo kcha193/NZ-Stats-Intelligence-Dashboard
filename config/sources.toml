@@ -12,6 +12,6 @@ catch_up_days = 7
 
 [migration]
 country_window_months = 36
-# Oldest reference period to backfill. Conservative default (July 2024 files verified);
-# Task 1's vintage-depth spike may lower it.
-backfill_since = "2024-07"
+# Oldest reference period to backfill. Set from the vintage-depth spike
+# (docs/data-sources/migration-vintage-depth.md): 26 contiguous releases from June 2024.
+backfill_since = "2024-06"
