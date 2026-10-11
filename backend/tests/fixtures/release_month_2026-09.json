@@ -1,0 +1,163 @@
+{
+ "items": {
+  "published": [
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8340",
+     "Date": null,
+     "DisplayName": "Building consents issued: July 2026",
+     "DateFormat": "F Y",
+     "DateString": "2 September 2026",
+     "PublicationDate": "2026-09-02 10:45:00"
+    },
+    "ID": "80593",
+    "Title": "Building consents issued: July 2026",
+    "BackgroundColor": "white",
+    "FeaturedText": "<p>Building consent statistics are about the number, floor area, and value of new homes, non-residential buildings, and alterations approved for construction.</p>",
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/information-releases/building-consents-issued-july-2026/",
+    "PageDate": "2026-09-02 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "The seasonally adjusted number of new dwellings consented fell 4.3 percent in July 2026, after falling 3.7 percent in June 2026.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Information releases",
+      "MenuTitle": "Information releases",
+      "Link": "/information-releases/"
+     },
+     {
+      "Title": "Building consents issued: July 2026",
+      "MenuTitle": "Building consents issued: July 2026",
+      "Link": "/information-releases/building-consents-issued-july-2026/"
+     }
+    ],
+    "SiteBanner": []
+   },
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8341",
+     "Date": null,
+     "DisplayName": "International trade: June 2026 quarter",
+     "DateFormat": "F Y",
+     "DateString": "3 September 2026",
+     "PublicationDate": "2026-09-03 10:45:00"
+    },
+    "ID": "80594",
+    "Title": "International trade: June 2026 quarter",
+    "BackgroundColor": "white",
+    "FeaturedText": "<p>International trade statistics provide information on imports and exports of goods and services between New Zealand and our trading partners.</p>",
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/information-releases/international-trade-june-2026-quarter/",
+    "PageDate": "2026-09-03 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "Total exports of goods and services for the June 2026 quarter were $32.5 billion, up from $28.5 billion in the June 2025 quarter.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Information releases",
+      "MenuTitle": "Information releases",
+      "Link": "/information-releases/"
+     },
+     {
+      "Title": "International trade: June 2026 quarter",
+      "MenuTitle": "International trade: June 2026 quarter",
+      "Link": "/information-releases/international-trade-june-2026-quarter/"
+     }
+    ],
+    "SiteBanner": []
+   },
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8342",
+     "Date": null,
+     "DisplayName": "Livestock slaughtering statistics: July 2026",
+     "DateFormat": "F Y",
+     "DateString": "3 September 2026",
+     "PublicationDate": "2026-09-03 10:45:00"
+    },
+    "ID": "80595",
+    "Title": "Livestock slaughtering statistics: July 2026",
+    "BackgroundColor": "white",
+    "FeaturedText": "<p>Livestock slaughtering statistics provide information about kills by region and animal type.</p>",
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/information-releases/livestock-slaughtering-statistics-july-2026/",
+    "PageDate": "2026-09-03 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "Livestock slaughtering statistics provide information about kills by region and animal type.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Information releases",
+      "MenuTitle": "Information releases",
+      "Link": "/information-releases/"
+     },
+     {
+      "Title": "Livestock slaughtering statistics: July 2026",
+      "MenuTitle": "Livestock slaughtering statistics: July 2026",
+      "Link": "/information-releases/livestock-slaughtering-statistics-july-2026/"
+     }
+    ],
+    "SiteBanner": []
+   },
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8343",
+     "Date": null,
+     "DisplayName": "Value of building work put in place: June 2026 quarter",
+     "DateFormat": "F Y",
+     "DateString": "4 September 2026",
+     "PublicationDate": "2026-09-04 10:45:00"
+    },
+    "ID": "80596",
+    "Title": "Value of building work put in place: June 2026 quarter",
+    "BackgroundColor": "white",
+    "FeaturedText": "<p>Value of building work statistics estimate the value and volume of work put in place on construction jobs in New Zealand.</p>",
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/information-releases/value-of-building-work-put-in-place-june-2026-quarter/",
+    "PageDate": "2026-09-04 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "The seasonally adjusted total building volume rose 4.8 percent in the June 2026 quarter, compared with the March 2026 quarter.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Information releases",
+      "MenuTitle": "Information releases",
+      "Link": "/information-releases/"
+     },
+     {
+      "Title": "Value of building work put in place: June 2026 quarter",
+      "MenuTitle": "Value of building work put in place: June 2026 quarter",
+      "Link": "/information-releases/value-of-building-work-put-in-place-june-2026-quarter/"
+     }
+    ],
+    "SiteBanner": []
+   }
+  ],
+  "upcoming": []
+ }
+}
