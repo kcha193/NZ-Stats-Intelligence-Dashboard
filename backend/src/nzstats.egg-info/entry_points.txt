@@ -1,0 +1,2 @@
+[console_scripts]
+nzstats = nzstats.cli:main

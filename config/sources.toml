@@ -1,0 +1,17 @@
+[stats_nz]
+base_url = "https://www.stats.govt.nz"
+calendar_ics_path = "/release-calendar/calendar-export/"
+release_month_path = "/api/v1/releaseCalendarMonth/{month}"
+release_page_path = "/information-releases/{slug}/"
+
+[polling]
+# Minutes after the scheduled publication time at which a release is polled.
+offsets_minutes = [0, 1, 2, 5, 10, 15, 30, 60, 120, 180]
+# On startup, releases published within this many days without a vintage are ingested.
+catch_up_days = 7
+
+[migration]
+country_window_months = 36
+# Oldest reference period to backfill. Conservative default (July 2024 files verified);
+# Task 1's vintage-depth spike may lower it.
+backfill_since = "2024-07"
