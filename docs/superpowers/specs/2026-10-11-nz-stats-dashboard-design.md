@@ -137,10 +137,28 @@ Phase 1 pages: Overview, Release Analysis (per release), International Migration
 Release Calendar, Data Health. Inactive categories are shown as inactive, not
 faked. Charts follow the brief's visualisation standards (informative titles,
 units, honest axes, latest-observation highlight, provisional styling, source and
-date, caveats). Design params: variance 5, motion 2, density 7. Taste skill:
-`design-taste-frontend` is not in the skill list; use `ecc:taste` /
-`frontend-design` unless Kevin points elsewhere. Accessibility, loading, empty and
-error states on every page; print stylesheet for Release Analysis.
+date, caveats). Design params: DESIGN_VARIANCE 5, MOTION_INTENSITY 2,
+VISUAL_DENSITY 7.
+
+Taste skill: Kevin's installed `design-taste-frontend`
+(github.com/leonxlnx/taste-skill), at
+`~/.agents/skills/design-taste-frontend/SKILL.md`. It is not exposed through the
+Skill tool, so it is read directly in targeted sections (it is ~87 KB; never load
+it whole). Its §13 lists dashboards, data tables and dense product UI as out of
+scope, so it is applied as follows:
+
+- Used: §0 brief inference ("Design Read" stated before frontend work), §1/§7
+  dials at the values above, §6 performance/accessibility, §8 dark mode, §9 AI
+  tells (forbidden patterns), §14 pre-flight check at each frontend review.
+- Not used: landing-page/hero/portfolio guidance (§4 hero rules, §5 motion and
+  glass effects, §10-§12).
+- Where it defers to other tools: components stay shadcn/ui (per the brief; a
+  dense, neutral system suits §2's enterprise/dashboard row); charts follow the
+  `dataviz` skill plus the visualisation standards above; data tables use
+  TanStack Table.
+
+Accessibility, loading, empty and error states on every page; print stylesheet
+for Release Analysis.
 
 ## 10. Operations
 
