@@ -102,3 +102,21 @@ def ingest_months(rt, *months: str) -> dict[str, int]:
         outcome = ingest_release(rt, ref.release_key, now_fn=lambda: NOW)
         assert outcome.outcome == "ingested", outcome.detail
     return ids
+
+
+def seed_from_fixtures(data_dir) -> None:
+    """Build a database from the real fixture files (June + July 2026 releases plus the calendar).
+
+    Used for frontend fixtures and end-to-end tests; never for production data.
+    """
+    from pathlib import Path
+
+    from nzstats.config import load_settings
+    from nzstats.pipeline.discover import discover
+    from nzstats.runtime import build_runtime
+
+    settings = load_settings({"NZSTATS_DATA_DIR": str(Path(data_dir)), "NZSTATS_BASE_URL": BASE})
+    site = FakeSite()
+    rt = build_runtime(settings, fetcher=site.fetcher())
+    ingest_months(rt, "2026-06", "2026-07")
+    discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)

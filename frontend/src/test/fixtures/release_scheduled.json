@@ -1,0 +1,18 @@
+{
+ "release": {
+  "id": 9,
+  "release_key": "international-migration:february 2027",
+  "title": "International migration: February 2027",
+  "series_slug": "international-migration",
+  "category": "Migration",
+  "importance": "high",
+  "period_label": "February 2027",
+  "published_at": "2027-04-14T10:45:00+12:00",
+  "status": "scheduled",
+  "headline": null,
+  "page_url": null,
+  "has_analysis": false
+ },
+ "analysis": null,
+ "unavailable_reason": "Scheduled for 2027-04-14 10:45 (Pacific/Auckland)."
+}

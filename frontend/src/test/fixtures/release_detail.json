@@ -1,0 +1,567 @@
+{
+ "release": {
+  "id": 2,
+  "release_key": "international-migration:july 2026",
+  "title": "International migration: July 2026",
+  "series_slug": "international-migration",
+  "category": "Migration",
+  "importance": "high",
+  "period_label": "July 2026",
+  "published_at": "2026-09-14T10:45:00+12:00",
+  "status": "published",
+  "headline": "Annual net migration had a gain of 20,300 (\u00b1 1,800) in the July 2026 year, compared with a gain of 9,600 (\u00b1 200) in the July 2025 year.",
+  "page_url": "https://www.stats.govt.nz/information-releases/international-migration-july-2026/",
+  "has_analysis": true
+ },
+ "analysis": {
+  "release": {
+   "id": 2,
+   "release_key": "international-migration:july 2026",
+   "title": "International migration: July 2026",
+   "series_slug": "international-migration",
+   "category": "Migration",
+   "importance": "high",
+   "period_label": "July 2026",
+   "published_at": "2026-09-14T10:45:00+12:00",
+   "status": "published",
+   "headline": "Annual net migration had a gain of 20,300 (\u00b1 1,800) in the July 2026 year, compared with a gain of 9,600 (\u00b1 200) in the July 2025 year.",
+   "page_url": "https://www.stats.govt.nz/information-releases/international-migration-july-2026/",
+   "has_analysis": true
+  },
+  "executive_summary": [
+   {
+    "id": "headline",
+    "kind": "observation",
+    "text": "Net migration for the year ended July 2026 was a net gain of 20,350 people (provisional), compared with a net gain of 9,592 people in the year ended July 2025.",
+    "evidence": [
+     {
+      "series_key": "mig.ry.net",
+      "period": "2026-07",
+      "value": 20350.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.net",
+      "period": "2025-07",
+      "value": 9592.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": null
+   },
+   {
+    "id": "monthly",
+    "kind": "observation",
+    "text": "In July 2026, estimated migrant arrivals were 13,893 and departures 8,722, giving a net gain of 5,170 people (provisional).",
+    "evidence": [
+     {
+      "series_key": "mig.m.arrivals",
+      "period": "2026-07",
+      "value": 13893.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.m.departures",
+      "period": "2026-07",
+      "value": 8722.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.m.net",
+      "period": "2026-07",
+      "value": 5170.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": null
+   },
+   {
+    "id": "drivers",
+    "kind": "observation",
+    "text": "Compared with the year ended July 2025, arrivals rose by 6,585 and departures fell by 4,172; the change in net migration (+10,758) is the difference between the two.",
+    "evidence": [
+     {
+      "series_key": "mig.ry.arrivals",
+      "period": "2026-07",
+      "value": 134434.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.arrivals",
+      "period": "2025-07",
+      "value": 127849.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.departures",
+      "period": "2026-07",
+      "value": 114084.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.departures",
+      "period": "2025-07",
+      "value": 118256.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.net",
+      "period": "2026-07",
+      "value": 20350.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.net",
+      "period": "2025-07",
+      "value": 9592.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": null
+   },
+   {
+    "id": "revisions",
+    "kind": "observation",
+    "text": "Compared with the International migration: June 2026 release, 15 of 306 overlapping monthly net estimates were revised; the largest was June 2026: 1,607 to 2,331 (+724).",
+    "evidence": [
+     {
+      "series_key": "mig.m.net",
+      "period": "2026-06",
+      "value": 1607.0,
+      "release_key": "international-migration:june 2026"
+     },
+     {
+      "series_key": "mig.m.net",
+      "period": "2026-06",
+      "value": 2331.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": null
+   },
+   {
+    "id": "provisional",
+    "kind": "observation",
+    "text": "Estimates from April 2025 to July 2026 are provisional and will be revised as travel outcomes become known; the latest monthly net estimate has a standard error of 545.",
+    "evidence": [
+     {
+      "series_key": "mig.m.net",
+      "period": "2025-04",
+      "value": -1222.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.m.net",
+      "period": "2026-07",
+      "value": 5170.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": null
+   }
+  ],
+  "headline_metrics": [
+   {
+    "series_key": "mig.ry.net",
+    "label": "Net migration, year ended",
+    "value": 20350.0,
+    "unit": "people",
+    "frequency": "rolling_annual",
+    "period": "2026-07",
+    "period_label": "Year ended July 2026",
+    "status": "provisional",
+    "std_error": null,
+    "change_prior": {
+     "label": "vs year ended June 2026",
+     "comparison_period": "2026-06",
+     "previous": 17480.0,
+     "absolute": 2870.0,
+     "percent": 16.418764302059497
+    },
+    "change_year_ago": {
+     "label": "vs year ended July 2025",
+     "comparison_period": "2025-07",
+     "previous": 9592.0,
+     "absolute": 10758.0,
+     "percent": 112.1559633027523
+    }
+   },
+   {
+    "series_key": "mig.m.net",
+    "label": "Net migration, month",
+    "value": 5170.0,
+    "unit": "people",
+    "frequency": "monthly",
+    "period": "2026-07",
+    "period_label": "July 2026",
+    "status": "provisional",
+    "std_error": 545.0,
+    "change_prior": {
+     "label": "vs June 2026",
+     "comparison_period": "2026-06",
+     "previous": 2331.0,
+     "absolute": 2839.0,
+     "percent": 121.79322179322179
+    },
+    "change_year_ago": {
+     "label": "vs July 2025",
+     "comparison_period": "2025-07",
+     "previous": 2301.0,
+     "absolute": 2869.0,
+     "percent": 124.68491960017383
+    }
+   },
+   {
+    "series_key": "mig.ry.arrivals",
+    "label": "Migrant arrivals, year ended",
+    "value": 134434.0,
+    "unit": "people",
+    "frequency": "rolling_annual",
+    "period": "2026-07",
+    "period_label": "Year ended July 2026",
+    "status": "provisional",
+    "std_error": null,
+    "change_prior": {
+     "label": "vs year ended June 2026",
+     "comparison_period": "2026-06",
+     "previous": 132249.0,
+     "absolute": 2185.0,
+     "percent": 1.6521864059463587
+    },
+    "change_year_ago": {
+     "label": "vs year ended July 2025",
+     "comparison_period": "2025-07",
+     "previous": 127849.0,
+     "absolute": 6585.0,
+     "percent": 5.1506073571165985
+    }
+   },
+   {
+    "series_key": "mig.ry.departures",
+    "label": "Migrant departures, year ended",
+    "value": 114084.0,
+    "unit": "people",
+    "frequency": "rolling_annual",
+    "period": "2026-07",
+    "period_label": "Year ended July 2026",
+    "status": "provisional",
+    "std_error": null,
+    "change_prior": {
+     "label": "vs year ended June 2026",
+     "comparison_period": "2026-06",
+     "previous": 114768.0,
+     "absolute": -684.0,
+     "percent": -0.5959849435382686
+    },
+    "change_year_ago": {
+     "label": "vs year ended July 2025",
+     "comparison_period": "2025-07",
+     "previous": 118256.0,
+     "absolute": -4172.0,
+     "percent": -3.527939385739413
+    }
+   },
+   {
+    "series_key": "mig.m.arrivals",
+    "label": "Migrant arrivals, month",
+    "value": 13893.0,
+    "unit": "people",
+    "frequency": "monthly",
+    "period": "2026-07",
+    "period_label": "July 2026",
+    "status": "provisional",
+    "std_error": 434.0,
+    "change_prior": {
+     "label": "vs June 2026",
+     "comparison_period": "2026-06",
+     "previous": 11231.0,
+     "absolute": 2662.0,
+     "percent": 23.702252693437806
+    },
+    "change_year_ago": {
+     "label": "vs July 2025",
+     "comparison_period": "2025-07",
+     "previous": 11707.0,
+     "absolute": 2186.0,
+     "percent": 18.67258904928675
+    }
+   },
+   {
+    "series_key": "mig.m.departures",
+    "label": "Migrant departures, month",
+    "value": 8722.0,
+    "unit": "people",
+    "frequency": "monthly",
+    "period": "2026-07",
+    "period_label": "July 2026",
+    "status": "provisional",
+    "std_error": 351.0,
+    "change_prior": {
+     "label": "vs June 2026",
+     "comparison_period": "2026-06",
+     "previous": 8900.0,
+     "absolute": -178.0,
+     "percent": -2.0
+    },
+    "change_year_ago": {
+     "label": "vs July 2025",
+     "comparison_period": "2025-07",
+     "previous": 9406.0,
+     "absolute": -684.0,
+     "percent": -7.27195407186902
+    }
+   },
+   {
+    "series_key": "mig.ry.net.nonnz",
+    "label": "Net migration, non-NZ citizens, year ended",
+    "value": 58685.0,
+    "unit": "people",
+    "frequency": "rolling_annual",
+    "period": "2026-07",
+    "period_label": "Year ended July 2026",
+    "status": "provisional",
+    "std_error": null,
+    "change_prior": {
+     "label": "vs year ended June 2026",
+     "comparison_period": "2026-06",
+     "previous": 55435.0,
+     "absolute": 3250.0,
+     "percent": 5.86272210697213
+    },
+    "change_year_ago": {
+     "label": "vs year ended July 2025",
+     "comparison_period": "2025-07",
+     "previous": 49964.0,
+     "absolute": 8721.0,
+     "percent": 17.45456728844768
+    }
+   },
+   {
+    "series_key": "mig.ry.net.nz",
+    "label": "Net migration, NZ citizens, year ended",
+    "value": -38335.0,
+    "unit": "people",
+    "frequency": "rolling_annual",
+    "period": "2026-07",
+    "period_label": "Year ended July 2026",
+    "status": "provisional",
+    "std_error": null,
+    "change_prior": {
+     "label": "vs year ended June 2026",
+     "comparison_period": "2026-06",
+     "previous": -37955.0,
+     "absolute": -380.0,
+     "percent": null
+    },
+    "change_year_ago": {
+     "label": "vs year ended July 2025",
+     "comparison_period": "2025-07",
+     "previous": -40372.0,
+     "absolute": 2037.0,
+     "percent": null
+    }
+   }
+  ],
+  "context": [
+   {
+    "id": "history",
+    "kind": "observation",
+    "text": "The year ended July 2026 net figure ranks #143 highest of 296 year-ended observations since December 2001.",
+    "evidence": [
+     {
+      "series_key": "mig.ry.net",
+      "period": "2026-07",
+      "value": 20350.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": "Rank describes position within the published series only; it does not indicate economic significance."
+   },
+   {
+    "id": "citizenship",
+    "kind": "observation",
+    "text": "By citizenship, net migration of non-NZ citizens was a net gain of 58,685 people and of NZ citizens a net loss of 38,335 people (year ended July 2026).",
+    "evidence": [
+     {
+      "series_key": "mig.ry.net.nonnz",
+      "period": "2026-07",
+      "value": 58685.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.net.nz",
+      "period": "2026-07",
+      "value": -38335.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": null
+   }
+  ],
+  "previous_comparison": {
+   "available": true,
+   "note": "Change since the previous release is split into the revision of the previous reference period and the movement to the new reference period.",
+   "previous_release_title": "International migration: June 2026",
+   "decompositions": [
+    {
+     "label": "Net migration, year ended",
+     "series_key": "mig.ry.net",
+     "previous_release_title": "International migration: June 2026",
+     "previous_period": "2026-06",
+     "previous_published_value": 17624.0,
+     "same_period_now": 17480.0,
+     "new_period": "2026-07",
+     "new_value": 20350.0,
+     "revision_component": -144.0,
+     "new_period_component": 2870.0,
+     "total_change": 2726.0
+    },
+    {
+     "label": "Net migration, month",
+     "series_key": "mig.m.net",
+     "previous_release_title": "International migration: June 2026",
+     "previous_period": "2026-06",
+     "previous_published_value": 1607.0,
+     "same_period_now": 2331.0,
+     "new_period": "2026-07",
+     "new_value": 5170.0,
+     "revision_component": 724.0,
+     "new_period_component": 2839.0,
+     "total_change": 3563.0
+    }
+   ]
+  },
+  "revisions": {
+   "available": true,
+   "note": "Compared with the International migration: June 2026 release.",
+   "series_key": "mig.m.net",
+   "against_title": "International migration: June 2026",
+   "n_common": 306,
+   "n_revised": 15,
+   "mean_abs": 157.06666666666666,
+   "largest": [
+    {
+     "period": "2026-06",
+     "original": 1607.0,
+     "revised": 2331.0,
+     "absolute": 724.0,
+     "percent": 45.05289359054138,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    },
+    {
+     "period": "2026-05",
+     "original": -33.0,
+     "revised": -507.0,
+     "absolute": -474.0,
+     "percent": null,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    },
+    {
+     "period": "2026-02",
+     "original": 4364.0,
+     "revised": 4148.0,
+     "absolute": -216.0,
+     "percent": -4.949587534372136,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    },
+    {
+     "period": "2026-03",
+     "original": 1298.0,
+     "revised": 1090.0,
+     "absolute": -208.0,
+     "percent": -16.024653312788907,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    },
+    {
+     "period": "2026-04",
+     "original": -99.0,
+     "revised": 44.0,
+     "absolute": 143.0,
+     "percent": null,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    },
+    {
+     "period": "2025-09",
+     "original": 2502.0,
+     "revised": 2611.0,
+     "absolute": 109.0,
+     "percent": 4.356514788169465,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    },
+    {
+     "period": "2025-07",
+     "original": 2400.0,
+     "revised": 2301.0,
+     "absolute": -99.0,
+     "percent": -4.125,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    },
+    {
+     "period": "2026-01",
+     "original": 1630.0,
+     "revised": 1534.0,
+     "absolute": -96.0,
+     "percent": -5.889570552147239,
+     "original_status": "provisional",
+     "revised_status": "provisional"
+    }
+   ]
+  },
+  "interpretation": [
+   {
+    "id": "driver-share",
+    "kind": "observation",
+    "text": "Arrivals account for 61% of the combined movement in arrivals and departures behind the year-on-year change in net migration.",
+    "evidence": [
+     {
+      "series_key": "mig.ry.arrivals",
+      "period": "2026-07",
+      "value": 134434.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.departures",
+      "period": "2026-07",
+      "value": 114084.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": null
+   },
+   {
+    "id": "streak",
+    "kind": "inference",
+    "text": "The year-ended net figure has risen for 5 consecutive months. Adjacent year-ended values share eleven of twelve months, so this persistence is partly mechanical and is not by itself evidence of a sustained shift or of its cause.",
+    "evidence": [
+     {
+      "series_key": "mig.ry.net",
+      "period": "2026-07",
+      "value": 20350.0,
+      "release_key": "international-migration:july 2026"
+     }
+    ],
+    "caveat": "Inference from the published series; the data do not identify causes."
+   }
+  ],
+  "methodology": {
+   "definitions": [
+    "Long-term migrant movements under Stats NZ's outcomes-based measure (a traveller is counted as a migrant if they spend 12 of the following 16 months in, or out of, New Zealand). Mean estimates, in people. Estimates for the most recent months are provisional and are revised as travel outcomes become known.",
+    "Monthly figures are mean estimates; year-ended figures are Stats NZ's published rolling twelve-month totals. The two are different series and are never combined."
+   ],
+   "notes": [
+    "Figures are the unrounded values in Stats NZ's published data files; the release headline text may state rounded figures.",
+    "Final estimates are reported with a standard error of zero in the source files."
+   ],
+   "source_url": "https://www.stats.govt.nz/information-releases/international-migration-july-2026/"
+  },
+  "vintage_captured_at": "2026-10-11T16:00:00+13:00"
+ },
+ "unavailable_reason": null
+}
