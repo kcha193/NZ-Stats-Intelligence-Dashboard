@@ -171,3 +171,63 @@ def test_inference_is_labelled_and_hedged(both) -> None:
     banned = ("because of", "caused by", "due to", "driven by policy", "as a result of")
     for insight in [*a.executive_summary, *a.context, *a.interpretation]:
         assert not any(b in insight.text.lower() for b in banned), insight.text
+
+
+# --- regression from the final review: a release without the year-ended citizenship chart -----------
+
+
+def _drop_citizenship_vintages(rt, release_id) -> None:
+    """What the store holds after a release (e.g. Sept 2025) published no citizenship chart."""
+    ids = [
+        r[0]
+        for r in rt.conn.execute(
+            "SELECT v.id FROM vintage v JOIN series s ON s.id = v.series_id"
+            " WHERE v.release_id = ? AND s.key IN ('mig.ry.net.nz', 'mig.ry.net.nonnz')",
+            (release_id,),
+        )
+    ]
+    assert ids, "fixture should contain citizenship vintages to remove"
+    for vid in ids:
+        rt.conn.execute("DELETE FROM observation WHERE vintage_id = ?", (vid,))
+        rt.conn.execute("DELETE FROM vintage WHERE id = ?", (vid,))
+    rt.conn.commit()
+
+
+def test_release_without_citizenship_chart_still_has_an_analysis(both) -> None:
+    rt, ids = both
+    _drop_citizenship_vintages(rt, ids["2026-07"])
+    analysis = _analysis(rt, ids["2026-07"])
+    assert analysis is not None
+    keys = [m.series_key for m in analysis.headline_metrics]
+    assert "mig.ry.net" in keys and "mig.ry.net.nz" not in keys and "mig.ry.net.nonnz" not in keys
+    assert "citizenship" not in [i.id for i in analysis.context]
+
+
+def test_overview_still_shows_kpis_for_a_release_without_citizenship_chart(both) -> None:
+    from nzstats.insights.overview import build_overview
+
+    rt, ids = both
+    _drop_citizenship_vintages(rt, ids["2026-07"])
+    overview = build_overview(rt.conn, analysable_slugs=SLUGS, now=NOW)
+    assert overview.kpis and overview.featured is not None
+
+
+def test_unavailable_reason_never_calls_a_successful_ingest_the_reason(both) -> None:
+    from nzstats.api.routes import _unavailable_reason
+    from nzstats.models import ReleaseSummary  # noqa: F401  (type only)
+
+    rt, ids = both
+    # Required series missing for the release: ingest succeeded but no analysis can be built.
+    vid = rt.conn.execute(
+        "SELECT v.id FROM vintage v JOIN series s ON s.id = v.series_id"
+        " WHERE v.release_id = ? AND s.key = 'mig.m.net'",
+        (ids["2026-07"],),
+    ).fetchone()[0]
+    rt.conn.execute("DELETE FROM observation WHERE vintage_id = ?", (vid,))
+    rt.conn.execute("DELETE FROM vintage WHERE id = ?", (vid,))
+    rt.conn.commit()
+    row = repo.get_release_by_id(rt.conn, ids["2026-07"])
+    summary = None  # only used for scheduled/delayed wording
+    reason = _unavailable_reason(rt.conn, row, summary, SLUGS)
+    assert "ingestion attempt ingested" not in reason.lower()
+    assert "stored data" in reason.lower()

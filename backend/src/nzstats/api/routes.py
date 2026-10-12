@@ -112,6 +112,11 @@ def _unavailable_reason(conn, row, summary: ReleaseSummary, analysable: set[str]
     ).fetchone()
     if run is None:
         return "Published, awaiting ingestion."
+    if run["outcome"] in ("ingested", "unchanged") and not run["error_class"]:
+        return (
+            "The release was ingested, but the analysis could not be built from the stored data "
+            "(a required series is missing for this release)."
+        )
     extra = f": {run['error_class']}: {run['detail']}" if run["error_class"] else ""
     return f"Last ingestion attempt {run['outcome']}{extra}."
 

@@ -37,9 +37,10 @@ NEEDED = (
     "mig.ry.arrivals",
     "mig.ry.departures",
     "mig.ry.net",
-    "mig.ry.net.nz",
-    "mig.ry.net.nonnz",
 )
+# Year-ended citizenship series come from a chart Stats NZ omitted from some releases (e.g. September
+# 2025); a release without them is analysed without the citizenship insight and metrics.
+OPTIONAL = ("mig.ry.net.nz", "mig.ry.net.nonnz")
 METRICS = (
     ("mig.ry.net", "Net migration, year ended"),
     ("mig.m.net", "Net migration, month"),
@@ -91,9 +92,11 @@ def _load(
     conn: sqlite3.Connection, pick: Callable[[str], repo.VintageInfo | None]
 ) -> dict[str, _S] | None:
     out: dict[str, _S] = {}
-    for key in NEEDED:
+    for key in (*NEEDED, *OPTIONAL):
         vintage, series = pick(key), repo.get_series_row(conn, key)
         if vintage is None or series is None:
+            if key in OPTIONAL:
+                continue
             return None
         out[key] = _S(
             key,
@@ -169,7 +172,7 @@ def build_release_analysis(
 
     ry_net, ry_arr, ry_dep = cur["mig.ry.net"], cur["mig.ry.arrivals"], cur["mig.ry.departures"]
     m_net, m_arr, m_dep = cur["mig.m.net"], cur["mig.m.arrivals"], cur["mig.m.departures"]
-    nz, nonnz = cur["mig.ry.net.nz"], cur["mig.ry.net.nonnz"]
+    nz, nonnz = cur.get("mig.ry.net.nz"), cur.get("mig.ry.net.nonnz")
     ye = ry_net.latest
 
     # ---- executive summary (observations)
@@ -275,18 +278,19 @@ def build_release_analysis(
                 caveat=RANK_CAVEAT,
             )
         )
-    context.append(
-        Insight(
-            id="citizenship",
-            kind="observation",
-            text=(
-                f"By citizenship, net migration of non-NZ citizens was "
-                f"{fmt_net(nonnz.obs[nonnz.latest].value)} and of NZ citizens "
-                f"{fmt_net(nz.obs[nz.latest].value)} ({nonnz.label(nonnz.latest)})."
-            ),
-            evidence=[nonnz.evidence(nonnz.latest), nz.evidence(nz.latest)],
+    if nz is not None and nonnz is not None:
+        context.append(
+            Insight(
+                id="citizenship",
+                kind="observation",
+                text=(
+                    f"By citizenship, net migration of non-NZ citizens was "
+                    f"{fmt_net(nonnz.obs[nonnz.latest].value)} and of NZ citizens "
+                    f"{fmt_net(nz.obs[nz.latest].value)} ({nonnz.label(nonnz.latest)})."
+                ),
+                evidence=[nonnz.evidence(nonnz.latest), nz.evidence(nz.latest)],
+            )
         )
-    )
 
     # ---- interpretation (arithmetic observation + one hedged inference)
     interpretation: list[Insight] = []
@@ -338,7 +342,7 @@ def build_release_analysis(
     return ReleaseAnalysis(
         release=summary,
         executive_summary=summary_items,
-        headline_metrics=[_metric(cur[k], label) for k, label in METRICS],
+        headline_metrics=[_metric(cur[k], label) for k, label in METRICS if k in cur],
         context=context,
         previous_comparison=prev_cmp,
         revisions=rev_block,
