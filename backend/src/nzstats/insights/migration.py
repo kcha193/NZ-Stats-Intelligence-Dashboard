@@ -158,6 +158,26 @@ def _streak(values: dict[str, float]) -> tuple[int, str]:
     return count, direction
 
 
+def driver_share_text(d_arr: float, d_dep: float) -> str | None:
+    """Who drove the year-on-year change in net migration, from the signed arrivals/departures changes.
+
+    Net = arrivals - departures, so arrivals rising and departures rising (or both falling) pull net
+    in opposite directions. Their shares of a "combined movement" would then credit the larger side
+    for a net change that is only the difference between the two, so no share is stated. When the
+    two do not move the same way, |change in net| = |change in arrivals| + |change in departures|
+    and the shares are exact.
+    """
+    if d_arr * d_dep > 0 or d_arr == d_dep == 0:
+        return None
+    arr_part, dep_part = abs(d_arr), abs(d_dep)
+    lead, share = ("Arrivals", arr_part) if arr_part >= dep_part else ("Departures", dep_part)
+    return (
+        f"{lead} account for {share / (arr_part + dep_part):.0%} of the year-on-year change in net "
+        f"migration; arrivals and departures did not move in the same direction, so neither "
+        f"offsets the other."
+    )
+
+
 def build_release_analysis(
     conn: sqlite3.Connection, release_id: int, *, analysable_slugs: Collection[str]
 ) -> ReleaseAnalysis | None:
@@ -294,18 +314,13 @@ def build_release_analysis(
 
     # ---- interpretation (arithmetic observation + one hedged inference)
     interpretation: list[Insight] = []
-    if ch_arr and ch_dep and (abs(ch_arr.absolute) + abs(ch_dep.absolute)) > 0:
-        arr_part, dep_part = abs(ch_arr.absolute), abs(ch_dep.absolute)
-        lead, share = ("Arrivals", arr_part) if arr_part >= dep_part else ("Departures", dep_part)
+    share_text = driver_share_text(ch_arr.absolute, ch_dep.absolute) if ch_arr and ch_dep else None
+    if share_text:
         interpretation.append(
             Insight(
                 id="driver-share",
                 kind="observation",
-                text=(
-                    f"{lead} account for {share / (arr_part + dep_part):.0%} of the combined "
-                    f"movement in arrivals and departures behind the year-on-year change in net "
-                    f"migration."
-                ),
+                text=share_text,
                 evidence=[ry_arr.evidence(ye), ry_dep.evidence(ye)],
             )
         )

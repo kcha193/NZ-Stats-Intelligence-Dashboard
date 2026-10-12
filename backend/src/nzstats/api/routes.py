@@ -232,6 +232,19 @@ def series_data(
     )
 
 
+# Spreadsheets skip leading whitespace, control and invisible characters before reading a formula, so
+# the guard checks the first significant character. Mirrors `toCsv` in frontend/src/lib/csv.ts.
+_LEADING_NOISE = re.compile(r"^[\s\x00-\x1f\x7f\xa0​-‏  ﻿]*")
+
+
+def _csv_text(value: str) -> str:
+    """Prefix text that a spreadsheet would run as a formula (upstream titles are not trusted)."""
+    significant = _LEADING_NOISE.sub("", value, count=1)[:1]
+    if value[:1] in ("\t", "\r", "\n") or (significant and significant in "=+-@"):
+        return "'" + value
+    return value
+
+
 @router.get("/series/{key}/csv")
 def series_csv(
     key: str,
@@ -264,18 +277,18 @@ def series_csv(
     for o in obs:
         writer.writerow(
             [
-                key,
-                row["name"],
-                row["unit"],
-                row["frequency"],
-                o.period,
+                _csv_text(key),
+                _csv_text(row["name"]),
+                _csv_text(row["unit"]),
+                _csv_text(row["frequency"]),
+                _csv_text(o.period),
                 o.value,
                 o.status.value,
                 "" if o.std_error is None else o.std_error,
-                o.released_in or "",
-                v.title,
+                _csv_text(o.released_in or ""),
+                _csv_text(v.title),
                 to_akl_iso(v.published_at),
-                source,
+                _csv_text(source),
             ]
         )
     return Response(

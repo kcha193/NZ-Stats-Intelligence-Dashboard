@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
-from nzstats.insights.migration import build_release_analysis
+from nzstats.insights.migration import build_release_analysis, driver_share_text
 from nzstats.sources.calendar import events_to_refs, parse_ics
 from nzstats.sources.release_page import parse_release_page
 from nzstats.store import repo
@@ -231,3 +231,33 @@ def test_unavailable_reason_never_calls_a_successful_ingest_the_reason(both) -> 
     reason = _unavailable_reason(rt.conn, row, summary, SLUGS)
     assert "ingestion attempt ingested" not in reason.lower()
     assert "stored data" in reason.lower()
+
+
+# --- driver-share statement keeps the signs (review #4246208518) --------------------------------
+
+
+@pytest.mark.parametrize(("d_arr", "d_dep"), [(100, 90), (-100, -90), (1, 1000)])
+def test_no_driver_share_when_arrivals_and_departures_move_the_same_way(d_arr, d_dep) -> None:
+    """Net = arrivals - departures, so same-direction moves offset: a share of 'combined movement'
+    (100 up, 90 down in net terms) would credit 53% to arrivals for a 10-person net change."""
+    assert driver_share_text(d_arr, d_dep) is None
+
+
+def test_driver_share_for_opposite_moves_is_a_share_of_the_net_change() -> None:
+    text = driver_share_text(6585, -4172)  # the real July 2026 year-on-year changes
+    assert text is not None and text.startswith(
+        "Arrivals account for 61% of the year-on-year change"
+    )
+    assert "combined movement" not in text
+    assert driver_share_text(-300, 100).startswith("Arrivals account for 75%")
+    assert driver_share_text(50, -150).startswith("Departures account for 75%")
+
+
+@pytest.mark.parametrize(("d_arr", "d_dep", "lead"), [(0, -50, "Departures"), (50, 0, "Arrivals")])
+def test_driver_share_when_only_one_side_moved(d_arr, d_dep, lead) -> None:
+    text = driver_share_text(d_arr, d_dep)
+    assert text is not None and text.startswith(f"{lead} account for 100%")
+
+
+def test_no_driver_share_when_nothing_moved() -> None:
+    assert driver_share_text(0, 0) is None

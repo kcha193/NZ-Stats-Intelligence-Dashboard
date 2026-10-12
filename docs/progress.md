@@ -28,7 +28,7 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **256 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **270 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 | Frontend tests | `cd frontend && npm test` | **12 files, 61 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
@@ -128,6 +128,19 @@ Three further findings, each validated and fixed with a test that failed first:
    Not changed: two processes migrating a brand-new database at the same instant still race (the loser fails and retries on
    its next start); this predates the review.
 
+## Codex review round 3 (PR #1, commit 9b82eb4)
+
+Two findings, both on the deferred-minor list from the whole-branch review, validated and fixed with tests that failed first:
+
+1. Driver-share wording ignored signs (#4246208518). Net is arrivals minus departures, so same-direction moves offset and a
+   share of their "combined movement" credited the larger side for a net change that is only the difference. The
+   statement is now made only when arrivals and departures do not move the same way (then |change in net| is exactly the
+   sum of the two and the share is exact) and says so. The real July 2026 release (arrivals up, departures down) keeps its
+   61%. Frontend fixture regenerated: one sentence changed.
+2. The backend series CSV wrote upstream text unguarded (#4246208524). All text cells, including the upstream release title,
+   now get the same leading-quote guard as the frontend export (`'` before a first significant `= + - @`, or a leading
+   tab/CR/LF, after skipping whitespace and invisible characters). Numeric cells are untouched.
+
 ## Remaining work
 
 Before merging or calling Phase 1 shipped:
@@ -142,10 +155,8 @@ Deferred Minor findings (small, none blocks use):
 - Reprocessing: parser fixes are not applied to stored releases whose files and charts are unchanged
   (add `nzstats ingest --reparse`); nothing re-checks a release after it has data, so `corrected` only follows a manual re-ingest.
 - Discovery aborts on non-`IngestError` failures.
-- API: `/api/releases` loads all rows before paging; the series CSV does not
-  neutralise formulas; the vintage kind is missing from `ReleaseAnalysis` and `CountriesOut`.
-- Analysis: the driver-share wording can overstate arrivals when both arrivals and departures move the same way; the
-  citizenship chart title omits its period.
+- API: `/api/releases` loads all rows before paging; the vintage kind is missing from `ReleaseAnalysis` and `CountriesOut`.
+- Analysis: the citizenship chart title omits its period.
 - Frontend: revision and chart data tables need `overflow-x-auto`; `/releases/abc` renders blank; the calendar month grid has
   no grid keyboard behaviour, no explanation for months outside the fetch window, and incomplete status and importance filters;
   TanStack Table is installed but unused.

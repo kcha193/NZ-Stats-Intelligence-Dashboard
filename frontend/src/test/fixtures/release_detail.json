@@ -518,7 +518,7 @@
    {
     "id": "driver-share",
     "kind": "observation",
-    "text": "Arrivals account for 61% of the combined movement in arrivals and departures behind the year-on-year change in net migration.",
+    "text": "Arrivals account for 61% of the year-on-year change in net migration; arrivals and departures did not move in the same direction, so neither offsets the other.",
     "evidence": [
      {
       "series_key": "mig.ry.arrivals",

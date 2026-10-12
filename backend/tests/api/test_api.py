@@ -186,3 +186,22 @@ def test_overview(client) -> None:
 def test_openapi_builds(client) -> None:
     paths = client.get("/openapi.json").json()["paths"]
     assert "/api/overview" in paths and "/api/series/{key}/csv" in paths
+
+
+# --- the CSV export neutralises formulas (review #4246208524) -----------------------------------
+
+FORMULAS = ['=HYPERLINK("http://evil.example","x")', "+1+1", "-2+3", "@SUM(1)", " =1+1", "\t=1+1"]
+
+
+@pytest.mark.parametrize("title", FORMULAS)
+def test_series_csv_neutralises_formula_like_text_from_upstream(client, rt, title) -> None:
+    rt.conn.execute("UPDATE release SET title = ? WHERE id = ?", (title, client.ids["2026-07"]))
+    resp = client.get("/api/series/mig.m.net/csv")
+    rows = list(csv.DictReader(io.StringIO(resp.text)))
+    assert rows and {r["release"] for r in rows} == {"'" + title}
+
+
+def test_series_csv_leaves_ordinary_text_and_numbers_alone(client) -> None:
+    rows = list(csv.DictReader(io.StringIO(client.get("/api/series/mig.m.net/csv").text)))
+    assert rows[0]["release"].startswith("International migration")
+    assert not any(c.startswith("'") for r in rows for c in r.values())
