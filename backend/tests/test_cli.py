@@ -19,3 +19,37 @@ def test_health_prints_json(tmp_path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
     assert main(["health"]) == 0
     assert '"sources"' in capsys.readouterr().out
+
+
+def test_serve_accepts_no_scheduler_flag(tmp_path, monkeypatch) -> None:
+    import uvicorn
+
+    import nzstats.api.app as app_module
+
+    captured: dict[str, bool] = {}
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(
+        app_module,
+        "create_app",
+        lambda settings, start_scheduler: captured.setdefault("s", start_scheduler),
+    )
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    assert main(["serve", "--no-scheduler", "--port", "9"]) == 0
+    assert captured["s"] is False
+
+
+def test_serve_starts_the_scheduler_by_default(tmp_path, monkeypatch) -> None:
+    import uvicorn
+
+    import nzstats.api.app as app_module
+
+    captured: dict[str, bool] = {}
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(
+        app_module,
+        "create_app",
+        lambda settings, start_scheduler: captured.setdefault("s", start_scheduler),
+    )
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    assert main(["serve", "--port", "9"]) == 0
+    assert captured["s"] is True

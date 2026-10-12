@@ -45,6 +45,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_serve = sub.add_parser("serve", help="run the API, UI and scheduler")
     p_serve.add_argument("--host", default="0.0.0.0")  # noqa: S104 - container default
     p_serve.add_argument("--port", type=int, default=8000)
+    p_serve.add_argument(
+        "--no-scheduler", action="store_true", help="serve the API and UI without background jobs"
+    )
     sub.add_parser("health", help="print source health as JSON")
     p_backup = sub.add_parser("backup", help="write a consistent copy of the database")
     p_backup.add_argument("dest")
@@ -79,7 +82,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         from nzstats.api.app import create_app
 
-        uvicorn.run(create_app(settings, start_scheduler=True), host=args.host, port=args.port)
+        uvicorn.run(
+            create_app(settings, start_scheduler=not args.no_scheduler),
+            host=args.host,
+            port=args.port,
+        )
         return 0
 
     rt = build_runtime(settings)
