@@ -87,9 +87,12 @@ def test_unknown_status_is_layout_changed() -> None:
     assert e.value.error_class is ErrorClass.LAYOUT_CHANGED
 
 
-def test_duplicate_period_is_layout_changed() -> None:
+def test_conflicting_duplicate_period_is_layout_changed() -> None:
     def fn(d):
-        total = d[(d.sex == "TOTAL") & (d.age == "TOTAL") & (d.direction == "Net")].head(1)
+        total = d[(d.sex == "TOTAL") & (d.age == "TOTAL") & (d.direction == "Net")].head(1).copy()
+        total["estimate"] = (
+            total["estimate"] + 1
+        )  # same period, different value: cannot be collapsed
         return pd.concat([d, total])
 
     with pytest.raises(IngestError) as e:
@@ -176,3 +179,32 @@ def test_rolling_status_follows_monthly_provisional_window(age_sex, page) -> Non
     assert out["2025-04"] is ObsStatus.PROVISIONAL  # includes provisional 2025-04
     assert out["2026-07"] is ObsStatus.PROVISIONAL
     assert out["2001-12"] is ObsStatus.FINAL
+
+
+# --- regressions found by the real-site integration check (June 2024 release file) -------------
+
+
+def test_exact_duplicate_rows_are_collapsed_not_summed() -> None:
+    """Stats NZ's June 2024 file repeats some identical aggregate rows 2 or 3 times.
+
+    The repeated value equals the official chart value (Sep 2022 arrivals: 12,561), so collapsing is
+    right and summing would triple it.
+    """
+    series = {
+        p.definition.key: p
+        for p in parse_age_sex_csv(fixture_bytes("im_2024-06_age_sex_duplicate_rows_excerpt.csv"))
+    }
+    arrivals = {o.period: o.value for o in series["mig.m.arrivals"].observations}
+    assert arrivals["2022-09"] == 12561
+    assert arrivals["2022-08"] == 10198
+    periods = [o.period for o in series["mig.m.arrivals"].observations]
+    assert len(periods) == len(set(periods))
+
+
+def test_conflicting_duplicate_periods_are_still_rejected() -> None:
+    header = "year_month,month_of_release,passenger_type,direction,sex,age,estimate,standard_error,status\n"
+    row = "2022-09,2024-01,Long-term migrant,Arrivals,TOTAL,TOTAL,{},0,Final\n"
+    data = (header + row.format(12561) + row.format(99999)).encode()
+    with pytest.raises(IngestError) as e:
+        parse_age_sex_csv(data)
+    assert e.value.error_class is ErrorClass.LAYOUT_CHANGED

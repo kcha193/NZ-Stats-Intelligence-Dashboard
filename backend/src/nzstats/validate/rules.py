@@ -27,14 +27,11 @@ MIN_HISTORY_MONTHS = 12
 
 MONTHLY = ("mig.m.arrivals", "mig.m.departures", "mig.m.net")
 ROLLING = ("mig.ry.arrivals", "mig.ry.departures", "mig.ry.net")
-REQUIRED = (
-    *MONTHLY,
-    *ROLLING,
-    "mig.ry.net.nz",
-    "mig.ry.net.nonnz",
-    "mig.m.arrivals.nz",
-    "mig.m.arrivals.nonnz",
-)
+REQUIRED = (*MONTHLY, *ROLLING, "mig.m.arrivals.nz", "mig.m.arrivals.nonnz")
+# Year-ended citizenship series come from a chart Stats NZ did not publish with every release (it is
+# absent from the September 2025 page), so their absence is a warning and the series simply gets no
+# vintage from that release.
+OPTIONAL_ROLLING_CITIZENSHIP = ("mig.ry.net.nz", "mig.ry.net.nonnz")
 
 
 def validate_migration(
@@ -57,6 +54,15 @@ def validate_migration(
             error("empty_series", f"required series has no observations: {key}")
     if findings:
         return findings
+    for key in OPTIONAL_ROLLING_CITIZENSHIP:
+        if key not in by_key:
+            findings.append(
+                Finding(
+                    "optional_series",
+                    "warning",
+                    f"year-ended citizenship series {key} not published in this release",
+                )
+            )
 
     for ps in bundle.series:
         bad = [o.period for o in ps.observations if not math.isfinite(o.value)]

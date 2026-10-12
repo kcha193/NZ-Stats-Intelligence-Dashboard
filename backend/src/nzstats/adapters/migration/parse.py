@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import datetime
@@ -11,7 +12,10 @@ import pandas as pd
 from nzstats.adapters.base import ParsedSeries
 from nzstats.adapters.migration import series as S
 from nzstats.domain import ErrorClass, IngestError, Observation, ObsStatus, SeriesDef
+from nzstats.sources.release_page import Chart
 from nzstats.stats.periods import add_months
+
+log = logging.getLogger(__name__)
 
 REGIONS = frozenset(
     {"Asia", "Europe", "The Americas", "Africa and the Middle East", "Oceania and Antarctica"}
@@ -68,7 +72,12 @@ def _read(data: bytes, columns: Sequence[str], name: str) -> pd.DataFrame:
 
 
 def _observations(key: str, frame: pd.DataFrame) -> tuple[Observation, ...]:
-    frame = frame.sort_values("year_month")
+    # Some Stats NZ files (e.g. June 2024) repeat an identical row two or three times; the repeated value
+    # equals the official figure, so exact copies are collapsed. Rows that disagree stay an error below.
+    deduped = frame.drop_duplicates()
+    if len(deduped) < len(frame):
+        log.warning("%s: collapsed %d exact duplicate source rows", key, len(frame) - len(deduped))
+    frame = deduped.sort_values("year_month")
     if not frame["year_month"].is_unique:
         raise _layout(f"{key}: duplicate periods in source")
     return tuple(
@@ -133,6 +142,22 @@ def parse_citizenship_country_csv(data: bytes, *, country_window: int = 36) -> l
         seen[definition.key] = str(name)
         out.append(ParsedSeries(definition, _observations(definition.key, group)))
     return out
+
+
+def find_rolling_chart(charts: Sequence[Chart], labels: Mapping[str, SeriesDef]) -> Chart | None:
+    """The year-ended chart whose rows include every label in `labels`.
+
+    Editors retitle these charts from release to release (stray spaces, abbreviations, a footnote
+    typed into the title field), so the title is not used: the "Year ended" header plus the series
+    row labels identify a chart reliably.
+    """
+    for chart in charts:
+        rows = list(csv.reader(io.StringIO(chart.csv.lstrip("\ufeff"))))
+        if not rows or rows[0][0].strip() != "Year ended":
+            continue
+        if set(labels) <= {row[0].strip() for row in rows[1:] if row}:
+            return chart
+    return None
 
 
 def _chart_period(header: str) -> str:

@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from nzstats.adapters.base import Finding, ParsedBundle, ParsedSeries
 from nzstats.adapters.migration import series as S
 from nzstats.adapters.migration.parse import (
+    find_rolling_chart,
     parse_age_sex_csv,
     parse_citizenship_country_csv,
     parse_wide_chart,
@@ -35,15 +36,17 @@ class MigrationAdapter:
             raise IngestError(ErrorClass.LAYOUT_CHANGED, "age/sex csv has no Net series")
         status = {o.period: o.status for o in net.observations}
         rolling: list[ParsedSeries] = []
-        for prefix, labels in (
-            (S.ROLLING_DIRECTION_CHART, S.G1_LABELS),
-            (S.ROLLING_CITIZENSHIP_CHART, S.G3_LABELS),
-        ):
-            chart = page.chart_starting_with(prefix)
+        # (labels, required): Stats NZ omitted the citizenship chart from the September 2025 page, so
+        # only the direction chart is mandatory; a missing citizenship chart becomes a warning.
+        for labels, required in ((S.G1_LABELS, True), (S.G3_LABELS, False)):
+            chart = find_rolling_chart(page.charts, labels)
             if chart is None:
-                raise IngestError(
-                    ErrorClass.LAYOUT_CHANGED, f"release page has no chart {prefix!r}"
-                )
+                if required:
+                    raise IngestError(
+                        ErrorClass.LAYOUT_CHANGED,
+                        f"release page has no year-ended chart with series {sorted(labels)}",
+                    )
+                continue
             rolling += [with_rolling_status(p, status) for p in parse_wide_chart(chart.csv, labels)]
         return ParsedBundle(LAYOUT_VERSION, tuple(monthly + places + rolling))
 

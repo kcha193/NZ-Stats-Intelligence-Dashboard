@@ -89,5 +89,3 @@ G3_LABELS = {
     "Net migration (NZ citizens)": rolling_def("net", "nz"),
     "Net migration (non-NZ citizens)": rolling_def("net", "nonnz"),
 }
-ROLLING_DIRECTION_CHART = "Estimated migration by direction, rolling year"
-ROLLING_CITIZENSHIP_CHART = "Estimated migration by citizenship, rolling year"
