@@ -155,3 +155,19 @@ def test_two_fetchers_sharing_a_pacer_respect_the_interval_together(tmp_path) ->
     b.get("http://h.test/b")
     assert wall.sleeps == [7.0], "B must wait out the rest of the 10 s window set by A"
     assert wall.t - started_b >= 10.0
+
+
+# --- regression from the final review: stored/served error text must not carry raw exception text ---
+
+
+def test_network_error_detail_names_the_failure_class_not_the_exception_text(caplog) -> None:
+    def boom(request):
+        raise httpx.ConnectError("[Errno -3] name resolution failed for internal-host-10.0.0.5")
+
+    ft = FakeTime()
+    f = _fetcher(boom, ft, min_interval=10.0, max_retries=1)
+    with pytest.raises(IngestError) as e:
+        f.get("http://h.test/a")
+    assert e.value.error_class is ErrorClass.NETWORK
+    assert "10.0.0.5" not in str(e.value) and "ConnectError" in str(e.value)
+    assert "10.0.0.5" in caplog.text  # the operator still gets the full text in the server log

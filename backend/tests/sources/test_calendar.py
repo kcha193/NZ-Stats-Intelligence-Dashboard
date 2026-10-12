@@ -188,3 +188,43 @@ def test_fetch_release_month_formats_path() -> None:
         _fetcher(handler), BASE, "/api/v1/releaseCalendarMonth/{month}", "2026-09"
     )
     assert seen == [f"{BASE}/api/v1/releaseCalendarMonth/2026-09"] and refs
+
+
+def test_malformed_month_entry_error_does_not_echo_upstream_text(caplog) -> None:
+    payload = {
+        "items": {
+            "published": [
+                {
+                    "DateTaxonomyTerm": {
+                        "DisplayName": "X: July 2026",
+                        "PublicationDate": "UPSTREAM-SECRET",
+                    },
+                    "PageLink": "/information-releases/x/",
+                }
+            ]
+        }
+    }
+    with pytest.raises(IngestError) as e:
+        parse_release_month(payload, "https://www.stats.govt.nz")
+    assert e.value.error_class is ErrorClass.LAYOUT_CHANGED
+    assert "UPSTREAM-SECRET" not in str(e.value) and "ValueError" in str(e.value)
+    assert "UPSTREAM-SECRET" in caplog.text
+
+
+def test_page_link_rejection_does_not_echo_the_link() -> None:
+    payload = {
+        "items": {
+            "published": [
+                {
+                    "DateTaxonomyTerm": {
+                        "DisplayName": "X: July 2026",
+                        "PublicationDate": "2026-07-14T10:45:00",
+                    },
+                    "PageLink": "@evil.example/x",
+                }
+            ]
+        }
+    }
+    with pytest.raises(IngestError) as e:
+        parse_release_month(payload, "https://www.stats.govt.nz")
+    assert "evil.example" not in str(e.value)

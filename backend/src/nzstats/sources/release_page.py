@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
 
 from nzstats.clock import parse_akl_naive
 from nzstats.domain import ErrorClass, IngestError
+
+log = logging.getLogger(__name__)
 
 _DATA_VALUE = re.compile(r'data-value="([^"]+)"')
 _ASSET = re.compile(r"/assets/Uploads/[^\"\\\s]+?\.(?:csv|xlsx)")
@@ -69,7 +72,10 @@ def parse_release_page(html_text: str, base_url: str) -> ReleasePage:
             download_urls=tuple(base_url + u for u in urls),
         )
     except (KeyError, TypeError, ValueError) as exc:
-        raise IngestError(ErrorClass.LAYOUT_CHANGED, f"release page malformed: {exc!r}") from exc
+        log.warning("release page malformed: %r", exc)
+        raise IngestError(
+            ErrorClass.LAYOUT_CHANGED, f"release page malformed ({type(exc).__name__})"
+        ) from exc
 
 
 def classify_download(url: str) -> str | None:

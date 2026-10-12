@@ -68,7 +68,10 @@ def _read(data: bytes, columns: Sequence[str], name: str) -> pd.DataFrame:
             dtype={"year_month": str, "month_of_release": str},
         )
     except (ValueError, pd.errors.ParserError, UnicodeDecodeError) as exc:
-        raise _layout(f"{name}: unreadable or missing expected columns ({exc})") from exc
+        log.warning("%s: unreadable or missing expected columns: %r", name, exc)
+        raise _layout(
+            f"{name}: unreadable or missing expected columns ({type(exc).__name__})"
+        ) from exc
 
 
 def _observations(key: str, frame: pd.DataFrame) -> tuple[Observation, ...]:

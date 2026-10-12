@@ -127,8 +127,9 @@ class Fetcher:
                     resp, transport_error = None, exc
                 self._last_request = self._clock()
             if transport_error is not None or resp is None:
-                last_problem = f"transport error: {transport_error}"
-                log.warning("fetch %s failed (%s), attempt %d", url, last_problem, attempt + 1)
+                # Only the exception type goes into the stored/served detail; the text may name hosts.
+                last_problem = f"transport error ({type(transport_error).__name__})"
+                log.warning("fetch %s failed: %r (attempt %d)", url, transport_error, attempt + 1)
                 self._backoff(attempt)
                 continue
             status = resp.status_code

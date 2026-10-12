@@ -163,8 +163,9 @@ def parse_release_month(payload: Mapping, base_url: str) -> list[ReleaseRef]:
                 )
             )
     except (KeyError, TypeError, ValueError) as exc:
+        log.warning("release month entry malformed: %r", exc)
         raise IngestError(
-            ErrorClass.LAYOUT_CHANGED, f"release month entry malformed: {exc!r}"
+            ErrorClass.LAYOUT_CHANGED, f"release month entry malformed ({type(exc).__name__})"
         ) from exc
     return refs
 

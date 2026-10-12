@@ -208,3 +208,11 @@ def test_conflicting_duplicate_periods_are_still_rejected() -> None:
     with pytest.raises(IngestError) as e:
         parse_age_sex_csv(data)
     assert e.value.error_class is ErrorClass.LAYOUT_CHANGED
+
+
+def test_unreadable_csv_error_does_not_echo_parser_text(caplog) -> None:
+    bad = b"year_month,estimate\n2026-01,UPSTREAM-SECRET-\x00\xff"
+    with pytest.raises(IngestError) as e:
+        parse_age_sex_csv(bad)
+    assert e.value.error_class is ErrorClass.LAYOUT_CHANGED
+    assert "UPSTREAM-SECRET" not in str(e.value)
