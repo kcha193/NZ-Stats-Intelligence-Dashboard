@@ -95,3 +95,36 @@ def test_catch_up_window(rt) -> None:
     assert old != recent
     assert releases_needing_ingest(rt.conn, rt.adapters, PUB, 7) == [recent]
     assert releases_needing_ingest(rt.conn, rt.adapters, PUB, 60) == [old, recent]
+
+
+# --- regressions from the final review ----------------------------------------------------------
+
+
+def _failed(conn, key, at, error_class) -> None:
+    repo.record_ingest_run(conn, key, at, at, "failed", error_class, None)
+
+
+@pytest.mark.parametrize(
+    "error_class", ["blocked", "network", "layout_changed", "validation_failed"]
+)
+def test_a_release_is_not_marked_unavailable_when_attempts_failed_for_other_reasons(
+    rt, error_class
+) -> None:
+    """'Stats NZ files were not available' needs evidence: every attempt must have been a 404."""
+    key = _seed(rt.conn)
+    for i, minute in enumerate(OFFSETS):
+        if i == 3:
+            _failed(rt.conn, key, PUB + timedelta(minutes=minute), error_class)
+        else:
+            _run(rt.conn, key, PUB + timedelta(minutes=minute))
+    later = PUB + timedelta(minutes=181)
+    assert mark_unavailable(rt.conn, rt.adapters, later, OFFSETS) == []
+    assert repo.get_release(rt.conn, key)["status"] == "scheduled"
+
+
+def test_polling_backs_off_after_a_blocked_response(rt) -> None:
+    key = _seed(rt.conn)
+    _failed(rt.conn, key, PUB, "blocked")
+    assert poll_candidates(rt.conn, rt.adapters, PUB + timedelta(minutes=1), OFFSETS) == []
+    assert poll_candidates(rt.conn, rt.adapters, PUB + timedelta(minutes=10), OFFSETS) == []
+    assert poll_candidates(rt.conn, rt.adapters, PUB + timedelta(minutes=30), OFFSETS) == [key]

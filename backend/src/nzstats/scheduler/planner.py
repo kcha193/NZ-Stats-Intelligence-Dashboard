@@ -26,6 +26,29 @@ def _attempts(conn: sqlite3.Connection, release_key: str, published_at_utc: str)
     ).fetchone()[0]
 
 
+BLOCKED_COOLDOWN = timedelta(minutes=30)
+
+
+def _last_run(
+    conn: sqlite3.Connection, release_key: str, published_at_utc: str
+) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT started_at, error_class FROM ingest_run WHERE release_key = ? AND started_at >= ?"
+        " ORDER BY started_at DESC, id DESC LIMIT 1",
+        (release_key, published_at_utc),
+    ).fetchone()
+
+
+def _only_not_found(conn: sqlite3.Connection, release_key: str, published_at_utc: str) -> bool:
+    """True when every attempt so far found the files simply not published yet (HTTP 404)."""
+    other = conn.execute(
+        "SELECT COUNT(*) FROM ingest_run WHERE release_key = ? AND started_at >= ?"
+        " AND outcome != 'not_available'",
+        (release_key, published_at_utc),
+    ).fetchone()[0]
+    return other == 0
+
+
 def _unvintaged(
     conn: sqlite3.Connection,
     adapters: Mapping[str, object],
@@ -63,16 +86,25 @@ def poll_candidates(
     rows = _unvintaged(
         conn, adapters, statuses, to_utc_iso(now - _window(offsets_minutes)), to_utc_iso(now)
     )
-    return [
-        r["release_key"]
-        for r in rows
-        if next_poll_due(
+    due = []
+    for r in rows:
+        if not next_poll_due(
             from_utc_iso(r["published_at"]),
             _attempts(conn, r["release_key"], r["published_at"]),
             now,
             offsets_minutes,
-        )
-    ]
+        ):
+            continue
+        last = _last_run(conn, r["release_key"], r["published_at"])
+        # A block page means we are being challenged: do not retry within minutes.
+        if (
+            last is not None
+            and last["error_class"] == "blocked"
+            and now < from_utc_iso(last["started_at"]) + BLOCKED_COOLDOWN
+        ):
+            continue
+        due.append(r["release_key"])
+    return due
 
 
 def mark_unavailable(
@@ -81,12 +113,16 @@ def mark_unavailable(
     now: datetime,
     offsets_minutes: Sequence[int],
 ) -> list[str]:
-    """Scheduled/delayed releases whose polling budget is spent without any data become unavailable."""
+    """Scheduled/delayed releases whose polling budget is spent become unavailable, but only when
+    every attempt found the files not yet published. Blocks, network errors or parser/validation
+    failures are not evidence that Stats NZ has not published, so those releases stay as they are."""
     statuses = (ReleaseStatus.SCHEDULED.value, ReleaseStatus.DELAYED.value)
     rows = _unvintaged(conn, adapters, statuses, "0000", to_utc_iso(now))
     marked = []
     for r in rows:
-        if _attempts(conn, r["release_key"], r["published_at"]) >= len(offsets_minutes):
+        if _attempts(conn, r["release_key"], r["published_at"]) >= len(
+            offsets_minutes
+        ) and _only_not_found(conn, r["release_key"], r["published_at"]):
             repo.set_release_status(conn, r["release_key"], ReleaseStatus.UNAVAILABLE, now)
             marked.append(r["release_key"])
     return marked
