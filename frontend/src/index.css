@@ -170,3 +170,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+@page { margin: 14mm; }
+
+@media print {
+  header[role="banner"], nav, .print\:hidden { display: none !important; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+  details > * { display: block; }
+  details { break-inside: avoid; }
+  section, figure, table { break-inside: avoid; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; word-break: break-all; }
+  main { max-width: none; padding: 0; }
+}

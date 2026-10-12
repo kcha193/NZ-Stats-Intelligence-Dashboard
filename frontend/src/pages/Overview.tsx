@@ -68,7 +68,7 @@ export default function Overview() {
               <TrendOverview />
               <section aria-label="Upcoming releases" className="rounded-md border p-4">
                 <h2 className="text-base font-semibold">Upcoming releases</h2>
-                <ul className="mt-1 divide-y">{d.upcoming.map((r) => <ReleaseRow key={r.id} release={r} />)}</ul>
+                <ul className="mt-1 divide-y">{d.upcoming.slice(0, 6).map((r) => <ReleaseRow key={r.id} release={r} />)}</ul>
                 <Link className="mt-2 inline-block text-sm underline underline-offset-2" to="/calendar">Full release calendar</Link>
               </section>
             </div>
