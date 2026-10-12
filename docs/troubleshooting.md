@@ -41,9 +41,10 @@ re-process a release whose files were already stored. Workaround: stop the serve
 `sqlite3 data/nzstats.db`, then run the ingest command above. A proper `--reparse` option is listed as
 remaining work in [progress.md](progress.md).
 
-**"database is locked".** Only one process should write. Make sure a second container or a manual `nzstats`
-command is not running against the same `data/` while the server is up; use `docker compose exec` so commands
-share the container, or stop the server first.
+**"database is locked".** SQLite allows one writer at a time. Running `docker compose exec nzstats nzstats
+discover` beside the server is supported: network requests from every process sharing `data/` are serialised and
+kept at least 10 s apart through a lock file (`data/.request-pace`), and a writer waits for the other. Avoid
+pointing a second container at the same `data/` directory.
 
 **Wrong times.** Timestamps are stored in UTC and shown in Pacific/Auckland. The container sets
 `TZ=Pacific/Auckland`; if times are off by hours, check that `TZ` was not overridden in `.env`.

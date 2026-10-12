@@ -16,5 +16,6 @@ services:
         required: false
     volumes:
       - ./data:/data
+    # ./data must be writable by this user: `mkdir -p data && sudo chown 10001:10001 data` (see README).
     # On a Synology NAS set NZSTATS_UID/NZSTATS_GID in .env to the owner of ./data (see `id`).
     user: "${NZSTATS_UID:-10001}:${NZSTATS_GID:-10001}"

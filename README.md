@@ -19,12 +19,13 @@ Requires Docker with Compose v2.
 
 ```sh
 cp .env.example .env          # then set NZSTATS_CONTACT (see below)
+mkdir -p data && sudo chown 10001:10001 data   # Linux/Synology: the container user must own ./data
 docker compose up -d --build
 docker compose exec nzstats nzstats discover   # refresh the release calendar
 docker compose exec nzstats nzstats backfill   # ingest historical releases (slow, see below)
 ```
 
-Open http://localhost:8000.
+Open http://localhost:8000. (On Docker Desktop for Mac or Windows the `chown` is not needed.) If the container restarts in a loop, check `docker compose logs nzstats` for a permission error on `/data`.
 
 - `NZSTATS_CONTACT` is appended to the User-Agent so Stats NZ can reach the operator. Use an address you
   are happy to share with them; leave it blank to send no contact detail.
@@ -97,6 +98,7 @@ serves the built app; it never contacts stats.govt.nz.
 
 - Only International migration is active. Other categories appear on the Overview as "not yet active"
   until a verified, maintainable source is wired in.
+- Reprocessing: ingest decides "unchanged" from the downloaded CSVs' hashes only, so a parser fix is not applied to releases already stored, and a correction made only to a release page's charts is not detected. Re-ingest after deleting that release's vintages (see troubleshooting). Nothing re-checks a release once it has data, so `corrected` appears only after a manual re-ingest or backfill.
 - Revision history only covers releases captured since the oldest backfilled vintage. Stats NZ's older
   migration files (before 2024-06) are missing or use a different layout for many months; see
   [docs/data-sources/migration-vintage-depth.md](docs/data-sources/migration-vintage-depth.md). The UI

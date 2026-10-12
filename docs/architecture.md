@@ -24,7 +24,7 @@ frontend only calls the API. Types flow from Pydantic models to `frontend/src/ap
    `release` table: key (`<series slug>:<month year>`), title, scheduled or published time, page URL,
    category and importance (editorial, from `catalog.py`).
 2. **Fetch**: the release page embeds JSON listing its downloads. Files are fetched through `Fetcher`
-   (descriptive User-Agent, at least 10 s between requests, retries with backoff for network and 5xx,
+   (descriptive User-Agent, at least 10 s between requests even across processes, retries with backoff for network and 5xx,
    block-page detection) and stored content-addressed in `raw_artifact` and `data/raw/`.
 3. **Parse and validate**: the migration adapter parses the age/sex and citizenship/visa/country CSVs and the
    embedded chart series into observations. `validate/` checks required series, period continuity, that the
@@ -45,7 +45,7 @@ frontend only calls the API. Types flow from Pydantic models to `frontend/src/ap
 | `raw_artifact` | downloaded files: URL, SHA-256, fetch time, HTTP status, content type, size and path under `data/raw/` |
 | `series` | series definitions: key, unit, frequency, adjustment, definition |
 | `vintage` | one per (release, series) bundle: capture time, source kind (`release_files` or `snapshot`), parser layout version, bundle hash |
-| `observation` | (vintage, period) values with status `provisional/final/unknown`, standard error and the release the figure first appeared in (`released_in`) |
+| `observation` | (vintage, period) values with status `provisional/final/unknown`, standard error and the release whose file last published the figure (`released_in`, from the file's `month_of_release`) |
 | `ingest_run` | every attempt: outcome, error class, detail (no raw exception text) |
 | `source_health` | per source: last checked, last success, state and detail |
 
@@ -58,7 +58,8 @@ In-process APScheduler in Pacific/Auckland: calendar refresh daily 06:00; a per-
 touches the network only when a release is due, polling at offsets after the scheduled time
 (`config/sources.toml`: 0, 1, 2, 5, 10, 15, 30, 60, 120, 180 minutes) and then marking the release
 `unavailable`; a catch-up job daily 07:30; and a refresh plus catch-up shortly after start. A process-wide
-lock serialises network work. `nzstats serve --no-scheduler` disables all of it.
+lock serialises network work inside the server, and a `flock` file (`data/.request-pace`, `FilePacer`) keeps
+requests at least 10 s apart across processes, so a CLI run beside the server cannot break the crawl delay. `nzstats serve --no-scheduler` disables all of it.
 
 ## Failure handling
 
