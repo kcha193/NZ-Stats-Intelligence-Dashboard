@@ -207,3 +207,15 @@ def test_backfill_ingests_releases_from_reference_period_in_order(rt, site) -> N
     outcomes = backfill(rt, since="2026-06", until="2026-09", now_fn=lambda: NOW)
     assert [o.outcome for o in outcomes] == ["ingested", "ingested"]
     assert [o.release_key.split(":")[1] for o in outcomes] == ["june 2026", "july 2026"]
+
+
+def test_a_concurrent_duplicate_ingest_does_not_mark_the_release_corrected(rt, monkeypatch) -> None:
+    """Two processes both pass the pre-check; the loser must not flip `published` to `corrected`."""
+    import nzstats.pipeline.ingest as ingest_module
+
+    (july,) = _seed(rt, "2026-07")
+    assert _ingest(rt, july).outcome == "ingested"
+    monkeypatch.setattr(ingest_module.repo, "has_vintage", lambda *a, **k: False)  # stale pre-check
+    out = _ingest(rt, july)
+    assert out.outcome == "unchanged"
+    assert repo.get_release(rt.conn, july)["status"] == "published"

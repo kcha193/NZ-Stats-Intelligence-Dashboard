@@ -11,7 +11,7 @@ from nzstats.adapters.base import Adapter
 from nzstats.adapters.migration.adapter import MigrationAdapter
 from nzstats.config import Settings
 from nzstats.sources.artifacts import ArtifactStore
-from nzstats.sources.fetcher import Fetcher, build_client
+from nzstats.sources.fetcher import Fetcher, FilePacer, build_client
 from nzstats.store.db import connect, migrate
 
 
@@ -34,7 +34,9 @@ def build_runtime(settings: Settings, *, fetcher: Fetcher | None = None) -> Runt
     conn = connect(settings.db_path)
     migrate(conn)
     fetcher = fetcher or Fetcher(
-        build_client(settings.user_agent), min_interval=settings.min_interval_seconds
+        build_client(settings.user_agent),
+        min_interval=settings.min_interval_seconds,
+        pacer=FilePacer(settings.data_dir / ".request-pace", settings.min_interval_seconds),
     )
     return Runtime(
         settings, conn, fetcher, ArtifactStore(settings.raw_dir), build_adapters(settings)

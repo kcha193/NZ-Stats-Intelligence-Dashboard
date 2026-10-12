@@ -127,8 +127,11 @@ def _ingest(
         )
 
     now = now_fn()
-    corrected = repo.has_any_vintage(rt.conn, release_id)
+    created = 0
     with transaction(rt.conn):
+        # Evaluated inside the write transaction: a second process may have committed this same
+        # release between the pre-check above and here.
+        had_vintages = repo.has_any_vintage(rt.conn, release_id)
         for ps in bundle.series:
             series_id = repo.upsert_series(rt.conn, ps.definition)
             vintage_id = repo.create_vintage(
@@ -142,10 +145,17 @@ def _ingest(
             )
             if vintage_id is not None:
                 repo.insert_observations(rt.conn, vintage_id, ps.observations)
-        repo.set_release_headline(rt.conn, key, page.headline, page_url)
-        repo.set_release_status(
-            rt.conn, key, ReleaseStatus.CORRECTED if corrected else ReleaseStatus.PUBLISHED, now
-        )
+                created += 1
+        if created:
+            repo.set_release_headline(rt.conn, key, page.headline, page_url)
+            repo.set_release_status(
+                rt.conn,
+                key,
+                ReleaseStatus.CORRECTED if had_vintages else ReleaseStatus.PUBLISHED,
+                now,
+            )
+    if not created:
+        return IngestOutcome(key, "unchanged")
     return IngestOutcome(
         key, "ingested", warnings=tuple(f.message for f in findings if f.severity == "warning")
     )

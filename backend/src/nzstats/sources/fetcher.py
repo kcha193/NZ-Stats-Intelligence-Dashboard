@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import httpx
 
@@ -36,6 +39,53 @@ def build_client(user_agent: str) -> httpx.Client:
     )
 
 
+class FilePacer:
+    """Keeps requests at least `min_interval` apart across *processes* sharing one data directory.
+
+    The server's scheduler and a `nzstats discover` run via `docker compose exec` are separate
+    processes with separate in-memory throttles. This holds an exclusive `flock` for the duration of
+    each request and records the wall-clock time the last one finished, so the crawl delay holds for
+    the two together. POSIX only (the supported targets are Linux, Synology and macOS).
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        min_interval: float,
+        *,
+        sleep: Callable[[float], None] = time.sleep,
+        wall: Callable[[], float] = time.time,
+    ) -> None:
+        self._path = Path(path)
+        self._min_interval = min_interval
+        self._sleep = sleep
+        self._wall = wall
+
+    @contextmanager
+    def turn(self) -> Iterator[None]:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with self._path.open("a+") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            try:
+                fh.seek(0)
+                try:
+                    last = float(fh.read().strip() or "nan")
+                except ValueError:
+                    last = float("nan")
+                wait = self._min_interval - (self._wall() - last)
+                if wait > 0:  # nan compares False, so a missing or corrupt file never waits
+                    self._sleep(wait)
+                try:
+                    yield
+                finally:
+                    fh.seek(0)
+                    fh.truncate()
+                    fh.write(repr(self._wall()))
+                    fh.flush()
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 class Fetcher:
     def __init__(
         self,
@@ -47,6 +97,7 @@ class Fetcher:
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = utc_now,
+        pacer: FilePacer | None = None,
     ) -> None:
         self._client = client
         self._min_interval = min_interval
@@ -55,6 +106,7 @@ class Fetcher:
         self._sleep = sleep
         self._clock = clock
         self._now = now
+        self._pacer = pacer
         self._last_request: float | None = None
 
     def _throttle(self) -> None:
@@ -66,16 +118,19 @@ class Fetcher:
     def get(self, url: str, *, expect: tuple[str, ...] = ()) -> FetchResult:
         last_problem = "no response"
         for attempt in range(self._max_retries + 1):
-            self._throttle()
-            try:
-                resp = self._client.get(url)
-            except httpx.TransportError as exc:
+            with self._pacer.turn() if self._pacer else nullcontext():
+                self._throttle()
+                try:
+                    resp = self._client.get(url)
+                    transport_error = None
+                except httpx.TransportError as exc:
+                    resp, transport_error = None, exc
                 self._last_request = self._clock()
-                last_problem = f"transport error: {exc}"
+            if transport_error is not None or resp is None:
+                last_problem = f"transport error: {transport_error}"
                 log.warning("fetch %s failed (%s), attempt %d", url, last_problem, attempt + 1)
                 self._backoff(attempt)
                 continue
-            self._last_request = self._clock()
             status = resp.status_code
             if status == 404:
                 raise IngestError(ErrorClass.NOT_FOUND, f"404 for {url}", url=url)

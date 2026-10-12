@@ -129,3 +129,29 @@ def test_expected_type_passes_and_returns_body() -> None:
     )
     res = f.get("http://h.test/a.csv", expect=("text/csv",))
     assert res.body == b"a,b\n1,2\n" and res.content_type.startswith("text/csv")
+
+
+# --- regression from the final review: the CLI and the server are separate processes ----------------
+
+
+def test_two_fetchers_sharing_a_pacer_respect_the_interval_together(tmp_path) -> None:
+    """`docker compose exec nzstats nzstats discover` runs beside the server's scheduler."""
+    from nzstats.sources.fetcher import FilePacer
+
+    wall = FakeTime()  # shared wall clock; sleeping advances it for everyone
+    path = tmp_path / ".request-pace"
+    pacer_a = FilePacer(path, 10.0, sleep=wall.sleep, wall=wall.clock)
+    pacer_b = FilePacer(path, 10.0, sleep=wall.sleep, wall=wall.clock)
+    # Each fetcher has its own private (monotonic) clock, as separate processes would.
+    a = _fetcher(
+        lambda r: httpx.Response(200, text="x"), FakeTime(), min_interval=10.0, pacer=pacer_a
+    )
+    b = _fetcher(
+        lambda r: httpx.Response(200, text="x"), FakeTime(), min_interval=10.0, pacer=pacer_b
+    )
+    a.get("http://h.test/a")
+    started_b = wall.t
+    wall.t += 3.0  # process B asks 3 s after A finished
+    b.get("http://h.test/b")
+    assert wall.sleeps == [7.0], "B must wait out the rest of the 10 s window set by A"
+    assert wall.t - started_b >= 10.0
