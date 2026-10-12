@@ -13,4 +13,15 @@ describe("toCsv", () => {
   it("returns an empty string for no rows", () => {
     expect(toCsv([])).toBe("");
   });
+
+  it("neutralises spreadsheet formulas in text cells but leaves numbers alone", () => {
+    const csv = toCsv([{ name: "=HYPERLINK(\"http://x\")", b: "+1", c: "@SUM(A1)", d: "-cmd", n: -38335, ok: "2026-07" }]);
+    const row = csv.split("\n")[1];
+    expect(row).toContain("'=HYPERLINK");
+    expect(row).toContain("'+1");
+    expect(row).toContain("'@SUM(A1)");
+    expect(row).toContain("'-cmd");
+    expect(row).toContain(",-38335,");
+    expect(row.endsWith(",2026-07")).toBe(true);
+  });
 });

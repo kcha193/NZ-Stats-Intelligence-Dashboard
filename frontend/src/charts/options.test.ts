@@ -140,3 +140,19 @@ describe("sliceYears", () => {
     expect(sliceYears(all, null)).toHaveLength(3);
   });
 });
+
+describe("tooltips escape upstream text", () => {
+  it("does not let a series or country name inject markup", () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    const line = lineOption(
+      { series: [{ name: evil, points: pts([["2026-01", 1]]), color: "#111" }], unit: "people", frequency: "monthly" },
+      TEST_THEME,
+    ) as Opt;
+    const html: string = line.tooltip.formatter([{ axisValue: "2026-01", seriesName: evil, value: 1, marker: "●" }]);
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img");
+    const bar = rankedBarOption({ items: [{ name: evil, value: 3, provisional: false }], unit: "people" }, TEST_THEME) as Opt;
+    const tip: string = bar.tooltip.formatter({ name: evil, value: 3, data: { provisional: false } });
+    expect(tip).not.toContain("<img");
+  });
+});

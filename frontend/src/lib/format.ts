@@ -52,3 +52,13 @@ export function formatAklDateTime(iso: string): string {
   const p = auckland(iso);
   return `${formatAklDate(iso)}, ${p.hour}:${p.minute} ${p.timeZoneName}`;
 }
+
+/** Escape text for the HTML strings ECharts tooltips render. */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

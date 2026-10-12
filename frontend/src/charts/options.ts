@@ -1,5 +1,5 @@
 import type { EChartsCoreOption } from "echarts/core";
-import { formatNumber, monthLabel, periodLabel } from "@/lib/format";
+import { escapeHtml, formatNumber, monthLabel, periodLabel } from "@/lib/format";
 import type { ChartTheme } from "./theme";
 
 export type Frequency = "monthly" | "rolling_annual";
@@ -28,7 +28,7 @@ function tooltip(series: LineSeriesInput[], unit: string, frequency: Frequency) 
         .map((p) => {
           const pt = series.find((s) => s.name === p.seriesName)?.points.find((x) => x.period === period);
           const flag = pt?.status === "provisional" ? " (provisional)" : "";
-          return `${p.marker} ${p.seriesName}: <b>${formatNumber(Number(p.value))}</b> ${unit}${flag}`;
+          return `${p.marker} ${escapeHtml(p.seriesName)}: <b>${formatNumber(Number(p.value))}</b> ${unit}${flag}`;
         });
       return `<div>${periodLabel(period, frequency)}</div>${rows.join("<br/>")}`;
     },
@@ -149,7 +149,7 @@ export function stackedPanelsOption(
         const rows = params.filter((p) => p.value !== null).map((p) => {
           const monthlyPoint = monthly.get(period);
           const flag = p.seriesName.startsWith("Monthly") && monthlyPoint?.status === "provisional" ? " (provisional)" : "";
-          return `${p.marker} ${p.seriesName}: <b>${formatNumber(Number(p.value))}</b> ${input.unit}${flag}`;
+          return `${p.marker} ${escapeHtml(p.seriesName)}: <b>${formatNumber(Number(p.value))}</b> ${input.unit}${flag}`;
         });
         return `<div>${monthLabel(period)}</div>${rows.join("<br/>")}`;
       },
@@ -188,7 +188,7 @@ export function rankedBarOption(
     tooltip: {
       trigger: "item",
       formatter: (p: { name: string; value: number; data: { provisional: boolean } }) =>
-        `${p.name}: <b>${formatNumber(p.value)}</b> ${input.unit}${p.data.provisional ? " (includes provisional months)" : ""}`,
+        `${escapeHtml(p.name)}: <b>${formatNumber(p.value)}</b> ${input.unit}${p.data.provisional ? " (includes provisional months)" : ""}`,
     },
     xAxis: { type: "value", min: 0, axisLabel: { color: theme.muted, formatter: axisNumber }, splitLine: { lineStyle: { color: theme.grid } } },
     yAxis: { type: "category", inverse: true, data: items.map((i) => i.name), axisLabel: { color: theme.text }, axisLine: { lineStyle: { color: theme.muted } } },

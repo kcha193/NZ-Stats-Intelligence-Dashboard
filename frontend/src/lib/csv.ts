@@ -3,7 +3,8 @@ export function toCsv(rows: Record<string, string | number | null>[]): string {
   const columns = Object.keys(rows[0]);
   const cell = (v: string | number | null): string => {
     if (v === null || v === undefined) return "";
-    const s = String(v);
+    // Text that a spreadsheet would run as a formula is prefixed with ' (numbers are never prefixed).
+    const s = typeof v === "string" && /^[=+\-@\t\r]/.test(v) ? `'${v}` : String(v);
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [columns.join(",")];
