@@ -24,4 +24,15 @@ describe("toCsv", () => {
     expect(row).toContain(",-38335,");
     expect(row.endsWith(",2026-07")).toBe(true);
   });
+
+  it("also neutralises formulas hidden behind leading whitespace, line breaks or invisible characters", () => {
+    const hostile = [" =1+1", "\n=1+1", "\r\n@SUM(A1)", "\u00a0+1", "\u200b=1+1", "\ufeff-2+3", "\t=1"];
+    for (const v of hostile) {
+      const out = toCsv([{ a: v }]).split("\n").slice(1).join("\n");
+      // the first significant character of the stored cell must be the neutralising apostrophe
+      const cell = out.replace(/^"/, "").replace(/\n$/, "");
+      expect(cell.startsWith("'"), JSON.stringify(v)).toBe(true);
+    }
+    expect(toCsv([{ a: "Total = 5" }])).toBe("a\nTotal = 5\n");
+  });
 });
