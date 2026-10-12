@@ -10,6 +10,8 @@ import { formatAklDate, formatAklDateTime, monthLabel } from "@/lib/format";
 
 const ALL = "all";
 const dayKey = (iso: string) => iso.slice(0, 10);
+/** A delayed release is a scheduled one whose date moved later, so both are still to come. */
+const isUpcoming = (status: string) => status === "scheduled" || status === "delayed";
 const shiftMonth = (month: string, by: number) => {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1 + by, 1));
@@ -19,8 +21,8 @@ const shiftMonth = (month: string, by: number) => {
 /** Upcoming days first (soonest first), then published days (most recent first). */
 function orderDays(grouped: Map<string, ReleaseSummary[]>): [string, ReleaseSummary[]][] {
   const days = [...grouped];
-  const upcoming = days.filter(([, rs]) => rs.some((r) => r.status === "scheduled")).sort(([a], [b]) => a.localeCompare(b));
-  const past = days.filter(([, rs]) => !rs.some((r) => r.status === "scheduled")).sort(([a], [b]) => b.localeCompare(a));
+  const upcoming = days.filter(([, rs]) => rs.some((r) => isUpcoming(r.status))).sort(([a], [b]) => a.localeCompare(b));
+  const past = days.filter(([, rs]) => !rs.some((r) => isUpcoming(r.status))).sort(([a], [b]) => b.localeCompare(a));
   return [...upcoming, ...past];
 }
 
@@ -88,7 +90,7 @@ export default function Calendar() {
           const items = d.items.filter((i) =>
             (category === ALL || i.category === category) &&
             (importance === ALL || i.importance === importance) &&
-            (status === ALL || i.status === status));
+            (status === ALL || (status === "scheduled" ? isUpcoming(i.status) : i.status === status)));
           const month = params.get("month") ?? (items[0] ?? d.items[0])?.published_at.slice(0, 7) ?? "";
           const grouped = new Map<string, ReleaseSummary[]>();
           for (const r of items) grouped.set(dayKey(r.published_at), [...(grouped.get(dayKey(r.published_at)) ?? []), r]);

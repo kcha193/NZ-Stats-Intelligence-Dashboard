@@ -1,5 +1,7 @@
+import html
 import io
 import json
+import re
 
 import pandas as pd
 
@@ -10,7 +12,7 @@ from nzstats.sources.calendar import events_to_refs, parse_ics
 from nzstats.stats.revision import revisions
 from nzstats.store import repo
 from tests.conftest import FIXTURES, fixture_bytes, fixture_text
-from tests.support import NOW, release_ref_for
+from tests.support import NOW, page_url, release_ref_for
 
 
 def _seed(rt, *months) -> list[str]:
@@ -218,4 +220,113 @@ def test_a_concurrent_duplicate_ingest_does_not_mark_the_release_corrected(rt, m
     monkeypatch.setattr(ingest_module.repo, "has_vintage", lambda *a, **k: False)  # stale pre-check
     out = _ingest(rt, july)
     assert out.outcome == "unchanged"
+    assert repo.get_release(rt.conn, july)["status"] == "published"
+
+
+# --- page-derived charts take part in "unchanged" detection (review #4245952768) ---------------
+
+_DATA_VALUE = re.compile(r'data-value="([^"]+)"')
+_CITIZENSHIP_CHART = "Estimated migration by citizenship, rolling year ended"
+_DIRECTION_CHART = "Estimated migration by direction, rolling year ended"
+
+
+def _edit_page(site, month: str, edit) -> None:
+    """Rewrite the release page's embedded JSON object (as served by the fake site)."""
+    url = page_url(month)
+    status, body, ctype = site.routes[url]
+    text = body.decode("utf-8")
+    for match in _DATA_VALUE.finditer(text):
+        raw = html.unescape(match.group(1))
+        if raw.startswith("{") and "PageBlocks" in raw:
+            obj = json.loads(raw)
+            edit(obj)
+            replaced = f'data-value="{html.escape(json.dumps(obj), quote=True)}"'
+            site.override(
+                url,
+                status,
+                (text[: match.start()] + replaced + text[match.end() :]).encode(),
+                ctype,
+            )
+            return
+    raise AssertionError("fixture page has no embedded data object")
+
+
+def _chart_series(obj, title_prefix: str):
+    return next(
+        s
+        for b in obj["PageBlocks"]
+        if b.get("ClassName") == "GraphTableBlock"
+        for s in b["SeriesData"]
+        if (s.get("Title") or "").startswith(title_prefix)
+    )
+
+
+def _drop_chart(title_prefix: str):
+    def edit(obj) -> None:
+        for b in obj["PageBlocks"]:
+            if b.get("ClassName") == "GraphTableBlock":
+                b["SeriesData"] = [
+                    s
+                    for s in b["SeriesData"]
+                    if not (s.get("Title") or "").startswith(title_prefix)
+                ]
+
+    return edit
+
+
+def _bump_net_rolling(obj) -> None:
+    series = _chart_series(obj, _DIRECTION_CHART)
+    lines = series["GraphCsvData"].splitlines()
+    row = next(i for i, ln in enumerate(lines) if ln.startswith('"Net migration"'))
+    cells = lines[row].split(",")
+    cells[1] = str(
+        int(cells[1]) + 7
+    )  # earliest year-ended point; keeps every validation rule happy
+    lines[row] = ",".join(cells)
+    series["GraphCsvData"] = "\n".join(lines)
+
+
+def test_corrected_embedded_chart_with_identical_files_adds_a_vintage(rt, site) -> None:
+    (july,) = _seed(rt, "2026-07")
+    assert _ingest(rt, july).outcome == "ingested"
+    first = repo.latest_points(rt.conn, "mig.ry.net")
+    _edit_page(site, "2026-07", _bump_net_rolling)
+    out = _ingest(rt, july)
+    assert out.outcome == "ingested", out.detail
+    assert repo.get_release(rt.conn, july)["status"] == ReleaseStatus.CORRECTED.value
+    vintages = repo.list_vintages(rt.conn, "mig.ry.net")
+    assert len(vintages) == 2
+    second = repo.vintage_points(rt.conn, vintages[1].vintage_id)
+    assert repo.vintage_points(rt.conn, vintages[0].vintage_id) == first
+    changed = {p for p in second if second[p].value != first[p].value}
+    assert changed and len(changed) == 1
+    assert _ingest(rt, july).outcome == "unchanged"  # the corrected page is itself stable
+
+
+def test_optional_chart_published_later_is_picked_up_without_file_changes(rt, site) -> None:
+    (july,) = _seed(rt, "2026-07")
+    full_page = site.routes[page_url("2026-07")]
+    _edit_page(site, "2026-07", _drop_chart(_CITIZENSHIP_CHART))
+    out = _ingest(rt, july)
+    assert out.outcome == "ingested", out.detail
+    assert not repo.latest_points(rt.conn, "mig.ry.arrivals.nz")
+    site.routes[page_url("2026-07")] = full_page  # Stats NZ adds the citizenship chart back
+    out = _ingest(rt, july)
+    assert out.outcome == "ingested", out.detail
+    assert repo.latest_points(rt.conn, "mig.ry.arrivals.nz")
+    # The newly available series has exactly one vintage, not one per re-ingest.
+    assert len(repo.list_vintages(rt.conn, "mig.ry.arrivals.nz")) == 1
+
+
+def test_volatile_page_markup_outside_the_charts_does_not_create_a_vintage(rt, site) -> None:
+    (july,) = _seed(rt, "2026-07")
+    assert _ingest(rt, july).outcome == "ingested"
+    before = (_count(rt, "vintage"), _count(rt, "observation"))
+    url = page_url("2026-07")
+    status, body, ctype = site.routes[url]
+    noisy = body.replace(b"</body>", b"<!-- render 20261012T0800 nonce=8f3a --></body>")
+    assert noisy != body
+    site.override(url, status, noisy, ctype)
+    assert _ingest(rt, july).outcome == "unchanged"
+    assert (_count(rt, "vintage"), _count(rt, "observation")) == before
     assert repo.get_release(rt.conn, july)["status"] == "published"

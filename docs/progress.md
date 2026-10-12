@@ -28,9 +28,9 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **237 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **251 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
-| Frontend tests | `cd frontend && npm test` | **12 files, 58 passed** |
+| Frontend tests | `cd frontend && npm test` | **12 files, 61 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
 | Frontend lint | `npm run lint` (oxlint) | 3 warnings, all in generated `components/ui/*` (fast-refresh exports) |
 | End to end | `cd frontend && npx playwright test` (Chromium, desktop 1440x900 and Pixel 7) | **16 passed**: overview, migration charts and CSV download, route reload and JSON 404, release analysis and print, no horizontal scroll on `/`, `/migration`, `/calendar`, `/health` |
@@ -94,6 +94,24 @@ All six were fixed, each with a test that failed first:
 The Minor findings are not fixed; they are listed under remaining work. Two automated post-commit security reviews also
 found CSV formula injection (twice) and unescaped tooltip HTML; both are fixed with tests.
 
+## Codex review round 1 (PR #1, commit 2c73d9b)
+
+Four P2 findings, each validated against the code and fixed with a test that failed first:
+
+1. Vintage digest ignored page-embedded charts (#4245952768). The digest now covers the downloaded files plus every
+   chart's title and CSV body on the release page (never the surrounding HTML, so nonces and markup cannot cause false
+   revisions). A corrected chart, or the optional citizenship chart appearing later, yields a new vintage.
+   Upgrade note: the digest value changed, so a database ingested before this commit gets one extra vintage with
+   identical values (marked `corrected`) on the first manual re-ingest of each release. No such database exists outside
+   development; if one does, re-seed it.
+2. An `unavailable` release ignored a calendar reschedule (#4245952774). A different scheduled time now returns it to
+   `scheduled`/`delayed` with the new time, which resets its polling attempts. The same time (re-listed by every
+   discovery run) leaves it `unavailable`, so the verdict does not flap.
+3. `/api/calendar?to=9999-12-31` returned 500 (#4245952779). `date.max` is now an unbounded upper bound. `from=0001-01-01`
+   had the same defect through the UTC conversion and is fixed alike.
+4. Delayed releases sorted as past (#4245952785). The calendar's upcoming predicate is now `scheduled` or `delayed`,
+   also applied to the Scheduled status filter.
+
 ## Remaining work
 
 Before merging or calling Phase 1 shipped:
@@ -105,10 +123,10 @@ Before merging or calling Phase 1 shipped:
 
 Deferred Minor findings (small, none blocks use):
 
-- Reprocessing: ingest hashes only the CSVs, so parser fixes and page-only corrections are not applied to stored releases
+- Reprocessing: parser fixes are not applied to stored releases whose files and charts are unchanged
   (add `nzstats ingest --reparse`); nothing re-checks a release after it has data, so `corrected` only follows a manual re-ingest.
-- A release marked `unavailable` ignores a later ICS reschedule; discovery aborts on non-`IngestError` failures.
-- API: `/api/calendar?to=9999-12-31` returns 500; `/api/releases` loads all rows before paging; the series CSV does not
+- Discovery aborts on non-`IngestError` failures.
+- API: `/api/releases` loads all rows before paging; the series CSV does not
   neutralise formulas; the vintage kind is missing from `ReleaseAnalysis` and `CountriesOut`.
 - Analysis: the driver-share wording can overstate arrivals when both arrivals and departures move the same way; the
   citizenship chart title omits its period.

@@ -128,3 +128,22 @@ def test_polling_backs_off_after_a_blocked_response(rt) -> None:
     assert poll_candidates(rt.conn, rt.adapters, PUB + timedelta(minutes=1), OFFSETS) == []
     assert poll_candidates(rt.conn, rt.adapters, PUB + timedelta(minutes=10), OFFSETS) == []
     assert poll_candidates(rt.conn, rt.adapters, PUB + timedelta(minutes=30), OFFSETS) == [key]
+
+
+def test_rescheduled_unavailable_release_is_polled_again_at_the_new_time(rt) -> None:
+    """Review #4245952774: a calendar reschedule must put an unavailable release back in polling."""
+    key = _seed(rt.conn)
+    for minute in OFFSETS:
+        _run(rt.conn, key, PUB + timedelta(minutes=minute))
+    later = PUB + timedelta(minutes=181)
+    assert mark_unavailable(rt.conn, rt.adapters, later, OFFSETS) == [key]
+
+    new_pub = parse_akl_naive("2026-11-20 10:45:00")
+    ref = dataclasses.replace(
+        release_ref_for("2026-07", ReleaseStatus.SCHEDULED), published_at=new_pub
+    )
+    repo.upsert_release(rt.conn, ref, later)
+    assert repo.get_release(rt.conn, key)["status"] == "delayed"
+
+    assert poll_candidates(rt.conn, rt.adapters, new_pub - timedelta(minutes=1), OFFSETS) == []
+    assert poll_candidates(rt.conn, rt.adapters, new_pub, OFFSETS) == [key]  # attempts reset

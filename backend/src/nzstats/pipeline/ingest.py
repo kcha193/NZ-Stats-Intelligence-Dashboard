@@ -16,7 +16,7 @@ from nzstats.pipeline.discover import attempt
 from nzstats.runtime import Runtime
 from nzstats.slug import slugify
 from nzstats.sources.calendar import fetch_release_month
-from nzstats.sources.release_page import classify_download, parse_release_page
+from nzstats.sources.release_page import ReleasePage, classify_download, parse_release_page
 from nzstats.stats.periods import month_range
 from nzstats.store import repo
 from nzstats.store.db import transaction
@@ -80,6 +80,16 @@ def ingest_release(
     return outcome
 
 
+def _bundle_digest(file_digests: list[str], page: ReleasePage) -> str:
+    """Identity of everything `adapter.parse` reads: the downloaded files and the chart data embedded
+    in the release page. Only chart titles and CSV bodies are hashed, never the surrounding HTML, so
+    rotating nonces, markup or script changes cannot create a false revision, while a corrected or
+    newly added chart (e.g. the optional citizenship series) does."""
+    charts = sorted(hashlib.sha256(f"{c.title}\0{c.csv}".encode()).hexdigest() for c in page.charts)
+    parts = ["files", *sorted(file_digests), "charts", *charts]
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()
+
+
 def _ingest(
     rt: Runtime, row: sqlite3.Row, adapter: Adapter, now_fn: Callable[[], datetime]
 ) -> IngestOutcome:
@@ -109,7 +119,7 @@ def _ingest(
         repo.record_artifact(rt.conn, record)
         files[kind] = result.body
         digests.append(record.sha256)
-    bundle_sha = hashlib.sha256("".join(sorted(digests)).encode()).hexdigest()
+    bundle_sha = _bundle_digest(digests, page)
 
     release_id = int(row["id"])
     if repo.has_vintage(rt.conn, release_id, bundle_sha):

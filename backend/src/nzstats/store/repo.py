@@ -67,6 +67,11 @@ def upsert_release(conn: sqlite3.Connection, ref: ReleaseRef, now: datetime) -> 
         if pub > published_at:
             status = ReleaseStatus.DELAYED
         published_at = pub
+    elif status is ReleaseStatus.UNAVAILABLE and pub != published_at:
+        # Polling gave up on the old slot. A different scheduled time is a genuine reschedule, so
+        # polling resumes for it. The same time (discovery re-lists it on every run) is not.
+        status = ReleaseStatus.DELAYED if pub > published_at else ReleaseStatus.SCHEDULED
+        published_at = pub
     conn.execute(
         "UPDATE release SET title=?, period_label=?, reference_period=?, published_at=?, status=?,"
         " page_url=COALESCE(?, page_url), headline=COALESCE(?, headline),"

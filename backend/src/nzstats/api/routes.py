@@ -144,12 +144,19 @@ def calendar(
     today = now.astimezone(AKL).date()
     start = from_ or today - timedelta(days=45)
     end = to or today + timedelta(days=90)
-    lo = to_utc_iso(datetime.combine(start, time.min, AKL))
-    hi = to_utc_iso(datetime.combine(end + timedelta(days=1), time.min, AKL))
+    # Both bounds are whole Auckland days, `to` inclusive. date.min/date.max cannot be shifted by a
+    # day or a UTC offset without overflowing, and nothing is stored outside them, so they mean
+    # "unbounded" on that side.
+    clauses, args = [], []
+    if start > date.min:
+        clauses.append("published_at >= ?")
+        args.append(to_utc_iso(datetime.combine(start, time.min, AKL)))
+    if end < date.max:
+        clauses.append("published_at < ?")
+        args.append(to_utc_iso(datetime.combine(end + timedelta(days=1), time.min, AKL)))
     rows = conn.execute(
-        "SELECT * FROM release WHERE published_at >= ? AND published_at < ?"
-        " ORDER BY published_at, id",
-        (lo, hi),
+        f"SELECT * FROM release WHERE {' AND '.join(clauses) or '1'} ORDER BY published_at, id",
+        args,
     ).fetchall()
     health = {h.source: h for h in health_rows(conn)}
     sources = [health[s] for s in ("calendar_ics", "calendar_month") if s in health]

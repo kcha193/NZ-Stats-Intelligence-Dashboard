@@ -77,6 +77,50 @@ def test_calendar_range_and_freshness(client) -> None:
     assert client.get("/api/calendar", params={"from": "nonsense"}).status_code == 422
 
 
+def test_calendar_bounds_are_inclusive_whole_auckland_days(client) -> None:
+    scheduled = client.get("/api/releases", params={"status": "scheduled"}).json()
+    day = min(s["published_at"][:10] for s in scheduled)
+    before = (date.fromisoformat(day) - timedelta(days=1)).isoformat()
+    after = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+
+    def days(**params) -> list[str]:
+        resp = client.get("/api/calendar", params=params)
+        assert resp.status_code == 200
+        return [i["published_at"][:10] for i in resp.json()["items"]]
+
+    assert day in days(**{"from": day, "to": day})
+    assert day not in days(**{"from": after, "to": "2100-01-01"})
+    assert day not in days(**{"from": "2000-01-01", "to": before})
+
+
+@pytest.mark.parametrize(
+    ("params", "reference"),
+    [
+        ({"to": "9999-12-31"}, {"to": "2100-01-01"}),
+        ({"from": "0001-01-01"}, {"from": "2000-01-01"}),
+        (
+            {"from": "0001-01-01", "to": "9999-12-31"},
+            {"from": "2000-01-01", "to": "2100-01-01"},
+        ),
+    ],
+)
+def test_calendar_extreme_bounds_mean_unbounded_and_never_overflow(
+    client, params, reference
+) -> None:
+    """Review #4245952779: date.max + 1 day (and date.min in UTC) used to raise OverflowError."""
+    resp = client.get("/api/calendar", params=params)
+    assert resp.status_code == 200
+    ref = client.get("/api/calendar", params=reference).json()["items"]
+    assert ref  # the comparison window holds the seeded releases
+    assert resp.json()["items"] == ref
+
+
+@pytest.mark.parametrize("day", ["0001-01-01", "9999-12-31"])
+def test_calendar_single_extreme_day_is_empty_not_an_error(client, day) -> None:
+    resp = client.get("/api/calendar", params={"from": day, "to": day})
+    assert resp.status_code == 200 and resp.json()["items"] == []
+
+
 def test_series_listing_and_data(client) -> None:
     listing = client.get("/api/series", params={"category": "migration"}).json()
     keys = {s["key"] for s in listing}

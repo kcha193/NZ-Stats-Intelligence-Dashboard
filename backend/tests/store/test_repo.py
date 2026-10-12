@@ -153,3 +153,46 @@ def test_ingest_run_and_health(conn) -> None:
     assert row["last_success_at"] == "2026-10-11T03:00:00Z"
     assert row["last_checked_at"] == "2026-10-11T04:00:00Z"
     assert conn.execute("SELECT COUNT(*) FROM ingest_run").fetchone()[0] == 1
+
+
+# --- unavailable releases accept a reschedule (review #4245952774) ------------------------------
+
+KEY = "international-migration:august 2026"
+
+
+def _unavailable(conn, at="2026-10-14 10:45:00") -> None:
+    repo.upsert_release(conn, _ref(at=at), NOW)
+    repo.set_release_status(conn, KEY, ReleaseStatus.UNAVAILABLE, NOW)
+
+
+def test_unavailable_release_moved_later_becomes_delayed_with_the_new_time(conn) -> None:
+    _unavailable(conn)
+    repo.upsert_release(conn, _ref(at="2026-11-20 10:45:00"), NOW)
+    row = repo.get_release(conn, KEY)
+    assert row["status"] == "delayed"
+    assert row["published_at"] == "2026-11-19T21:45:00Z"
+
+
+def test_unavailable_release_moved_earlier_becomes_scheduled_with_the_new_time(conn) -> None:
+    _unavailable(conn)
+    repo.upsert_release(conn, _ref(at="2026-10-13 10:45:00"), NOW)
+    row = repo.get_release(conn, KEY)
+    assert row["status"] == "scheduled"
+    assert row["published_at"] == "2026-10-12T21:45:00Z"
+
+
+def test_unavailable_release_stays_unavailable_while_the_calendar_repeats_the_same_time(
+    conn,
+) -> None:
+    """Every discovery run re-lists the original slot; that must not undo the polling verdict."""
+    _unavailable(conn)
+    repo.upsert_release(conn, _ref(at="2026-10-14 10:45:00"), NOW)
+    row = repo.get_release(conn, KEY)
+    assert row["status"] == "unavailable"
+    assert row["published_at"] == "2026-10-13T21:45:00Z"
+
+
+def test_unavailable_release_that_is_now_published_becomes_published(conn) -> None:
+    _unavailable(conn)
+    repo.upsert_release(conn, _ref(status=ReleaseStatus.PUBLISHED, at="2026-10-14 10:45:00"), NOW)
+    assert repo.get_release(conn, KEY)["status"] == "published"
