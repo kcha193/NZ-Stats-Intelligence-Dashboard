@@ -47,13 +47,13 @@ export function ChartCard({
   };
 
   return (
-    <figure className="break-inside-avoid rounded-md border bg-card p-4 print:border-0 print:p-0">
+    <figure className="min-w-0 break-inside-avoid rounded-md border bg-card p-4 print:border-0 print:p-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-base font-semibold leading-snug">{title}</h3>
           <p className="mt-0.5 text-sm text-muted-foreground">{question}</p>
         </div>
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           {controls}
           <Button variant="outline" size="sm" onClick={downloadCsv}>
             <Download className="size-4" aria-hidden /> Download data (CSV)

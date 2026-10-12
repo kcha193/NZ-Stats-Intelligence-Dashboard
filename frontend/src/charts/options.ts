@@ -88,7 +88,7 @@ export function lineOption(
     tooltip: tooltip(input.series, input.unit, input.frequency),
     xAxis: {
       type: "category", data: periods, boundaryGap: false,
-      axisLabel: { interval: 0, color: theme.muted, formatter: yearTick },
+      axisLabel: { interval: 0, hideOverlap: true, color: theme.muted, formatter: yearTick },
       axisTick: { interval: (_: number, v: string) => v.endsWith("-01") },
       axisLine: { lineStyle: { color: theme.grid } },
     },
@@ -110,7 +110,7 @@ export function divergingBarOption(
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
     grid: { left: 56, right: 24, top: 24, bottom: 28 },
     tooltip: tooltip([{ name: input.name, points: input.points, color: theme.series[0] }], input.unit, input.frequency),
-    xAxis: { type: "category", data: periods, axisLabel: { interval: 0, color: theme.muted, formatter: yearTick }, axisTick: { interval: (_: number, v: string) => v.endsWith("-01") }, axisLine: { lineStyle: { color: theme.muted } } },
+    xAxis: { type: "category", data: periods, axisLabel: { interval: 0, hideOverlap: true, color: theme.muted, formatter: yearTick }, axisTick: { interval: (_: number, v: string) => v.endsWith("-01") }, axisLine: { lineStyle: { color: theme.muted } } },
     yAxis: { type: "value", axisLabel: { color: theme.muted, formatter: axisNumber }, splitLine: { lineStyle: { color: theme.grid } } },
     series: [{
       name: input.name, type: "bar",
@@ -129,7 +129,7 @@ export function stackedPanelsOption(
   const periods = [...new Set([...input.monthly, ...input.yearEnded].map((p) => p.period))].sort();
   const yearEnded = new Map(input.yearEnded.map((p) => [p.period, p.value]));
   const monthly = new Map(input.monthly.map((p) => [p.period, p]));
-  const axisBase = { type: "category" as const, data: periods, axisLabel: { interval: 0, color: theme.muted, formatter: yearTick }, axisTick: { interval: (_: number, v: string) => v.endsWith("-01") } };
+  const axisBase = { type: "category" as const, data: periods, axisLabel: { interval: 0, hideOverlap: true, color: theme.muted, formatter: yearTick }, axisTick: { interval: (_: number, v: string) => v.endsWith("-01") } };
   const valueAxis = (gridIndex: number) => ({ type: "value" as const, gridIndex, axisLabel: { color: theme.muted, formatter: axisNumber }, splitLine: { lineStyle: { color: theme.grid } } });
   return {
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
