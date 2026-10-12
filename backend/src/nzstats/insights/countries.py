@@ -17,17 +17,17 @@ NOTE = (
 CATEGORIES = ("migration:country", "migration:region", "migration:unallocated")
 
 
-def _first_country_period(conn: sqlite3.Connection) -> str | None:
-    row = conn.execute(
-        "SELECT MIN(o.period) FROM observation o JOIN vintage v ON v.id = o.vintage_id"
-        " JOIN series s ON s.id = v.series_id WHERE s.category = 'migration:country'"
-    ).fetchone()
-    return row[0]
-
-
 def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15) -> CountriesOut:
     totals = {p: pt.value for p, pt in repo.latest_points(conn, "mig.m.arrivals").items()}
-    first_stored = _first_country_period(conn)
+    # Place series are read from each series' latest vintage, so coverage is judged on those points.
+    rows = [r for r in repo.series_overview(conn, "migration:") if r["category"] in CATEGORIES]
+    points_by_key = {r["key"]: repo.latest_points(conn, r["key"]) for r in rows}
+    country_firsts = [
+        min(points_by_key[r["key"]])
+        for r in rows
+        if r["category"] == "migration:country" and points_by_key[r["key"]]
+    ]
+    first_stored = min(country_firsts) if country_firsts else None
     if not totals or first_stored is None:
         return CountriesOut(
             available=False,
@@ -45,14 +45,12 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
     start = add_months(end, -(months - 1))
     window = month_range(start, end)
     prior_window = month_range(add_months(start, -months), add_months(start, -1))
-    prior_stored = prior_window[0] >= first_stored  # prior window fully inside stored history
+    prior_stored = prior_window[0] >= first_stored  # prior window fully inside the latest vintage
     total = sum(totals.get(p, 0.0) for p in window)
 
     groups: dict[str, list[CountryRank]] = {c: [] for c in CATEGORIES}
-    for row in repo.series_overview(conn, "migration:"):
-        if row["category"] not in groups:
-            continue
-        points = repo.latest_points(conn, row["key"])
+    for row in rows:
+        points = points_by_key[row["key"]]
         if not points:
             continue
         value = sum(points[p].value for p in window if p in points)

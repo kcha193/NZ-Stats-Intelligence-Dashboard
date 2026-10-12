@@ -40,3 +40,20 @@ def test_ranking_matches_independent_sums_and_excludes_regions(rt) -> None:
 def test_not_available_before_any_ingestion(rt) -> None:
     out = rank_countries(rt.conn)
     assert out.available is False and out.countries == [] and "No country data" in out.note
+
+
+def test_prior_change_is_withheld_when_the_latest_vintage_does_not_cover_the_prior_window(
+    rt,
+) -> None:
+    """An older vintage may hold more history than the latest one; the prior sum reads the latest."""
+    adapter = rt.adapters["international-migration"]
+    ingest_months(rt, "2026-06")  # 36-month window: holds everything the file contains
+    adapter._window = 13  # the latest vintage then holds only 13 months
+    ingest_months(rt, "2026-07")
+    out = rank_countries(rt.conn, months=7, top=5)
+    assert out.available
+    # prior window = 2025-06..2025-12, but the latest vintage starts at 2025-07: not fully covered
+    assert all(
+        c.prior_value is None and c.change is None and c.change_percent is None
+        for c in out.countries
+    )
