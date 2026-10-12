@@ -46,19 +46,37 @@ def attempt(
     now_fn: Callable[[], datetime],
     fetch: Callable[[], list[ReleaseRef]],
     errors: list[str],
+    *,
+    record_health: bool = True,
 ) -> int:
-    """Fetch, store and record source health; failures degrade health and never raise."""
+    """Fetch, store and record source health; failures degrade health and never raise.
+
+    A caller that makes several requests against one source passes `record_health=False` and
+    records the verdict for the whole batch itself (see `record_batch_health`).
+    """
     try:
         refs = fetch()
         _store(rt, refs, now_fn())
-        repo.set_source_health(rt.conn, source, now_fn(), ok=True, detail=None)
+        if record_health:
+            repo.set_source_health(rt.conn, source, now_fn(), ok=True, detail=None)
         return len(refs)
     except IngestError as exc:
         message = f"{source}: {exc.error_class.value}: {exc}"
         log.warning("discovery failed: %s", message)
-        repo.set_source_health(rt.conn, source, now_fn(), ok=False, detail=message)
+        if record_health:
+            repo.set_source_health(rt.conn, source, now_fn(), ok=False, detail=message)
         errors.append(message)
         return 0
+
+
+def record_batch_health(
+    rt: Runtime, source: str, now_fn: Callable[[], datetime], errors: Sequence[str]
+) -> None:
+    """One verdict for several requests to a source: healthy only if every request succeeded, so a
+    later success cannot hide an earlier failure that may have left releases undiscovered."""
+    repo.set_source_health(
+        rt.conn, source, now_fn(), ok=not errors, detail="; ".join(errors) or None
+    )
 
 
 def discover(
@@ -73,12 +91,16 @@ def discover(
         lambda: fetch_calendar(rt.fetcher, s.base_url, s.calendar_ics_path),
         errors,
     )
+    month_errors: list[str] = []
     for month in months:
         total += attempt(
             rt,
             "calendar_month",
             now_fn,
             lambda m=month: fetch_release_month(rt.fetcher, s.base_url, s.release_month_path, m),
-            errors,
+            month_errors,
+            record_health=False,
         )
-    return DiscoveryResult(total, tuple(errors))
+    if months:
+        record_batch_health(rt, "calendar_month", now_fn, month_errors)
+    return DiscoveryResult(total, (*errors, *month_errors))

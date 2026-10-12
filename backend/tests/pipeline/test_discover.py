@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from nzstats.domain import ReleaseStatus
 from nzstats.pipeline.discover import current_and_next_months, discover
 from nzstats.store import repo
-from tests.support import BASE, NOW, release_ref_for
+from tests.support import BASE, NOW, FakeSite, release_ref_for
 
 
 def test_current_and_next_months_use_auckland_calendar() -> None:
@@ -89,3 +89,31 @@ def test_fresh_month_slot_survives_a_stale_ics_feed_read_before_it(rt, site) -> 
         discover(rt, months=["2026-10"], now_fn=lambda: NOW)
         row = repo.get_release(rt.conn, AUGUST)
         assert (row["status"], row["published_at"]) == ("delayed", NEW_SLOT_UTC)
+
+
+# --- a partial monthly refresh stays degraded (review #4246272308) ------------------------------
+
+
+def _month_health(rt):
+    return rt.conn.execute("SELECT * FROM source_health WHERE source='calendar_month'").fetchone()
+
+
+def test_an_earlier_failed_month_is_not_cleared_by_a_later_successful_one(rt, site) -> None:
+    site.override(f"{BASE}/api/v1/releaseCalendarMonth/2026-09", 403, b"", "text/html")
+    result = discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)  # fail, then succeed
+    assert len(result.errors) == 1
+    health = _month_health(rt)
+    assert health["state"] == "degraded" and "blocked" in health["detail"]
+
+
+def test_a_later_failed_month_also_degrades_and_all_good_months_clear_it(rt, site) -> None:
+    site.override(f"{BASE}/api/v1/releaseCalendarMonth/2026-10", 403, b"", "text/html")
+    discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)  # succeed, then fail
+    assert _month_health(rt)["state"] == "degraded"
+    site.routes.pop(f"{BASE}/api/v1/releaseCalendarMonth/2026-10")
+    site.routes[f"{BASE}/api/v1/releaseCalendarMonth/2026-10"] = FakeSite().routes[
+        f"{BASE}/api/v1/releaseCalendarMonth/2026-10"
+    ]
+    discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)
+    health = _month_health(rt)
+    assert health["state"] == "ok" and health["detail"] is None

@@ -241,6 +241,33 @@ def latest_points(conn: sqlite3.Connection, series_key: str) -> dict[str, Point]
     return vintage_points(conn, infos[-1].vintage_id) if infos else {}
 
 
+def latest_bundle(conn: sqlite3.Connection, series_key: str) -> tuple[int, str] | None:
+    """(release id, bundle digest) of a series' latest vintage, in the order `list_vintages` uses."""
+    row = conn.execute(
+        "SELECT v.release_id, v.bundle_sha256 FROM vintage v JOIN release r ON r.id=v.release_id"
+        " JOIN series s ON s.id=v.series_id WHERE s.key=? ORDER BY r.published_at DESC, v.id DESC"
+        " LIMIT 1",
+        (series_key,),
+    ).fetchone()
+    return (row["release_id"], row["bundle_sha256"]) if row else None
+
+
+def bundle_points(
+    conn: sqlite3.Connection, series_key: str, bundle: tuple[int, str]
+) -> dict[str, Point]:
+    """Points a series holds in one specific ingested bundle; empty if the bundle did not include it.
+
+    A series absent from a release's files has no vintage in that bundle, and an older vintage of
+    the same series (another release, or an earlier bundle of the same release) is not a substitute.
+    """
+    row = conn.execute(
+        "SELECT v.id FROM vintage v JOIN series s ON s.id=v.series_id"
+        " WHERE s.key=? AND v.release_id=? AND v.bundle_sha256=?",
+        (series_key, *bundle),
+    ).fetchone()
+    return vintage_points(conn, row["id"]) if row else {}
+
+
 def previous_points(
     conn: sqlite3.Connection, series_key: str, published_before: datetime
 ) -> dict[str, Point]:

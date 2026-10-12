@@ -12,7 +12,7 @@ from datetime import datetime
 from nzstats.adapters.base import Adapter
 from nzstats.clock import AKL, from_utc_iso, utc_now
 from nzstats.domain import ErrorClass, IngestError, ReleaseStatus
-from nzstats.pipeline.discover import attempt
+from nzstats.pipeline.discover import attempt, record_batch_health
 from nzstats.runtime import Runtime
 from nzstats.slug import slugify
 from nzstats.sources.calendar import fetch_release_month
@@ -182,15 +182,26 @@ def backfill(
     s = rt.settings
     local_now = now_fn().astimezone(AKL)
     until = until or f"{local_now.year:04d}-{local_now.month:02d}"
-    errors: list[str] = []
+    # A month whose discovery failed may hide releases, so it is reported as a failure of its own
+    # rather than left as a silent gap in an otherwise successful run.
+    failures: list[IngestOutcome] = []
+    month_errors: list[str] = []
     for month in month_range(since, until):
+        errors: list[str] = []
         attempt(
             rt,
             "calendar_month",
             now_fn,
             lambda m=month: fetch_release_month(rt.fetcher, s.base_url, s.release_month_path, m),
             errors,
+            record_health=False,
         )
+        if errors:
+            failures.append(
+                IngestOutcome(f"calendar_month:{month}", "failed", detail="; ".join(errors))
+            )
+            month_errors.extend(errors)
+    record_batch_health(rt, "calendar_month", now_fn, month_errors)
     slugs = list(rt.adapters)
     marks = ",".join("?" * len(slugs))
     keys = [
@@ -202,4 +213,4 @@ def backfill(
             (*slugs, since),
         )
     ]
-    return [ingest_release(rt, k, now_fn=now_fn) for k in keys]
+    return [*failures, *(ingest_release(rt, k, now_fn=now_fn) for k in keys)]

@@ -28,7 +28,7 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **270 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **277 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 | Frontend tests | `cd frontend && npm test` | **12 files, 61 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
@@ -140,6 +140,23 @@ Two findings, both on the deferred-minor list from the whole-branch review, vali
 2. The backend series CSV wrote upstream text unguarded (#4246208524). All text cells, including the upstream release title,
    now get the same leading-quote guard as the frontend export (`'` before a first significant `= + - @`, or a leading
    tab/CR/LF, after skipping whitespace and invisible characters). Numeric cells are untouched.
+
+## Codex review round 4 (PR #1, commit 1b1e888)
+
+Three findings, validated and fixed with tests that failed first:
+
+1. Backfill dropped discovery failures (#4246272300). A month whose calendar request failed left no trace: the run printed
+   its successes and exited 0. Each failed month is now returned as a `failed` outcome (`calendar_month:YYYY-MM`) and the
+   CLI exits 1 and prints its detail. The month listing for months with no releases must answer 200 with empty lists;
+   a 404 is a failure.
+2. A later successful month cleared an earlier failure (#4246272308). The `calendar_month` health is now one verdict per
+   discovery or backfill run: `ok` only if every requested month succeeded, otherwise `degraded` with every error joined.
+3. Country ranking mixed vintages (#4246272317). Each place series was read from its own latest vintage, so a place the
+   newest country file omits kept an older release's value (real fixtures: Togo, 2025-10 = 1 in June, absent in July).
+   Every place is now read from the same ingested bundle as the latest arrivals total (release plus bundle digest, so a
+   corrected bundle that drops a place is handled too); a place absent from that bundle counts as zero, as the ranking
+   note already states. Stored data and vintages are untouched. Places absent from the latest bundle now appear as zero
+   rows (visible in the regions list); only the top countries are shown.
 
 ## Remaining work
 

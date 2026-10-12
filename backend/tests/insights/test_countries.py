@@ -3,6 +3,7 @@ import pytest
 
 from nzstats.adapters.migration.parse import REGIONS, UNALLOCATED
 from nzstats.insights.countries import rank_countries
+from nzstats.store import repo
 from tests.conftest import FIXTURES
 from tests.support import ingest_months
 
@@ -57,3 +58,44 @@ def test_prior_change_is_withheld_when_the_latest_vintage_does_not_cover_the_pri
         c.prior_value is None and c.change is None and c.change_percent is None
         for c in out.countries
     )
+
+
+# --- places are read from the same release vintage as the total (review #4246272317) ------------
+
+
+def _all_places(out):
+    return {c.series_key: c for c in out.countries} | {r.series_key: r for r in out.regions}
+
+
+def test_a_place_the_latest_release_omits_counts_as_zero_not_its_older_value(rt) -> None:
+    """Togo has 2025-10 = 1 in the June file; the July file has no Togo rows at all."""
+    ingest_months(rt, "2026-06", "2026-07")
+    out = rank_countries(rt.conn, months=12, top=1000)
+    togo = _all_places(out)["mig.m.arrivals.country.togo"]
+    assert togo.value == 0.0 and togo.provisional is False
+    expected = _expected()
+    assert sum(c.value for c in out.countries) == pytest.approx(float(expected.sum()))
+    assert {c.name for c in out.countries if c.value > 0} == set(expected[expected > 0].index)
+
+
+def test_a_corrected_bundle_that_drops_a_place_does_not_keep_its_earlier_value(rt, site) -> None:
+    """Same release, two bundles: the place only exists in the superseded one."""
+    import io
+
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.conftest import fixture_bytes
+    from tests.support import NOW, release_ref_for
+
+    ref = release_ref_for("2026-06")
+    repo.upsert_release(rt.conn, ref, NOW)
+    assert ingest_release(rt, ref.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    before = _all_places(rank_countries(rt.conn, months=12, top=1000))
+    assert before["mig.m.arrivals.country.togo"].value == 1.0
+
+    df = pd.read_csv(io.BytesIO(fixture_bytes("im_2026-06_citizenship_country.csv")))
+    corrected = df[df.country_of_residence != "Togo"].to_csv(index=False, quoting=1).encode()
+    site.override(site.file_url("2026-06", "citizenship_visa_country"), 200, corrected)
+    assert ingest_release(rt, ref.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    after = _all_places(rank_countries(rt.conn, months=12, top=1000))
+    assert after["mig.m.arrivals.country.togo"].value == 0.0
+    assert after["mig.m.arrivals.country.togo"].series_key in after

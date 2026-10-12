@@ -19,9 +19,14 @@ CATEGORIES = ("migration:country", "migration:region", "migration:unallocated")
 
 def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15) -> CountriesOut:
     totals = {p: pt.value for p, pt in repo.latest_points(conn, "mig.m.arrivals").items()}
-    # Place series are read from each series' latest vintage, so coverage is judged on those points.
+    # Every place is read from the same ingested bundle as the total. Stats NZ's country file is
+    # sparse, so a place missing from the latest bundle has nothing in that release (zero), and an
+    # older vintage of it must not leak into a window ranked from the newest release.
+    bundle = repo.latest_bundle(conn, "mig.m.arrivals")
     rows = [r for r in repo.series_overview(conn, "migration:") if r["category"] in CATEGORIES]
-    points_by_key = {r["key"]: repo.latest_points(conn, r["key"]) for r in rows}
+    points_by_key = {
+        r["key"]: repo.bundle_points(conn, r["key"], bundle) if bundle else {} for r in rows
+    }
     country_firsts = [
         min(points_by_key[r["key"]])
         for r in rows
@@ -51,8 +56,6 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
     groups: dict[str, list[CountryRank]] = {c: [] for c in CATEGORIES}
     for row in rows:
         points = points_by_key[row["key"]]
-        if not points:
-            continue
         value = sum(points[p].value for p in window if p in points)
         provisional = any(points[p].status is ObsStatus.PROVISIONAL for p in window if p in points)
         prior = sum(points[p].value for p in prior_window if p in points) if prior_stored else None

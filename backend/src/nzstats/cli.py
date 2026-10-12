@@ -104,7 +104,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:  # backfill
         outcomes = backfill(rt, since=args.since or settings.backfill_since)
     for o in outcomes:
-        suffix = f" ({o.error_class.value}: {o.detail})" if o.error_class else ""
+        suffix = (
+            f" ({o.error_class.value}: {o.detail})"
+            if o.error_class
+            else f" ({o.detail})"
+            if o.detail
+            else ""
+        )
         print(f"{o.release_key}: {o.outcome}{suffix}")
     return 1 if any(o.outcome == "failed" for o in outcomes) else 0
 

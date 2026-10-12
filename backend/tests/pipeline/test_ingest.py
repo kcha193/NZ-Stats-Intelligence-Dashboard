@@ -194,8 +194,19 @@ def _month_payload(ref) -> bytes:
     ).encode()
 
 
+def _empty_months(rt, site, *months: str) -> None:
+    """Months in which Stats NZ lists no releases still answer 200 with empty lists."""
+    for m in months:
+        site.routes[f"{rt.settings.base_url}/api/v1/releaseCalendarMonth/{m}"] = (
+            200,
+            json.dumps({"items": {"published": [], "upcoming": []}}).encode(),
+            "application/json",
+        )
+
+
 def test_backfill_ingests_releases_from_reference_period_in_order(rt, site) -> None:
     base = rt.settings.base_url
+    _empty_months(rt, site, "2026-06", "2026-07")
     site.routes[f"{base}/api/v1/releaseCalendarMonth/2026-08"] = (
         200,
         _month_payload(release_ref_for("2026-06")),
@@ -330,3 +341,32 @@ def test_volatile_page_markup_outside_the_charts_does_not_create_a_vintage(rt, s
     assert _ingest(rt, july).outcome == "unchanged"
     assert (_count(rt, "vintage"), _count(rt, "observation")) == before
     assert repo.get_release(rt.conn, july)["status"] == "published"
+
+
+def test_backfill_reports_a_month_whose_discovery_failed(rt, site) -> None:
+    """Review #4246272300: a failed month must not leave a silent gap in the backfill result."""
+    base = rt.settings.base_url
+    _empty_months(rt, site, "2026-06", "2026-07")
+    site.routes[f"{base}/api/v1/releaseCalendarMonth/2026-08"] = (503, b"", "text/html")
+    site.routes[f"{base}/api/v1/releaseCalendarMonth/2026-09"] = (
+        200,
+        _month_payload(release_ref_for("2026-07")),
+        "application/json",
+    )
+    outcomes = backfill(rt, since="2026-06", until="2026-09", now_fn=lambda: NOW)
+    failed = [o for o in outcomes if o.outcome == "failed"]
+    assert [o.release_key for o in failed] == ["calendar_month:2026-08"]
+    assert "calendar_month" in (failed[0].detail or "")
+    assert [o.outcome for o in outcomes if o.outcome != "failed"] == ["ingested"]  # the rest ran
+
+
+def test_backfill_of_healthy_months_reports_no_failure(rt, site) -> None:
+    base = rt.settings.base_url
+    _empty_months(rt, site, "2026-07", "2026-08")
+    site.routes[f"{base}/api/v1/releaseCalendarMonth/2026-09"] = (
+        200,
+        _month_payload(release_ref_for("2026-07")),
+        "application/json",
+    )
+    outcomes = backfill(rt, since="2026-07", until="2026-09", now_fn=lambda: NOW)
+    assert [o.outcome for o in outcomes] == ["ingested"]

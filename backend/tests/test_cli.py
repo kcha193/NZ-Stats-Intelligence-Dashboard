@@ -53,3 +53,22 @@ def test_serve_starts_the_scheduler_by_default(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
     assert main(["serve", "--port", "9"]) == 0
     assert captured["s"] is True
+
+
+def test_backfill_exits_nonzero_and_names_a_failed_month(tmp_path, monkeypatch, capsys) -> None:
+    import nzstats.cli as cli
+    from nzstats.pipeline.ingest import IngestOutcome
+
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(cli, "build_runtime", lambda settings: object())
+    monkeypatch.setattr(
+        cli,
+        "backfill",
+        lambda rt, since: [
+            IngestOutcome("calendar_month:2026-08", "failed", detail="calendar_month: network: x"),
+            IngestOutcome("international-migration:july 2026", "ingested"),
+        ],
+    )
+    assert cli.main(["backfill", "--since", "2026-06"]) == 1
+    out = capsys.readouterr().out
+    assert "calendar_month:2026-08: failed (calendar_month: network: x)" in out
