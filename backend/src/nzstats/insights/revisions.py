@@ -107,12 +107,10 @@ def revision_view(
     if base_release_key:
         base = by_key.get(base_release_key)
     else:
-        earlier = [
-            v
-            for v in vintages
-            if v.vintage_id < compare.vintage_id and v.published_at <= compare.published_at
-        ]
-        base = earlier[-1] if earlier else None
+        # `vintages` is in publication order (insertion order is not: a backfill can ingest an older
+        # release after a newer one), so the default base is the vintage just before `compare`.
+        position = vintages.index(compare)
+        base = vintages[position - 1] if position else None
     if base is None:
         return None
 

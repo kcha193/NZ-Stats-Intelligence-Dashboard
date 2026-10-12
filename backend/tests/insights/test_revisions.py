@@ -44,3 +44,15 @@ def test_single_vintage_states_the_limitation(rt) -> None:
 
 def test_unknown_series_is_none(rt) -> None:
     assert revision_view(rt.conn, "nope") is None
+
+
+def test_default_base_follows_publication_order_not_insertion_order(rt) -> None:
+    """Review #4246141419: a backfill can ingest an older release after a newer one."""
+    ids = ingest_months(rt, "2026-07", "2026-06")  # July gets the smaller vintage id
+    june = repo.get_release_by_id(rt.conn, ids["2026-06"])["release_key"]
+    july = repo.get_release_by_id(rt.conn, ids["2026-07"])["release_key"]
+    view = revision_view(rt.conn, "mig.m.net")
+    assert view is not None, "two vintages exist, so a default comparison must exist"
+    assert view.base.release_key == june and view.compare.release_key == july
+    old, new = _net("im_2026-06_age_sex.csv"), _net("im_2026-07_age_sex.csv")
+    assert {r.period for r in view.rows} == {p for p in old.keys() & new.keys() if old[p] != new[p]}

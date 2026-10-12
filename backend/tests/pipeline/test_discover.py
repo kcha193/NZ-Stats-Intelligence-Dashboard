@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from nzstats.domain import ReleaseStatus
@@ -37,3 +38,54 @@ def test_calendar_never_downgrades_a_published_release(rt) -> None:
     discover(rt, months=[], now_fn=lambda: NOW)  # ICS lists only upcoming events
     row = repo.get_release(rt.conn, ref.release_key)
     assert row["status"] == ReleaseStatus.PUBLISHED.value
+
+
+# --- stale feeds cannot undo a reschedule (review #4245952774 / #4246141425) --------------------
+
+AUGUST = "international-migration:august 2026"
+ICS = f"{BASE}/release-calendar/calendar-export/"
+MONTH = f"{BASE}/api/v1/releaseCalendarMonth/2026-10"
+NEW_SLOT_UTC = "2026-10-19T21:45:00Z"  # 20 Oct 2026 10:45 NZDT
+OLD_SLOT_UTC = "2026-10-13T21:45:00Z"  # 14 Oct 2026 10:45 NZDT
+
+
+def _move_in_ics(site, to_day: str) -> None:
+    status, body, ctype = site.routes[ICS]
+    text = body.decode("utf-8")
+    start = text.index("UID:8364@")
+    end = text.index("END:VEVENT", start)
+    block = text[start:end].replace("20261014T104500", f"{to_day}T104500")
+    site.override(ICS, status, (text[:start] + block + text[end:]).encode(), ctype)
+
+
+def _move_in_month(site, to_stamp: str) -> None:
+    status, body, ctype = site.routes[MONTH]
+    payload = json.loads(body)
+    for item in payload["items"]["upcoming"]:
+        if item["DisplayName"] == "International migration: August 2026":
+            item["PublicationDate"] = to_stamp
+    site.override(MONTH, status, json.dumps(payload).encode(), ctype)
+
+
+def _go_unavailable(rt) -> None:
+    discover(rt, months=["2026-10"], now_fn=lambda: NOW)
+    assert repo.get_release(rt.conn, AUGUST)["published_at"] == OLD_SLOT_UTC
+    repo.set_release_status(rt.conn, AUGUST, ReleaseStatus.UNAVAILABLE, NOW)
+
+
+def test_fresh_ics_slot_survives_a_stale_month_feed_read_afterwards(rt, site) -> None:
+    _go_unavailable(rt)
+    _move_in_ics(site, "20261020")  # month feed still lists the old 14 Oct slot
+    for _ in range(2):  # and stays put on later discovery runs
+        discover(rt, months=["2026-10"], now_fn=lambda: NOW)
+        row = repo.get_release(rt.conn, AUGUST)
+        assert (row["status"], row["published_at"]) == ("delayed", NEW_SLOT_UTC)
+
+
+def test_fresh_month_slot_survives_a_stale_ics_feed_read_before_it(rt, site) -> None:
+    _go_unavailable(rt)
+    _move_in_month(site, "2026-10-20 10:45:00")  # ICS (refreshed daily) still lists 14 Oct
+    for _ in range(2):
+        discover(rt, months=["2026-10"], now_fn=lambda: NOW)
+        row = repo.get_release(rt.conn, AUGUST)
+        assert (row["status"], row["published_at"]) == ("delayed", NEW_SLOT_UTC)

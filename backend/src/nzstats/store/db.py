@@ -26,8 +26,19 @@ def migrate(conn: sqlite3.Connection) -> int:
         version = int(sql_file.name.split("_", 1)[0])
         if version in applied:
             continue
-        conn.executescript(sql_file.read_text(encoding="utf-8"))
-        conn.execute("INSERT INTO schema_version(version) VALUES (?)", (version,))
+        # One transaction for the script and its marker: a crash or a failing statement must not leave
+        # a half-applied schema that the next start cannot re-run. (`executescript` commits whatever
+        # is pending first, so the transaction has to be opened inside the script itself.)
+        try:
+            conn.executescript(
+                "BEGIN IMMEDIATE;\n"
+                + sql_file.read_text(encoding="utf-8")
+                + f"\nINSERT INTO schema_version(version) VALUES ({version});\nCOMMIT;"
+            )
+        except BaseException:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
     return conn.execute("SELECT COALESCE(MAX(version), 0) FROM schema_version").fetchone()[0]
 
 

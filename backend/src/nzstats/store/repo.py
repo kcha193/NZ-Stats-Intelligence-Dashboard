@@ -63,15 +63,16 @@ def upsert_release(conn: sqlite3.Connection, ref: ReleaseRef, now: datetime) -> 
     if ref.status is ReleaseStatus.PUBLISHED:
         status = ReleaseStatus.PUBLISHED if status is not ReleaseStatus.CORRECTED else status
         published_at = pub
-    elif status in (ReleaseStatus.SCHEDULED, ReleaseStatus.DELAYED):
+    elif status in (ReleaseStatus.SCHEDULED, ReleaseStatus.DELAYED, ReleaseStatus.UNAVAILABLE):
+        # The ICS and month feeds are read one after the other and neither is reliably fresher, so an
+        # unpublished release's slot only ever moves later: it converges on the latest slot any feed
+        # reported, in whatever order they are read, and a stale feed cannot rewind a reschedule.
+        # A later slot also puts an `unavailable` release back into polling (attempts count from the
+        # new slot). A release that really comes out early is picked up once the calendar lists it
+        # as published, which sets its actual time above.
         if pub > published_at:
             status = ReleaseStatus.DELAYED
-        published_at = pub
-    elif status is ReleaseStatus.UNAVAILABLE and pub != published_at:
-        # Polling gave up on the old slot. A different scheduled time is a genuine reschedule, so
-        # polling resumes for it. The same time (discovery re-lists it on every run) is not.
-        status = ReleaseStatus.DELAYED if pub > published_at else ReleaseStatus.SCHEDULED
-        published_at = pub
+            published_at = pub
     conn.execute(
         "UPDATE release SET title=?, period_label=?, reference_period=?, published_at=?, status=?,"
         " page_url=COALESCE(?, page_url), headline=COALESCE(?, headline),"

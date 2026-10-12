@@ -173,12 +173,30 @@ def test_unavailable_release_moved_later_becomes_delayed_with_the_new_time(conn)
     assert row["published_at"] == "2026-11-19T21:45:00Z"
 
 
-def test_unavailable_release_moved_earlier_becomes_scheduled_with_the_new_time(conn) -> None:
-    _unavailable(conn)
-    repo.upsert_release(conn, _ref(at="2026-10-13 10:45:00"), NOW)
-    row = repo.get_release(conn, KEY)
-    assert row["status"] == "scheduled"
-    assert row["published_at"] == "2026-10-12T21:45:00Z"
+def test_an_unpublished_release_never_moves_to_an_earlier_slot(conn) -> None:
+    """Review #4246141425: feeds disagree about freshness, so the latest reported slot wins.
+
+    Whichever feed is read second, a stale (earlier) slot must not rewind a reschedule. A release
+    that really comes out early is picked up when the calendar lists it as published.
+    """
+    for status in (ReleaseStatus.SCHEDULED, ReleaseStatus.DELAYED, ReleaseStatus.UNAVAILABLE):
+        key = f"international-migration:{status.value} 2026"
+        repo.upsert_release(conn, _ref(key=key, at="2026-10-20 10:45:00"), NOW)
+        repo.set_release_status(conn, key, status, NOW)
+        repo.upsert_release(conn, _ref(key=key, at="2026-10-14 10:45:00"), NOW)
+        row = repo.get_release(conn, key)
+        assert (row["status"], row["published_at"]) == (status.value, "2026-10-19T21:45:00Z")
+
+
+def test_slot_converges_on_the_latest_report_in_any_feed_order(conn) -> None:
+    for order in (("2026-10-20", "2026-10-14"), ("2026-10-14", "2026-10-20")):
+        key = f"international-migration:order {order[0]}"
+        repo.upsert_release(conn, _ref(key=key, at="2026-10-14 10:45:00"), NOW)
+        repo.set_release_status(conn, key, ReleaseStatus.UNAVAILABLE, NOW)
+        for day in order * 2:
+            repo.upsert_release(conn, _ref(key=key, at=f"{day} 10:45:00"), NOW)
+        row = repo.get_release(conn, key)
+        assert (row["status"], row["published_at"]) == ("delayed", "2026-10-19T21:45:00Z")
 
 
 def test_unavailable_release_stays_unavailable_while_the_calendar_repeats_the_same_time(

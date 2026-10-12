@@ -28,7 +28,7 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **251 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **256 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 | Frontend tests | `cd frontend && npm test` | **12 files, 61 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
@@ -104,13 +104,29 @@ Four P2 findings, each validated against the code and fixed with a test that fai
    Upgrade note: the digest value changed, so a database ingested before this commit gets one extra vintage with
    identical values (marked `corrected`) on the first manual re-ingest of each release. No such database exists outside
    development; if one does, re-seed it.
-2. An `unavailable` release ignored a calendar reschedule (#4245952774). A different scheduled time now returns it to
-   `scheduled`/`delayed` with the new time, which resets its polling attempts. The same time (re-listed by every
-   discovery run) leaves it `unavailable`, so the verdict does not flap.
+2. An `unavailable` release ignored a calendar reschedule (#4245952774). A later scheduled time now returns it to
+   `delayed` with the new time, which resets its polling attempts (see round 2 for the final rule).
 3. `/api/calendar?to=9999-12-31` returned 500 (#4245952779). `date.max` is now an unbounded upper bound. `from=0001-01-01`
    had the same defect through the UTC conversion and is fixed alike.
 4. Delayed releases sorted as past (#4245952785). The calendar's upcoming predicate is now `scheduled` or `delayed`,
    also applied to the Scheduled status filter.
+
+## Codex review round 2 (PR #1, commit 261f80c)
+
+Three further findings, each validated and fixed with a test that failed first:
+
+1. Default revision base used insertion order (#4246141419, P1). `revision_view` required `vintage_id < compare.vintage_id`,
+   so ingesting an older release after a newer one (backfill or retry) made `/api/revisions/{key}` return 404. The base is
+   now the vintage immediately before `compare` in publication order.
+2. A stale second feed could rewind a reschedule (#4246141425). `discover()` stores the ICS result and then the month
+   result, and neither is reliably fresher (the ICS refreshes daily, the month endpoint is undocumented). The slot of an
+   unpublished (`scheduled`, `delayed`, `unavailable`) release now only moves later, so it converges on the latest slot any
+   feed reported in either read order. This replaces round 1's "earlier slot becomes scheduled" rule: a pull-forward is not
+   applied until the calendar lists the release as published, which sets its actual time.
+3. Migration script and version marker were not atomic (#4246141437). The script, the `schema_version` insert and `COMMIT`
+   now run in one `BEGIN IMMEDIATE` script and roll back on any failure, so a failed migration leaves no partial schema.
+   Not changed: two processes migrating a brand-new database at the same instant still race (the loser fails and retries on
+   its next start); this predates the review.
 
 ## Remaining work
 

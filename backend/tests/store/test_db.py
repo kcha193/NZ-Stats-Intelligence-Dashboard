@@ -42,3 +42,30 @@ def test_transaction_commits(tmp_path: Path) -> None:
         conn.execute("INSERT INTO source_health(source, state) VALUES ('x', 'ok')")
     other = sqlite3.connect(tmp_path / "t.db")
     assert other.execute("SELECT COUNT(*) FROM source_health").fetchone()[0] == 1
+
+
+def test_a_failing_migration_leaves_no_partial_schema_and_can_be_retried(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Review #4246141437: the script and its version marker commit together or not at all."""
+    import nzstats.store.db as db
+
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    script = migrations / "001_init.sql"
+    script.write_text(
+        "CREATE TABLE first_table (id INTEGER PRIMARY KEY);\n"
+        "INSERT INTO table_that_does_not_exist VALUES (1);\n"
+    )
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", migrations)
+    conn = connect(tmp_path / "t.db")
+    with pytest.raises(sqlite3.Error):
+        migrate(conn)
+    names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "first_table" not in names
+    assert conn.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 0
+    assert not conn.in_transaction
+
+    script.write_text("CREATE TABLE first_table (id INTEGER PRIMARY KEY);\n")  # the fixed migration
+    assert migrate(conn) == 1
+    assert migrate(conn) == 1  # and re-running stays a no-op
