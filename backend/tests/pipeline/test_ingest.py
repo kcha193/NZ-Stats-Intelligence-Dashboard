@@ -152,16 +152,24 @@ def test_release_without_registered_adapter_is_skipped(rt) -> None:
     assert out.outcome == "skipped_no_adapter" and _count(rt, "ingest_run") == 0
 
 
-def test_unexpected_errors_are_classified_not_swallowed(rt, monkeypatch) -> None:
+def test_unexpected_errors_are_classified_logged_and_not_disclosed(rt, monkeypatch, caplog) -> None:
     (july,) = _seed(rt, "2026-07")
 
     def boom(*a, **k):
-        raise RuntimeError("parser exploded")
+        raise RuntimeError("parser exploded at /srv/internal/path.py")
 
     monkeypatch.setattr(rt.adapters["international-migration"], "parse", boom)
     out = _ingest(rt, july)
     assert out.outcome == "failed" and out.error_class is ErrorClass.UNEXPECTED
-    assert "parser exploded" in (out.detail or "")
+    # The stored (and API-served) detail names the exception type but never its message.
+    assert "RuntimeError" in (out.detail or "")
+    assert "parser exploded" not in (out.detail or "") and "/srv/internal" not in (out.detail or "")
+    run = rt.conn.execute("SELECT detail FROM ingest_run ORDER BY id DESC LIMIT 1").fetchone()
+    assert "parser exploded" not in (run["detail"] or "")
+    health = rt.conn.execute("SELECT detail FROM source_health").fetchone()
+    assert "parser exploded" not in (health["detail"] or "")
+    # ...but the full exception is still available to the operator in the server log.
+    assert "parser exploded" in caplog.text
 
 
 def _month_payload(ref) -> bytes:

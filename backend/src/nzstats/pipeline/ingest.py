@@ -53,7 +53,12 @@ def ingest_release(
         outcome = IngestOutcome(release_key, kind, exc.error_class, str(exc))
     except Exception as exc:  # classified and recorded, never silently swallowed
         log.exception("unexpected error ingesting %s", release_key)
-        outcome = IngestOutcome(release_key, "failed", ErrorClass.UNEXPECTED, repr(exc))
+        outcome = IngestOutcome(
+            release_key,
+            "failed",
+            ErrorClass.UNEXPECTED,
+            f"unexpected {type(exc).__name__}; see server log",
+        )
     finished = now_fn()
     detail = outcome.detail
     if outcome.warnings:
