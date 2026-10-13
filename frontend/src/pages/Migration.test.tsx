@@ -69,6 +69,13 @@ describe("Migration page", () => {
     expect(await screen.findByRole("img", { name: "Year-ended net migration chart" })).toBeInTheDocument();
   });
 
+  it("says so when a revision comparison uses data a corrected release withdrew (review #4254126260)", async () => {
+    const superseded = { ...revisions, compare: { ...revisions.compare, superseded: true } };
+    mockApi({ ...baseRoutes(), "/api/revisions/mig.m.net": superseded });
+    renderWithProviders(<Migration />);
+    expect(await screen.findByText(/replaced in a corrected release/i)).toBeInTheDocument();
+  });
+
   it("states the revision coverage limitation", async () => {
     renderWithProviders(<Migration />);
     expect(await screen.findByText(revisions.coverage.note.slice(0, 40), { exact: false })).toBeInTheDocument();

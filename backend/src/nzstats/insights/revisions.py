@@ -31,8 +31,9 @@ def series_out(row: sqlite3.Row, n_vintages: int, latest_period: str | None) -> 
     )
 
 
-def vintage_out(v: repo.VintageInfo) -> VintageOut:
+def vintage_out(conn: sqlite3.Connection, v: repo.VintageInfo) -> VintageOut:
     return VintageOut(
+        superseded=repo.vintage_superseded(conn, v.vintage_id),
         release_key=v.release_key,
         title=v.title,
         published_at=to_akl_iso(v.published_at),
@@ -148,8 +149,8 @@ def revision_view(
     return RevisionsOut(
         series=series,
         coverage=coverage,
-        base=vintage_out(base),
-        compare=vintage_out(compare),
+        base=vintage_out(conn, base),
+        compare=vintage_out(conn, compare),
         n_common=summary.n_common,
         n_revised=summary.n_revised,
         rows=rows,

@@ -213,7 +213,9 @@ export function RevisionChart() {
               question="How much were earlier estimates revised?"
               unit="people (revised minus original)"
               source={{ label: `Stats NZ, ${d.compare.title}`, url: null, updated: d.compare.published_at }}
-              caveat={d.coverage.note}
+              caveat={d.base.superseded || d.compare.superseded
+                ? `${d.coverage.note} This comparison uses data from a bundle that was replaced in a corrected release.`
+                : d.coverage.note}
               option={revisionBarOption({ rows: d.rows.map((r) => ({ period: r.period, absolute: r.absolute })), unit: "people" }, theme)}
               ariaLabel="Revisions to monthly net migration chart"
               csvFilename="net-migration-revisions.csv"

@@ -394,11 +394,18 @@ def bundle_vintage(
 
 
 def vintage_superseded(conn: sqlite3.Connection, vintage_id: int) -> bool:
-    """True if the vintage's release was re-ingested into a newer bundle that did not replace it."""
+    """True if the vintage's release was re-ingested into a newer bundle that does not include this
+    series, so its values were withdrawn. A series that the newer bundle revised is not superseded:
+    its older vintage is simply the original of a revision."""
     row = conn.execute(
-        "SELECT v.bundle_sha256 <> (SELECT bundle_sha256 FROM vintage WHERE release_id = v.release_id"
-        " ORDER BY id DESC LIMIT 1) AS superseded FROM vintage v WHERE v.id = ?",
-        (vintage_id,),
+        "WITH newest AS (SELECT release_id, bundle_sha256 FROM vintage"
+        "  WHERE release_id = (SELECT release_id FROM vintage WHERE id = ?)"
+        "  ORDER BY id DESC LIMIT 1)"
+        " SELECT v.bundle_sha256 <> n.bundle_sha256 AND NOT EXISTS ("
+        "  SELECT 1 FROM vintage w WHERE w.release_id = v.release_id AND w.series_id = v.series_id"
+        "  AND w.bundle_sha256 = n.bundle_sha256) AS superseded"
+        " FROM vintage v JOIN newest n ON n.release_id = v.release_id WHERE v.id = ?",
+        (vintage_id, vintage_id),
     ).fetchone()
     return bool(row and row["superseded"])
 

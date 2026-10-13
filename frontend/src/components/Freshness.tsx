@@ -4,6 +4,7 @@ import { formatAklDateTime } from "@/lib/format";
 const NAMES: Record<string, string> = {
   calendar_ics: "Release calendar (ICS)",
   calendar_month: "Release listings (monthly)",
+  calendar_refresh: "Release calendar (complete refresh)",
   "release:international-migration": "International migration releases",
 };
 

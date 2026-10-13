@@ -514,6 +514,13 @@
    "detail": null
   },
   {
+   "source": "calendar_refresh",
+   "state": "ok",
+   "last_checked_at": "2026-10-11T16:00:00+13:00",
+   "last_success_at": "2026-10-11T16:00:00+13:00",
+   "detail": null
+  },
+  {
    "source": "release:international-migration",
    "state": "ok",
    "last_checked_at": "2026-10-11T16:00:00+13:00",

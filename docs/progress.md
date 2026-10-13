@@ -28,9 +28,9 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **310 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **313 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
-| Frontend tests | `cd frontend && npm test` | **13 files, 97 passed** |
+| Frontend tests | `cd frontend && npm test` | **13 files, 98 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
 | Frontend lint | `npm run lint` (oxlint) | 3 warnings, all in generated `components/ui/*` (fast-refresh exports) |
 | End to end | `cd frontend && npx playwright test` (Chromium, desktop 1440x900 and Pixel 7) | **16 passed**: overview, migration charts and CSV download, route reload and JSON 404, release analysis and print, no horizontal scroll on `/`, `/migration`, `/calendar`, `/health` |
@@ -286,6 +286,20 @@ Two findings, validated and fixed with tests that failed first:
 2. A blank interior chart cell closed the gap on the category axis (#4254096579). The line, bar and stacked charts now use a
    continuous month axis, so a month without an observation keeps its place and the line breaks there. Ingestion is not
    changed to reject such gaps: no real file has one, and rejecting would block a release rather than show it honestly.
+
+## Review round 13 (PR #1, commit 74294a6)
+
+Two findings, validated and fixed with tests that failed first:
+
+1. Calendar freshness was still derived from per-feed timestamps (#4254126251). Round 11 changed the aggregation (oldest
+   success, newest attempt), but timestamps recorded per feed cannot describe one refresh: a normal successful run showed a
+   later "last attempt" than its "last success", and alternating single-feed successes produced a success time although no
+   refresh completed. Discovery now records one `calendar_refresh` health row per run, healthy only if every feed in that run
+   succeeded, and the calendar API reports that row. Backfill does not update it (it never reads the ICS feed).
+2. Revision responses reported `superseded=false` regardless (#4254126260). `VintageOut.superseded` no longer has a default and
+   `vintage_out(conn, v)` always computes it, so no construction site can omit it. Its meaning is now exact and tested: a
+   vintage is superseded when a newer bundle of its release does not include the series (withdrawn). A series the newer bundle
+   revised is not superseded: its older vintage is the original of a revision. The revisions chart notes a superseded comparison.
 
 ## Remaining work
 

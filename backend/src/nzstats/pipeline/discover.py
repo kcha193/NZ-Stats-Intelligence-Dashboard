@@ -15,6 +15,9 @@ from nzstats.store.db import transaction
 
 log = logging.getLogger(__name__)
 
+# Health of a whole calendar refresh (every feed in one run); backfill does not update it.
+CALENDAR_REFRESH = "calendar_refresh"
+
 
 @dataclass(frozen=True)
 class DiscoveryResult:
@@ -106,4 +109,8 @@ def discover(
         )
     if months:
         record_batch_health(rt, "calendar_month", now_fn, month_errors)
-    return DiscoveryResult(total, (*errors, *month_errors))
+    all_errors = (*errors, *month_errors)
+    # One verdict for the whole run: the calendar is complete only when every feed succeeded in the
+    # same run, which per-feed timestamps cannot express (e.g. alternating single-feed successes).
+    record_batch_health(rt, CALENDAR_REFRESH, now_fn, all_errors)
+    return DiscoveryResult(total, all_errors)

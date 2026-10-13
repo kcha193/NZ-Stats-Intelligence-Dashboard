@@ -187,7 +187,7 @@ class VintageOut(BaseModel):
     layout_version: str
     # True when this vintage belongs to a bundle of its release that a later correction replaced
     # without this series, so its values are no longer part of the release as it stands.
-    superseded: bool = False
+    superseded: bool
 
 
 class SeriesDataOut(BaseModel):

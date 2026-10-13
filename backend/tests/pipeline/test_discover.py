@@ -20,7 +20,7 @@ def test_discover_upserts_calendar_and_months_idempotently(rt) -> None:
     assert first.refs > 0 and not first.errors and not second.errors
     assert rt.conn.execute("SELECT COUNT(*) FROM release").fetchone()[0] == n
     health = {r["source"]: r["state"] for r in rt.conn.execute("SELECT * FROM source_health")}
-    assert health == {"calendar_ics": "ok", "calendar_month": "ok"}
+    assert health == {"calendar_ics": "ok", "calendar_month": "ok", "calendar_refresh": "ok"}
 
 
 def test_ics_failure_degrades_health_but_month_endpoint_still_runs(rt, site) -> None:

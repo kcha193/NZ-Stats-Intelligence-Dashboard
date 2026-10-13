@@ -11,7 +11,7 @@ from nzstats.clock import AKL
 from nzstats.pipeline.discover import discover
 from nzstats.store import repo
 from tests.conftest import FIXTURES
-from tests.support import NOW, ingest_months
+from tests.support import NOW, FakeSite, ingest_months
 
 
 @pytest.fixture()
@@ -224,65 +224,67 @@ def test_year_ended_series_caveat_states_the_derived_provisional_rule(client) ->
     assert statuses[max(statuses)] == "provisional"
 
 
-# --- calendar freshness needs every feed (review #4254067563) -----------------------------------
+# --- calendar freshness describes one complete refresh run (review #4254067563 / #4254126251) -----
 
 
-def _set_feeds(rt, ics: tuple[datetime, bool] | None, month: tuple[datetime, bool] | None) -> None:
-    from nzstats.store import repo
+def _refresh(rt, site, *, ics_ok: bool, month_ok: bool, at) -> None:
+    """One discovery run, with each feed made to succeed or fail."""
+    from tests.support import BASE
 
-    rt.conn.execute("DELETE FROM source_health WHERE source IN ('calendar_ics','calendar_month')")
-    for source, state in (("calendar_ics", ics), ("calendar_month", month)):
-        if state:
-            repo.set_source_health(rt.conn, source, state[0], ok=state[1], detail=None)
-
-
-def _stamp(text: str | None) -> datetime | None:
-    return datetime.fromisoformat(text) if text else None
-
-
-def test_calendar_success_time_is_the_oldest_feed_success_not_the_newest(client, rt) -> None:
-    """ICS refreshed an hour ago; the month feed last succeeded a day ago and failed just now."""
-    from datetime import UTC
-    from datetime import datetime as dt
-
-    old, recent = dt(2026, 10, 10, 3, 0, tzinfo=UTC), dt(2026, 10, 11, 3, 0, tzinfo=UTC)
-    _set_feeds(rt, (recent, True), (old, True))
-    from nzstats.store import repo
-
-    repo.set_source_health(rt.conn, "calendar_month", recent, ok=False, detail="blocked")
-    body = client.get("/api/calendar").json()
-    assert _stamp(body["last_success_at"]) == old  # not the ICS success
-    assert _stamp(body["last_checked_at"]) == recent
-    assert body["last_success_at"] != body["last_checked_at"]  # so the UI shows the last attempt
+    site.routes[f"{BASE}/release-calendar/calendar-export/"] = (
+        (200, FakeSite().routes[f"{BASE}/release-calendar/calendar-export/"][1], "text/calendar")
+        if ics_ok
+        else (403, b"", "text/html")
+    )
+    for m in ("2026-09", "2026-10"):
+        url = f"{BASE}/api/v1/releaseCalendarMonth/{m}"
+        site.routes[url] = FakeSite().routes[url] if month_ok else (403, b"", "text/html")
+    discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: at)
 
 
-def test_calendar_success_time_is_unknown_until_every_known_feed_has_succeeded(client, rt) -> None:
-    from datetime import UTC
-    from datetime import datetime as dt
-
-    from nzstats.store import repo
-
-    recent = dt(2026, 10, 11, 3, 0, tzinfo=UTC)
-    _set_feeds(rt, (recent, True), (recent, False))  # the month feed has never succeeded
-    repo.set_source_health(rt.conn, "calendar_month", recent, ok=False, detail="blocked")
-    body = client.get("/api/calendar").json()
-    assert body["last_success_at"] is None and body["last_checked_at"] is not None
+def _calendar(client) -> dict:
+    return client.get("/api/calendar").json()
 
 
-def test_calendar_freshness_with_both_feeds_healthy_or_one_feed_known(client, rt) -> None:
-    from datetime import UTC
-    from datetime import datetime as dt
+def test_a_complete_refresh_reports_the_same_success_and_attempt_time(client, rt, site) -> None:
+    at = NOW + timedelta(hours=3)
+    _refresh(rt, site, ics_ok=True, month_ok=True, at=at)
+    body = _calendar(client)
+    assert datetime.fromisoformat(body["last_success_at"]) == at
+    assert body["last_success_at"] == body["last_checked_at"]  # nothing to warn about
 
-    a, b = dt(2026, 10, 10, 3, 0, tzinfo=UTC), dt(2026, 10, 11, 3, 0, tzinfo=UTC)
-    _set_feeds(rt, (b, True), (a, True))
-    both = client.get("/api/calendar").json()
-    assert _stamp(both["last_success_at"]) == a and _stamp(both["last_checked_at"]) == b
-    _set_feeds(rt, (b, True), None)  # an ICS-only installation
-    only = client.get("/api/calendar").json()
-    assert _stamp(only["last_success_at"]) == b == _stamp(only["last_checked_at"])
-    _set_feeds(rt, None, None)
-    none = client.get("/api/calendar").json()
-    assert none["last_success_at"] is None and none["last_checked_at"] is None
+
+def test_a_partial_refresh_never_counts_as_a_success(client, rt, site) -> None:
+    first, second = NOW + timedelta(hours=1), NOW + timedelta(hours=2)
+    _refresh(rt, site, ics_ok=True, month_ok=True, at=first)
+    _refresh(rt, site, ics_ok=True, month_ok=False, at=second)
+    body = _calendar(client)
+    assert datetime.fromisoformat(body["last_success_at"]) == first
+    assert datetime.fromisoformat(body["last_checked_at"]) == second
+
+
+def test_alternating_single_feed_successes_are_not_a_complete_refresh(client, rt, site) -> None:
+    rt.conn.execute("DELETE FROM source_health")
+    _refresh(rt, site, ics_ok=True, month_ok=False, at=NOW + timedelta(hours=1))
+    _refresh(rt, site, ics_ok=False, month_ok=True, at=NOW + timedelta(hours=2))
+    body = _calendar(client)
+    assert body["last_success_at"] is None
+    assert datetime.fromisoformat(body["last_checked_at"]) == NOW + timedelta(hours=2)
+
+
+def test_calendar_freshness_is_empty_before_any_refresh(client, rt) -> None:
+    rt.conn.execute("DELETE FROM source_health")
+    body = _calendar(client)
+    assert body["last_success_at"] is None and body["last_checked_at"] is None
+
+
+def test_a_backfill_does_not_claim_a_complete_calendar_refresh(client, rt, site) -> None:
+    from nzstats.pipeline.ingest import backfill
+
+    _refresh(rt, site, ics_ok=True, month_ok=True, at=NOW + timedelta(hours=1))
+    before = _calendar(client)
+    backfill(rt, since="2026-09", until="2026-10", now_fn=lambda: NOW + timedelta(hours=5))
+    assert _calendar(client) == before
 
 
 # --- a series whose vintage was superseded by a corrected bundle says so (review #4254096575) ------
@@ -332,3 +334,14 @@ def test_a_series_absent_from_a_newer_release_is_not_called_superseded(rt, site)
         nz = c.get("/api/series/mig.ry.net.nz").json()
     assert nz["vintage"]["release_key"] == june.release_key
     assert nz["vintage"]["superseded"] is False
+
+
+def test_revision_vintages_are_marked_superseded_like_series_vintages(client, rt, site) -> None:
+    """Review #4254126260: the revisions response used the field's default instead of the truth."""
+    _correct_july_without_citizenship_chart(rt, site)
+    nz = client.get("/api/revisions/mig.ry.net.nz").json()
+    assert nz["compare"]["release_key"] == "international-migration:july 2026"
+    assert nz["compare"]["superseded"] is True  # the withdrawn July bundle's series
+    assert nz["base"]["superseded"] is False
+    net = client.get("/api/revisions/mig.m.net").json()
+    assert net["base"]["superseded"] is False and net["compare"]["superseded"] is False

@@ -29,6 +29,7 @@ from nzstats.models import (
     SeriesDataOut,
     SeriesOut,
 )
+from nzstats.pipeline.discover import CALENDAR_REFRESH
 from nzstats.store import repo
 
 router = APIRouter()
@@ -135,15 +136,6 @@ def release_detail(release_id: int, request: Request, conn: Conn) -> ReleaseDeta
     return ReleaseDetail(release=summary, analysis=analysis, unavailable_reason=reason)
 
 
-def _latest(stamps) -> str | None:
-    known = [s for s in stamps if s]
-    return max(known, key=datetime.fromisoformat) if known else None
-
-
-def _oldest(stamps: list[str | None]) -> str | None:
-    return None if any(s is None for s in stamps) else min(stamps, key=datetime.fromisoformat)
-
-
 @router.get("/calendar", response_model=CalendarOut)
 def calendar(
     request: Request,
@@ -169,15 +161,12 @@ def calendar(
         f"SELECT * FROM release WHERE {' AND '.join(clauses) or '1'} ORDER BY published_at, id",
         args,
     ).fetchall()
-    health = {h.source: h for h in health_rows(conn)}
-    sources = [health[s] for s in ("calendar_ics", "calendar_month") if s in health]
+    refresh = {h.source: h for h in health_rows(conn)}.get(CALENDAR_REFRESH)
     return CalendarOut(
         items=[release_summary(conn, r, analysable_slugs=_slugs(request)) for r in rows],
-        # The newest attempt on any feed, but a success only counts once every feed that has been
-        # tried has succeeded: the calendar is complete only with both, so freshness is the oldest of
-        # their last successes (None while any tried feed has never succeeded).
-        last_checked_at=_latest(s.last_checked_at for s in sources),
-        last_success_at=(_oldest([s.last_success_at for s in sources]) if sources else None),
+        # Freshness of one complete refresh run (all feeds): its last attempt and last full success.
+        last_checked_at=refresh.last_checked_at if refresh else None,
+        last_success_at=refresh.last_success_at if refresh else None,
     )
 
 
@@ -226,9 +215,7 @@ def series_data(
     release = repo.get_release(conn, v.release_key)
     return SeriesDataOut(
         series=series_out(row, len(repo.list_vintages(conn, key)), latest),
-        vintage=vintage_out(v).model_copy(
-            update={"superseded": repo.vintage_superseded(conn, v.vintage_id)}
-        ),
+        vintage=vintage_out(conn, v),
         points=[
             PointOut(
                 period=o.period,
