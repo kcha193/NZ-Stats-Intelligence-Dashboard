@@ -28,7 +28,7 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **304 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **307 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 | Frontend tests | `cd frontend && npm test` | **13 files, 91 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
@@ -259,6 +259,17 @@ Three findings, validated and fixed with tests that failed first:
 3. Unexpected discovery failures aborted without recording health (#4254034483). `attempt` caught only `IngestError`, so e.g.
    an undecodable calendar body raised past the health update. Other exceptions are now logged in full, recorded as an
    `unexpected` degraded error naming only the exception type, and the run continues (also for backfill months).
+
+## Review round 11 (PR #1, commit 4c43b00)
+
+One finding, validated and fixed with a test that failed first:
+
+- The calendar's "last successful check" took the newest success of either feed (#4254067563). With the ICS refreshed and the
+  month feed failing, it reported the current run as a success and, because the attempt time equalled it, hid the last-attempt
+  warning. The calendar is complete only with both feeds, so its last success is now the oldest of the feeds' last successes
+  (empty while a feed that has been tried has never succeeded); the last attempt stays the newest. An ICS-only installation
+  reports the ICS time. This was the only place that aggregated freshness across feeds; the Overview lists each source
+  separately.
 
 ## Remaining work
 

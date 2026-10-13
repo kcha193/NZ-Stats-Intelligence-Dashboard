@@ -221,3 +221,64 @@ def test_year_ended_series_caveat_states_the_derived_provisional_rule(client) ->
     )
     assert statuses[first_provisional_month] == "provisional"  # the rule the caveat states
     assert statuses[max(statuses)] == "provisional"
+
+
+# --- calendar freshness needs every feed (review #4254067563) -----------------------------------
+
+
+def _set_feeds(rt, ics: tuple[datetime, bool] | None, month: tuple[datetime, bool] | None) -> None:
+    from nzstats.store import repo
+
+    rt.conn.execute("DELETE FROM source_health WHERE source IN ('calendar_ics','calendar_month')")
+    for source, state in (("calendar_ics", ics), ("calendar_month", month)):
+        if state:
+            repo.set_source_health(rt.conn, source, state[0], ok=state[1], detail=None)
+
+
+def _stamp(text: str | None) -> datetime | None:
+    return datetime.fromisoformat(text) if text else None
+
+
+def test_calendar_success_time_is_the_oldest_feed_success_not_the_newest(client, rt) -> None:
+    """ICS refreshed an hour ago; the month feed last succeeded a day ago and failed just now."""
+    from datetime import UTC
+    from datetime import datetime as dt
+
+    old, recent = dt(2026, 10, 10, 3, 0, tzinfo=UTC), dt(2026, 10, 11, 3, 0, tzinfo=UTC)
+    _set_feeds(rt, (recent, True), (old, True))
+    from nzstats.store import repo
+
+    repo.set_source_health(rt.conn, "calendar_month", recent, ok=False, detail="blocked")
+    body = client.get("/api/calendar").json()
+    assert _stamp(body["last_success_at"]) == old  # not the ICS success
+    assert _stamp(body["last_checked_at"]) == recent
+    assert body["last_success_at"] != body["last_checked_at"]  # so the UI shows the last attempt
+
+
+def test_calendar_success_time_is_unknown_until_every_known_feed_has_succeeded(client, rt) -> None:
+    from datetime import UTC
+    from datetime import datetime as dt
+
+    from nzstats.store import repo
+
+    recent = dt(2026, 10, 11, 3, 0, tzinfo=UTC)
+    _set_feeds(rt, (recent, True), (recent, False))  # the month feed has never succeeded
+    repo.set_source_health(rt.conn, "calendar_month", recent, ok=False, detail="blocked")
+    body = client.get("/api/calendar").json()
+    assert body["last_success_at"] is None and body["last_checked_at"] is not None
+
+
+def test_calendar_freshness_with_both_feeds_healthy_or_one_feed_known(client, rt) -> None:
+    from datetime import UTC
+    from datetime import datetime as dt
+
+    a, b = dt(2026, 10, 10, 3, 0, tzinfo=UTC), dt(2026, 10, 11, 3, 0, tzinfo=UTC)
+    _set_feeds(rt, (b, True), (a, True))
+    both = client.get("/api/calendar").json()
+    assert _stamp(both["last_success_at"]) == a and _stamp(both["last_checked_at"]) == b
+    _set_feeds(rt, (b, True), None)  # an ICS-only installation
+    only = client.get("/api/calendar").json()
+    assert _stamp(only["last_success_at"]) == b == _stamp(only["last_checked_at"])
+    _set_feeds(rt, None, None)
+    none = client.get("/api/calendar").json()
+    assert none["last_success_at"] is None and none["last_checked_at"] is None

@@ -135,6 +135,15 @@ def release_detail(release_id: int, request: Request, conn: Conn) -> ReleaseDeta
     return ReleaseDetail(release=summary, analysis=analysis, unavailable_reason=reason)
 
 
+def _latest(stamps) -> str | None:
+    known = [s for s in stamps if s]
+    return max(known, key=datetime.fromisoformat) if known else None
+
+
+def _oldest(stamps: list[str | None]) -> str | None:
+    return None if any(s is None for s in stamps) else min(stamps, key=datetime.fromisoformat)
+
+
 @router.get("/calendar", response_model=CalendarOut)
 def calendar(
     request: Request,
@@ -164,12 +173,11 @@ def calendar(
     sources = [health[s] for s in ("calendar_ics", "calendar_month") if s in health]
     return CalendarOut(
         items=[release_summary(conn, r, analysable_slugs=_slugs(request)) for r in rows],
-        last_checked_at=max(
-            (s.last_checked_at for s in sources if s.last_checked_at), default=None
-        ),
-        last_success_at=max(
-            (s.last_success_at for s in sources if s.last_success_at), default=None
-        ),
+        # The newest attempt on any feed, but a success only counts once every feed that has been
+        # tried has succeeded: the calendar is complete only with both, so freshness is the oldest of
+        # their last successes (None while any tried feed has never succeeded).
+        last_checked_at=_latest(s.last_checked_at for s in sources),
+        last_success_at=(_oldest([s.last_success_at for s in sources]) if sources else None),
     )
 
 
