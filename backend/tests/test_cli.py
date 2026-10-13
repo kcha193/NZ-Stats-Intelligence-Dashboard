@@ -102,3 +102,19 @@ def test_ingested_and_unchanged_releases_exit_zero(tmp_path, monkeypatch) -> Non
         IngestOutcome("international-migration:july 2026", "unchanged"),
     ]
     assert _run_backfill_with(monkeypatch, tmp_path, outcomes) == 0
+
+
+def test_an_explicit_release_key_without_an_adapter_makes_the_cli_exit_nonzero(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """Review #4254166732: an explicitly requested release that was not ingested is not a success."""
+    import nzstats.cli as cli
+    from nzstats.pipeline.ingest import IngestOutcome
+
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(cli, "build_runtime", lambda settings: object())
+    monkeypatch.setattr(
+        cli, "ingest_release", lambda rt, key: IngestOutcome(key, "skipped_no_adapter")
+    )
+    assert cli.main(["ingest", "--release-key", "gdp:june 2026"]) == 1
+    assert "gdp:june 2026: skipped_no_adapter" in capsys.readouterr().out

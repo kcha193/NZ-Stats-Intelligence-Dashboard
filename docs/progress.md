@@ -301,6 +301,17 @@ Two findings, validated and fixed with tests that failed first:
    vintage is superseded when a newer bundle of its release does not include the series (withdrawn). A series the newer bundle
    revised is not superseded: its older vintage is the original of a revision. The revisions chart notes a superseded comparison.
 
+## Review round 14 (PR #1, commit 260ea47)
+
+Two findings, validated and fixed with tests that failed first:
+
+1. `nzstats ingest --release-key` exited 0 for a release with no adapter (#4254166732): it was neither ingested nor recorded.
+   `skipped_no_adapter` now counts as a gap in the exit code. Catch-up and backfill only select releases that have an
+   adapter, so the outcome can only come from an explicit key.
+2. A 404 on a release already `published` or `corrected` left `release:<slug>` health untouched (#4254166737). Missing files
+   are expected only before publication, so for a published or corrected release `not_available` now refreshes health and
+   `failing_releases` counts the latest `not_available` run as failing; it recovers when the release ingests again.
+
 ## Remaining work
 
 Before merging or calling Phase 1 shipped:

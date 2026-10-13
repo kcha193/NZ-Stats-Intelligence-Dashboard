@@ -72,7 +72,11 @@ def ingest_release(
         outcome.error_class.value if outcome.error_class else None,
         detail,
     )
-    if outcome.outcome in ("ingested", "unchanged", "failed"):
+    published = row["status"] in (ReleaseStatus.PUBLISHED.value, ReleaseStatus.CORRECTED.value)
+    # Files missing before publication are expected polling; once published they are a data gap.
+    if outcome.outcome in ("ingested", "unchanged", "failed") or (
+        outcome.outcome == "not_available" and published
+    ):
         _refresh_release_health(rt, row["series_slug"], finished)
     return outcome
 

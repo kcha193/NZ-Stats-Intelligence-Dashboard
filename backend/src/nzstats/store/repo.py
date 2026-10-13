@@ -301,11 +301,16 @@ def record_ingest_run(
 
 
 def failing_releases(conn: sqlite3.Connection, series_slug: str) -> list[sqlite3.Row]:
-    """Releases of a series whose most recent ingest run failed, oldest failure first."""
+    """Releases of a series whose most recent ingest run failed, oldest failure first.
+
+    Files that are not there yet (`not_available`) are expected before a release is published, but a
+    gap once the release is published or corrected, so only then do they count as failing."""
     return conn.execute(
         "SELECT run.release_key, run.detail FROM ingest_run run"
         " JOIN release r ON r.release_key = run.release_key"
-        " WHERE r.series_slug = ? AND run.outcome = 'failed'"
+        " WHERE r.series_slug = ?"
+        " AND (run.outcome = 'failed'"
+        "      OR (run.outcome = 'not_available' AND r.status IN ('published', 'corrected')))"
         " AND run.id = (SELECT MAX(x.id) FROM ingest_run x WHERE x.release_key = run.release_key)"
         " ORDER BY run.id",
         (series_slug,),

@@ -112,8 +112,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             else ""
         )
         print(f"{o.release_key}: {o.outcome}{suffix}")
-    # A requested release that was not ingested (failed, or its files are not available) is a gap.
-    return 1 if any(o.outcome in ("failed", "not_available") for o in outcomes) else 0
+    # A requested release that was not ingested (failed, files not available, or no adapter for an
+    # explicit key; catch-up and backfill only select releases that have one) is a gap.
+    gaps = ("failed", "not_available", "skipped_no_adapter")
+    return 1 if any(o.outcome in gaps for o in outcomes) else 0
 
 
 if __name__ == "__main__":

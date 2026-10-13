@@ -3,6 +3,7 @@ import html
 import io
 import json
 import re
+import sqlite3
 
 import pandas as pd
 
@@ -102,13 +103,48 @@ def test_validation_failure_writes_nothing_and_keeps_last_known_good(rt, site) -
     assert health["release:international-migration"] == "degraded"
 
 
+def _seed_with_status(rt, month: str, status: ReleaseStatus) -> str:
+    ref = release_ref_for(month, status)
+    repo.upsert_release(rt.conn, ref, NOW)
+    return ref.release_key
+
+
+def _release_health(rt) -> sqlite3.Row | None:
+    return rt.conn.execute(
+        "SELECT * FROM source_health WHERE source = 'release:international-migration'"
+    ).fetchone()
+
+
 def test_page_live_but_data_file_missing_is_not_available_and_writes_no_vintage(rt, site) -> None:
-    (july,) = _seed(rt, "2026-07")
+    july = _seed_with_status(rt, "2026-07", ReleaseStatus.SCHEDULED)
     site.override(site.file_url("2026-07", "citizenship_visa_country"), 404, b"", "text/html")
     out = _ingest(rt, july)
     assert out.outcome == "not_available" and out.error_class is ErrorClass.NOT_FOUND
     assert _count(rt, "vintage") == 0 and _count(rt, "observation") == 0
     assert _count(rt, "source_health") == 0  # polling before files exist is not a failure
+
+
+def test_missing_files_of_a_published_release_degrade_release_health(rt, site) -> None:
+    """Review #4254166737: a 404 on a release already published is a data gap, not pre-publication."""
+    (july,) = _seed(rt, "2026-07")  # seeded as published
+    site.override(site.file_url("2026-07", "age_sex"), 404, b"", "text/html")
+    out = _ingest(rt, july)
+    assert out.outcome == "not_available"
+    health = _release_health(rt)
+    assert health is not None and health["state"] == "degraded"
+    assert july in health["detail"]
+
+
+def test_release_health_recovers_once_the_published_release_is_available_again(rt, site) -> None:
+    (july,) = _seed(rt, "2026-07")
+    url = site.file_url("2026-07", "age_sex")
+    good = site.routes[url]
+    site.override(url, 404, b"", "text/html")
+    _ingest(rt, july)
+    assert _release_health(rt)["state"] == "degraded"
+    site.override(url, *good)
+    assert _ingest(rt, july).outcome == "ingested"
+    assert _release_health(rt)["state"] == "ok"
 
 
 def test_block_page_served_as_200_is_failed_blocked(rt, site) -> None:
