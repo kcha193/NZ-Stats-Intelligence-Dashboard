@@ -99,3 +99,46 @@ def test_a_corrected_bundle_that_drops_a_place_does_not_keep_its_earlier_value(r
     after = _all_places(rank_countries(rt.conn, months=12, top=1000))
     assert after["mig.m.arrivals.country.togo"].value == 0.0
     assert after["mig.m.arrivals.country.togo"].series_key in after
+
+
+# --- the prior window carries its own provisional flag (audit: unflagged provisional prior) -----
+
+
+def _country_file_with_final_through(site, period: str) -> None:
+    import io
+
+    from tests.conftest import fixture_bytes
+
+    df = pd.read_csv(io.BytesIO(fixture_bytes("im_2026-07_citizenship_country.csv")))
+    df.loc[df.year_month <= period, "status"] = "Final"
+    site.override(
+        site.file_url("2026-07", "citizenship_visa_country"),
+        200,
+        df.to_csv(index=False, quoting=1).encode(),
+    )
+
+
+def test_prior_window_built_from_provisional_months_is_flagged(rt) -> None:
+    ingest_months(rt, "2026-07")  # every stored month from 2025-06 is provisional in the real file
+    out = rank_countries(rt.conn, months=6, top=5)
+    assert all(c.prior_value is not None for c in out.countries)
+    assert all(c.provisional and c.prior_provisional is True for c in out.countries)
+
+
+def test_prior_window_of_final_months_is_not_flagged_while_the_current_one_is(rt, site) -> None:
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.support import NOW, release_ref_for
+
+    _country_file_with_final_through(site, "2026-01")  # prior = 2025-08..2026-01 for months=6
+    ref = release_ref_for("2026-07")
+    repo.upsert_release(rt.conn, ref, NOW)
+    assert ingest_release(rt, ref.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    out = rank_countries(rt.conn, months=6, top=5)
+    assert all(c.prior_value is not None for c in out.countries)
+    assert all(c.provisional and c.prior_provisional is False for c in out.countries)
+
+
+def test_no_prior_flag_when_the_prior_window_is_withheld(rt) -> None:
+    ingest_months(rt, "2026-07")
+    out = rank_countries(rt.conn, months=12, top=5)  # 14 stored months: no full prior window
+    assert all(c.prior_value is None and c.prior_provisional is None for c in out.countries)

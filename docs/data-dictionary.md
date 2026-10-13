@@ -25,8 +25,11 @@ dropped, e.g. `china-peoples-republic-of`).
   ending in that month. It is never combined with, or plotted on the same axis as, a monthly value.
   Period labels read "Jul 2026" for monthly and "Year ended Jul 2026" for rolling annual.
 - **Status**: `provisional` is read from the file's `status` column (latest sixteen months);
-  `final` otherwise; `unknown` when a file gives no status. Provisional values are drawn with a shaded band
-  or lighter bars and flagged in tooltips.
+  `final` otherwise; `unknown` when a file gives no status. A year-ended total has no published status: it is
+  derived as `provisional` when any of its twelve months is, `unknown` when a month's status is missing, `final`
+  otherwise. Provisional values are drawn with a shaded band or lighter bars and flagged in tooltips, chart
+  titles and exports; monthly and year-ended statuses are separate columns. The country ranking flags its
+  prior window the same way (`prior_provisional`).
 - **Standard error**: Stats NZ's published standard error for provisional estimates; zero for final.
   Shown as "±" in the headline table.
 - **Net**: arrivals minus departures; wording is "net gain" or "net loss", never a sign alone.

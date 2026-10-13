@@ -205,3 +205,19 @@ def test_series_csv_leaves_ordinary_text_and_numbers_alone(client) -> None:
     rows = list(csv.DictReader(io.StringIO(client.get("/api/series/mig.m.net/csv").text)))
     assert rows[0]["release"].startswith("International migration")
     assert not any(c.startswith("'") for r in rows for c in r.values())
+
+
+# --- derived year-ended status is stated (audit) ------------------------------------------------
+
+
+def test_year_ended_series_caveat_states_the_derived_provisional_rule(client) -> None:
+    body = client.get("/api/series/mig.ry.net").json()
+    assert "provisional" in body["caveat"].lower() and "twelve months" in body["caveat"]
+    monthly = client.get("/api/series/mig.m.net").json()
+    assert "twelve months" not in monthly["caveat"]
+    statuses = {p["period"]: p["status"] for p in body["points"]}
+    first_provisional_month = next(
+        p["period"] for p in monthly["points"] if p["status"] == "provisional"
+    )
+    assert statuses[first_provisional_month] == "provisional"  # the rule the caveat states
+    assert statuses[max(statuses)] == "provisional"

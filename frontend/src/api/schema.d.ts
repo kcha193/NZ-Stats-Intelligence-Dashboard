@@ -240,6 +240,8 @@ export interface components {
             share_percent: number | null;
             /** Provisional */
             provisional: boolean;
+            /** Prior Provisional */
+            prior_provisional?: boolean | null;
         };
         /** Coverage */
         Coverage: {

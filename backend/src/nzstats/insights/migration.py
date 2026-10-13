@@ -179,6 +179,40 @@ def driver_share_text(d_arr: float, d_dep: float) -> str | None:
     )
 
 
+def _runs(periods: list[str]) -> list[tuple[str, str]]:
+    """Maximal runs of consecutive months, as (first, last), from any ordering."""
+    runs: list[tuple[str, str]] = []
+    for p in sorted(set(periods)):
+        if runs and add_months(runs[-1][1], 1) == p:
+            runs[-1] = (runs[-1][0], p)
+        else:
+            runs.append((p, p))
+    return runs
+
+
+def describe_provisional(periods: list[str]) -> tuple[str, list[str]]:
+    """Sentence naming exactly the provisional months, and the periods that evidence it.
+
+    A range is used only for months that are consecutive; provisional months with final (or missing)
+    months between them are listed separately so the text never calls a final month provisional.
+    """
+    runs = _runs(periods)
+    revised = "will be revised as travel outcomes become known"
+    evidence = [p for run in runs for p in dict.fromkeys(run)]
+    if len(runs) == 1:
+        first, last = runs[0]
+        if first == last:
+            return f"The estimate for {month_label(first)} is provisional and {revised}", evidence
+        return (
+            f"Estimates from {month_label(first)} to {month_label(last)} are provisional and "
+            f"{revised}",
+            evidence,
+        )
+    parts = [month_label(a) if a == b else f"{month_label(a)} to {month_label(b)}" for a, b in runs]
+    listing = f"{', '.join(parts[:-1])} and {parts[-1]}"
+    return f"Provisional estimates are those for {listing}; they {revised}", evidence
+
+
 def build_release_analysis(
     conn: sqlite3.Connection, release_id: int, *, analysable_slugs: Collection[str]
 ) -> ReleaseAnalysis | None:
@@ -266,16 +300,15 @@ def build_release_analysis(
         suffix = (
             f"; the latest monthly net estimate has a standard error of {fmt_int(se)}" if se else ""
         )
+        lead, evidence_periods = describe_provisional(prov)
+        evidence = [m_net.evidence(p) for p in evidence_periods]
+        text = f"{lead}{suffix}."
+        if ry_net.obs[ye].status is ObsStatus.PROVISIONAL:
+            # Year-ended figures quoted elsewhere in this release inherit the status of their months.
+            text += " Year-ended totals that include a provisional month are provisional too."
+            evidence.append(ry_net.evidence(ye))
         summary_items.append(
-            Insight(
-                id="provisional",
-                kind="observation",
-                text=(
-                    f"Estimates from {month_label(prov[0])} to {month_label(prov[-1])} are "
-                    f"provisional and will be revised as travel outcomes become known{suffix}."
-                ),
-                evidence=[m_net.evidence(prov[0]), m_net.evidence(prov[-1])],
-            )
+            Insight(id="provisional", kind="observation", text=text, evidence=evidence)
         )
     else:
         summary_items.append(

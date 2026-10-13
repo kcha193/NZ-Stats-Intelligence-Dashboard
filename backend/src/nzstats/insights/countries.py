@@ -59,6 +59,11 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
         value = sum(points[p].value for p in window if p in points)
         provisional = any(points[p].status is ObsStatus.PROVISIONAL for p in window if p in points)
         prior = sum(points[p].value for p in prior_window if p in points) if prior_stored else None
+        prior_provisional = (
+            any(points[p].status is ObsStatus.PROVISIONAL for p in prior_window if p in points)
+            if prior_stored
+            else None
+        )
         name = (
             row["name"].removeprefix("Migrant arrivals from ").removesuffix(" (monthly estimate)")
         )
@@ -74,6 +79,7 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
                 ),
                 share_percent=(value / total * 100) if total > 0 else None,
                 provisional=provisional,
+                prior_provisional=prior_provisional,
             )
         )
 

@@ -142,7 +142,7 @@
    {
     "id": "provisional",
     "kind": "observation",
-    "text": "Estimates from April 2025 to July 2026 are provisional and will be revised as travel outcomes become known; the latest monthly net estimate has a standard error of 545.",
+    "text": "Estimates from April 2025 to July 2026 are provisional and will be revised as travel outcomes become known; the latest monthly net estimate has a standard error of 545. Year-ended totals that include a provisional month are provisional too.",
     "evidence": [
      {
       "series_key": "mig.m.net",
@@ -154,6 +154,12 @@
       "series_key": "mig.m.net",
       "period": "2026-07",
       "value": 5170.0,
+      "release_key": "international-migration:july 2026"
+     },
+     {
+      "series_key": "mig.ry.net",
+      "period": "2026-07",
+      "value": 20350.0,
       "release_key": "international-migration:july 2026"
      }
     ],

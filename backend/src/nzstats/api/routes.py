@@ -36,7 +36,9 @@ PERIOD = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 CAVEATS = {
     "monthly": "Monthly estimates; provisional values are revised in later releases.",
     "rolling_annual": (
-        "Rolling twelve-month total published by Stats NZ. Not comparable with monthly figures."
+        "Rolling twelve-month total published by Stats NZ. Not comparable with monthly figures. "
+        "Its status is derived here from the monthly files: a total is provisional while any of "
+        "its twelve months is."
     ),
 }
 

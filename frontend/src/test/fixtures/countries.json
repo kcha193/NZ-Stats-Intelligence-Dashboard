@@ -13,7 +13,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 12.083252748560632,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "China, People's Republic of",
@@ -23,7 +24,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 11.944894892661083,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "India",
@@ -33,7 +35,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 10.564291771426872,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Philippines",
@@ -43,7 +46,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 6.702173557284616,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "United Kingdom",
@@ -53,7 +57,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 4.239254950384575,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "United States of America",
@@ -63,7 +68,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 4.016097118288528,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Sri Lanka",
@@ -73,7 +79,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 2.6749185473912847,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Fiji",
@@ -83,7 +90,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.784518797328057,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Japan",
@@ -93,7 +101,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.7064135560944402,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Samoa",
@@ -103,7 +112,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.7012065400121994,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Bangladesh",
@@ -113,7 +123,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.6870732106461162,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Korea, Republic of",
@@ -123,7 +134,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.4542452058259072,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Canada",
@@ -133,7 +145,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.4118452177276581,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Nepal",
@@ -143,7 +156,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.344154008658524,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "South Africa",
@@ -153,7 +167,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 1.2586101730217059,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   }
  ],
  "regions": [
@@ -165,7 +180,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 46.119285299849736,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Oceania and Antarctica",
@@ -175,7 +191,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 17.887587961378816,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Europe",
@@ -185,7 +202,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 9.693976226252287,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "The Americas",
@@ -195,7 +213,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 7.402889150066204,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   },
   {
    "name": "Africa and the Middle East",
@@ -205,7 +224,8 @@
    "change": null,
    "change_percent": null,
    "share_percent": 4.823184611035899,
-   "provisional": true
+   "provisional": true,
+   "prior_provisional": null
   }
  ],
  "unallocated": {
@@ -216,7 +236,8 @@
   "change": null,
   "change_percent": null,
   "share_percent": 14.076052189178334,
-  "provisional": true
+  "provisional": true,
+  "prior_provisional": null
  },
  "derived": true,
  "note": "Derived: Stats NZ's published monthly estimates summed over the window. Months absent from the source are treated as zero. Regions and 'Not Stated' are not ranked as countries."

@@ -5,7 +5,12 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
-from nzstats.insights.migration import _streak, build_release_analysis, driver_share_text
+from nzstats.insights.migration import (
+    _streak,
+    build_release_analysis,
+    describe_provisional,
+    driver_share_text,
+)
 from nzstats.sources.calendar import events_to_refs, parse_ics
 from nzstats.sources.release_page import parse_release_page
 from nzstats.store import repo
@@ -300,3 +305,94 @@ def test_streak_counts_consecutive_months_only() -> None:
 
 def test_streak_at_a_gap_directly_before_the_latest_period_is_zero() -> None:
     assert _streak({"2026-01": 1.0, "2026-02": 2.0, "2026-04": 3.0}) == (0, "")
+
+
+# --- provisional wording follows the months that really are provisional (review #4253748554) ----
+
+
+def test_one_provisional_month_is_named_not_ranged() -> None:
+    text, evidence = describe_provisional(["2026-07"])
+    assert text.startswith("The estimate for July 2026 is provisional")
+    assert evidence == ["2026-07"]
+
+
+def test_consecutive_provisional_months_are_one_range() -> None:
+    text, evidence = describe_provisional(["2026-05", "2026-06", "2026-07"])
+    assert text.startswith("Estimates from May 2026 to July 2026 are provisional")
+    assert evidence == ["2026-05", "2026-07"]
+
+
+def test_a_range_may_cross_a_year_boundary() -> None:
+    text, _ = describe_provisional(["2025-12", "2026-01"])
+    assert "from December 2025 to January 2026" in text
+
+
+def test_non_consecutive_provisional_months_are_never_joined_into_one_range() -> None:
+    """January and March provisional with February final must not read as January to March."""
+    text, evidence = describe_provisional(["2026-01", "2026-03"])
+    assert "January 2026 and March 2026" in text
+    assert "January 2026 to March 2026" not in text
+    assert "February" not in text
+    assert evidence == ["2026-01", "2026-03"]
+
+
+def test_mixed_runs_and_single_months_are_each_described() -> None:
+    text, evidence = describe_provisional(["2026-01", "2026-03", "2026-04", "2026-05", "2026-07"])
+    assert "January 2026, March 2026 to May 2026 and July 2026" in text
+    assert evidence == ["2026-01", "2026-03", "2026-05", "2026-07"]
+
+
+def test_provisional_months_are_sorted_before_grouping() -> None:
+    assert describe_provisional(["2026-03", "2026-01", "2026-02"])[1] == ["2026-01", "2026-03"]
+
+
+def test_irregular_provisional_months_in_a_release_are_reported_accurately(rt, site) -> None:
+    """A real release whose September 2025 is marked final amid provisional months still ingests
+    (validation only warns) and the summary must not call September provisional."""
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.conftest import fixture_bytes
+
+    ref = release_ref_for("2026-07")
+    repo.upsert_release(rt.conn, ref, NOW)
+    df = pd.read_csv(io.BytesIO(fixture_bytes("im_2026-07_age_sex.csv")))
+    df.loc[df.year_month == "2025-09", "status"] = "Final"
+    site.override(
+        site.file_url("2026-07", "age_sex"), 200, df.to_csv(index=False, quoting=1).encode()
+    )
+    out = ingest_release(rt, ref.release_key, now_fn=lambda: NOW)
+    assert out.outcome == "ingested", out.detail
+    assert any("provisional months are not" in w for w in out.warnings)  # warning kept
+    release_id = repo.get_release(rt.conn, ref.release_key)["id"]
+    analysis = build_release_analysis(rt.conn, release_id, analysable_slugs=SLUGS)
+    item = next(i for i in analysis.executive_summary if i.id == "provisional")
+    assert "April 2025 to August 2025" in item.text and "October 2025 to July 2026" in item.text
+    assert "September 2025" not in item.text
+    assert {e.period for e in item.evidence} == {"2025-04", "2025-08", "2025-10", "2026-07"}
+
+
+def test_provisional_insight_says_year_ended_totals_with_a_provisional_month_are_provisional(
+    rt,
+) -> None:
+    ids = ingest_months(rt, "2026-07")
+    analysis = build_release_analysis(rt.conn, ids["2026-07"], analysable_slugs=SLUGS)
+    item = next(i for i in analysis.executive_summary if i.id == "provisional")
+    assert "Year-ended totals that include a provisional month are provisional too" in item.text
+    assert any(e.series_key == "mig.ry.net" for e in item.evidence)
+
+
+def test_an_all_final_release_makes_no_provisional_claim(rt, site) -> None:
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.conftest import fixture_bytes
+
+    ref = release_ref_for("2026-07")
+    repo.upsert_release(rt.conn, ref, NOW)
+    df = pd.read_csv(io.BytesIO(fixture_bytes("im_2026-07_age_sex.csv")))
+    df["status"] = "Final"
+    site.override(
+        site.file_url("2026-07", "age_sex"), 200, df.to_csv(index=False, quoting=1).encode()
+    )
+    assert ingest_release(rt, ref.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    release_id = repo.get_release(rt.conn, ref.release_key)["id"]
+    analysis = build_release_analysis(rt.conn, release_id, analysable_slugs=SLUGS)
+    item = next(i for i in analysis.executive_summary if i.id == "provisional")
+    assert item.text == "All estimates in this release are final."

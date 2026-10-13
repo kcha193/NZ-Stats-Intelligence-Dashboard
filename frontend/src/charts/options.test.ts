@@ -113,6 +113,71 @@ describe("stackedPanelsOption", () => {
   });
 });
 
+describe("stackedPanelsOption provisional status (review #4253748549)", () => {
+  const stacked = (monthly: ChartPoint[], yearEnded: ChartPoint[]) =>
+    stackedPanelsOption({ monthly, yearEnded, unit: "people" }, TEST_THEME) as Opt;
+  const tip = (o: Opt, period: string, rows: { seriesName: string; value: number | null }[]): string =>
+    o.tooltip.formatter(rows.map((r) => ({ axisValue: period, marker: "●", ...r })));
+  const MONTHLY = "Monthly net migration";
+  const YEARLY = "Year-ended net migration";
+
+  it("shows final year-ended values as final: no flag and no provisional band", () => {
+    const o = stacked(pts([["2026-06", 100], ["2026-07", 200]]), pts([["2026-06", 1000], ["2026-07", 1100]]));
+    const html = tip(o, "2026-07", [{ seriesName: MONTHLY, value: 200 }, { seriesName: YEARLY, value: 1100 }]);
+    expect(html).not.toContain("provisional");
+    expect(o.series[1].markArea).toBeUndefined();
+  });
+
+  it("flags a provisional year-ended value in the tooltip and shades its panel", () => {
+    const o = stacked(
+      pts([["2026-05", 100], ["2026-06", 150], ["2026-07", 200, "provisional"]]),
+      pts([["2026-05", 1000], ["2026-06", 1050, "provisional"], ["2026-07", 1100, "provisional"]]),
+    );
+    const html = tip(o, "2026-07", [{ seriesName: YEARLY, value: 1100 }]);
+    expect(html).toContain("1,100");
+    expect(html).toContain("(provisional)");
+    const area = o.series[1].markArea;
+    expect(area.label.formatter).toBe("Provisional");
+    expect([area.data[0][0].xAxis, area.data[0][1].xAxis]).toEqual(["2026-06", "2026-07"]);
+  });
+
+  it("keeps the monthly and year-ended statuses apart: a final month inside a provisional year", () => {
+    // January was provisional, February is final: every year-ended total containing January is too.
+    const o = stacked(
+      pts([["2026-01", 100, "provisional"], ["2026-02", 120]]),
+      pts([["2026-01", 1000, "provisional"], ["2026-02", 1020, "provisional"]]),
+    );
+    const html = tip(o, "2026-02", [{ seriesName: MONTHLY, value: 120 }, { seriesName: YEARLY, value: 1020 }]);
+    const [monthlyRow, yearlyRow] = html.split("<br/>");
+    expect(monthlyRow).toContain("120");
+    expect(monthlyRow).not.toContain("provisional");
+    expect(yearlyRow).toContain("(provisional)");
+  });
+
+  it("flags a provisional month on the monthly row only", () => {
+    const o = stacked(pts([["2026-07", 200, "provisional"]]), pts([["2026-07", 1100]]));
+    const [monthlyRow, yearlyRow] = tip(o, "2026-07", [{ seriesName: MONTHLY, value: 200 }, { seriesName: YEARLY, value: 1100 }]).split("<br/>");
+    expect(monthlyRow).toContain("(provisional)");
+    expect(yearlyRow).not.toContain("provisional");
+  });
+
+  it("copes with a year-ended point that has no monthly observation, and unknown statuses", () => {
+    const o = stacked(pts([["2026-06", 100]]), pts([["2026-06", 1000], ["2026-07", 1100, "unknown"]]));
+    const html = tip(o, "2026-07", [{ seriesName: MONTHLY, value: null }, { seriesName: YEARLY, value: 1100 }]);
+    expect(html).toContain("1,100");
+    expect(html).toContain("(status unknown)");
+    expect(html).not.toContain("provisional");
+  });
+
+  it("still escapes upstream text and labels the period as a month", () => {
+    const o = stacked(pts([["2026-07", 1]]), pts([["2026-07", 2, "provisional"]]));
+    const html = tip(o, "2026-07", [{ seriesName: "<b onmouseover=x>", value: 2 }]);
+    expect(html).toContain("&lt;b");
+    expect(html).not.toContain("<b onmouseover");
+    expect(html).toContain("Jul 2026");
+  });
+});
+
 describe("rankedBarOption", () => {
   it("sorts descending top-to-bottom and dims provisional totals", () => {
     const o = rankedBarOption(

@@ -79,6 +79,42 @@ describe("Migration page", () => {
     expect((await screen.findAllByText(/derived/i)).length).toBeGreaterThan(0);
   });
 
+  describe("chart titles carry the status of the latest value (audit)", () => {
+    const finalise = (d: typeof netRy) => ({ ...d, points: d.points.map((p) => ({ ...p, status: "final" })) });
+    const titles = async () => {
+      for (const name of [/^Year-ended net migration:/, /^Arrivals and departures/, /by citizenship/]) {
+        await screen.findByRole("heading", { level: 3, name });
+      }
+      return screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent ?? "");
+    };
+
+    it("marks a provisional latest value in the trend, arrivals/departures and citizenship titles", async () => {
+      renderWithProviders(<Migration />);
+      const all = await titles();
+      expect(all.find((t) => t.startsWith("Year-ended net migration:"))).toMatch(/year ended Jul 2026, provisional\)/);
+      expect(all.find((t) => t.startsWith("Arrivals and departures"))).toMatch(/year ended Jul 2026, provisional:/);
+      expect(all.find((t) => t.includes("by citizenship"))).toMatch(/year ended Jun 2026|year ended Jul 2026/);
+      expect(all.find((t) => t.includes("by citizenship"))).toMatch(/, provisional:/);
+    });
+
+    it("says nothing about provisional status when the latest values are final", async () => {
+      mockApi({
+        ...baseRoutes(),
+        "/api/series/mig.ry.net": finalise(netRy),
+        "/api/series/mig.ry.arrivals": finalise(arrRy),
+        "/api/series/mig.ry.departures": finalise(depRy),
+        "/api/series/mig.ry.net.nz": finalise(cit("mig.ry.net.nz") as typeof netRy),
+        "/api/series/mig.ry.net.nonnz": finalise(cit("mig.ry.net.nonnz") as typeof netRy),
+      });
+      renderWithProviders(<Migration />);
+      const all = await titles();
+      for (const prefix of ["Year-ended net migration:", "Arrivals and departures"]) {
+        expect(all.find((t) => t.startsWith(prefix))).not.toMatch(/provisional/);
+      }
+      expect(all.find((t) => t.includes("by citizenship"))).not.toMatch(/provisional/);
+    });
+  });
+
   describe("citizenship chart (review #4253711087)", () => {
     const nzWith = (patch: Record<string, unknown>) => ({ ...cit("mig.ry.net.nz"), ...patch });
 

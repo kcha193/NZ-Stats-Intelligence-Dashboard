@@ -28,9 +28,9 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **288 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **301 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
-| Frontend tests | `cd frontend && npm test` | **12 files, 70 passed** |
+| Frontend tests | `cd frontend && npm test` | **13 files, 85 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
 | Frontend lint | `npm run lint` (oxlint) | 3 warnings, all in generated `components/ui/*` (fast-refresh exports) |
 | End to end | `cd frontend && npx playwright test` (Chromium, desktop 1440x900 and Pixel 7) | **16 passed**: overview, migration charts and CSV download, route reload and JSON 404, release analysis and print, no horizontal scroll on `/`, `/migration`, `/calendar`, `/health` |
@@ -207,6 +207,42 @@ Three findings, all from partially blank year-ended chart cells, validated and f
 Not changed: validation still accepts a required year-ended series with an isolated blank cell inside the chart. The two
 consumers that assume adjacent months (the streak and the citizenship pair) now cope; a continuity rule for the rolling
 series is not added without evidence of such a gap in a real file.
+
+## Review round 9 and provisional-status audit (PR #1, commit f925eb6)
+
+Two Codex findings, then a cross-layer audit of how provisional status travels from the Stats NZ file to the screen.
+
+Findings, each fixed with tests that failed first:
+
+1. The combined monthly/year-ended chart dropped year-ended statuses (#4253748549). The API already carries them
+   (derived: provisional while any of the twelve months is; 16 points from 2025-04 in the real July file). The chart now keeps
+   the full year-ended points, flags them in its tooltip, shades a labelled "Provisional" band on that panel, and exports
+   separate `monthly_status` and `year_ended_status` columns.
+2. The provisional sentence treated first-to-last as a range (#4253748554). It now names exactly the provisional months:
+   a range only for consecutive months, otherwise each run is listed, with evidence for every run boundary. The
+   `provisional_window` validation warning is unchanged.
+
+Audit method: traced status through the parser (`with_rolling_status`), validation, storage, API, insights, charts, tooltips, titles,
+captions and CSV exports, and checked the real June and July files. Facts established: arrivals, departures and net carry
+identical monthly statuses in both files; the real data holds no `unknown` statuses; required series always share one bundle.
+
+Additional defects found and fixed, each with a regression test:
+
+- Chart titles quoted a provisional latest value with no status (trend, arrivals/departures, citizenship). They now add
+  ", provisional" (or ", status unknown").
+- Arrivals/departures and citizenship CSVs had one `status` column for two series and dropped periods present in only
+  one. Each series now has its own status column and no period is dropped.
+- The country ranking's prior window could be built from provisional months with no flag, in the API, the CSV and the change
+  figures. `CountryRank.prior_provisional` (null when the prior window is withheld) and a CSV column now say so.
+- The year-ended series caveat and `docs/data-dictionary.md` did not state that the year-ended status is derived. Both do.
+- The release summary's provisional insight covered monthly estimates only, so year-ended figures quoted elsewhere in the
+  narrative were unflagged. It now says year-ended totals that include a provisional month are provisional too.
+
+Examined, no defect demonstrated, not changed: tooltips and bar opacity on the single-series charts; the revisions chart
+and table (statuses are exported and tabulated); vintage pairing of required series (one bundle by construction, and
+validation rejects a bundle without them); a validation rule for monthly statuses disagreeing across arrivals, departures
+and net (they never do in real files, but year-ended statuses are derived from net, so such a rule is a candidate if
+Stats NZ changes the files).
 
 ## Remaining work
 

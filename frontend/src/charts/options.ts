@@ -17,6 +17,10 @@ export function sliceYears(points: ChartPoint[], years: number | null): ChartPoi
   return points.filter((p) => p.period > cutoff);
 }
 
+/** How a point's status is shown next to its value. Unknown is not final, so it is never left blank. */
+const statusFlag = (status: string | undefined): string =>
+  status === "provisional" ? " (provisional)" : status === "unknown" ? " (status unknown)" : "";
+
 function tooltip(series: LineSeriesInput[], unit: string, frequency: Frequency) {
   return {
     trigger: "axis" as const,
@@ -27,8 +31,7 @@ function tooltip(series: LineSeriesInput[], unit: string, frequency: Frequency) 
         .filter((p) => p.value !== null && p.value !== undefined)
         .map((p) => {
           const pt = series.find((s) => s.name === p.seriesName)?.points.find((x) => x.period === period);
-          const flag = pt?.status === "provisional" ? " (provisional)" : "";
-          return `${p.marker} ${escapeHtml(p.seriesName)}: <b>${formatNumber(Number(p.value))}</b> ${unit}${flag}`;
+          return `${p.marker} ${escapeHtml(p.seriesName)}: <b>${formatNumber(Number(p.value))}</b> ${unit}${statusFlag(pt?.status)}`;
         });
       return `<div>${periodLabel(period, frequency)}</div>${rows.join("<br/>")}`;
     },
@@ -127,8 +130,11 @@ export function stackedPanelsOption(
   theme: ChartTheme,
 ): EChartsCoreOption {
   const periods = [...new Set([...input.monthly, ...input.yearEnded].map((p) => p.period))].sort();
-  const yearEnded = new Map(input.yearEnded.map((p) => [p.period, p.value]));
+  // Both series keep their full points: the monthly and year-ended statuses are different facts.
+  const yearEnded = new Map(input.yearEnded.map((p) => [p.period, p]));
   const monthly = new Map(input.monthly.map((p) => [p.period, p]));
+  const firstProvisionalYearEnded = input.yearEnded.find((p) => p.status === "provisional")?.period;
+  const lastYearEnded = input.yearEnded.length ? input.yearEnded[input.yearEnded.length - 1].period : undefined;
   const axisBase = { type: "category" as const, data: periods, axisLabel: { interval: 0, hideOverlap: true, color: theme.muted, formatter: yearTick }, axisTick: { interval: (_: number, v: string) => v.endsWith("-01") } };
   const valueAxis = (gridIndex: number) => ({ type: "value" as const, gridIndex, axisLabel: { color: theme.muted, formatter: axisNumber }, splitLine: { lineStyle: { color: theme.grid } } });
   return {
@@ -147,9 +153,8 @@ export function stackedPanelsOption(
       formatter: (params: { axisValue: string; seriesName: string; value: number | null; marker: string }[]) => {
         const period = String(params[0].axisValue);
         const rows = params.filter((p) => p.value !== null).map((p) => {
-          const monthlyPoint = monthly.get(period);
-          const flag = p.seriesName.startsWith("Monthly") && monthlyPoint?.status === "provisional" ? " (provisional)" : "";
-          return `${p.marker} ${escapeHtml(p.seriesName)}: <b>${formatNumber(Number(p.value))}</b> ${input.unit}${flag}`;
+          const point = (p.seriesName.startsWith("Monthly") ? monthly : yearEnded).get(period);
+          return `${p.marker} ${escapeHtml(p.seriesName)}: <b>${formatNumber(Number(p.value))}</b> ${input.unit}${statusFlag(point?.status)}`;
         });
         return `<div>${monthLabel(period)}</div>${rows.join("<br/>")}`;
       },
@@ -170,8 +175,17 @@ export function stackedPanelsOption(
       {
         name: "Year-ended net migration", type: "line", xAxisIndex: 1, yAxisIndex: 1, showSymbol: false,
         lineStyle: { width: 2, color: theme.series[0] }, itemStyle: { color: theme.series[0] },
-        data: periods.map((p) => yearEnded.get(p) ?? null),
+        data: periods.map((p) => yearEnded.get(p)?.value ?? null),
         markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: theme.muted, width: 1 }, data: [{ yAxis: 0 }] },
+        ...(firstProvisionalYearEnded && lastYearEnded
+          ? {
+              markArea: {
+                silent: true, itemStyle: { color: theme.provisionalBand },
+                label: { show: true, color: theme.muted, position: "insideTop", formatter: "Provisional" },
+                data: [[{ xAxis: firstProvisionalYearEnded }, { xAxis: lastYearEnded }]],
+              },
+            }
+          : {}),
       },
     ],
   };

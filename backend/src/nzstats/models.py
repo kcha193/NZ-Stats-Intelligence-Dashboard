@@ -233,6 +233,8 @@ class CountryRank(BaseModel):
     change_percent: float | None
     share_percent: float | None
     provisional: bool
+    # Whether the prior window includes a provisional month; None when the prior window is withheld.
+    prior_provisional: bool | None = None
 
 
 class CountriesOut(BaseModel):

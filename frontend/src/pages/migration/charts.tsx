@@ -3,6 +3,7 @@ import type { PointOut, SeriesData } from "@/api/types";
 import { QueryBoundary } from "@/components/QueryBoundary";
 import { Segmented } from "@/components/Segmented";
 import { ChartCard } from "@/charts/ChartCard";
+import { combinedNetCsvRows, countryCsvRows, pairedCsvRows, statusNote } from "@/charts/exports";
 import {
   divergingBarOption, lineOption, rankedBarOption, revisionBarOption, sliceYears,
   stackedPanelsOption, type ChartPoint,
@@ -43,7 +44,7 @@ export function NetTrendChart({ range }: { range: Range }) {
         const last = latest(pts);
         const what = freq === "monthly" ? "Monthly net migration" : "Year-ended net migration";
         const title = last
-          ? `${what}: ${formatNet(last.value)} (${lcFirst(periodLabel(last.period, freq))})`
+          ? `${what}: ${formatNet(last.value)} (${lcFirst(periodLabel(last.period, freq))}${statusNote([last.status])})`
           : what;
         const option =
           freq === "monthly"
@@ -77,7 +78,7 @@ export function ArrivalsDeparturesChart({ range }: { range: Range }) {
   const ld = latest(d);
   return (
     <ChartCard
-      title={`Arrivals and departures, ${lcFirst(periodLabel(la.period, freq))}: ${formatNumber(la.value)} in, ${formatNumber(ld.value)} out`}
+      title={`Arrivals and departures, ${lcFirst(periodLabel(la.period, freq))}${statusNote([la.status, ld.status])}: ${formatNumber(la.value)} in, ${formatNumber(ld.value)} out`}
       question="Is the net result driven by more people arriving or fewer leaving?"
       unit="people" source={source(arr.data)} caveat={arr.data.caveat}
       option={lineOption({ series: [
@@ -86,7 +87,7 @@ export function ArrivalsDeparturesChart({ range }: { range: Range }) {
       ], unit: "people", frequency: freq }, theme)}
       ariaLabel="Arrivals and departures chart"
       csvFilename={`arrivals-departures-${freq}.csv`}
-      csvRows={a.map((p) => ({ period: p.period, arrivals: p.value, departures: d.find((x) => x.period === p.period)?.value ?? null, status: p.status }))}
+      csvRows={pairedCsvRows({ value: "arrivals", status: "arrivals_status" }, a, { value: "departures", status: "departures_status" }, d)}
       controls={<Frequency value={freq} onChange={setFreq} label="Arrivals and departures frequency" />}
     />
   );
@@ -104,11 +105,11 @@ export function MonthlyVsAnnualChart({ range }: { range: Range }) {
       title="Monthly estimate versus year ended total of net migration, on separate scales"
       question="How do single-month swings relate to the rolling twelve-month total?"
       unit="people" source={source(m.data)}
-      caveat="Monthly estimates and year-ended totals are different series: each panel has its own axis and they must not be compared directly."
+      caveat="Monthly estimates and year-ended totals are different series: each panel has its own axis and they must not be compared directly. Provisional estimates are lighter bars (monthly) or a shaded band (year ended); a year-ended total is provisional while any of its twelve months is."
       option={stackedPanelsOption({ monthly, yearEnded, unit: "people" }, theme)}
       ariaLabel="Monthly estimate and year-ended net migration chart" height={460}
       csvFilename="net-migration-monthly-and-year-ended.csv"
-      csvRows={monthly.map((p) => ({ period: p.period, monthly_net: p.value, year_ended_net: yearEnded.find((x) => x.period === p.period)?.value ?? null, status: p.status }))}
+      csvRows={combinedNetCsvRows(monthly, yearEnded)}
     />
   );
 }
@@ -147,7 +148,7 @@ export function CitizenshipChart({ range }: { range: Range }) {
   }
   return (
     <ChartCard
-      title={`Year-ended ${label} by citizenship, ${lcFirst(periodLabel(at, "rolling_annual"))}: non-NZ citizens ${formatNumber(a.find((p) => p.period === at)!.value)}, NZ citizens ${formatNumber(b.find((p) => p.period === at)!.value)}`}
+      title={`Year-ended ${label} by citizenship, ${lcFirst(periodLabel(at, "rolling_annual"))}${statusNote([a.find((p) => p.period === at)!.status, b.find((p) => p.period === at)!.status])}: non-NZ citizens ${formatNumber(a.find((p) => p.period === at)!.value)}, NZ citizens ${formatNumber(b.find((p) => p.period === at)!.value)}`}
       question="Which citizens account for the year-ended result?"
       unit="people" source={source(nz.data)} caveat={nz.data.caveat}
       option={lineOption({ series: [
@@ -156,7 +157,7 @@ export function CitizenshipChart({ range }: { range: Range }) {
       ], unit: "people", frequency: "rolling_annual" }, theme)}
       ariaLabel={`Year-ended ${label} by citizenship chart`}
       csvFilename={`citizenship-${measure}-year-ended.csv`}
-      csvRows={a.map((p) => ({ period: p.period, non_nz_citizens: p.value, nz_citizens: b.find((x) => x.period === p.period)?.value ?? null, status: p.status }))}
+      csvRows={pairedCsvRows({ value: "non_nz_citizens", status: "non_nz_status" }, a, { value: "nz_citizens", status: "nz_status" }, b)}
       controls={
         <Segmented<Measure> value={measure} onChange={setMeasure} options={MEASURE_OPTIONS} label="Citizenship measure" />
       }
@@ -180,7 +181,7 @@ export function CountryChart() {
             option={rankedBarOption({ items: d.countries.map((c) => ({ name: c.name, value: c.value, provisional: c.provisional })), unit: "people" }, theme)}
             ariaLabel="Arrivals by country of last permanent residence chart" height={420}
             csvFilename="arrivals-by-country.csv"
-            csvRows={d.countries.map((c) => ({ country: c.name, arrivals_12m: c.value, share_percent: c.share_percent, prior_12m: c.prior_value, includes_provisional: c.provisional ? "yes" : "no" }))}
+            csvRows={countryCsvRows(d.countries)}
           />
           <p className="mt-2 text-xs text-muted-foreground">
             Derived total. Regions: {d.regions.map((r) => `${r.name} ${formatNumber(r.value)}`).join(" · ")}
