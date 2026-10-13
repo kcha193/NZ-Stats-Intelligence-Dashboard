@@ -72,29 +72,7 @@ def ingest_release(
         outcome.error_class.value if outcome.error_class else None,
         detail,
     )
-    published = row["status"] in (ReleaseStatus.PUBLISHED.value, ReleaseStatus.CORRECTED.value)
-    # Files missing before publication are expected polling; once published they are a data gap.
-    if outcome.outcome in ("ingested", "unchanged", "failed") or (
-        outcome.outcome == "not_available" and published
-    ):
-        _refresh_release_health(rt, row["series_slug"], finished)
     return outcome
-
-
-def _refresh_release_health(rt: Runtime, series_slug: str, now: datetime) -> None:
-    """Health of a series' release ingestion follows the releases whose latest run failed, so one
-    release succeeding cannot hide another that is still failing (and recovers only when it does)."""
-    failing = repo.failing_releases(rt.conn, series_slug)
-    shown = [f"{r['release_key']}: {r['detail'] or 'failed'}" for r in failing[:3]]
-    if len(failing) > len(shown):
-        shown.append(f"and {len(failing) - len(shown)} more")
-    repo.set_source_health(
-        rt.conn,
-        f"release:{series_slug}",
-        now,
-        ok=not failing,
-        detail="; ".join(shown) or None,
-    )
 
 
 def _bundle_digest(file_digests: list[str], page: ReleasePage) -> str:

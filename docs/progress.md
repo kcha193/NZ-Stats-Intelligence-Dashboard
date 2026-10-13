@@ -1,6 +1,32 @@
 # Progress and verification record
 
-Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers/`.
+Last updated 2026-10-13. Branch `feat/phase-1`. Spec and plan: `docs/superpowers/`.
+
+## Focused ingestion-health cycle — 13 October 2026
+
+Continued PR #1 from `e087c40`, with one implementation/verification cycle and no
+merge. The [behavioural specification](superpowers/specs/2026-10-13-ingestion-health.md)
+was written before the regression tests and implementation.
+
+- `failing_releases()` now ranks meaningful outcomes by run ID after excluding
+  neutral observations. Current release status determines whether a 404 is a gap.
+- Repository outcome/status writes refresh health, covering discovery publication,
+  valid rescheduling and scheduler exhaustion without pipeline imports. Neutral
+  observations and status-only recalculation preserve both source timestamps.
+- No schema, polling schedule, observations or vintage changes. A successful
+  release cannot mask another release's unresolved failure.
+- New database/lifecycle suite: **47 failed / 41 passed before**, **88 passed after**.
+  Existing published-404 coverage already passed at the starting commit; extended
+  coverage confirms published/corrected/unavailable gaps and recovery.
+- Full backend: **404 passed**. Ruff lint and format pass (96 files). Frontend:
+  **98 passed**, lint/typecheck/build pass; generated API types unchanged.
+  Playwright: **16 passed** on desktop/mobile. Compose configuration validates.
+- Local Docker build/start unavailable: no daemon. Final-head GitHub Actions must
+  supply the container build/start check. Existing non-blocking warnings remain:
+  Starlette/httpx deprecation, three UI Fast Refresh exports, large chart bundle.
+- Focused independent review found no actionable defects. Final-head CI and the
+  single final GitHub Codex review are recorded on PR #1 after push; this local
+  verification record does not claim their result in advance.
 
 ## Status
 

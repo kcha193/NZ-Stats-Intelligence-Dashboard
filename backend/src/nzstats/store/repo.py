@@ -10,6 +10,10 @@ from datetime import datetime
 from nzstats.clock import to_utc_iso
 from nzstats.domain import Observation, ObsStatus, Point, ReleaseRef, ReleaseStatus, SeriesDef
 
+# A missing file is meaningful only once it represents an unresolved data gap.
+DATA_GAP_STATUSES = ("published", "corrected", "unavailable")
+INGEST_SUCCESSES = ("ingested", "unchanged")
+
 
 @dataclass(frozen=True)
 class ArtifactRecord:
@@ -90,6 +94,8 @@ def upsert_release(conn: sqlite3.Connection, ref: ReleaseRef, now: datetime) -> 
             row["id"],
         ),
     )
+    if status.value != row["status"]:
+        _refresh_release_health(conn, row["series_slug"])
     return int(row["id"])
 
 
@@ -104,6 +110,9 @@ def set_release_status(
         "UPDATE release SET status=?, updated_at=? WHERE release_key=?",
         (status.value, to_utc_iso(now), release_key),
     )
+    row = get_release(conn, release_key)
+    if row is not None:
+        _refresh_release_health(conn, row["series_slug"])
 
 
 def set_release_headline(
@@ -297,24 +306,59 @@ def record_ingest_run(
             detail,
         ),
     )
+    row = get_release(conn, release_key)
+    if row is not None:
+        meaningful = (
+            outcome in (*INGEST_SUCCESSES, "failed")
+            or outcome == "not_available"
+            and row["status"] in DATA_GAP_STATUSES
+        )
+        _refresh_release_health(
+            conn, row["series_slug"], checked_at=finished_at if meaningful else None
+        )
     return int(cur.lastrowid)
 
 
 def failing_releases(conn: sqlite3.Connection, series_slug: str) -> list[sqlite3.Row]:
-    """Releases of a series whose most recent ingest run failed, oldest failure first.
+    """Latest meaningful outcome per release, with outstanding failures ordered by run ID.
 
-    Files that are not there yet (`not_available`) are expected before a release is published, but a
-    gap once the release is published or corrected, so only then do they count as failing."""
+    Classify before ranking: neutral retries and unsupported adapters cannot recover a failure.
+    Interpret 404s against current status so publication, exhaustion and rescheduling can change
+    health without another attempt. A later success always supersedes earlier failures and gaps.
+    """
     return conn.execute(
-        "SELECT run.release_key, run.detail FROM ingest_run run"
-        " JOIN release r ON r.release_key = run.release_key"
-        " WHERE r.series_slug = ?"
-        " AND (run.outcome = 'failed'"
-        "      OR (run.outcome = 'not_available' AND r.status IN ('published', 'corrected')))"
-        " AND run.id = (SELECT MAX(x.id) FROM ingest_run x WHERE x.release_key = run.release_key)"
-        " ORDER BY run.id",
-        (series_slug,),
+        "WITH meaningful AS ("
+        " SELECT run.id, run.release_key, run.outcome, run.detail,"
+        " ROW_NUMBER() OVER (PARTITION BY run.release_key ORDER BY run.id DESC) AS rank"
+        " FROM ingest_run run JOIN release r ON r.release_key = run.release_key"
+        " WHERE r.series_slug = ? AND (run.outcome IN (?, ?, 'failed')"
+        " OR (run.outcome = 'not_available' AND r.status IN (?, ?, ?))))"
+        " SELECT release_key, detail FROM meaningful"
+        " WHERE rank = 1 AND outcome IN ('failed', 'not_available') ORDER BY id",
+        (series_slug, *INGEST_SUCCESSES, *DATA_GAP_STATUSES),
     ).fetchall()
+
+
+def _refresh_release_health(
+    conn: sqlite3.Connection, series_slug: str, *, checked_at: datetime | None = None
+) -> None:
+    """Refresh the projection at its write boundaries; only real checks advance timestamps."""
+    failing = failing_releases(conn, series_slug)
+    shown = [f"{r['release_key']}: {r['detail'] or 'failed'}" for r in failing[:3]]
+    if len(failing) > len(shown):
+        shown.append(f"and {len(failing) - len(shown)} more")
+    source, detail = f"release:{series_slug}", "; ".join(shown) or None
+    if checked_at is not None:
+        set_source_health(conn, source, checked_at, ok=not failing, detail=detail)
+    elif failing:
+        conn.execute(
+            "INSERT INTO source_health(source, state, detail) VALUES (?, 'degraded', ?)"
+            " ON CONFLICT(source) DO UPDATE SET state=excluded.state, detail=excluded.detail",
+            (source, detail),
+        )
+    else:
+        # No new healthy row for neutral-only history; clearing a rescheduled gap is not a check.
+        conn.execute("UPDATE source_health SET state='ok', detail=NULL WHERE source=?", (source,))
 
 
 def set_source_health(
