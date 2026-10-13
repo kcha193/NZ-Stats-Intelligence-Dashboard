@@ -43,6 +43,14 @@ function auckland(iso: string): Record<string, string> {
   return Object.fromEntries(clock.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
 }
 
+const monthClock = new Intl.DateTimeFormat("en-NZ", { timeZone: AKL, year: "numeric", month: "2-digit" });
+
+/** The Pacific/Auckland calendar month of an instant, as YYYY-MM. */
+export function aklMonth(at: Date): string {
+  const p = Object.fromEntries(monthClock.formatToParts(at).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}`;
+}
+
 export function formatAklDate(iso: string): string {
   const p = auckland(iso);
   return `${Number(p.day)} ${MONTHS[Number(p.month) - 1]} ${p.year}`;

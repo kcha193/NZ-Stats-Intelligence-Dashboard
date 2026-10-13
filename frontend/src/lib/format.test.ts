@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatAklDate, formatAklDateTime, formatNet, formatNumber, formatPercent, periodLabel,
+  aklMonth, formatAklDate, formatAklDateTime, formatNet, formatNumber, formatPercent, periodLabel,
 } from "./format";
 
 describe("formatNumber", () => {
@@ -48,5 +48,13 @@ describe("Auckland date formatting", () => {
     expect(formatAklDateTime("2026-10-14T10:45:00+13:00")).toMatch(/14 Oct 2026.*10:45/);
     expect(formatAklDateTime("2026-10-13T21:45:00Z")).toMatch(/14 Oct 2026.*10:45/);
     expect(formatAklDate("2026-09-14T10:45:00+12:00")).toBe("14 Sep 2026");
+  });
+});
+
+describe("aklMonth", () => {
+  it("names the Pacific/Auckland calendar month, not the UTC one", () => {
+    expect(aklMonth(new Date("2026-10-31T12:00:00Z"))).toBe("2026-11"); // 1 Nov 01:00 NZDT
+    expect(aklMonth(new Date("2026-10-31T10:59:59Z"))).toBe("2026-10"); // 31 Oct 23:59 NZDT
+    expect(aklMonth(new Date("2026-12-31T11:30:00Z"))).toBe("2027-01"); // year boundary
   });
 });

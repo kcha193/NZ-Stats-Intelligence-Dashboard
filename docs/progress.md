@@ -28,9 +28,9 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **277 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **279 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
-| Frontend tests | `cd frontend && npm test` | **12 files, 61 passed** |
+| Frontend tests | `cd frontend && npm test` | **12 files, 67 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
 | Frontend lint | `npm run lint` (oxlint) | 3 warnings, all in generated `components/ui/*` (fast-refresh exports) |
 | End to end | `cd frontend && npx playwright test` (Chromium, desktop 1440x900 and Pixel 7) | **16 passed**: overview, migration charts and CSV download, route reload and JSON 404, release analysis and print, no horizontal scroll on `/`, `/migration`, `/calendar`, `/health` |
@@ -158,6 +158,17 @@ Three findings, validated and fixed with tests that failed first:
    note already states. Stored data and vintages are untouched. Places absent from the latest bundle now appear as zero
    rows (visible in the regions list); only the top countries are shown.
 
+## Codex review round 5 (PR #1, commit e9a777e)
+
+Three findings, validated and fixed with tests that failed first:
+
+1. The CLI exited 0 when a release was `not_available` (#4246379621). `ingest` and `backfill` now exit 1 for `failed` and
+   for `not_available`, since a requested release that was not ingested is a gap.
+2. The Published filter hid corrected releases (#4246379625). Published now includes `corrected`, as Scheduled includes `delayed`.
+3. Month navigation showed blank months (#4246379631). The month view now requests the month it shows (`from`/`to` are the first
+   and last day), defaults to the current Pacific/Auckland month, and keeps the navigation visible with an explanation when a
+   month holds no matching releases. The list view still uses the API's default window.
+
 ## Remaining work
 
 Before merging or calling Phase 1 shipped:
@@ -175,8 +186,7 @@ Deferred Minor findings (small, none blocks use):
 - API: `/api/releases` loads all rows before paging; the vintage kind is missing from `ReleaseAnalysis` and `CountriesOut`.
 - Analysis: the citizenship chart title omits its period.
 - Frontend: revision and chart data tables need `overflow-x-auto`; `/releases/abc` renders blank; the calendar month grid has
-  no grid keyboard behaviour, no explanation for months outside the fetch window, and incomplete status and importance filters;
-  TanStack Table is installed but unused.
+  no grid keyboard behaviour and the importance filter has no Low option; TanStack Table is installed but unused.
 - Hygiene: untrack `backend/src/nzstats.egg-info/`; the `.env.example` contact is a placeholder address; the shadcn CLI is a
   runtime dependency; add a Python lock file for reproducible images; Fetcher has no host allow-list for redirects.
 - CI does not run the Playwright suite or the frontend lint.

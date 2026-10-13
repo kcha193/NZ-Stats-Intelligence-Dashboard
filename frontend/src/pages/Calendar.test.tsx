@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import calendar from "@/test/fixtures/calendar.json";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import Calendar from "./Calendar";
@@ -101,6 +101,69 @@ describe("Calendar", () => {
       expect(within(list).getByText("Release 3")).toBeInTheDocument();
       expect(within(list).queryByText("Release 1")).not.toBeInTheDocument();
     });
+  });
+
+  describe("month view fetches the month it shows (review #4246379631)", () => {
+    const last = calendar.items[calendar.items.length - 1]; // scheduled, 10 Dec 2026
+    const requests: URL[] = [];
+    beforeEach(() => {
+      requests.length = 0;
+      vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input), "http://localhost");
+        requests.push(url);
+        const from = url.searchParams.get("from") ?? "0000-01-01";
+        const to = url.searchParams.get("to") ?? "9999-12-31";
+        const items = calendar.items.filter((i) => i.published_at.slice(0, 10) >= from && i.published_at.slice(0, 10) <= to);
+        return new Response(JSON.stringify({ ...calendar, items }), { status: 200, headers: { "content-type": "application/json" } });
+      }));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("requests the selected month's bounds and shows releases outside the default window", async () => {
+      renderWithProviders(<Calendar />, { route: "/?view=month&month=2026-12" });
+      const grid = await screen.findByRole("grid", { name: /release calendar month 2026-12/i });
+      expect(within(grid).getByText(last.title)).toBeInTheDocument();
+      const asked = requests.at(-1)!;
+      expect([asked.searchParams.get("from"), asked.searchParams.get("to")]).toEqual(["2026-12-01", "2026-12-31"]);
+    });
+
+    it("fetches again when navigating, and keeps the controls and an explanation for an empty month", async () => {
+      renderWithProviders(<Calendar />, { route: "/?view=month&month=2026-12" });
+      await screen.findByRole("grid");
+      await userEvent.click(screen.getByRole("button", { name: /next month/i }));
+      expect(await screen.findByRole("grid", { name: /release calendar month 2027-01/i })).toBeInTheDocument();
+      expect(requests.at(-1)!.searchParams.get("from")).toBe("2027-01-01");
+      expect(screen.getByText(/no releases in jan 2027/i)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /previous month/i }));
+      expect(await screen.findByRole("grid", { name: /release calendar month 2026-12/i })).toBeInTheDocument();
+    });
+
+    it("starts on the current Pacific/Auckland month", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-31T12:00:00Z")); // already 1 Nov in Auckland
+      renderWithProviders(<Calendar />, { route: "/?view=month" });
+      expect(await screen.findByRole("grid", { name: /release calendar month 2026-11/i })).toBeInTheDocument();
+      expect(requests.at(-1)!.searchParams.get("from")).toBe("2026-11-01");
+      expect(requests.at(-1)!.searchParams.get("to")).toBe("2026-11-30");
+    });
+
+    it("keeps the list view on the default window", async () => {
+      renderWithProviders(<Calendar />);
+      await screen.findByRole("list", { name: /releases/i });
+      expect(requests.at(-1)!.searchParams.has("from")).toBe(false);
+    });
+  });
+
+  it("includes corrected releases under the Published filter", async () => {
+    const base = calendar.items[0];
+    const item = (id: number, status: string, day: string) => ({ ...base, id, status, published_at: `2026-10-${day}T10:45:00+13:00`, title: `Release ${id}`, has_analysis: false, headline: null, page_url: null });
+    mockApi({ "/api/calendar": { ...calendar, items: [item(1, "published", "01"), item(2, "corrected", "02"), item(3, "scheduled", "20")] } });
+    renderWithProviders(<Calendar />);
+    await userEvent.click(await screen.findByRole("radio", { name: "Published" }));
+    const list = screen.getByRole("list", { name: /releases/i });
+    expect(within(list).getByText("Release 1")).toBeInTheDocument();
+    expect(within(list).getByText("Release 2")).toBeInTheDocument();
+    expect(within(list).queryByText("Release 3")).not.toBeInTheDocument();
   });
 
   it("explains an empty calendar", async () => {

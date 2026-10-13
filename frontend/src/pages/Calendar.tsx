@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useCalendar } from "@/api/hooks";
 import type { ReleaseSummary } from "@/api/types";
@@ -6,12 +7,22 @@ import { ReleaseRow } from "@/components/ReleaseRow";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Segmented } from "@/components/Segmented";
 import { Button } from "@/components/ui/button";
-import { formatAklDate, formatAklDateTime, monthLabel } from "@/lib/format";
+import { aklMonth, formatAklDate, formatAklDateTime, monthLabel } from "@/lib/format";
 
 const ALL = "all";
 const dayKey = (iso: string) => iso.slice(0, 10);
 /** A delayed release is a scheduled one whose date moved later, so both are still to come. */
 const isUpcoming = (status: string) => status === "scheduled" || status === "delayed";
+/** A corrected release has been published and then re-ingested from corrected files. */
+const isPublished = (status: string) => status === "published" || status === "corrected";
+const matchesStatus = (filter: string, status: string) =>
+  filter === ALL || (filter === "scheduled" ? isUpcoming(status) : filter === "published" ? isPublished(status) : status === filter);
+/** The whole month as calendar-day bounds (the API treats `to` as inclusive). */
+const monthBounds = (month: string) => {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
+};
 const shiftMonth = (month: string, by: number) => {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1 + by, 1));
@@ -77,7 +88,11 @@ export default function Calendar() {
     else next.set(k, v);
     setParams(next, { replace: true });
   };
-  const q = useCalendar();
+  // The month grid asks for the month it shows; the list uses the API's default window.
+  const [currentMonth] = useState(() => aklMonth(new Date()));
+  const month = params.get("month") ?? currentMonth;
+  const range = view === "month" ? monthBounds(month) : undefined;
+  const q = useCalendar(range?.from, range?.to);
   return (
     <div className="space-y-4">
       <div>
@@ -90,8 +105,7 @@ export default function Calendar() {
           const items = d.items.filter((i) =>
             (category === ALL || i.category === category) &&
             (importance === ALL || i.importance === importance) &&
-            (status === ALL || (status === "scheduled" ? isUpcoming(i.status) : i.status === status)));
-          const month = params.get("month") ?? (items[0] ?? d.items[0])?.published_at.slice(0, 7) ?? "";
+            matchesStatus(status, i.status));
           const grouped = new Map<string, ReleaseSummary[]>();
           for (const r of items) grouped.set(dayKey(r.published_at), [...(grouped.get(dayKey(r.published_at)) ?? []), r]);
           return (
@@ -117,7 +131,7 @@ export default function Calendar() {
                 <Segmented value={view} onChange={(v) => set("view", v)} label="View" options={[{ value: "list", label: "List" },
 { value: "month", label: "Month" }]} />
               </div>
-              {items.length === 0 ? (
+              {items.length === 0 && view !== "month" ? (
                 <p className="rounded-md border border-dashed p-6 text-sm">No releases in this period match the filters.</p>
               ) : view === "month" ? (
                 <div className="space-y-2">
@@ -127,6 +141,9 @@ export default function Calendar() {
                     <Button variant="outline" size="sm" onClick={() => set("month", shiftMonth(month, 1))}>Next month</Button>
                   </div>
                   <MonthGrid items={items} month={month} />
+                  {items.length === 0 && (
+                    <p className="rounded-md border border-dashed p-4 text-sm">No releases in {monthLabel(month)} match the filters.</p>
+                  )}
                 </div>
               ) : (
                 <ul aria-label="Releases" className="space-y-4">
