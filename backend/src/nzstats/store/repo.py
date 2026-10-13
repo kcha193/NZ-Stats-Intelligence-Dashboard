@@ -300,6 +300,18 @@ def record_ingest_run(
     return int(cur.lastrowid)
 
 
+def failing_releases(conn: sqlite3.Connection, series_slug: str) -> list[sqlite3.Row]:
+    """Releases of a series whose most recent ingest run failed, oldest failure first."""
+    return conn.execute(
+        "SELECT run.release_key, run.detail FROM ingest_run run"
+        " JOIN release r ON r.release_key = run.release_key"
+        " WHERE r.series_slug = ? AND run.outcome = 'failed'"
+        " AND run.id = (SELECT MAX(x.id) FROM ingest_run x WHERE x.release_key = run.release_key)"
+        " ORDER BY run.id",
+        (series_slug,),
+    ).fetchall()
+
+
 def set_source_health(
     conn: sqlite3.Connection, source: str, now: datetime, *, ok: bool, detail: str | None
 ) -> None:

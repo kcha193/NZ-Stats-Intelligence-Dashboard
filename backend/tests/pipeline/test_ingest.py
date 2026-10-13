@@ -1,3 +1,4 @@
+import csv
 import html
 import io
 import json
@@ -370,3 +371,109 @@ def test_backfill_of_healthy_months_reports_no_failure(rt, site) -> None:
     )
     outcomes = backfill(rt, since="2026-07", until="2026-09", now_fn=lambda: NOW)
     assert [o.outcome for o in outcomes] == ["ingested"]
+
+
+# --- source health follows the outstanding failures (review #4253658288) ------------------------
+
+
+def _health(rt):
+    return rt.conn.execute(
+        "SELECT * FROM source_health WHERE source = 'release:international-migration'"
+    ).fetchone()
+
+
+def _break_june(site) -> None:
+    url = site.file_url("2026-06", "age_sex")
+    site.override(url, 200, _drop_month(fixture_bytes("im_2026-06_age_sex.csv"), "2015-05"))
+
+
+def test_a_later_success_does_not_clear_another_releases_failure(rt, site) -> None:
+    june, july = _seed(rt, "2026-06", "2026-07")
+    _break_june(site)
+    assert _ingest(rt, june).outcome == "failed"
+    assert _ingest(rt, july).outcome == "ingested"  # a different release succeeds afterwards
+    assert _ingest(rt, july).outcome == "unchanged"
+    health = _health(rt)
+    assert health["state"] == "degraded" and "june 2026" in health["detail"]
+
+
+def test_the_failure_clears_when_that_same_release_recovers(rt, site) -> None:
+    june, july = _seed(rt, "2026-06", "2026-07")
+    _break_june(site)
+    _ingest(rt, june)
+    _ingest(rt, july)
+    site.override(site.file_url("2026-06", "age_sex"), 200, fixture_bytes("im_2026-06_age_sex.csv"))
+    assert _ingest(rt, june).outcome == "ingested"
+    health = _health(rt)
+    assert health["state"] == "ok" and health["detail"] is None
+
+
+def test_every_outstanding_failure_is_named_until_each_recovers(rt, site) -> None:
+    june, july = _seed(rt, "2026-06", "2026-07")
+    _break_june(site)
+    site.override(
+        site.file_url("2026-07", "age_sex"),
+        200,
+        _drop_month(fixture_bytes("im_2026-07_age_sex.csv"), "2015-05"),
+    )
+    assert _ingest(rt, june).outcome == "failed" and _ingest(rt, july).outcome == "failed"
+    detail = _health(rt)["detail"]
+    assert "june 2026" in detail and "july 2026" in detail
+    site.override(site.file_url("2026-07", "age_sex"), 200, fixture_bytes("im_2026-07_age_sex.csv"))
+    assert _ingest(rt, july).outcome == "ingested"
+    health = _health(rt)
+    assert health["state"] == "degraded" and "june 2026" in health["detail"]
+    assert "july 2026" not in health["detail"]
+
+
+# --- empty optional series are unavailable, not a 500 (review #4253658294) ----------------------
+
+
+def _blank_row(label: str):
+    def edit(obj) -> None:
+        series = _chart_series(obj, _CITIZENSHIP_CHART)
+        rows = list(csv.reader(io.StringIO(series["GraphCsvData"])))
+        for row in rows:
+            if row and row[0].strip() == label:
+                row[1:] = [".."] * len(row[1:])
+        out = io.StringIO()
+        csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\n").writerows(rows)
+        series["GraphCsvData"] = out.getvalue()
+
+    return edit
+
+
+def test_an_all_blank_optional_series_is_not_stored_and_the_analysis_still_builds(rt, site) -> None:
+    from nzstats.insights.migration import build_release_analysis
+
+    (july,) = _seed(rt, "2026-07")
+    _edit_page(site, "2026-07", _blank_row("Net migration (NZ citizens)"))
+    out = _ingest(rt, july)
+    assert out.outcome == "ingested", out.detail
+    assert any("mig.ry.net.nz" in w for w in out.warnings)
+    assert not repo.list_vintages(rt.conn, "mig.ry.net.nz")  # no empty vintage was written
+    release_id = repo.get_release(rt.conn, july)["id"]
+    analysis = build_release_analysis(
+        rt.conn, release_id, analysable_slugs={"international-migration"}
+    )
+    assert analysis is not None and "mig.ry.net.nz" not in analysis.model_dump_json()
+
+
+def test_an_already_stored_empty_optional_vintage_does_not_break_the_analysis(rt) -> None:
+    from nzstats.adapters.migration import series as S
+    from nzstats.insights.migration import build_release_analysis
+
+    (july,) = _seed(rt, "2026-07")
+    assert _ingest(rt, july).outcome == "ingested"
+    release_id = repo.get_release(rt.conn, july)["id"]
+    series_id = repo.upsert_series(rt.conn, S.rolling_def("net", "nz"))
+    rt.conn.execute(  # leave the stored vintage in place but without observations
+        "DELETE FROM observation WHERE vintage_id IN"
+        " (SELECT id FROM vintage WHERE series_id=? AND release_id=?)",
+        (series_id, release_id),
+    )
+    analysis = build_release_analysis(
+        rt.conn, release_id, analysable_slugs={"international-migration"}
+    )
+    assert analysis is not None
+    assert not any(i.id == "citizenship" for i in analysis.context)

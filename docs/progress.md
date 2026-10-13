@@ -28,7 +28,7 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **280 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **285 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 | Frontend tests | `cd frontend && npm test` | **12 files, 67 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
@@ -180,6 +180,19 @@ Two findings, validated and fixed:
    series, which every bundle contains. Test failed first.
 2. README and troubleshooting still said a page-only chart correction is not detected and told operators to delete vintages
    (#4253628355). Both now state the digest covers the files and the embedded chart data; only the parser-fix limitation remains.
+
+## Codex review round 7 (PR #1, commit c6bdfda)
+
+Two findings, validated and fixed with tests that failed first:
+
+1. A later success cleared another release's failure (#4253658288). `release:<slug>` health was last-write-wins, so a failed
+   June followed by an unchanged July left the source `ok` over a data gap. Health is now derived from the releases whose
+   most recent ingest run failed: `degraded` with each such release named (first three, then a count) until that release
+   itself succeeds. A release that failed and is never retried keeps the source degraded, which is deliberate.
+2. An all-blank optional citizenship series caused a 500 (#4253658294). The parser kept a series whose cells were all blank
+   or `..` as a vintage with no observations, and the analysis took `max` of an empty mapping. The adapter now omits an empty
+   optional series (validation warns it was not published) and the analysis loader treats an empty optional series as
+   unavailable, which also covers vintages stored before this fix. Required series must still hold data.
 
 ## Remaining work
 

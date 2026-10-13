@@ -72,12 +72,25 @@ def ingest_release(
         outcome.error_class.value if outcome.error_class else None,
         detail,
     )
-    source = f"release:{row['series_slug']}"
-    if outcome.outcome in ("ingested", "unchanged"):
-        repo.set_source_health(rt.conn, source, finished, ok=True, detail=None)
-    elif outcome.outcome == "failed":
-        repo.set_source_health(rt.conn, source, finished, ok=False, detail=detail)
+    if outcome.outcome in ("ingested", "unchanged", "failed"):
+        _refresh_release_health(rt, row["series_slug"], finished)
     return outcome
+
+
+def _refresh_release_health(rt: Runtime, series_slug: str, now: datetime) -> None:
+    """Health of a series' release ingestion follows the releases whose latest run failed, so one
+    release succeeding cannot hide another that is still failing (and recovers only when it does)."""
+    failing = repo.failing_releases(rt.conn, series_slug)
+    shown = [f"{r['release_key']}: {r['detail'] or 'failed'}" for r in failing[:3]]
+    if len(failing) > len(shown):
+        shown.append(f"and {len(failing) - len(shown)} more")
+    repo.set_source_health(
+        rt.conn,
+        f"release:{series_slug}",
+        now,
+        ok=not failing,
+        detail="; ".join(shown) or None,
+    )
 
 
 def _bundle_digest(file_digests: list[str], page: ReleasePage) -> str:

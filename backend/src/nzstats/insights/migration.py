@@ -94,17 +94,16 @@ def _load(
     out: dict[str, _S] = {}
     for key in (*NEEDED, *OPTIONAL):
         vintage, series = pick(key), repo.get_series_row(conn, key)
-        if vintage is None or series is None:
+        observations = (
+            repo.vintage_observations(conn, vintage.vintage_id) if vintage is not None else {}
+        )
+        if vintage is None or series is None or not observations:
+            # An optional series with nothing in this bundle is unavailable. A required one must
+            # have data, or the analysis cannot be built.
             if key in OPTIONAL:
                 continue
             return None
-        out[key] = _S(
-            key,
-            series["unit"],
-            series["frequency"],
-            vintage,
-            repo.vintage_observations(conn, vintage.vintage_id),
-        )
+        out[key] = _S(key, series["unit"], series["frequency"], vintage, observations)
     return out
 
 

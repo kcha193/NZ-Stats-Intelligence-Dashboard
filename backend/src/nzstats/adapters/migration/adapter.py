@@ -47,7 +47,13 @@ class MigrationAdapter:
                         f"release page has no year-ended chart with series {sorted(labels)}",
                     )
                 continue
-            rolling += [with_rolling_status(p, status) for p in parse_wide_chart(chart.csv, labels)]
+            # A series the chart lists but leaves entirely blank has nothing to store: treat it like
+            # an unpublished series (validation warns) rather than persisting an empty vintage.
+            rolling += [
+                with_rolling_status(p, status)
+                for p in parse_wide_chart(chart.csv, labels)
+                if p.observations or required
+            ]
         return ParsedBundle(LAYOUT_VERSION, tuple(monthly + places + rolling))
 
     def validate(
