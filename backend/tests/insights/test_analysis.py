@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
-from nzstats.insights.migration import build_release_analysis, driver_share_text
+from nzstats.insights.migration import _streak, build_release_analysis, driver_share_text
 from nzstats.sources.calendar import events_to_refs, parse_ics
 from nzstats.sources.release_page import parse_release_page
 from nzstats.store import repo
@@ -286,3 +286,17 @@ def test_corrected_release_without_the_optional_chart_shows_no_stale_citizenship
     assert after is not None and after.headline_metrics
     assert not any(i.id == "citizenship" for i in after.context)
     assert "mig.ry.net.nz" not in after.model_dump_json()
+
+
+# --- a streak never bridges a missing month (review #4253711094) --------------------------------
+
+
+def test_streak_counts_consecutive_months_only() -> None:
+    contiguous = {"2026-01": 1.0, "2026-02": 2.0, "2026-03": 3.0, "2026-04": 4.0}
+    assert _streak(contiguous) == (3, "rose")
+    gapped = {"2026-01": 1.0, "2026-02": 2.0, "2026-04": 4.0, "2026-05": 5.0, "2026-06": 6.0}
+    assert _streak(gapped) == (2, "rose")  # 04 -> 05 -> 06; the 02 -> 04 step spans a missing month
+
+
+def test_streak_at_a_gap_directly_before_the_latest_period_is_zero() -> None:
+    assert _streak({"2026-01": 1.0, "2026-02": 2.0, "2026-04": 3.0}) == (0, "")

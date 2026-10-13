@@ -25,7 +25,7 @@ from nzstats.models import (
 )
 from nzstats.stats.changes import Change, lagged_change
 from nzstats.stats.percentile import percentile_context
-from nzstats.stats.periods import month_label
+from nzstats.stats.periods import add_months, month_label
 from nzstats.stats.revision import revisions, summarise
 from nzstats.store import repo
 
@@ -149,6 +149,8 @@ def _streak(values: dict[str, float]) -> tuple[int, str]:
     periods = sorted(values)
     direction, count = "", 0
     for i in range(len(periods) - 1, 0, -1):
+        if add_months(periods[i - 1], 1) != periods[i]:
+            break  # a missing month: the two sides are not adjacent, so the run ends here
         delta = values[periods[i]] - values[periods[i - 1]]
         step = "rose" if delta > 0 else "fell" if delta < 0 else ""
         if not step or (direction and step != direction):
@@ -302,7 +304,9 @@ def build_release_analysis(
                 caveat=RANK_CAVEAT,
             )
         )
-    if nz is not None and nonnz is not None:
+    # One period label covers both values only if both series end in the same period; a series whose
+    # latest cell is blank would otherwise show an older figure under the newer period's name.
+    if nz is not None and nonnz is not None and nz.latest == nonnz.latest:
         context.append(
             Insight(
                 id="citizenship",

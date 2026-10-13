@@ -11,6 +11,7 @@ import depRy from "@/test/fixtures/series_departures_ry.json";
 import overview from "@/test/fixtures/overview.json";
 import releases from "@/test/fixtures/releases.json";
 import revisions from "@/test/fixtures/revisions.json";
+import { formatNumber } from "@/lib/format";
 import Migration from "./Migration";
 
 vi.mock("@/charts/EChart", () => ({
@@ -21,27 +22,29 @@ vi.mock("@/charts/EChart", () => ({
 
 const cit = (key: string) => ({ ...netRy, series: { ...netRy.series, key } });
 
+const baseRoutes = (): Record<string, unknown> => ({
+    "/api/overview": overview,
+    "/api/releases": releases,
+    [`/api/releases/${detail.release.id}`]: detail,
+    "/api/series/mig.m.net": netM,
+    "/api/series/mig.ry.net": netRy,
+    "/api/series/mig.ry.arrivals": arrRy,
+    "/api/series/mig.ry.departures": depRy,
+    "/api/series/mig.m.arrivals": netM,
+    "/api/series/mig.m.departures": netM,
+    "/api/series/mig.ry.net.nz": cit("mig.ry.net.nz"),
+    "/api/series/mig.ry.net.nonnz": cit("mig.ry.net.nonnz"),
+    "/api/series/mig.ry.arrivals.nz": cit("mig.ry.arrivals.nz"),
+    "/api/series/mig.ry.arrivals.nonnz": cit("mig.ry.arrivals.nonnz"),
+    "/api/series/mig.ry.departures.nz": cit("mig.ry.departures.nz"),
+    "/api/series/mig.ry.departures.nonnz": cit("mig.ry.departures.nonnz"),
+    "/api/migration/countries": countries,
+    "/api/revisions/mig.m.net": revisions,
+});
+
 describe("Migration page", () => {
   beforeEach(() => {
-    mockApi({
-      "/api/overview": overview,
-      "/api/releases": releases,
-      [`/api/releases/${detail.release.id}`]: detail,
-      "/api/series/mig.m.net": netM,
-      "/api/series/mig.ry.net": netRy,
-      "/api/series/mig.ry.arrivals": arrRy,
-      "/api/series/mig.ry.departures": depRy,
-      "/api/series/mig.m.arrivals": netM,
-      "/api/series/mig.m.departures": netM,
-      "/api/series/mig.ry.net.nz": cit("mig.ry.net.nz"),
-      "/api/series/mig.ry.net.nonnz": cit("mig.ry.net.nonnz"),
-      "/api/series/mig.ry.arrivals.nz": cit("mig.ry.arrivals.nz"),
-      "/api/series/mig.ry.arrivals.nonnz": cit("mig.ry.arrivals.nonnz"),
-      "/api/series/mig.ry.departures.nz": cit("mig.ry.departures.nz"),
-      "/api/series/mig.ry.departures.nonnz": cit("mig.ry.departures.nonnz"),
-      "/api/migration/countries": countries,
-      "/api/revisions/mig.m.net": revisions,
-    });
+    mockApi(baseRoutes());
   });
 
   it("renders findings first, then the seven analytical views, each with a source and export", async () => {
@@ -74,5 +77,33 @@ describe("Migration page", () => {
   it("derived country ranking says it is derived and excludes regions from the ranking", async () => {
     renderWithProviders(<Migration />);
     expect((await screen.findAllByText(/derived/i)).length).toBeGreaterThan(0);
+  });
+
+  describe("citizenship chart (review #4253711087)", () => {
+    const nzWith = (patch: Record<string, unknown>) => ({ ...cit("mig.ry.net.nz"), ...patch });
+
+    it("declines to combine series that come from different vintages", async () => {
+      const older = nzWith({ vintage: { ...netRy.vintage, captured_at: "2026-10-12T09:00:00+13:00" } });
+      mockApi({ ...baseRoutes(), "/api/series/mig.ry.net.nz": older });
+      renderWithProviders(<Migration />);
+      expect(await screen.findByText(/different releases or ingests/i)).toBeInTheDocument();
+      expect(screen.queryByRole("img", { name: /by citizenship chart/i })).not.toBeInTheDocument();
+    });
+
+    it("states the values for the latest period both series share", async () => {
+      const shorter = nzWith({ points: netRy.points.slice(0, -1) });
+      mockApi({ ...baseRoutes(), "/api/series/mig.ry.net.nz": shorter });
+      renderWithProviders(<Migration />);
+      const shared = netRy.points[netRy.points.length - 2];
+      const heading = await screen.findByRole("heading", { level: 3, name: /by citizenship/i });
+      expect(heading).toHaveTextContent(`non-NZ citizens ${formatNumber(shared.value)}, NZ citizens ${formatNumber(shared.value)}`);
+      expect(heading).toHaveTextContent("year ended Jun 2026");
+      expect(heading).not.toHaveTextContent(formatNumber(netRy.points[netRy.points.length - 1].value));
+    });
+
+    it("still combines series from one vintage", async () => {
+      renderWithProviders(<Migration />);
+      expect(await screen.findByRole("img", { name: /by citizenship chart/i })).toBeInTheDocument();
+    });
   });
 });

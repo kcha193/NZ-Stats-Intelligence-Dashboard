@@ -429,13 +429,16 @@ def test_every_outstanding_failure_is_named_until_each_recovers(rt, site) -> Non
 # --- empty optional series are unavailable, not a 500 (review #4253658294) ----------------------
 
 
-def _blank_row(label: str):
+def _blank_row(label: str, *, last_only: bool = False):
     def edit(obj) -> None:
         series = _chart_series(obj, _CITIZENSHIP_CHART)
         rows = list(csv.reader(io.StringIO(series["GraphCsvData"])))
         for row in rows:
             if row and row[0].strip() == label:
-                row[1:] = [".."] * len(row[1:])
+                if last_only:
+                    row[-1] = ".."
+                else:
+                    row[1:] = [".."] * len(row[1:])
         out = io.StringIO()
         csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\n").writerows(rows)
         series["GraphCsvData"] = out.getvalue()
@@ -475,5 +478,33 @@ def test_an_already_stored_empty_optional_vintage_does_not_break_the_analysis(rt
     analysis = build_release_analysis(
         rt.conn, release_id, analysable_slugs={"international-migration"}
     )
+    assert analysis is not None
+    assert not any(i.id == "citizenship" for i in analysis.context)
+
+
+# --- partially blank charts must not be presented as aligned data (review #4253711085/-094) -----
+
+
+def test_citizenship_insight_is_suppressed_when_the_two_series_end_in_different_periods(
+    rt, site
+) -> None:
+    """A blank latest NZ cell leaves its series a month behind; one period label cannot cover both."""
+    from nzstats.insights.migration import build_release_analysis
+
+    (july,) = _seed(rt, "2026-07")
+    assert _ingest(rt, july).outcome == "ingested"
+    release_id = repo.get_release(rt.conn, july)["id"]
+    slugs = {"international-migration"}
+    assert any(
+        i.id == "citizenship"
+        for i in build_release_analysis(rt.conn, release_id, analysable_slugs=slugs).context
+    )
+
+    _edit_page(site, "2026-07", _blank_row("Net migration (NZ citizens)", last_only=True))
+    assert _ingest(rt, july).outcome == "ingested"
+    nz = repo.latest_points(rt.conn, "mig.ry.net.nz")
+    nonnz = repo.latest_points(rt.conn, "mig.ry.net.nonnz")
+    assert max(nz) < max(nonnz)  # the premise: the NZ series now ends a month earlier
+    analysis = build_release_analysis(rt.conn, release_id, analysable_slugs=slugs)
     assert analysis is not None
     assert not any(i.id == "citizenship" for i in analysis.context)

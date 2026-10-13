@@ -128,12 +128,26 @@ export function CitizenshipChart({ range }: { range: Range }) {
   const nonnz = useSeries(`mig.ry.${measure}.nonnz`);
   const theme = useChartTheme();
   if (!nz.data || !nonnz.data) return <QueryBoundary query={nz.isError ? nz : nonnz}>{() => null}</QueryBoundary>;
+  // The pair is only comparable when both series come from the same ingested bundle.
+  const sameBundle =
+    nz.data.vintage.release_key === nonnz.data.vintage.release_key &&
+    nz.data.vintage.captured_at === nonnz.data.vintage.captured_at;
   const a = sliceYears(toPoints(nonnz.data), range);
   const b = sliceYears(toPoints(nz.data), range);
+  // Values are quoted for the latest period both series have, never an older point under a newer name.
+  const shared = a.map((p) => p.period).filter((p) => b.some((x) => x.period === p));
+  const at = shared[shared.length - 1];
   const label = MEASURES.find((m) => m.id === measure)!.label.toLowerCase();
+  if (!sameBundle || at === undefined) {
+    return (
+      <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        The year-ended {label} split by citizenship is not shown: the two series come from different releases or ingests, or share no period, so they are not combined.
+      </p>
+    );
+  }
   return (
     <ChartCard
-      title={`Year-ended ${label} by citizenship: non-NZ citizens ${formatNumber(latest(a).value)}, NZ citizens ${formatNumber(latest(b).value)}`}
+      title={`Year-ended ${label} by citizenship, ${lcFirst(periodLabel(at, "rolling_annual"))}: non-NZ citizens ${formatNumber(a.find((p) => p.period === at)!.value)}, NZ citizens ${formatNumber(b.find((p) => p.period === at)!.value)}`}
       question="Which citizens account for the year-ended result?"
       unit="people" source={source(nz.data)} caveat={nz.data.caveat}
       option={lineOption({ series: [

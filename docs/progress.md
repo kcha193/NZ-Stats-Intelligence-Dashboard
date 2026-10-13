@@ -28,9 +28,9 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **285 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **288 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
-| Frontend tests | `cd frontend && npm test` | **12 files, 67 passed** |
+| Frontend tests | `cd frontend && npm test` | **12 files, 70 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
 | Frontend lint | `npm run lint` (oxlint) | 3 warnings, all in generated `components/ui/*` (fast-refresh exports) |
 | End to end | `cd frontend && npx playwright test` (Chromium, desktop 1440x900 and Pixel 7) | **16 passed**: overview, migration charts and CSV download, route reload and JSON 404, release analysis and print, no horizontal scroll on `/`, `/migration`, `/calendar`, `/health` |
@@ -193,6 +193,20 @@ Two findings, validated and fixed with tests that failed first:
    or `..` as a vintage with no observations, and the analysis took `max` of an empty mapping. The adapter now omits an empty
    optional series (validation warns it was not published) and the analysis loader treats an empty optional series as
    unavailable, which also covers vintages stored before this fix. Required series must still hold data.
+
+## Codex review round 8 (PR #1, commit 07a126d)
+
+Three findings, all from partially blank year-ended chart cells, validated and fixed with tests that failed first:
+
+1. The citizenship insight could pair figures from different periods (#4253711085). It is now emitted only when the NZ and
+   non-NZ series end in the same period.
+2. The citizenship chart could combine different vintages or periods (#4253711087). It now declines to combine the two series
+   unless both come from the same release and ingest, and quotes both values for the latest period they share, naming it.
+3. A streak could bridge a missing month (#4253711094). `_streak` now ends at the first non-adjacent pair of periods.
+
+Not changed: validation still accepts a required year-ended series with an isolated blank cell inside the chart. The two
+consumers that assume adjacent months (the streak and the citizenship pair) now cope; a continuity rule for the rolling
+series is not added without evidence of such a gap in a real file.
 
 ## Remaining work
 
