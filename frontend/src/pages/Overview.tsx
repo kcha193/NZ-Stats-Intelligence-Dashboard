@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ApiError } from "@/api/client";
 import { useOverview, useSeries } from "@/api/hooks";
 import { ChartCard } from "@/charts/ChartCard";
 import { lineOption, sliceYears } from "@/charts/options";
@@ -12,6 +13,14 @@ import { formatAklDateTime, formatNet } from "@/lib/format";
 function TrendOverview() {
   const q = useSeries("mig.ry.net");
   const theme = useChartTheme();
+  // After `discover` but before the first backfill the calendar is populated and no series exists yet.
+  if (q.error instanceof ApiError && q.error.status === 404) {
+    return (
+      <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        The year-ended net migration trend appears once the first release has been ingested.
+      </p>
+    );
+  }
   return (
     <QueryBoundary query={q}>
       {(d) => {

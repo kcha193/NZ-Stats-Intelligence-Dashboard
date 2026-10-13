@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from nzstats.clock import AKL, utc_now
-from nzstats.domain import IngestError, ReleaseRef
+from nzstats.domain import ErrorClass, IngestError, ReleaseRef
 from nzstats.runtime import Runtime
 from nzstats.sources.calendar import fetch_calendar, fetch_release_month
 from nzstats.stats.periods import add_months
@@ -63,10 +63,13 @@ def attempt(
     except IngestError as exc:
         message = f"{source}: {exc.error_class.value}: {exc}"
         log.warning("discovery failed: %s", message)
-        if record_health:
-            repo.set_source_health(rt.conn, source, now_fn(), ok=False, detail=message)
-        errors.append(message)
-        return 0
+    except Exception as exc:  # e.g. undecodable bytes: classified and recorded, never swallowed
+        log.exception("unexpected error during discovery of %s", source)
+        message = f"{source}: {ErrorClass.UNEXPECTED.value}: {type(exc).__name__}; see server log"
+    if record_health:
+        repo.set_source_health(rt.conn, source, now_fn(), ok=False, detail=message)
+    errors.append(message)
+    return 0
 
 
 def record_batch_health(

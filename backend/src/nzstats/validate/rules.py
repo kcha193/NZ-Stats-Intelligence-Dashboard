@@ -131,7 +131,7 @@ def validate_migration(
                 "provisional_window",
                 "warning",
                 f"provisional months are not the latest <= {PROVISIONAL_MAX_MONTHS} contiguous "
-                f"months ({len(provisional)} provisional, {provisional[0]}..{provisional[-1]})",
+                f"months ({len(provisional)} provisional, spanning {provisional[0]}..{provisional[-1]})",
             )
         )
 

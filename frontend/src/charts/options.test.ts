@@ -86,6 +86,49 @@ describe("lineOption", () => {
   });
 });
 
+describe("provisional bands follow the provisional months (review #4254034473)", () => {
+  const bands = (o: Opt): [string, string][] => (o.series[0].markArea?.data ?? []).map((d: Opt) => [d[0].xAxis, d[1].xAxis]);
+
+  it("shades each run of provisional periods and never a final month between them", () => {
+    const o = lineOption(
+      input(pts([["2026-01", 1, "provisional"], ["2026-02", 2], ["2026-03", 3, "provisional"], ["2026-04", 4, "provisional"], ["2026-05", 5]])),
+      TEST_THEME,
+    ) as Opt;
+    expect(bands(o)).toEqual([["2026-01", "2026-01"], ["2026-03", "2026-04"]]);
+  });
+
+  it("ends the band at the last provisional period, not at the end of the axis", () => {
+    const o = lineOption(input(pts([["2026-01", 1], ["2026-02", 2, "provisional"], ["2026-03", 3]])), TEST_THEME) as Opt;
+    expect(bands(o)).toEqual([["2026-02", "2026-02"]]);
+  });
+
+  it("treats a period as provisional when any series is, across series with different spans", () => {
+    const o = lineOption(
+      {
+        series: [
+          { name: "A", points: pts([["2026-01", 1], ["2026-02", 2], ["2026-03", 3]]), color: "#111" },
+          { name: "B", points: pts([["2026-02", 5, "provisional"], ["2026-03", 6, "provisional"]]), color: "#222" },
+        ],
+        unit: "people", frequency: "monthly" as const,
+      },
+      TEST_THEME,
+    ) as Opt;
+    expect(bands(o)).toEqual([["2026-02", "2026-03"]]);
+  });
+
+  it("splits the year-ended band of the stacked chart the same way", () => {
+    const o = stackedPanelsOption(
+      {
+        monthly: pts([["2026-01", 1], ["2026-02", 2], ["2026-03", 3], ["2026-04", 4]]),
+        yearEnded: pts([["2026-01", 10, "provisional"], ["2026-02", 11], ["2026-03", 12, "provisional"], ["2026-04", 13, "provisional"]]),
+        unit: "people",
+      },
+      TEST_THEME,
+    ) as Opt;
+    expect(o.series[1].markArea.data.map((d: Opt) => [d[0].xAxis, d[1].xAxis])).toEqual([["2026-01", "2026-01"], ["2026-03", "2026-04"]]);
+  });
+});
+
 describe("divergingBarOption", () => {
   it("colours bars by sign and lighter when provisional", () => {
     const o = divergingBarOption(

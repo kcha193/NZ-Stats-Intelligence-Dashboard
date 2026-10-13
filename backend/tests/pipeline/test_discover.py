@@ -117,3 +117,46 @@ def test_a_later_failed_month_also_degrades_and_all_good_months_clear_it(rt, sit
     discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)
     health = _month_health(rt)
     assert health["state"] == "ok" and health["detail"] is None
+
+
+# --- unexpected failures degrade health instead of aborting (review #4254034483) -----------------
+
+
+def test_a_corrupt_calendar_body_degrades_health_and_does_not_raise(rt, site) -> None:
+    site.override(
+        f"{BASE}/release-calendar/calendar-export/", 200, b"\xff\xfe\x00 not utf-8", "text/calendar"
+    )
+    result = discover(rt, months=["2026-09"], now_fn=lambda: NOW)  # must not raise
+    assert len(result.errors) == 1 and "calendar_ics: unexpected" in result.errors[0]
+    health = {r["source"]: r for r in rt.conn.execute("SELECT * FROM source_health")}
+    assert health["calendar_ics"]["state"] == "degraded"
+    assert health["calendar_month"]["state"] == "ok"  # the other source still ran
+
+
+def test_unexpected_errors_are_logged_but_not_stored_or_served(rt, monkeypatch, caplog) -> None:
+    import nzstats.pipeline.discover as discover_module
+
+    def boom(*a, **k):
+        raise RuntimeError("secret detail at /srv/internal/path.py")
+
+    monkeypatch.setattr(discover_module, "fetch_release_month", boom)
+    result = discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)
+    stored = rt.conn.execute(
+        "SELECT detail FROM source_health WHERE source='calendar_month'"
+    ).fetchone()
+    assert "RuntimeError" in stored["detail"]
+    assert all(
+        "secret detail" not in text and "/srv/internal" not in text
+        for text in (stored["detail"], *result.errors)
+    )
+    assert "secret detail" in caplog.text  # the operator still gets the full exception
+    assert len(result.errors) == 2  # one per month: the run continued past the first failure
+
+
+def test_backfill_reports_an_unexpected_month_failure_too(rt, monkeypatch) -> None:
+    import nzstats.pipeline.ingest as ingest_module
+    from nzstats.pipeline.ingest import backfill
+
+    monkeypatch.setattr(ingest_module, "fetch_release_month", lambda *a, **k: 1 / 0)
+    outcomes = backfill(rt, since="2026-08", until="2026-08", now_fn=lambda: NOW)
+    assert [o.release_key for o in outcomes if o.outcome == "failed"] == ["calendar_month:2026-08"]

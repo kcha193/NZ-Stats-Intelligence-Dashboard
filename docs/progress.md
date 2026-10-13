@@ -28,9 +28,9 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **301 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **304 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
-| Frontend tests | `cd frontend && npm test` | **13 files, 85 passed** |
+| Frontend tests | `cd frontend && npm test` | **13 files, 91 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
 | Frontend lint | `npm run lint` (oxlint) | 3 warnings, all in generated `components/ui/*` (fast-refresh exports) |
 | End to end | `cd frontend && npx playwright test` (Chromium, desktop 1440x900 and Pixel 7) | **16 passed**: overview, migration charts and CSV download, route reload and JSON 404, release analysis and print, no horizontal scroll on `/`, `/migration`, `/calendar`, `/health` |
@@ -243,6 +243,22 @@ and table (statuses are exported and tabulated); vintage pairing of required ser
 validation rejects a bundle without them); a validation rule for monthly statuses disagreeing across arrivals, departures
 and net (they never do in real files, but year-ended statuses are derived from net, so such a rule is a candidate if
 Stats NZ changes the files).
+
+## Review round 10 (PR #1, commit 03d70a6)
+
+Three findings, validated and fixed with tests that failed first:
+
+1. The provisional band covered final months between provisional ones (#4254034473). This was the same root cause as the
+   wording finding of round 9 (a first-to-last span treated as contiguous), and the stacked panel added in round 9 had it
+   too. A shared `provisionalRuns` now builds one band per run of consecutive provisional periods for both charts; a
+   `grep` for first/last provisional spans found no other consumer. The `provisional_window` validation warning now says the
+   months are "spanning" a range rather than implying the range is provisional.
+2. The Overview requested a series that does not exist on a first run (#4254034477). After `discover` and before the first
+   backfill the trend got a 404 and showed an error panel. A 404 now shows a note that the trend appears once the first release
+   is ingested; other failures still show the error panel.
+3. Unexpected discovery failures aborted without recording health (#4254034483). `attempt` caught only `IngestError`, so e.g.
+   an undecodable calendar body raised past the health update. Other exceptions are now logged in full, recorded as an
+   `unexpected` degraded error naming only the exception type, and the run continues (also for backfill months).
 
 ## Remaining work
 

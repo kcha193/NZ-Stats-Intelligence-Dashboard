@@ -21,6 +21,29 @@ export function sliceYears(points: ChartPoint[], years: number | null): ChartPoi
 const statusFlag = (status: string | undefined): string =>
   status === "provisional" ? " (provisional)" : status === "unknown" ? " (status unknown)" : "";
 
+/** Maximal runs of consecutive axis periods that are provisional, as [first, last]. A final period
+ * between two provisional ones ends a run, so a band never covers a period that is not provisional. */
+export function provisionalRuns(periods: string[], isProvisional: (period: string) => boolean): [string, string][] {
+  const runs: [string, string][] = [];
+  let start: string | null = null;
+  periods.forEach((p, i) => {
+    if (isProvisional(p)) {
+      start ??= p;
+      if (i === periods.length - 1 || !isProvisional(periods[i + 1])) {
+        runs.push([start, p]);
+        start = null;
+      }
+    }
+  });
+  return runs;
+}
+
+const provisionalArea = (runs: [string, string][], theme: ChartTheme) => ({
+  silent: true, itemStyle: { color: theme.provisionalBand },
+  label: { show: true, color: theme.muted, position: "insideTop", formatter: "Provisional" },
+  data: runs.map(([from, to]) => [{ xAxis: from }, { xAxis: to }]),
+});
+
 function tooltip(series: LineSeriesInput[], unit: string, frequency: Frequency) {
   return {
     trigger: "axis" as const,
@@ -45,8 +68,7 @@ export function lineOption(
   const periods = [...new Set(input.series.flatMap((s) => s.points.map((p) => p.period)))].sort();
   const values = input.series.flatMap((s) => s.points.map((p) => p.value));
   const nonNegative = values.every((v) => v >= 0);
-  const firstProvisional = periods.find((p) => input.series.some((s) => s.points.some((x) => x.period === p && x.status === "provisional")));
-  const last = periods[periods.length - 1];
+  const provisional = provisionalRuns(periods, (p) => input.series.some((s) => s.points.some((x) => x.period === p && x.status === "provisional")));
 
   const series = input.series.map((s, i) => {
     const byPeriod = new Map(s.points.map((p) => [p.period, p.value]));
@@ -71,13 +93,7 @@ export function lineOption(
           lineStyle: { color: theme.muted, width: 1 }, data: [{ yAxis: 0 }],
         };
       }
-      if (firstProvisional) {
-        entry.markArea = {
-          silent: true, itemStyle: { color: theme.provisionalBand },
-          label: { show: true, color: theme.muted, position: "insideTop", formatter: "Provisional" },
-          data: [[{ xAxis: firstProvisional }, { xAxis: last }]],
-        };
-      }
+      if (provisional.length) entry.markArea = provisionalArea(provisional, theme);
     }
     return entry;
   });
@@ -133,8 +149,7 @@ export function stackedPanelsOption(
   // Both series keep their full points: the monthly and year-ended statuses are different facts.
   const yearEnded = new Map(input.yearEnded.map((p) => [p.period, p]));
   const monthly = new Map(input.monthly.map((p) => [p.period, p]));
-  const firstProvisionalYearEnded = input.yearEnded.find((p) => p.status === "provisional")?.period;
-  const lastYearEnded = input.yearEnded.length ? input.yearEnded[input.yearEnded.length - 1].period : undefined;
+  const provisionalYearEnded = provisionalRuns(periods, (p) => yearEnded.get(p)?.status === "provisional");
   const axisBase = { type: "category" as const, data: periods, axisLabel: { interval: 0, hideOverlap: true, color: theme.muted, formatter: yearTick }, axisTick: { interval: (_: number, v: string) => v.endsWith("-01") } };
   const valueAxis = (gridIndex: number) => ({ type: "value" as const, gridIndex, axisLabel: { color: theme.muted, formatter: axisNumber }, splitLine: { lineStyle: { color: theme.grid } } });
   return {
@@ -177,15 +192,7 @@ export function stackedPanelsOption(
         lineStyle: { width: 2, color: theme.series[0] }, itemStyle: { color: theme.series[0] },
         data: periods.map((p) => yearEnded.get(p)?.value ?? null),
         markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: theme.muted, width: 1 }, data: [{ yAxis: 0 }] },
-        ...(firstProvisionalYearEnded && lastYearEnded
-          ? {
-              markArea: {
-                silent: true, itemStyle: { color: theme.provisionalBand },
-                label: { show: true, color: theme.muted, position: "insideTop", formatter: "Provisional" },
-                data: [[{ xAxis: firstProvisionalYearEnded }, { xAxis: lastYearEnded }]],
-              },
-            }
-          : {}),
+        ...(provisionalYearEnded.length ? { markArea: provisionalArea(provisionalYearEnded, theme) } : {}),
       },
     ],
   };

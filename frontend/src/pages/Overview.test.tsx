@@ -30,6 +30,26 @@ describe("Overview", () => {
     expect(await screen.findByText(/not yet active/i)).toHaveTextContent(/Prices and inflation/);
   });
 
+  it("shows a note instead of an error when no series has been ingested yet (review #4254034477)", async () => {
+    // First run: `discover` has listed releases, but no backfill has stored any series.
+    mockApi({ "/api/overview": { ...overview, kpis: [], featured: null } });
+    renderWithProviders(<Overview />);
+    expect(await screen.findByRole("region", { name: /upcoming releases/i })).toBeInTheDocument();
+    expect(await screen.findByText(/trend appears once the first release has been ingested/i)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("still reports a genuine failure to load the trend", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input), "http://localhost").pathname;
+      return path === "/api/overview"
+        ? new Response(JSON.stringify(overview), { status: 200, headers: { "content-type": "application/json" } })
+        : new Response(JSON.stringify({ detail: "boom" }), { status: 500 });
+    }));
+    renderWithProviders(<Overview />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be loaded/i);
+  });
+
   it("explains an empty database", async () => {
     mockApi({
       "/api/overview": { generated_at: "2026-10-11T16:00:00+13:00", kpis: [], latest_releases: [], upcoming: [], freshness: [], featured: null, inactive_categories: [] },
