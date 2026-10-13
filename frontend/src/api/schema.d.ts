@@ -638,6 +638,11 @@ export interface components {
             source_kind: string;
             /** Layout Version */
             layout_version: string;
+            /**
+             * Superseded
+             * @default false
+             */
+            superseded: boolean;
         };
     };
     responses: never;

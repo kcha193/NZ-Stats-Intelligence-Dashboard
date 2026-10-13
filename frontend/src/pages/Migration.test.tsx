@@ -137,6 +137,18 @@ describe("Migration page", () => {
       expect(heading).not.toHaveTextContent(formatNumber(netRy.points[netRy.points.length - 1].value));
     });
 
+    it("declines to show citizenship series whose vintage a corrected bundle superseded (review #4254096575)", async () => {
+      const stale = (key: string) => ({ ...cit(key), vintage: { ...netRy.vintage, superseded: true } });
+      mockApi({
+        ...baseRoutes(),
+        "/api/series/mig.ry.net.nz": stale("mig.ry.net.nz"),
+        "/api/series/mig.ry.net.nonnz": stale("mig.ry.net.nonnz"),
+      });
+      renderWithProviders(<Migration />);
+      expect(await screen.findByText(/withdrawn or replaced in a corrected release/i)).toBeInTheDocument();
+      expect(screen.queryByRole("img", { name: /by citizenship chart/i })).not.toBeInTheDocument();
+    });
+
     it("still combines series from one vintage", async () => {
       renderWithProviders(<Migration />);
       expect(await screen.findByRole("img", { name: /by citizenship chart/i })).toBeInTheDocument();

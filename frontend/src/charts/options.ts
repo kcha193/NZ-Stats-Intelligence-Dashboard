@@ -9,6 +9,21 @@ export type LineSeriesInput = { name: string; points: ChartPoint[]; color: strin
 const axisNumber = (v: number) => (Math.abs(v) >= 1000 ? `${formatNumber(v / 1000, { decimals: v % 1000 === 0 ? 0 : 1 })}k` : formatNumber(v));
 const yearTick = (v: string) => (v.endsWith("-01") ? v.slice(0, 4) : "");
 
+/** Every month from the first to the last period given, so a month with no observation keeps its
+ * place on a category axis (and a line breaks there) instead of the neighbours closing up. */
+export function monthAxis(periods: string[]): string[] {
+  const sorted = [...new Set(periods)].sort();
+  if (sorted.length < 2 || !sorted.every((p) => /^\d{4}-\d{2}$/.test(p))) return sorted;
+  const [y0, m0] = sorted[0].split("-").map(Number);
+  const [y1, m1] = sorted[sorted.length - 1].split("-").map(Number);
+  const n = (y1 - y0) * 12 + (m1 - m0);
+  if (n > 2400) return sorted;
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const idx = y0 * 12 + (m0 - 1) + i;
+    return `${String(Math.floor(idx / 12)).padStart(4, "0")}-${String((idx % 12) + 1).padStart(2, "0")}`;
+  });
+}
+
 export function sliceYears(points: ChartPoint[], years: number | null): ChartPoint[] {
   if (years === null || points.length === 0) return points;
   const last = points[points.length - 1].period;
@@ -65,7 +80,7 @@ export function lineOption(
   input: { series: LineSeriesInput[]; unit: string; frequency: Frequency },
   theme: ChartTheme,
 ): EChartsCoreOption {
-  const periods = [...new Set(input.series.flatMap((s) => s.points.map((p) => p.period)))].sort();
+  const periods = monthAxis(input.series.flatMap((s) => s.points.map((p) => p.period)));
   const values = input.series.flatMap((s) => s.points.map((p) => p.value));
   const nonNegative = values.every((v) => v >= 0);
   const provisional = provisionalRuns(periods, (p) => input.series.some((s) => s.points.some((x) => x.period === p && x.status === "provisional")));
@@ -124,7 +139,8 @@ export function divergingBarOption(
   input: { name: string; points: ChartPoint[]; unit: string; frequency: Frequency },
   theme: ChartTheme,
 ): EChartsCoreOption {
-  const periods = input.points.map((p) => p.period);
+  const periods = monthAxis(input.points.map((p) => p.period));
+  const byPeriod = new Map(input.points.map((p) => [p.period, p]));
   return {
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
     grid: { left: 56, right: 24, top: 24, bottom: 28 },
@@ -133,10 +149,13 @@ export function divergingBarOption(
     yAxis: { type: "value", axisLabel: { color: theme.muted, formatter: axisNumber }, splitLine: { lineStyle: { color: theme.grid } } },
     series: [{
       name: input.name, type: "bar",
-      data: input.points.map((p) => ({
-        value: p.value,
-        itemStyle: { color: p.value < 0 ? theme.negative : theme.positive, opacity: p.status === "provisional" ? 0.55 : 1 },
-      })),
+      data: periods.map((period) => {
+        const p = byPeriod.get(period);
+        return p === undefined ? null : {
+          value: p.value,
+          itemStyle: { color: p.value < 0 ? theme.negative : theme.positive, opacity: p.status === "provisional" ? 0.55 : 1 },
+        };
+      }),
     }],
   };
 }
@@ -145,7 +164,7 @@ export function stackedPanelsOption(
   input: { monthly: ChartPoint[]; yearEnded: ChartPoint[]; unit: string },
   theme: ChartTheme,
 ): EChartsCoreOption {
-  const periods = [...new Set([...input.monthly, ...input.yearEnded].map((p) => p.period))].sort();
+  const periods = monthAxis([...input.monthly, ...input.yearEnded].map((p) => p.period));
   // Both series keep their full points: the monthly and year-ended statuses are different facts.
   const yearEnded = new Map(input.yearEnded.map((p) => [p.period, p]));
   const monthly = new Map(input.monthly.map((p) => [p.period, p]));

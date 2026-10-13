@@ -129,6 +129,43 @@ describe("provisional bands follow the provisional months (review #4254034473)",
   });
 });
 
+describe("missing months keep their place on the axis (review #4254096579)", () => {
+  const gap = pts([["2026-01", 1], ["2026-02", 2], ["2026-04", 4], ["2026-05", 5]]); // March is missing
+
+  it("line chart: the axis has every month and the line breaks at the gap", () => {
+    const o = lineOption(input(gap), TEST_THEME) as Opt;
+    expect(o.xAxis.data).toEqual(["2026-01", "2026-02", "2026-03", "2026-04", "2026-05"]);
+    expect(o.series[0].data).toEqual([1, 2, null, 4, 5]);
+    expect(o.series[0].connectNulls).toBe(false);
+  });
+
+  it("line chart: series that start in different months still share one continuous axis", () => {
+    const o = lineOption(
+      { series: [{ name: "A", points: pts([["2026-01", 1]]), color: "#1" }, { name: "B", points: pts([["2026-04", 4]]), color: "#2" }], unit: "people", frequency: "monthly" as const },
+      TEST_THEME,
+    ) as Opt;
+    expect(o.xAxis.data).toEqual(["2026-01", "2026-02", "2026-03", "2026-04"]);
+  });
+
+  it("bar chart: a missing month is an empty slot, not a squeezed axis", () => {
+    const o = divergingBarOption({ name: "Net", points: gap, unit: "people", frequency: "monthly" }, TEST_THEME) as Opt;
+    expect(o.xAxis.data).toHaveLength(5);
+    expect(o.series[0].data[2]).toBeNull();
+  });
+
+  it("stacked panels: both panels share the continuous axis and the year-ended line breaks", () => {
+    const o = stackedPanelsOption({ monthly: gap, yearEnded: gap, unit: "people" }, TEST_THEME) as Opt;
+    expect(o.xAxis[0].data).toHaveLength(5);
+    expect(o.series[1].data).toEqual([1, 2, null, 4, 5]);
+  });
+
+  it("year boundaries and a single period are handled", () => {
+    const o = lineOption(input(pts([["2025-11", 1], ["2026-02", 4]])), TEST_THEME) as Opt;
+    expect(o.xAxis.data).toEqual(["2025-11", "2025-12", "2026-01", "2026-02"]);
+    expect((lineOption(input(pts([["2026-03", 1]])), TEST_THEME) as Opt).xAxis.data).toEqual(["2026-03"]);
+  });
+});
+
 describe("divergingBarOption", () => {
   it("colours bars by sign and lighter when provisional", () => {
     const o = divergingBarOption(

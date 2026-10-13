@@ -28,9 +28,9 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **307 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **310 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
-| Frontend tests | `cd frontend && npm test` | **13 files, 91 passed** |
+| Frontend tests | `cd frontend && npm test` | **13 files, 97 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
 | Frontend lint | `npm run lint` (oxlint) | 3 warnings, all in generated `components/ui/*` (fast-refresh exports) |
 | End to end | `cd frontend && npx playwright test` (Chromium, desktop 1440x900 and Pixel 7) | **16 passed**: overview, migration charts and CSV download, route reload and JSON 404, release analysis and print, no horizontal scroll on `/`, `/migration`, `/calendar`, `/health` |
@@ -270,6 +270,22 @@ One finding, validated and fixed with a test that failed first:
   (empty while a feed that has been tried has never succeeded); the last attempt stays the newest. An ICS-only installation
   reports the ICS time. This was the only place that aggregated freshness across feeds; the Overview lists each source
   separately.
+
+## Review round 12 (PR #1, commit d048bb2)
+
+Two findings, validated and fixed with tests that failed first:
+
+1. The citizenship chart's same-vintage check passed on stale data (#4254096575). When a corrected release dropped both
+   optional series, each series' latest vintage was still the superseded one, so the two matched each other. This is the same
+   "latest vintage per series" root cause as the country ranking and the release analysis, which already read one bundle.
+   The series API now marks a vintage `superseded` when its release was re-ingested into a newer bundle without that series,
+   and the chart declines to show superseded series. Data from an older release that a newer release simply lacks is not
+   superseded and keeps its own release label. Audit of every consumer of per-series latest or previous vintages: the
+   analysis, ranking and revisions are bundle-based or single-series; the only client-side pairings are of required series
+   (always one bundle) and this guarded optional pair.
+2. A blank interior chart cell closed the gap on the category axis (#4254096579). The line, bar and stacked charts now use a
+   continuous month axis, so a month without an observation keeps its place and the line breaks there. Ingestion is not
+   changed to reject such gaps: no real file has one, and rejecting would block a release rather than show it honestly.
 
 ## Remaining work
 

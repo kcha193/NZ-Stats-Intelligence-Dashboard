@@ -185,6 +185,9 @@ class VintageOut(BaseModel):
     captured_at: str
     source_kind: str
     layout_version: str
+    # True when this vintage belongs to a bundle of its release that a later correction replaced
+    # without this series, so its values are no longer part of the release as it stands.
+    superseded: bool = False
 
 
 class SeriesDataOut(BaseModel):

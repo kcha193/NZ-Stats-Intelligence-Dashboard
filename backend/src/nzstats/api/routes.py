@@ -226,7 +226,9 @@ def series_data(
     release = repo.get_release(conn, v.release_key)
     return SeriesDataOut(
         series=series_out(row, len(repo.list_vintages(conn, key)), latest),
-        vintage=vintage_out(v),
+        vintage=vintage_out(v).model_copy(
+            update={"superseded": repo.vintage_superseded(conn, v.vintage_id)}
+        ),
         points=[
             PointOut(
                 period=o.period,

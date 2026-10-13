@@ -139,6 +139,13 @@ export function CitizenshipChart({ range }: { range: Range }) {
   const shared = a.map((p) => p.period).filter((p) => b.some((x) => x.period === p));
   const at = shared[shared.length - 1];
   const label = MEASURES.find((m) => m.id === measure)!.label.toLowerCase();
+  if (nz.data.vintage.superseded || nonnz.data.vintage.superseded) {
+    return (
+      <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        The year-ended {label} split by citizenship is not shown: its series were withdrawn or replaced in a corrected release.
+      </p>
+    );
+  }
   if (!sameBundle || at === undefined) {
     return (
       <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">

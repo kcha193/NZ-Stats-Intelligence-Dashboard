@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from nzstats.api.app import create_app
 from nzstats.clock import AKL
 from nzstats.pipeline.discover import discover
+from nzstats.store import repo
 from tests.conftest import FIXTURES
 from tests.support import NOW, ingest_months
 
@@ -282,3 +283,52 @@ def test_calendar_freshness_with_both_feeds_healthy_or_one_feed_known(client, rt
     _set_feeds(rt, None, None)
     none = client.get("/api/calendar").json()
     assert none["last_success_at"] is None and none["last_checked_at"] is None
+
+
+# --- a series whose vintage was superseded by a corrected bundle says so (review #4254096575) ------
+
+
+def _correct_july_without_citizenship_chart(rt, site) -> None:
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.pipeline.test_ingest import _CITIZENSHIP_CHART, _drop_chart, _edit_page
+    from tests.support import NOW
+
+    _edit_page(site, "2026-07", _drop_chart(_CITIZENSHIP_CHART))
+    key = "international-migration:july 2026"
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+
+
+def test_series_vintage_is_not_superseded_before_any_correction(client) -> None:
+    for key in ("mig.ry.net", "mig.ry.net.nz", "mig.m.net"):
+        assert client.get(f"/api/series/{key}").json()["vintage"]["superseded"] is False
+
+
+def test_optional_series_dropped_by_a_corrected_bundle_is_marked_superseded(
+    client, rt, site
+) -> None:
+    _correct_july_without_citizenship_chart(rt, site)
+    nz = client.get("/api/series/mig.ry.net.nz").json()
+    assert nz["vintage"]["superseded"] is True
+    assert nz["vintage"]["release_key"] == "international-migration:july 2026"
+    assert client.get("/api/series/mig.ry.net.nonnz").json()["vintage"]["superseded"] is True
+    # Series in the corrected bundle are current, and so is the corrected monthly series.
+    assert client.get("/api/series/mig.ry.net").json()["vintage"]["superseded"] is False
+    assert client.get("/api/series/mig.m.net").json()["vintage"]["superseded"] is False
+
+
+def test_a_series_absent_from_a_newer_release_is_not_called_superseded(rt, site) -> None:
+    """Older data from an earlier release stays available under its own release label."""
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.pipeline.test_ingest import _CITIZENSHIP_CHART, _drop_chart, _edit_page
+    from tests.support import NOW, release_ref_for
+
+    june, july = release_ref_for("2026-06"), release_ref_for("2026-07")
+    for ref in (june, july):
+        repo.upsert_release(rt.conn, ref, NOW)
+    assert ingest_release(rt, june.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    _edit_page(site, "2026-07", _drop_chart(_CITIZENSHIP_CHART))  # July never had the chart
+    assert ingest_release(rt, july.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    with TestClient(create_app(rt.settings)) as c:
+        nz = c.get("/api/series/mig.ry.net.nz").json()
+    assert nz["vintage"]["release_key"] == june.release_key
+    assert nz["vintage"]["superseded"] is False
