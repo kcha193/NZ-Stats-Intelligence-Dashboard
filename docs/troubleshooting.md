@@ -29,14 +29,14 @@ works, upcoming releases still appear while history stops updating (the month en
 the window the release shows as unavailable; the daily catch-up job (07:30) and `nzstats ingest --due` retry it.
 
 **Re-run a release.** `docker compose exec nzstats nzstats ingest --release-key "international-migration:august 2026"`.
-This downloads the release page and its files again (three requests, 10 s apart). If the files are
-byte-identical to a stored vintage the run reports `unchanged` and adds nothing, so it is safe to repeat.
-If Stats NZ republished corrected files, the run stores a new vintage and the release status becomes
-`corrected`.
+This downloads the release page and its files again (three requests, 10 s apart). If the files and the
+charts embedded in the page are identical to a stored vintage the run reports `unchanged` and adds nothing, so it is
+safe to repeat. If Stats NZ republished corrected files, or corrected a chart on the release page, the run stores a new
+vintage and the release status becomes `corrected`.
 
 **Reprocess after a parser fix (limitation).** Phase 1 has no re-parse command. Downloaded files are kept in
-`data/raw/`, but ingest decides "unchanged" from the files' hashes alone, so a fixed parser will not
-re-process a release whose files were already stored. Workaround: stop the server, take a backup
+`data/raw/`, but ingest decides "unchanged" from the hashes of the files and the page's embedded chart data, so a
+fixed parser will not re-process a release whose inputs were already stored. Workaround: stop the server, take a backup
 (`scripts/backup.sh`), delete that release's rows from `vintage` (and their `observation` rows) with
 `sqlite3 data/nzstats.db`, then run the ingest command above. A proper `--reparse` option is listed as
 remaining work in [progress.md](progress.md).

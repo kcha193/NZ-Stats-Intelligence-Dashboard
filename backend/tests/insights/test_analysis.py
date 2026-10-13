@@ -261,3 +261,28 @@ def test_driver_share_when_only_one_side_moved(d_arr, d_dep, lead) -> None:
 
 def test_no_driver_share_when_nothing_moved() -> None:
     assert driver_share_text(0, 0) is None
+
+
+# --- a release's analysis reads one bundle (review #4253628351) ---------------------------------
+
+
+def test_corrected_release_without_the_optional_chart_shows_no_stale_citizenship_series(
+    rt, site
+) -> None:
+    """The corrected bundle has no citizenship series, so none may be borrowed from the old one."""
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.pipeline.test_ingest import _CITIZENSHIP_CHART, _drop_chart, _edit_page
+
+    ref = release_ref_for("2026-07")
+    repo.upsert_release(rt.conn, ref, NOW)
+    assert ingest_release(rt, ref.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    release_id = repo.get_release(rt.conn, ref.release_key)["id"]
+    before = build_release_analysis(rt.conn, release_id, analysable_slugs=SLUGS)
+    assert any(i.id == "citizenship" for i in before.context)
+
+    _edit_page(site, "2026-07", _drop_chart(_CITIZENSHIP_CHART))  # page-only correction
+    assert ingest_release(rt, ref.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    after = build_release_analysis(rt.conn, release_id, analysable_slugs=SLUGS)
+    assert after is not None and after.headline_metrics
+    assert not any(i.id == "citizenship" for i in after.context)
+    assert "mig.ry.net.nz" not in after.model_dump_json()

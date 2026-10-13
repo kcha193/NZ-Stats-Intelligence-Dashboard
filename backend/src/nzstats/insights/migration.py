@@ -184,7 +184,12 @@ def build_release_analysis(
     row = repo.get_release_by_id(conn, release_id)
     if row is None or row["series_slug"] != SLUG:
         return None
-    cur = _load(conn, lambda k: repo.release_vintage(conn, k, release_id))
+    # One bundle per release: after a corrected re-ingest every series comes from the corrected
+    # bundle, and an optional series it no longer contains is unavailable, not borrowed from the old one.
+    bundle = repo.release_bundle(conn, release_id)
+    if bundle is None:
+        return None
+    cur = _load(conn, lambda k: repo.bundle_vintage(conn, k, release_id, bundle))
     if cur is None:
         return None
     prev = _load(conn, lambda k: repo.previous_vintage(conn, k, row["published_at"]))

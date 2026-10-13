@@ -358,6 +358,29 @@ def release_vintage(
     return VintageInfo(*tuple(row)) if row else None
 
 
+def release_bundle(conn: sqlite3.Connection, release_id: int) -> str | None:
+    """Digest of the release's newest ingested bundle (a corrected re-ingest supersedes the first)."""
+    row = conn.execute(
+        "SELECT bundle_sha256 FROM vintage WHERE release_id = ? ORDER BY id DESC LIMIT 1",
+        (release_id,),
+    ).fetchone()
+    return row["bundle_sha256"] if row else None
+
+
+def bundle_vintage(
+    conn: sqlite3.Connection, series_key: str, release_id: int, bundle_sha256: str
+) -> VintageInfo | None:
+    """A series' vintage within one specific bundle of a release; None if the bundle lacks it."""
+    row = conn.execute(
+        "SELECT v.id, r.release_key, r.title, r.published_at, v.captured_at, v.source_kind,"
+        " v.layout_version FROM vintage v JOIN release r ON r.id = v.release_id"
+        " JOIN series s ON s.id = v.series_id"
+        " WHERE s.key = ? AND v.release_id = ? AND v.bundle_sha256 = ?",
+        (series_key, release_id, bundle_sha256),
+    ).fetchone()
+    return VintageInfo(*tuple(row)) if row else None
+
+
 def previous_vintage(
     conn: sqlite3.Connection, series_key: str, published_before_utc: str
 ) -> VintageInfo | None:

@@ -28,7 +28,7 @@ Last updated 2026-10-12. Branch `feat/phase-1`. Spec and plan: `docs/superpowers
 | Check | Command | Result |
 |---|---|---|
 | Backend lint and format | `cd backend && ruff check . && ruff format --check .` | `All checks passed!`, 95 files formatted |
-| Backend tests | `cd backend && pytest -o addopts=""` | **279 passed** |
+| Backend tests | `cd backend && pytest -o addopts=""` | **280 passed** |
 | Frontend types | `cd frontend && npm run typecheck` | clean |
 | Frontend tests | `cd frontend && npm test` | **12 files, 67 passed** |
 | Frontend build | `cd frontend && npm run build` | built |
@@ -168,6 +168,18 @@ Three findings, validated and fixed with tests that failed first:
 3. Month navigation showed blank months (#4246379631). The month view now requests the month it shows (`from`/`to` are the first
    and last day), defaults to the current Pacific/Auckland month, and keeps the navigation visible with an explanation when a
    month holds no matching releases. The list view still uses the API's default window.
+
+## Codex review round 6 (PR #1, commit ec224f6)
+
+Two findings, validated and fixed:
+
+1. A corrected release's analysis mixed bundles (#4253628351). Each series was read from its newest vintage for the release,
+   so after a page-only correction that removed the optional citizenship chart (detectable since round 1) the analysis kept
+   the old bundle's citizenship series. The analysis now reads every series from the release's newest bundle, and an
+   optional series that bundle lacks is unavailable. The previous-release comparison is unchanged: it only reads the required
+   series, which every bundle contains. Test failed first.
+2. README and troubleshooting still said a page-only chart correction is not detected and told operators to delete vintages
+   (#4253628355). Both now state the digest covers the files and the embedded chart data; only the parser-fix limitation remains.
 
 ## Remaining work
 

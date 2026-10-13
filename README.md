@@ -98,7 +98,7 @@ serves the built app; it never contacts stats.govt.nz.
 
 - Only International migration is active. Other categories appear on the Overview as "not yet active"
   until a verified, maintainable source is wired in.
-- Reprocessing: ingest decides "unchanged" from the downloaded CSVs' hashes only, so a parser fix is not applied to releases already stored, and a correction made only to a release page's charts is not detected. Re-ingest after deleting that release's vintages (see troubleshooting). Nothing re-checks a release once it has data, so `corrected` appears only after a manual re-ingest or backfill.
+- Reprocessing: ingest decides "unchanged" from the hashes of the downloaded files plus the chart data embedded in the release page, so a correction to either is picked up by a manual re-ingest. A parser fix is not applied to releases whose inputs are unchanged (a `--reparse` option is listed in [progress.md](docs/progress.md)); the workaround is in [troubleshooting](docs/troubleshooting.md). Nothing re-checks a release once it has data, so `corrected` appears only after a manual re-ingest or backfill.
 - Revision history only covers releases captured since the oldest backfilled vintage. Stats NZ's older
   migration files (before 2024-06) are missing or use a different layout for many months; see
   [docs/data-sources/migration-vintage-depth.md](docs/data-sources/migration-vintage-depth.md). The UI
