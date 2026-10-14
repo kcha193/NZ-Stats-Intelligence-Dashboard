@@ -15,6 +15,15 @@ def test_migrate_then_backup_produces_valid_copy(tmp_path, monkeypatch) -> None:
     assert {"release", "observation", "vintage"} <= tables
 
 
+def test_backup_creates_a_missing_destination_directory(tmp_path, monkeypatch) -> None:
+    """Review #4268149432: the container user creates data/backups, not the host user."""
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    assert main(["migrate"]) == 0
+    dest = tmp_path / "data" / "backups" / "nzstats.db"
+    assert main(["backup", str(dest)]) == 0
+    assert dest.is_file()
+
+
 def test_health_prints_json(tmp_path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
     assert main(["health"]) == 0

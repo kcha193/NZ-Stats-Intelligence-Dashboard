@@ -6,6 +6,7 @@ import logging
 import sqlite3
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from nzstats.clock import utc_now
 from nzstats.config import load_settings
@@ -67,6 +68,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "backup":
         conn = connect(settings.db_path)
         migrate(conn)
+        Path(args.dest).parent.mkdir(parents=True, exist_ok=True)
         dest = sqlite3.connect(args.dest)
         conn.backup(dest)
         dest.close()
