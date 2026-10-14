@@ -142,3 +142,20 @@ def test_no_prior_flag_when_the_prior_window_is_withheld(rt) -> None:
     ingest_months(rt, "2026-07")
     out = rank_countries(rt.conn, months=12, top=5)  # 14 stored months: no full prior window
     assert all(c.prior_value is None and c.prior_provisional is None for c in out.countries)
+
+
+def test_a_window_starting_before_stored_country_coverage_is_unavailable(rt) -> None:
+    """Review #4268335623: months before coverage must not be summed as zero under a full total."""
+    ingest_months(rt, "2026-07")  # country observations run 2025-06..2026-07 (14 months)
+    out = rank_countries(rt.conn, months=36, top=5)
+    assert out.available is False and out.countries == [] and out.regions == []
+    assert out.total is None and out.period_start is None and out.period_end is None
+    assert out.months == 36 and out.provenance is not None
+    assert "2025-06" in out.note and "36" in out.note
+
+
+def test_a_window_starting_exactly_at_stored_coverage_is_still_ranked(rt) -> None:
+    ingest_months(rt, "2026-07")
+    full = rank_countries(rt.conn, months=14, top=5)
+    assert full.available and full.period_start == "2025-06" and full.total is not None
+    assert rank_countries(rt.conn, months=15, top=5).available is False

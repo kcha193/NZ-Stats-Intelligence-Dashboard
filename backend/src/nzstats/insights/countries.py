@@ -52,7 +52,8 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
         if r["category"] == "migration:country" and points_by_key[r["key"]]
     ]
     first_stored = min(country_firsts) if country_firsts else None
-    if not totals or first_stored is None:
+
+    def unavailable(note: str) -> CountriesOut:
         return CountriesOut(
             provenance=provenance,
             available=False,
@@ -64,10 +65,20 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
             regions=[],
             unallocated=None,
             derived=True,
-            note="No country data has been ingested yet.",
+            note=note,
         )
+
+    if not totals or first_stored is None:
+        return unavailable("No country data has been ingested yet.")
     end = max(totals)
     start = add_months(end, -(months - 1))
+    if start < first_stored:
+        # Months before the stored coverage are unknown, not zero: summing them would understate
+        # every country against a total that includes them.
+        return unavailable(
+            f"Country data in the latest release starts in {first_stored}, so a {months}-month "
+            f"window ending {end} is not available."
+        )
     window = month_range(start, end)
     prior_window = month_range(add_months(start, -months), add_months(start, -1))
     prior_stored = prior_window[0] >= first_stored  # prior window fully inside the latest vintage
