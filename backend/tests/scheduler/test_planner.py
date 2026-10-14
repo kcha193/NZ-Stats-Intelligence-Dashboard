@@ -147,3 +147,29 @@ def test_rescheduled_unavailable_release_is_polled_again_at_the_new_time(rt) -> 
 
     assert poll_candidates(rt.conn, rt.adapters, new_pub - timedelta(minutes=1), OFFSETS) == []
     assert poll_candidates(rt.conn, rt.adapters, new_pub, OFFSETS) == [key]  # attempts reset
+
+
+def test_exhausted_release_with_a_non_404_failure_keeps_a_daily_retry(rt) -> None:
+    """Review #4266163936: a failed (not 404) release never becomes unavailable, so once the
+    polling budget and the catch-up window are spent it must still be retried once a day."""
+    key = _seed(rt.conn, at="2026-09-01 10:45:00")
+    start = parse_akl_naive("2026-09-01 10:45:00")
+    for i, minute in enumerate(OFFSETS):
+        at = start + timedelta(minutes=minute)
+        if i == 3:
+            _failed(rt.conn, key, at, "network")
+        else:
+            _run(rt.conn, key, at)
+    assert mark_unavailable(rt.conn, rt.adapters, PUB, OFFSETS) == []
+    assert repo.get_release(rt.conn, key)["status"] == "scheduled"
+
+    assert releases_needing_ingest(rt.conn, rt.adapters, PUB, 7) == [key]
+    _failed(rt.conn, key, PUB, "network")  # today's retry failed again
+    assert releases_needing_ingest(rt.conn, rt.adapters, PUB + timedelta(hours=1), 7) == []
+    assert releases_needing_ingest(rt.conn, rt.adapters, PUB + timedelta(days=1), 7) == [key]
+
+
+def test_old_release_that_was_never_attempted_is_not_swept_into_the_daily_retry(rt) -> None:
+    """Historic releases left to `backfill` stay outside catch-up; only attempted ones retry."""
+    _seed(rt.conn, month="2026-06", at="2026-09-01 10:45:00")
+    assert releases_needing_ingest(rt.conn, rt.adapters, PUB, 7) == []

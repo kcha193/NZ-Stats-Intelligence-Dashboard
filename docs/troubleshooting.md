@@ -26,7 +26,8 @@ works, upcoming releases still appear while history stops updating (the month en
 
 **A release did not appear at 10:45.** Polling starts at the scheduled time and continues at 0, 1, 2, 5, 10, 15,
 30, 60, 120 and 180 minutes. Stats NZ sometimes publishes a few minutes late. Check Data health for the run. After
-the window the release shows as unavailable; the daily catch-up job (07:30) and `nzstats ingest --due` retry it.
+the window the release shows as unavailable (or stays scheduled if an attempt failed for another reason); the daily
+catch-up job (07:30) and `nzstats ingest --due` retry either once a day.
 
 **Re-run a release.** `docker compose exec nzstats nzstats ingest --release-key "international-migration:august 2026"`.
 This downloads the release page and its files again (three requests, 10 s apart). If the files and the

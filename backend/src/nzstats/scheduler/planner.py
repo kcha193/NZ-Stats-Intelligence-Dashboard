@@ -132,26 +132,35 @@ def releases_needing_ingest(
     conn: sqlite3.Connection, adapters: Mapping[str, object], now: datetime, catch_up_days: int
 ) -> list[str]:
     """Due releases without a vintage: ordinary catch-up within the age window, and unresolved
-    unavailable releases of any age at most once per Auckland calendar day."""
+    older releases at most once per Auckland calendar day. Older means unavailable, or any release
+    that was attempted but never produced a vintage (e.g. only non-404 failures, so it was never
+    marked unavailable). Old releases that were never attempted are left to `backfill`."""
     slugs = list(adapters)
     marks = ",".join("?" * len(slugs))
+    cutoff = now - timedelta(days=catch_up_days)
     rows = conn.execute(
         f"SELECT r.release_key, r.published_at, r.status FROM release r"
         f" WHERE r.series_slug IN ({marks})"
-        " AND r.published_at <= ? AND (r.status = ? OR r.published_at >= ?)"
+        " AND r.published_at <= ?"
+        " AND (r.status = ? OR r.published_at >= ? OR EXISTS ("
+        "  SELECT 1 FROM ingest_run i WHERE i.release_key = r.release_key"
+        "  AND i.started_at >= r.published_at))"
         " AND NOT EXISTS (SELECT 1 FROM vintage v WHERE v.release_id = r.id)"
         " ORDER BY r.published_at",
         (
             *slugs,
             to_utc_iso(now),
             ReleaseStatus.UNAVAILABLE.value,
-            to_utc_iso(now - timedelta(days=catch_up_days)),
+            to_utc_iso(cutoff),
         ),
-    )
+    ).fetchall()
     due = []
     today = now.astimezone(AKL).date()
     for r in rows:
-        if r["status"] == ReleaseStatus.UNAVAILABLE.value:
+        if (
+            r["status"] == ReleaseStatus.UNAVAILABLE.value
+            or from_utc_iso(r["published_at"]) < cutoff
+        ):
             last = _last_run(conn, r["release_key"], r["published_at"])
             if last is not None:
                 started = from_utc_iso(last["started_at"])
