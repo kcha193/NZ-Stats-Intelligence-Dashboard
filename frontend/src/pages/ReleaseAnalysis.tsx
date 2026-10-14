@@ -152,8 +152,17 @@ function Analysis({ analysis }: { analysis: Analysis }) {
 }
 
 export default function ReleaseAnalysis() {
-  const id = Number(useParams().id);
-  const q = useRelease(id);
+  const param = useParams().id ?? "";
+  const valid = /^\d+$/.test(param);
+  const q = useRelease(valid ? Number(param) : Number.NaN); // NaN keeps the query disabled
+  if (!valid) {
+    return (
+      <div className="space-y-3">
+        <EmptyState title="That release was not found" body="The release address is not valid." />
+        <p><Link className="text-sm underline underline-offset-2" to="/calendar">Back to the release calendar</Link></p>
+      </div>
+    );
+  }
   return (
     <QueryBoundary query={q}>
       {(d) =>

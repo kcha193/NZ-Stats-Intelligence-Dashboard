@@ -56,6 +56,14 @@ describe("ReleaseAnalysis", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
+  it.each(["abc", "1.5", "-3", "1e3"])("says the release was not found for the malformed id %s (review #4268065818)", async (id) => {
+    const fetchSpy = mockApi({});
+    renderWithProviders(ui, { route: `/releases/${id}` });
+    expect(await screen.findByText(/release was not found/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /release calendar/i })).toHaveAttribute("href", "/calendar");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("offers printing", async () => {
     renderWithProviders(ui, { route: `/releases/${detail.release.id}` });
     expect(await screen.findByRole("button", { name: /print/i })).toBeInTheDocument();
