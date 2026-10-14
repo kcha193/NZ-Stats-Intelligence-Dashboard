@@ -153,8 +153,9 @@ function Analysis({ analysis }: { analysis: Analysis }) {
 
 export default function ReleaseAnalysis() {
   const param = useParams().id ?? "";
-  const valid = /^\d+$/.test(param);
-  const q = useRelease(valid ? Number(param) : Number.NaN); // NaN keeps the query disabled
+  const parsed = /^\d+$/.test(param) ? Number(param) : Number.NaN;
+  const valid = Number.isSafeInteger(parsed) && parsed > 0;
+  const q = useRelease(valid ? parsed : Number.NaN); // NaN keeps the query disabled
   if (!valid) {
     return (
       <div className="space-y-3">
