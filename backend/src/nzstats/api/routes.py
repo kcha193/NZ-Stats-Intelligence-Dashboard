@@ -124,9 +124,13 @@ def _unavailable_reason(conn, row, summary: ReleaseSummary, analysable: set[str]
     return f"Last ingestion attempt {run['outcome']}{extra}."
 
 
+_SQLITE_MAX_ID = 2**63 - 1
+
+
 @router.get("/releases/{release_id}", response_model=ReleaseDetail)
 def release_detail(release_id: int, request: Request, conn: Conn) -> ReleaseDetail:
-    row = repo.get_release_by_id(conn, release_id)
+    # Ids beyond SQLite's signed 64-bit INTEGER cannot exist and would raise OverflowError when bound.
+    row = repo.get_release_by_id(conn, release_id) if 0 < release_id <= _SQLITE_MAX_ID else None
     if row is None:
         raise HTTPException(404, "release not found")
     slugs = _slugs(request)

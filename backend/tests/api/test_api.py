@@ -345,3 +345,9 @@ def test_revision_vintages_are_marked_superseded_like_series_vintages(client, rt
     assert nz["base"]["superseded"] is False
     net = client.get("/api/revisions/mig.m.net").json()
     assert net["base"]["superseded"] is False and net["compare"]["superseded"] is False
+
+
+@pytest.mark.parametrize("release_id", [0, -1, 2**63, 10**40])
+def test_release_ids_outside_sqlite_integer_range_are_not_found(client, release_id) -> None:
+    """Review #4268219209: an oversized id must be a 404, not an OverflowError 500."""
+    assert client.get(f"/api/releases/{release_id}").status_code == 404
