@@ -245,3 +245,28 @@ def test_calendar_with_one_malformed_event_is_a_layout_failure_not_a_healthy_par
     with pytest.raises(IngestError) as exc:
         fetch_calendar(_fetcher(handler), BASE, "/release-calendar/calendar-export/")
     assert exc.value.error_class == ErrorClass.LAYOUT_CHANGED
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        # truncated after BEGIN:VEVENT
+        "BEGIN:VEVENT\r\nUID:2@x\r\nSUMMARY:Gross domestic product: June 2026 quarter\r\n",
+        # an event never closed before the next one begins
+        "BEGIN:VEVENT\r\nUID:2@x\r\nBEGIN:VEVENT\r\nUID:3@x\r\nDTSTART:20261015T214500Z\r\n"
+        "SUMMARY:Labour market: September 2026 quarter\r\nEND:VEVENT\r\n",
+    ],
+)
+def test_calendar_with_an_unterminated_event_is_a_layout_failure(tail) -> None:
+    """Review #4267822616: a truncated feed must not be accepted as a healthy partial."""
+    text = (
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1@x\r\nDTSTART:20261014T214500Z\r\n"
+        "SUMMARY:International migration: August 2026\r\nEND:VEVENT\r\n" + tail
+    )
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=text, headers={"content-type": "text/calendar"})
+
+    with pytest.raises(IngestError) as exc:
+        fetch_calendar(_fetcher(handler), BASE, "/release-calendar/calendar-export/")
+    assert exc.value.error_class == ErrorClass.LAYOUT_CHANGED

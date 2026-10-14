@@ -81,6 +81,9 @@ def _parse_ics(text: str) -> tuple[list[CalendarEvent], int]:
     current: dict[str, object] | None = None
     for line in _unfold(text):
         if line == "BEGIN:VEVENT":
+            if current is not None:  # the previous event never reached END:VEVENT
+                skipped += 1
+                log.warning("skipping unterminated VEVENT: %s", sorted(current))
             current = {}
         elif line == "END:VEVENT" and current is not None:
             if {"uid", "summary", "start"} <= current.keys():
@@ -101,6 +104,9 @@ def _parse_ics(text: str) -> tuple[list[CalendarEvent], int]:
                     current["start"] = _parse_dtstart(params, value)
                 except ValueError:
                     log.warning("unparseable DTSTART %r", line)
+    if current is not None:  # truncated after BEGIN:VEVENT
+        skipped += 1
+        log.warning("skipping unterminated VEVENT: %s", sorted(current))
     return events, skipped
 
 
