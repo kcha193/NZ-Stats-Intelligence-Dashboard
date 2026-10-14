@@ -173,3 +173,14 @@ def test_old_release_that_was_never_attempted_is_not_swept_into_the_daily_retry(
     """Historic releases left to `backfill` stay outside catch-up; only attempted ones retry."""
     _seed(rt.conn, month="2026-06", at="2026-09-01 10:45:00")
     assert releases_needing_ingest(rt.conn, rt.adapters, PUB, 7) == []
+
+
+def test_recent_release_honours_the_blocked_cooldown_in_catch_up(rt) -> None:
+    """Review #4267978239: a restart or `ingest --due` right after a 403 must not refetch at once."""
+    key = _seed(rt.conn, at="2026-10-12 10:45:00")  # inside the catch-up window
+    blocked_at = PUB
+    _failed(rt.conn, key, blocked_at, "blocked")
+    assert releases_needing_ingest(rt.conn, rt.adapters, blocked_at + timedelta(minutes=5), 7) == []
+    assert releases_needing_ingest(rt.conn, rt.adapters, blocked_at + timedelta(minutes=30), 7) == [
+        key
+    ]

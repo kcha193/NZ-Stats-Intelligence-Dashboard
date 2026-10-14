@@ -157,16 +157,17 @@ def releases_needing_ingest(
     due = []
     today = now.astimezone(AKL).date()
     for r in rows:
-        if (
-            r["status"] == ReleaseStatus.UNAVAILABLE.value
-            or from_utc_iso(r["published_at"]) < cutoff
-        ):
-            last = _last_run(conn, r["release_key"], r["published_at"])
-            if last is not None:
-                started = from_utc_iso(last["started_at"])
-                if started.astimezone(AKL).date() >= today:
-                    continue
-                if last["error_class"] == "blocked" and now < started + BLOCKED_COOLDOWN:
-                    continue
+        last = _last_run(conn, r["release_key"], r["published_at"])
+        if last is not None:
+            started = from_utc_iso(last["started_at"])
+            # A block page means we are being challenged, whatever the release's age.
+            if last["error_class"] == "blocked" and now < started + BLOCKED_COOLDOWN:
+                continue
+            retry_daily = (
+                r["status"] == ReleaseStatus.UNAVAILABLE.value
+                or from_utc_iso(r["published_at"]) < cutoff
+            )
+            if retry_daily and started.astimezone(AKL).date() >= today:
+                continue
         due.append(r["release_key"])
     return due
