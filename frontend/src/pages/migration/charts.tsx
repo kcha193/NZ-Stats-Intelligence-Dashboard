@@ -217,7 +217,7 @@ export function RevisionChart() {
               title={`Revisions to monthly net migration between the ${shortTitle(d.base.title)} and ${shortTitle(d.compare.title)} releases`}
               question="How much were earlier estimates revised?"
               unit="people (revised minus original)"
-              source={{ label: `Stats NZ, ${d.compare.title}`, url: null, updated: d.compare.published_at }}
+              source={{ label: `Stats NZ, ${d.compare.title}`, url: d.source_url, updated: d.compare.published_at }}
               caveat={d.base.superseded || d.compare.superseded
                 ? `${d.coverage.note} This comparison uses data from a bundle that was replaced in a corrected release.`
                 : d.coverage.note}
@@ -229,7 +229,12 @@ export function RevisionChart() {
           ) : (
             <div className="rounded-md border p-4 text-sm">
               <h3 className="font-semibold">Revisions to monthly net migration</h3>
-              <p className="mt-1 text-muted-foreground">{d.coverage.note}</p>
+              <p className="mt-1 text-muted-foreground">
+                {d.base && d.compare
+                  ? `No values were revised between the ${shortTitle(d.base.title)} and ${shortTitle(d.compare.title)} releases (${formatNumber(d.n_common)} months compared). `
+                  : ""}
+                {d.coverage.note}
+              </p>
             </div>
           )}
         </div>

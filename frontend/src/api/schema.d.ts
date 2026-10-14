@@ -558,6 +558,8 @@ export interface components {
             coverage: components["schemas"]["Coverage"];
             base: components["schemas"]["VintageOut"] | null;
             compare: components["schemas"]["VintageOut"] | null;
+            /** Source Url */
+            source_url: string | null;
             /** N Common */
             n_common: number;
             /** N Revised */

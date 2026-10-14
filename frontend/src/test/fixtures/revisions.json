@@ -35,6 +35,7 @@
   "layout_version": "migration-csv-v1",
   "superseded": false
  },
+ "source_url": "https://www.stats.govt.nz/information-releases/international-migration-july-2026/",
  "n_common": 306,
  "n_revised": 15,
  "rows": [

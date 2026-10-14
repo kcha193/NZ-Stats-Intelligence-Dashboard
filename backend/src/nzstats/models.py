@@ -221,6 +221,7 @@ class RevisionsOut(BaseModel):
     coverage: Coverage
     base: VintageOut | None
     compare: VintageOut | None
+    source_url: str | None  # release page of the `compare` vintage
     n_common: int
     n_revised: int
     rows: list[RevisionRowOut]  # revised periods only, oldest first

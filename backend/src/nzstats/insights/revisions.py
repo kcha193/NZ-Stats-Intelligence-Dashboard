@@ -95,6 +95,7 @@ def revision_view(
             coverage=coverage,
             base=None,
             compare=None,
+            source_url=None,
             n_common=0,
             n_revised=0,
             rows=[],
@@ -146,11 +147,13 @@ def revision_view(
                 max_abs=s.max_abs.absolute if s.max_abs else None,
             )
         )
+    release = repo.get_release(conn, compare.release_key)
     return RevisionsOut(
         series=series,
         coverage=coverage,
         base=vintage_out(conn, base),
         compare=vintage_out(conn, compare),
+        source_url=release["page_url"] if release else None,
         n_common=summary.n_common,
         n_revised=summary.n_revised,
         rows=rows,

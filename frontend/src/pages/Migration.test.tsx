@@ -173,3 +173,17 @@ it("country source caption uses the ranking release URL and publication date", a
   expect(within(figure).getByText(/published 14 Sep 2026/)).toBeInTheDocument();
   expect(within(figure).getByText(/Derived: Stats NZ/, { selector: "p" })).toBeInTheDocument();
 });
+
+it("revision chart cites the compared release page (review #4267769122)", async () => {
+  const source_url = "https://www.stats.govt.nz/information-releases/international-migration-july-2026/";
+  mockApi({ ...baseRoutes(), "/api/revisions/mig.m.net": { ...revisions, source_url } });
+  renderWithProviders(<Migration />);
+  const title = await screen.findByRole("heading", { level: 3, name: /Revisions to monthly net migration between/ });
+  expect(within(title.closest("figure")!).getByRole("link", { name: /International migration: July 2026/ })).toHaveAttribute("href", source_url);
+});
+
+it("says no values were revised when two vintages are compared and nothing changed (review #4267769116)", async () => {
+  mockApi({ ...baseRoutes(), "/api/revisions/mig.m.net": { ...revisions, rows: [], n_revised: 0 } });
+  renderWithProviders(<Migration />);
+  expect(await screen.findByText(/No values were revised between .* \(306 months compared\)/i)).toBeInTheDocument();
+});

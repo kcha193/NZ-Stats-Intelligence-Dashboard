@@ -56,3 +56,11 @@ def test_default_base_follows_publication_order_not_insertion_order(rt) -> None:
     assert view.base.release_key == june and view.compare.release_key == july
     old, new = _net("im_2026-06_age_sex.csv"), _net("im_2026-07_age_sex.csv")
     assert {r.period for r in view.rows} == {p for p in old.keys() & new.keys() if old[p] != new[p]}
+
+
+def test_view_exposes_the_compared_release_page_url(rt) -> None:
+    """Review #4267769122: the revision chart cites the release it compares against."""
+    ingest_months(rt, "2026-06", "2026-07")
+    view = revision_view(rt.conn, "mig.m.net")
+    page_url = repo.get_release(rt.conn, view.compare.release_key)["page_url"]
+    assert page_url and view.source_url == page_url
