@@ -74,8 +74,10 @@ def _parse_dtstart(params: str, value: str) -> datetime:
     return datetime.strptime(value, "%Y%m%dT%H%M%S").replace(tzinfo=AKL)
 
 
-def parse_ics(text: str) -> list[CalendarEvent]:
+def _parse_ics(text: str) -> tuple[list[CalendarEvent], int]:
+    """Events plus the number of VEVENTs dropped for missing or unparseable fields."""
     events: list[CalendarEvent] = []
+    skipped = 0
     current: dict[str, object] | None = None
     for line in _unfold(text):
         if line == "BEGIN:VEVENT":
@@ -84,6 +86,7 @@ def parse_ics(text: str) -> list[CalendarEvent]:
             if {"uid", "summary", "start"} <= current.keys():
                 events.append(CalendarEvent(current["uid"], current["summary"], current["start"]))
             else:
+                skipped += 1
                 log.warning("skipping incomplete VEVENT: %s", sorted(current))
             current = None
         elif current is not None and ":" in line:
@@ -98,7 +101,11 @@ def parse_ics(text: str) -> list[CalendarEvent]:
                     current["start"] = _parse_dtstart(params, value)
                 except ValueError:
                     log.warning("unparseable DTSTART %r", line)
-    return events
+    return events, skipped
+
+
+def parse_ics(text: str) -> list[CalendarEvent]:
+    return _parse_ics(text)[0]
 
 
 def _ref(title: str, published_at: datetime, status: ReleaseStatus, **kw) -> ReleaseRef:
@@ -172,10 +179,16 @@ def parse_release_month(payload: Mapping, base_url: str) -> list[ReleaseRef]:
 
 def fetch_calendar(fetcher: Fetcher, base_url: str, ics_path: str) -> list[ReleaseRef]:
     result = fetcher.get(base_url + ics_path, expect=("text/calendar",))
-    refs = events_to_refs(parse_ics(result.body.decode("utf-8")))
-    if not refs:
+    events, skipped = _parse_ics(result.body.decode("utf-8"))
+    if not events:
         raise IngestError(ErrorClass.LAYOUT_CHANGED, "calendar export contained no events")
-    return refs
+    if skipped:
+        # A partial parse would silently drop releases from scheduling while the feed looks healthy.
+        raise IngestError(
+            ErrorClass.LAYOUT_CHANGED,
+            f"calendar export had {skipped} incomplete or malformed events",
+        )
+    return events_to_refs(events)
 
 
 def fetch_release_month(

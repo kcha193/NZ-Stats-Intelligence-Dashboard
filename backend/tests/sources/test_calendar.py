@@ -228,3 +228,20 @@ def test_page_link_rejection_does_not_echo_the_link() -> None:
     with pytest.raises(IngestError) as e:
         parse_release_month(payload, "https://www.stats.govt.nz")
     assert "evil.example" not in str(e.value)
+
+
+def test_calendar_with_one_malformed_event_is_a_layout_failure_not_a_healthy_partial() -> None:
+    """Review #4267769129: dropping one VEVENT must not leave the ICS source reported healthy."""
+    text = (
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1@x\r\nDTSTART:20261014T214500Z\r\n"
+        "SUMMARY:International migration: August 2026\r\nEND:VEVENT\r\n"
+        "BEGIN:VEVENT\r\nUID:2@x\r\nSUMMARY:Gross domestic product: June 2026 quarter\r\n"
+        "DTSTART:not-a-date\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=text, headers={"content-type": "text/calendar"})
+
+    with pytest.raises(IngestError) as exc:
+        fetch_calendar(_fetcher(handler), BASE, "/release-calendar/calendar-export/")
+    assert exc.value.error_class == ErrorClass.LAYOUT_CHANGED
