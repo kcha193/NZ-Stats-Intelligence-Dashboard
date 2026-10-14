@@ -156,6 +156,15 @@ describe("Migration page", () => {
       expect(screen.queryByRole("img", { name: /by citizenship chart/i })).not.toBeInTheDocument();
     });
 
+    it("treats a citizenship series that was never ingested as not shown, not as an error (review #4267899863)", async () => {
+      const { "/api/series/mig.ry.net.nz": _missing, ...routes } = baseRoutes(); // unmocked routes answer 404
+      mockApi(routes);
+      renderWithProviders(<Migration />);
+      expect(await screen.findByText(/split by citizenship is not shown: .*not been ingested/i)).toBeInTheDocument();
+      expect(screen.queryByRole("img", { name: /by citizenship chart/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/no mock for/i)).not.toBeInTheDocument();
+    });
+
     it("still combines series from one vintage", async () => {
       renderWithProviders(<Migration />);
       expect(await screen.findByRole("img", { name: /by citizenship chart/i })).toBeInTheDocument();

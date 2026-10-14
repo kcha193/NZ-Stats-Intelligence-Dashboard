@@ -9,6 +9,7 @@ import {
   stackedPanelsOption, type ChartPoint,
 } from "@/charts/options";
 import { useChartTheme } from "@/charts/theme";
+import { ApiError } from "@/api/client";
 import { useCountries, useRevisions, useSeries } from "@/api/hooks";
 import { formatNet, formatNumber, monthLabel, periodLabel } from "@/lib/format";
 
@@ -128,6 +129,16 @@ export function CitizenshipChart({ range }: { range: Range }) {
   const nz = useSeries(`mig.ry.${measure}.nz`);
   const nonnz = useSeries(`mig.ry.${measure}.nonnz`);
   const theme = useChartTheme();
+  const label = MEASURES.find((m) => m.id === measure)!.label.toLowerCase();
+  const notIngested = (q: typeof nz) => q.error instanceof ApiError && q.error.status === 404;
+  if (notIngested(nz) || notIngested(nonnz)) {
+    // The citizenship series are optional: a 404 means they were never ingested, not that loading failed.
+    return (
+      <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        The year-ended {label} split by citizenship is not shown: these series have not been ingested.
+      </p>
+    );
+  }
   if (!nz.data || !nonnz.data) return <QueryBoundary query={nz.isError ? nz : nonnz}>{() => null}</QueryBoundary>;
   // The pair is only comparable when both series come from the same ingested bundle.
   const sameBundle =
@@ -138,7 +149,6 @@ export function CitizenshipChart({ range }: { range: Range }) {
   // Values are quoted for the latest period both series have, never an older point under a newer name.
   const shared = a.map((p) => p.period).filter((p) => b.some((x) => x.period === p));
   const at = shared[shared.length - 1];
-  const label = MEASURES.find((m) => m.id === measure)!.label.toLowerCase();
   if (nz.data.vintage.superseded || nonnz.data.vintage.superseded) {
     return (
       <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
