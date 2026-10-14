@@ -4,8 +4,10 @@ import io
 import json
 import re
 import sqlite3
+from dataclasses import replace
 
 import pandas as pd
+import pytest
 
 from nzstats.clock import AKL
 from nzstats.domain import ErrorClass, ReleaseStatus
@@ -243,7 +245,7 @@ def _empty_months(rt, site, *months: str) -> None:
 
 def test_backfill_ingests_releases_from_reference_period_in_order(rt, site) -> None:
     base = rt.settings.base_url
-    _empty_months(rt, site, "2026-06", "2026-07")
+    _empty_months(rt, site, "2026-06", "2026-07", "2026-08", "2026-09", "2026-10")
     site.routes[f"{base}/api/v1/releaseCalendarMonth/2026-08"] = (
         200,
         _month_payload(release_ref_for("2026-06")),
@@ -257,6 +259,128 @@ def test_backfill_ingests_releases_from_reference_period_in_order(rt, site) -> N
     outcomes = backfill(rt, since="2026-06", until="2026-09", now_fn=lambda: NOW)
     assert [o.outcome for o in outcomes] == ["ingested", "ingested"]
     assert [o.release_key.split(":")[1] for o in outcomes] == ["june 2026", "july 2026"]
+
+
+@pytest.mark.parametrize(
+    ("until", "expected_periods"),
+    [("2026-06", ["2026-06"]), ("2026-07", ["2026-06", "2026-07"])],
+)
+def test_backfill_only_ingests_the_inclusive_reference_period_interval(
+    rt, site, until, expected_periods
+) -> None:
+    june, july = _seed(rt, "2026-06", "2026-07")
+    august = replace(
+        release_ref_for("2026-07"),
+        release_key="international-migration:august 2026",
+        title="International migration: August 2026",
+        period_label="August 2026",
+        reference_period="2026-08",
+        published_at=NOW,
+        page_url=page_url("2026-08"),
+    )
+    repo.upsert_release(rt.conn, august, NOW)
+    # A release without a reference period cannot belong to a bounded interval.
+    repo.upsert_release(
+        rt.conn,
+        replace(august, release_key="international-migration:unknown", reference_period=None),
+        NOW,
+    )
+    _empty_months(rt, site, "2026-06", "2026-07", "2026-08", "2026-09", "2026-10")
+    outcomes = backfill(rt, since="2026-06", until=until, now_fn=lambda: NOW)
+
+    assert [o.release_key for o in outcomes] == [june, july][: len(expected_periods)]
+    assert all(o.outcome == "ingested" for o in outcomes)
+    stored_periods = rt.conn.execute(
+        "SELECT DISTINCT r.reference_period FROM vintage v JOIN release r ON r.id = v.release_id"
+        " ORDER BY r.reference_period"
+    ).fetchall()
+    assert [r[0] for r in stored_periods] == expected_periods
+    assert page_url("2026-08") not in site.requests
+    if until == "2026-06":
+        assert page_url("2026-07") not in site.requests
+    calendar_requests = [u.rsplit("/", 1)[1] for u in site.requests if "releaseCalendarMonth" in u]
+    assert calendar_requests == ["2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
+
+
+def test_backfill_preserves_existing_vintages_outside_the_interval(rt, site) -> None:
+    june, july = _seed(rt, "2026-06", "2026-07")
+    assert _ingest(rt, july).outcome == "ingested"
+    july_id = repo.get_release(rt.conn, july)["id"]
+    before = [
+        tuple(r) for r in rt.conn.execute("SELECT * FROM vintage WHERE release_id = ?", (july_id,))
+    ]
+    observations_before = repo.latest_points(rt.conn, "mig.m.net")
+    # If July is fetched again, these revised bytes would create an unwanted vintage.
+    site.override(
+        site.file_url("2026-07", "age_sex"),
+        200,
+        _bump(fixture_bytes("im_2026-07_age_sex.csv"), "2010-01", 10),
+    )
+    site.requests.clear()
+    _empty_months(rt, site, "2026-06", "2026-07", "2026-08", "2026-09", "2026-10")
+    outcomes = backfill(rt, since="2026-06", until="2026-06", now_fn=lambda: NOW)
+
+    assert [(o.release_key, o.outcome) for o in outcomes] == [(june, "ingested")]
+    assert page_url("2026-07") not in site.requests
+    assert [
+        tuple(r) for r in rt.conn.execute("SELECT * FROM vintage WHERE release_id = ?", (july_id,))
+    ] == before
+    assert repo.latest_points(rt.conn, "mig.m.net") == observations_before
+    assert repo.get_release(rt.conn, july)["status"] == "published"
+
+
+def test_bounded_backfill_discovers_later_publications_in_the_reference_window(rt, site) -> None:
+    # June's actual release was published in August. The calendar groups by publication month.
+    _empty_months(rt, site, "2026-06", "2026-07", "2026-08", "2026-09", "2026-10")
+    site.override(
+        f"{rt.settings.base_url}/api/v1/releaseCalendarMonth/2026-08",
+        200,
+        _month_payload(release_ref_for("2026-06")),
+        "application/json",
+    )
+    site.override(
+        f"{rt.settings.base_url}/api/v1/releaseCalendarMonth/2026-09",
+        200,
+        _month_payload(release_ref_for("2026-07")),
+        "application/json",
+    )
+
+    outcomes = backfill(rt, since="2026-06", until="2026-06", now_fn=lambda: NOW)
+
+    assert [(o.release_key, o.outcome) for o in outcomes] == [
+        ("international-migration:june 2026", "ingested")
+    ]
+    assert repo.get_release(rt.conn, "international-migration:july 2026") is None
+    assert page_url("2026-07") not in site.requests
+    assert [r[0] for r in rt.conn.execute("SELECT DISTINCT reference_period FROM release")] == [
+        "2026-06"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("since", "until"),
+    [
+        ("0000-01", "0000-02"),
+        ("2026-6", "2026-07"),
+        ("2026-06", "2026-7"),
+        ("2026-00", "2026-07"),
+        ("2026-06", "2026-13"),
+        ("2026-06 ", "2026-07"),
+        ("2026-06", "2026-07\n"),
+        ("", "2026-07"),
+        ("2026-06", ""),
+        ("2026-07", "2026-06"),
+    ],
+)
+def test_backfill_rejects_invalid_bounds_before_network_or_database_changes(
+    rt, site, since, until
+) -> None:
+    _seed(rt, "2026-06", "2026-07")
+    before = rt.conn.total_changes
+    with pytest.raises(ValueError):
+        backfill(rt, since=since, until=until, now_fn=lambda: NOW)
+    assert site.requests == []
+    assert rt.conn.total_changes == before
 
 
 def test_a_concurrent_duplicate_ingest_does_not_mark_the_release_corrected(rt, monkeypatch) -> None:

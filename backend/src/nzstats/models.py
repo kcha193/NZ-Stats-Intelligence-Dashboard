@@ -240,7 +240,17 @@ class CountryRank(BaseModel):
     prior_provisional: bool | None = None
 
 
+class CountryProvenance(BaseModel):
+    release_key: str | None
+    title: str | None
+    published_at: str | None
+    source_url: str | None
+    captured_at: str | None
+    bundle_sha256: str | None
+
+
 class CountriesOut(BaseModel):
+    provenance: CountryProvenance | None = None
     available: bool
     months: int
     period_start: str | None

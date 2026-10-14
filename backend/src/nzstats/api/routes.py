@@ -108,7 +108,7 @@ def _unavailable_reason(conn, row, summary: ReleaseSummary, analysable: set[str]
         word = "Delayed; now scheduled" if row["status"] == "delayed" else "Scheduled"
         return f"{word} for {summary.published_at[:16].replace('T', ' ')} (Pacific/Auckland)."
     if row["status"] == "unavailable":
-        return "Stats NZ files were not available during the polling window; retrying daily."
+        return "Stats NZ files were not available during the polling window; retrying at most once per Auckland calendar day until recovered."
     run = conn.execute(
         "SELECT * FROM ingest_run WHERE release_key = ? ORDER BY id DESC LIMIT 1",
         (row["release_key"],),

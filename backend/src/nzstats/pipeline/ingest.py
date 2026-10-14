@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -173,21 +174,44 @@ def backfill(
     until: str | None = None,
     now_fn: Callable[[], datetime] = utc_now,
 ) -> list[IngestOutcome]:
-    """Ingest every published release whose reference period is >= `since`, oldest first."""
-    s = rt.settings
+    """Ingest published releases with reference periods in inclusive `since`..`until` bounds.
+
+    The calendar groups by publication month, so discovery scans through the current Auckland
+    month to find delayed publications, retaining only references in the requested interval.
+    Missing reference periods are excluded. Invalid or reversed bounds raise ValueError before
+    any requests or writes. Stored releases are ingested oldest first.
+    """
+    for name, value in (("since", since), ("until", until)):
+        if name == "until" and value is None:
+            continue
+        if (
+            not isinstance(value, str)
+            or not re.fullmatch(r"[0-9]{4}-(0[1-9]|1[0-2])", value)
+            or value.startswith("0000-")
+        ):
+            raise ValueError(f"{name} must be a valid YYYY-MM month")
     local_now = now_fn().astimezone(AKL)
-    until = until or f"{local_now.year:04d}-{local_now.month:02d}"
+    current_month = f"{local_now.year:04d}-{local_now.month:02d}"
+    if until is None:
+        until = current_month
+    if since > until:
+        raise ValueError("since must not be after until")
+    s = rt.settings
     # A month whose discovery failed may hide releases, so it is reported as a failure of its own
     # rather than left as a silent gap in an otherwise successful run.
     failures: list[IngestOutcome] = []
     month_errors: list[str] = []
-    for month in month_range(since, until):
+    for month in month_range(since, max(until, current_month)):
         errors: list[str] = []
         attempt(
             rt,
             "calendar_month",
             now_fn,
-            lambda m=month: fetch_release_month(rt.fetcher, s.base_url, s.release_month_path, m),
+            lambda m=month: [
+                ref
+                for ref in fetch_release_month(rt.fetcher, s.base_url, s.release_month_path, m)
+                if ref.reference_period is not None and since <= ref.reference_period <= until
+            ],
             errors,
             record_health=False,
         )
@@ -203,9 +227,10 @@ def backfill(
         r["release_key"]
         for r in rt.conn.execute(
             f"SELECT release_key FROM release WHERE series_slug IN ({marks})"
-            f" AND reference_period >= ? AND status IN ('published', 'corrected')"
+            f" AND reference_period >= ? AND reference_period <= ?"
+            f" AND status IN ('published', 'corrected')"
             f" ORDER BY published_at",
-            (*slugs, since),
+            (*slugs, since, until),
         )
     ]
     return [*failures, *(ingest_release(rt, k, now_fn=now_fn) for k in keys)]

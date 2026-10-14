@@ -162,3 +162,14 @@ describe("Migration page", () => {
     });
   });
 });
+
+it("country source caption uses the ranking release URL and publication date", async () => {
+  const provenance = { release_key: "international-migration-2026-07", title: "International migration: July 2026", published_at: "2026-09-14T10:45:00+12:00", source_url: "https://www.stats.govt.nz/information-releases/international-migration-july-2026/", captured_at: "2026-10-11T16:00:00+13:00", bundle_sha256: "abc" };
+  mockApi({ ...baseRoutes(), "/api/migration/countries": { ...countries, provenance } });
+  renderWithProviders(<Migration />);
+  const title = await screen.findByRole("heading", { level: 3, name: /Migrant arrivals by country/ });
+  const figure = title.closest("figure")!;
+  expect(within(figure).getByRole("link", { name: /International migration: July 2026/ })).toHaveAttribute("href", provenance.source_url);
+  expect(within(figure).getByText(/published 14 Sep 2026/)).toBeInTheDocument();
+  expect(within(figure).getByText(/Derived: Stats NZ/, { selector: "p" })).toBeInTheDocument();
+});

@@ -202,6 +202,7 @@ export interface components {
         };
         /** CountriesOut */
         CountriesOut: {
+            provenance?: components["schemas"]["CountryProvenance"] | null;
             /** Available */
             available: boolean;
             /** Months */
@@ -221,6 +222,21 @@ export interface components {
             derived: boolean;
             /** Note */
             note: string;
+        };
+        /** CountryProvenance */
+        CountryProvenance: {
+            /** Release Key */
+            release_key: string | null;
+            /** Title */
+            title: string | null;
+            /** Published At */
+            published_at: string | null;
+            /** Source Url */
+            source_url: string | null;
+            /** Captured At */
+            captured_at: string | null;
+            /** Bundle Sha256 */
+            bundle_sha256: string | null;
         };
         /** CountryRank */
         CountryRank: {

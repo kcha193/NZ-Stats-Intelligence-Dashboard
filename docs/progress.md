@@ -1,6 +1,53 @@
 # Progress and verification record
 
-Last updated 2026-10-13. Branch `feat/phase-1`. Spec and plan: `docs/superpowers/`.
+Last updated 2026-10-14. Branch `feat/phase-1`. Spec and plan: `docs/superpowers/`.
+
+## Focused retry, backfill and provenance cycle — 14 October 2026
+
+Continued PR #1 from `93211ff`, preserving the uncommitted fixes already in its
+worktree. This is one implementation and review cycle for comments #4255168462,
+#4255168469 and #4255168477. The ingestion-health model is unchanged.
+
+- Unresolved `unavailable` releases remain eligible at any age, with at most one
+  ingestion attempt per Auckland calendar day. Eligibility uses the job's explicit
+  clock and persisted attempts. The minute watcher excludes these releases;
+  recovery and rescheduling restore the existing lifecycle behaviour. The blocked
+  cooldown, HTTP pacing and network retry handling remain intact.
+- Backfill validates inclusive `YYYY-MM` reference-period bounds before any
+  request/write; invalid or reversed bounds raise `ValueError`, and missing
+  reference periods are excluded. Publication-month discovery scans through the
+  current Auckland month (or `until`, if later) to find delayed publications,
+  filtering references to the same interval used by ingestion. For example, a
+  June-only request discovers June's August publication without fetching July's
+  release files. Calendar request failures still appear in the outcome list.
+- Country totals, rankings and nullable provenance come from the same selected
+  release bundle, including corrections. The API, generated frontend types and
+  fixtures agree. Captions show the actual release URL, publication date and
+  capture time; CSV adds the period bounds, denominator, series key, release key,
+  timestamps, bundle digest and derivation note, retaining formula protection.
+- Shared `ChartCard` PNG export composes the chart bitmap with wrapped plain-text
+  title, question, source URL, publication date, capture time and caveat. Export
+  status is announced accessibly. Wide provenance tables scroll within a named,
+  keyboard-accessible region. No upstream HTML is interpreted.
+- Baseline reproduction in an isolated archive of `93211ff`: **25 backend and
+  4 frontend failures**. Additional failing regressions exposed cold discovery
+  of a later publication and table overflow on desktop/mobile; both pass after
+  their focused fixes. Added **33 backend cases**, **3 frontend tests** and one
+  Playwright scenario running on both viewports.
+- Full local verification: **437 backend**, **101 frontend**, **18 Playwright**
+  pass. Ruff lint/format (97 files), TypeScript, frontend lint, production build,
+  API generation and fixture regeneration pass. Exported mobile PNG visually
+  inspected; browser assertions check caption text, bitmap pixels and bounds,
+  and downloaded CSV provenance. Existing warnings: Starlette/httpx deprecation,
+  three UI Fast Refresh exports, large chart bundle.
+- Independent read-only review found no actionable issues across retry frequency,
+  boundaries, same-bundle consistency, corrected/withdrawn data, API types and
+  PNG/CSV provenance. Publication-month scanning, sparse-file zero rows and the
+  nullable contract were checked and retained for the reasons above.
+- Local Docker image/startup checks remain unavailable: no daemon. Final-head
+  backend/frontend/Docker CI is required before resolving review threads. Remote
+  CI and the single final Codex review are recorded on PR #1; this record does
+  not claim remote results in advance.
 
 ## Focused ingestion-health cycle — 13 October 2026
 

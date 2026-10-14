@@ -6,7 +6,7 @@ import sqlite3
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
 
-from nzstats.clock import from_utc_iso, to_utc_iso
+from nzstats.clock import AKL, from_utc_iso, to_utc_iso
 from nzstats.domain import ReleaseStatus
 from nzstats.store import repo
 
@@ -131,14 +131,33 @@ def mark_unavailable(
 def releases_needing_ingest(
     conn: sqlite3.Connection, adapters: Mapping[str, object], now: datetime, catch_up_days: int
 ) -> list[str]:
-    """Releases already due (published_at <= now, within the catch-up window) with no vintage."""
+    """Due releases without a vintage: ordinary catch-up within the age window, and unresolved
+    unavailable releases of any age at most once per Auckland calendar day."""
     slugs = list(adapters)
     marks = ",".join("?" * len(slugs))
     rows = conn.execute(
-        f"SELECT r.release_key FROM release r WHERE r.series_slug IN ({marks})"
-        " AND r.published_at <= ? AND r.published_at >= ?"
+        f"SELECT r.release_key, r.published_at, r.status FROM release r"
+        f" WHERE r.series_slug IN ({marks})"
+        " AND r.published_at <= ? AND (r.status = ? OR r.published_at >= ?)"
         " AND NOT EXISTS (SELECT 1 FROM vintage v WHERE v.release_id = r.id)"
         " ORDER BY r.published_at",
-        (*slugs, to_utc_iso(now), to_utc_iso(now - timedelta(days=catch_up_days))),
+        (
+            *slugs,
+            to_utc_iso(now),
+            ReleaseStatus.UNAVAILABLE.value,
+            to_utc_iso(now - timedelta(days=catch_up_days)),
+        ),
     )
-    return [r["release_key"] for r in rows]
+    due = []
+    today = now.astimezone(AKL).date()
+    for r in rows:
+        if r["status"] == ReleaseStatus.UNAVAILABLE.value:
+            last = _last_run(conn, r["release_key"], r["published_at"])
+            if last is not None:
+                started = from_utc_iso(last["started_at"])
+                if started.astimezone(AKL).date() >= today:
+                    continue
+                if last["error_class"] == "blocked" and now < started + BLOCKED_COOLDOWN:
+                    continue
+        due.append(r["release_key"])
+    return due

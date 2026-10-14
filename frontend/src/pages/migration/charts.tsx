@@ -183,12 +183,17 @@ export function CountryChart() {
             title={`Migrant arrivals by country of last permanent residence, ${monthLabel(d.period_start!)} to ${monthLabel(d.period_end!)}`}
             question="Which countries do arriving migrants come from?"
             unit="people (sum of 12 monthly estimates)"
-            source={{ label: "Stats NZ, International migration (derived)", url: null, updated: null }}
+            source={{
+              label: `Stats NZ, ${d.provenance?.title ?? "International migration"} (derived)`,
+              url: d.provenance?.source_url,
+              updated: d.provenance?.published_at,
+              captured: d.provenance?.captured_at,
+            }}
             caveat={`${d.note} Lighter bars include provisional months. Regions are shown separately below.`}
             option={rankedBarOption({ items: d.countries.map((c) => ({ name: c.name, value: c.value, provisional: c.provisional })), unit: "people" }, theme)}
             ariaLabel="Arrivals by country of last permanent residence chart" height={420}
             csvFilename="arrivals-by-country.csv"
-            csvRows={countryCsvRows(d.countries)}
+            csvRows={countryCsvRows(d.countries, d)}
           />
           <p className="mt-2 text-xs text-muted-foreground">
             Derived total. Regions: {d.regions.map((r) => `${r.name} ${formatNumber(r.value)}`).join(" · ")}

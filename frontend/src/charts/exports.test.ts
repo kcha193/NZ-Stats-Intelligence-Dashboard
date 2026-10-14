@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { combinedNetCsvRows, countryCsvRows, pairedCsvRows } from "./exports";
+import { toCsv } from "@/lib/csv";
 import type { ChartPoint } from "./options";
 
 const pt = (period: string, value: number, status = "final"): ChartPoint => ({ period, value, status });
@@ -57,4 +58,12 @@ describe("countryCsvRows", () => {
     expect(row.prior_12m).toBeNull();
     expect(row.prior_includes_provisional).toBeNull();
   });
+});
+
+it("country CSV identifies the ranking window, denominator and exact bundle safely", () => {
+  const provenance = { release_key: "k", title: "=unsafe", published_at: "2026-09-14T10:45:00+12:00", source_url: "https://www.stats.govt.nz/x/", captured_at: "2026-10-11T16:00:00+13:00", bundle_sha256: "abc" };
+  const d = { available: true, months: 12, period_start: "2025-08", period_end: "2026-07", total: 100, countries: [], regions: [], unallocated: null, derived: true, note: "Derived monthly sum", provenance };
+  const [row] = countryCsvRows([{ name: "Chile", series_key: "chile", value: 5, prior_value: null, change: null, change_percent: null, share_percent: 5, provisional: true, prior_provisional: null }], d);
+  expect(row).toMatchObject({ series_key: "chile", period_start: "2025-08", period_end: "2026-07", months: 12, total_arrivals: 100, release_key: "k", release_title: "=unsafe", published_at: provenance.published_at, source_url: provenance.source_url, captured_at: provenance.captured_at, bundle_sha256: "abc", derivation_note: d.note });
+  expect(toCsv([row])).toContain("'=unsafe");
 });

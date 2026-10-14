@@ -1,7 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TEST_THEME } from "./theme";
 
+const context = { measureText: vi.fn((s: string) => ({ width: s.length * 7 })), fillRect: vi.fn(), drawImage: vi.fn(), fillText: vi.fn(), scale: vi.fn() };
 const chart = vi.hoisted(() => ({ getDataURL: vi.fn(() => "data:image/png;base64,AAA") }));
 
 const readBlob = (blob: Blob) =>
@@ -17,7 +19,7 @@ vi.mock("./EChart", () => ({
     return <div role="img" aria-label={ariaLabel} />;
   },
 }));
-vi.mock("./theme", async (orig) => ({ ...(await orig<typeof import("./theme")>()), useChartTheme: () => (({ surface: "#fff" }) as never) }));
+vi.mock("./theme", async (orig) => ({ ...(await orig<typeof import("./theme")>()), useChartTheme: () => TEST_THEME }));
 
 import { ChartCard } from "./ChartCard";
 
@@ -36,6 +38,14 @@ const props = {
 describe("ChartCard", () => {
   beforeEach(() => {
     chart.getDataURL.mockClear();
+    context.fillText.mockClear();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context as never);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,COMPOSED");
+    vi.stubGlobal("Image", class {
+      width = 1200; height = 800;
+      onload?: () => void;
+      set src(_value: string) { queueMicrotask(() => this.onload?.()); }
+    });
     URL.createObjectURL = vi.fn(() => "blob:x");
     URL.revokeObjectURL = vi.fn();
   });
@@ -66,6 +76,11 @@ describe("ChartCard", () => {
     await userEvent.click(screen.getByRole("button", { name: /export image/i }));
     expect(chart.getDataURL).toHaveBeenCalledWith(expect.objectContaining({ type: "png" }));
     expect(click).toHaveBeenCalled();
+    const printed = context.fillText.mock.calls.map((c) => c[0]).join(" ");
+    expect(printed).toContain(props.source.url);
+    expect(printed).toContain("published 14 Sep 2026");
+    expect(printed).toContain(props.caveat);
+    expect(click.mock.instances.at(-1)).toHaveAttribute("href", "data:image/png;base64,COMPOSED");
   });
 
   it("offers the data as an accessible table", async () => {
@@ -74,5 +89,16 @@ describe("ChartCard", () => {
     const table = screen.getByRole("table");
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getByText("2026-07")).toBeInTheDocument();
+  });
+
+  it("announces an export failure accessibly and restores its button", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {}).mockClear();
+    render(<ChartCard {...props} />);
+    const button = screen.getByRole("button", { name: /export image/i });
+    await userEvent.click(button);
+    expect(await screen.findByRole("status")).toHaveTextContent("Image export failed");
+    expect(button).toBeEnabled();
+    expect(click).not.toHaveBeenCalled();
   });
 });

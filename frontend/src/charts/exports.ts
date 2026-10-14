@@ -1,4 +1,4 @@
-import type { CountryRank } from "@/api/types";
+import type { CountriesOut, CountryRank } from "@/api/types";
 import type { ChartPoint } from "./options";
 
 type Column = { value: string; status: string };
@@ -24,9 +24,23 @@ export const combinedNetCsvRows = (monthly: ChartPoint[], yearEnded: ChartPoint[
   );
 
 /** Country ranking rows; the prior window has its own provisional flag (empty when withheld). */
-export const countryCsvRows = (countries: CountryRank[]) =>
+export const countryCsvRows = (countries: CountryRank[], context?: CountriesOut) =>
   countries.map((c) => ({
     country: c.name,
+    series_key: c.series_key,
+    ...(context ? {
+      months: context.months,
+      period_start: context.period_start,
+      period_end: context.period_end,
+      total_arrivals: context.total,
+      release_key: context.provenance?.release_key ?? null,
+      release_title: context.provenance?.title ?? null,
+      published_at: context.provenance?.published_at ?? null,
+      source_url: context.provenance?.source_url ?? null,
+      captured_at: context.provenance?.captured_at ?? null,
+      bundle_sha256: context.provenance?.bundle_sha256 ?? null,
+      derivation_note: context.note,
+    } : {}),
     arrivals_12m: c.value,
     includes_provisional: c.provisional ? "yes" : "no",
     share_percent: c.share_percent,

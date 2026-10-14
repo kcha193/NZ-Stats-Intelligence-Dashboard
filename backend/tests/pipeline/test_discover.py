@@ -159,4 +159,8 @@ def test_backfill_reports_an_unexpected_month_failure_too(rt, monkeypatch) -> No
 
     monkeypatch.setattr(ingest_module, "fetch_release_month", lambda *a, **k: 1 / 0)
     outcomes = backfill(rt, since="2026-08", until="2026-08", now_fn=lambda: NOW)
-    assert [o.release_key for o in outcomes if o.outcome == "failed"] == ["calendar_month:2026-08"]
+    assert [o.release_key for o in outcomes if o.outcome == "failed"] == [
+        "calendar_month:2026-08",
+        "calendar_month:2026-09",
+        "calendar_month:2026-10",
+    ]
