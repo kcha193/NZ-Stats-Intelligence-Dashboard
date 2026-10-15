@@ -59,14 +59,16 @@ touches the network only when a release is due, polling at offsets after the sch
 (`config/sources.toml`: 0, 1, 2, 5, 10, 15, 30, 60, 120, 180 minutes) and then marking the release
 `unavailable`; a catch-up job daily 07:30; and a refresh plus catch-up shortly after start. A process-wide
 lock serialises network work inside the server, and a `flock` file (`data/.request-pace`, `FilePacer`) keeps
-requests at least 10 s apart across processes, so a CLI run beside the server cannot break the crawl delay. `nzstats serve --no-scheduler` disables all of it.
+requests at least 10 s apart across processes, so a CLI run beside the server cannot break the crawl delay. The same
+file holds the 30 minute block cooldown (wall-clock deadline, written while the lock is still held), so a 403,
+challenge page or unexpected HTML in one process stops requests from every process sharing `data/`. `nzstats serve --no-scheduler` disables all of it.
 
 ## Failure handling
 
 | Class | Meaning | Behaviour |
 |---|---|---|
 | `network` | timeouts, connection errors, 5xx | retried with backoff; run recorded |
-| `blocked` | bot-protection page or wrong content type | not retried hot; source marked degraded |
+| `blocked` | 403, bot-protection page, or HTML where data was expected | not retried; all requests stop for 30 min across processes; source marked degraded |
 | `not_found` | files not published yet | normal before publication; polling continues within its window |
 | `layout_changed` | expected columns or embedded JSON missing | nothing stored; needs an adapter update |
 | `validation_failed` | parsed but implausible | nothing stored; last-known-good stays live |

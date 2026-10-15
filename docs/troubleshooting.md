@@ -44,7 +44,8 @@ remaining work in [progress.md](progress.md).
 
 **"database is locked".** SQLite allows one writer at a time. Running `docker compose exec nzstats nzstats
 discover` beside the server is supported: network requests from every process sharing `data/` are serialised and
-kept at least 10 s apart through a lock file (`data/.request-pace`), and a writer waits for the other. Avoid
+kept at least 10 s apart through a lock file (`data/.request-pace`), and a writer waits for the other. A block (403 or challenge page) in either process also pauses requests from both
+for 30 minutes; the deadline lives in the same file, and deleting `data/.request-pace` ends the pause early. Avoid
 pointing a second container at the same `data/` directory.
 
 **Wrong times.** Timestamps are stored in UTC and shown in Pacific/Auckland. The container sets
