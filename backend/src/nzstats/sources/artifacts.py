@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import tempfile
 from pathlib import Path
 
 from nzstats.sources.fetcher import FetchResult
@@ -20,9 +21,17 @@ class ArtifactStore:
         target = self._dir / rel
         if not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
-            tmp = target.with_suffix(".tmp")
-            tmp.write_bytes(result.body)
-            os.replace(tmp, target)
+            # A temp name per writer: the scheduler and a CLI process may save the same bytes at once,
+            # and a shared temp path would be renamed away under the slower one. Identical content
+            # makes whichever replace lands last harmless.
+            fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=f".{sha}.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(result.body)
+                os.replace(tmp, target)
+            except BaseException:
+                Path(tmp).unlink(missing_ok=True)
+                raise
         return ArtifactRecord(
             url=result.url,
             sha256=sha,
