@@ -2,13 +2,14 @@ import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { useOverview, useSeries } from "@/api/hooks";
 import { ChartCard } from "@/charts/ChartCard";
+import { statusNote } from "@/charts/exports";
 import { lineOption, sliceYears } from "@/charts/options";
 import { useChartTheme } from "@/charts/theme";
 import { Freshness } from "@/components/Freshness";
 import { KpiCard } from "@/components/KpiCard";
 import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { ReleaseRow } from "@/components/ReleaseRow";
-import { formatAklDateTime, formatNet } from "@/lib/format";
+import { formatAklDateTime, formatNet, periodLabel } from "@/lib/format";
 
 function TrendOverview() {
   const q = useSeries("mig.ry.net");
@@ -28,7 +29,11 @@ function TrendOverview() {
         const last = pts[pts.length - 1];
         return (
           <ChartCard
-            title={last ? `Year-ended net migration: ${formatNet(last.value)}` : "Year-ended net migration"}
+            title={
+              last
+                ? `Year-ended net migration: ${formatNet(last.value)} (${periodLabel(last.period, "rolling_annual").replace(/^Y/, "y")}${statusNote([last.status])})`
+                : "Year-ended net migration"
+            }
             question="Where is annual net migration relative to the last ten years?"
             unit={d.series.unit} source={{ label: `Stats NZ, ${d.vintage.title}`, url: d.source_url, updated: d.vintage.published_at }}
             caveat={d.caveat} height={260}

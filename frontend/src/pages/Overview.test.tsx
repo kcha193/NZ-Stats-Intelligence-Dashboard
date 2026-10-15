@@ -25,6 +25,12 @@ describe("Overview", () => {
     expect(screen.getByRole("region", { name: /data freshness/i })).toBeInTheDocument();
   });
 
+  it("names the period and provisional status of the trend's latest value", async () => {
+    renderWithProviders(<Overview />);
+    const heading = await screen.findByRole("heading", { level: 3, name: /^Year-ended net migration:/ });
+    expect(heading).toHaveTextContent("year ended Jul 2026, provisional");
+  });
+
   it("names the inactive categories rather than faking indicators", async () => {
     renderWithProviders(<Overview />);
     expect(await screen.findByText(/not yet active/i)).toHaveTextContent(/Prices and inflation/);
