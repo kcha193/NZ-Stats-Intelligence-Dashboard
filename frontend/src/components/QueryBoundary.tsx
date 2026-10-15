@@ -36,7 +36,7 @@ export function QueryBoundary<T>({
 }: {
   query: QueryLike<T>;
   isEmpty?: (data: T) => boolean;
-  empty?: ReactNode;
+  empty?: ReactNode | ((data: T) => ReactNode);
   children: (data: T) => ReactNode;
 }) {
   if (query.isLoading) {
@@ -49,6 +49,9 @@ export function QueryBoundary<T>({
   }
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   if (query.data === undefined) return null;
-  if (isEmpty?.(query.data)) return <>{empty ?? <EmptyState title="Nothing to show" body="No data is available yet." />}</>;
+  if (isEmpty?.(query.data)) {
+    const shown = typeof empty === "function" ? empty(query.data) : empty;
+    return <>{shown ?? <EmptyState title="Nothing to show" body="No data is available yet." />}</>;
+  }
   return <>{children(query.data)}</>;
 }

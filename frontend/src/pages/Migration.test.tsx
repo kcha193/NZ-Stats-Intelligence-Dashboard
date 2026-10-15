@@ -229,3 +229,14 @@ it("says no values were revised when two vintages are compared and nothing chang
   renderWithProviders(<Migration />);
   expect(await screen.findByText(/No values were revised between .* \(306 months compared\)/i)).toBeInTheDocument();
 });
+
+it("country chart explains why the ranking is unavailable instead of claiming nothing was ingested", async () => {
+  const note = "Country data in the latest release starts in 2025-09, so a 12-month window ending 2026-07 is not available.";
+  mockApi({
+    ...baseRoutes(),
+    "/api/migration/countries": { ...countries, available: false, countries: [], regions: [], unallocated: null, note },
+  });
+  renderWithProviders(<Migration />);
+  expect(await screen.findByText(note)).toBeInTheDocument();
+  expect(screen.queryByText(/no country data has been ingested yet/i)).not.toBeInTheDocument();
+});

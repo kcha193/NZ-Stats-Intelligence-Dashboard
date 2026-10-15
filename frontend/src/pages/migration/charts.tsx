@@ -214,7 +214,7 @@ export function CountryChart() {
   const q = useCountries(12, 15);
   const theme = useChartTheme();
   return (
-    <QueryBoundary query={q} isEmpty={(d) => !d.available} empty={<p className="text-sm text-muted-foreground">No country data has been ingested yet.</p>}>
+    <QueryBoundary query={q} isEmpty={(d) => !d.available} empty={(d) => <p className="text-sm text-muted-foreground">{d.note}</p>}>
       {(d) => (
         <>
           <ChartCard
