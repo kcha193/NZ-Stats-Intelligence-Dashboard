@@ -108,6 +108,23 @@ def test_validation_failure_writes_nothing_and_keeps_last_known_good(rt, site) -
     assert health["release:international-migration"] == "degraded"
 
 
+def test_infinite_standard_error_is_rejected_and_keeps_the_last_good_vintage(rt, site) -> None:
+    """Review #4279007203: an infinite SE would be stored, then break JSON responses with a 500."""
+    june, july = _seed(rt, "2026-06", "2026-07")
+    assert _ingest(rt, june).outcome == "ingested"
+    before = (_count(rt, "vintage"), _count(rt, "observation"))
+    df = pd.read_csv(io.BytesIO(fixture_bytes("im_2026-07_age_sex.csv")))
+    df["standard_error"] = df["standard_error"].astype(float)
+    df.loc[(df.year_month == "2026-07") & (df.direction == "Net"), "standard_error"] = float("inf")
+    site.override(
+        site.file_url("2026-07", "age_sex"), 200, df.to_csv(index=False, quoting=1).encode()
+    )
+    out = _ingest(rt, july)
+    assert out.outcome == "failed" and out.error_class is ErrorClass.VALIDATION_FAILED
+    assert "standard error" in (out.detail or "")
+    assert (_count(rt, "vintage"), _count(rt, "observation")) == before
+
+
 def _drop_largest_country_row(data: bytes, period: str) -> tuple[bytes, str]:
     """Remove the biggest country's all-citizenship arrivals row for one historical month."""
     from nzstats.adapters.migration.parse import REGIONS, UNALLOCATED

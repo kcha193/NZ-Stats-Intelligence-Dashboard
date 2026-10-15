@@ -270,3 +270,42 @@ def test_calendar_with_an_unterminated_event_is_a_layout_failure(tail) -> None:
     with pytest.raises(IngestError) as exc:
         fetch_calendar(_fetcher(handler), BASE, "/release-calendar/calendar-export/")
     assert exc.value.error_class == ErrorClass.LAYOUT_CHANGED
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # cut off right after a complete event: nothing is unterminated, but the envelope is open
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1@x\r\nDTSTART:20261014T214500Z\r\n"
+        "SUMMARY:International migration: August 2026\r\nEND:VEVENT\r\n",
+        # a blank trailing line must not hide the missing terminator
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1@x\r\nDTSTART:20261014T214500Z\r\n"
+        "SUMMARY:International migration: August 2026\r\nEND:VEVENT\r\n\r\n",
+        # no opening envelope at all
+        "BEGIN:VEVENT\r\nUID:1@x\r\nDTSTART:20261014T214500Z\r\n"
+        "SUMMARY:International migration: August 2026\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    ],
+)
+def test_calendar_without_a_complete_vcalendar_envelope_is_a_layout_failure(text) -> None:
+    """Review #4279007195: a feed cut after a whole VEVENT may be missing later releases."""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=text, headers={"content-type": "text/calendar"})
+
+    with pytest.raises(IngestError) as exc:
+        fetch_calendar(_fetcher(handler), BASE, "/release-calendar/calendar-export/")
+    assert exc.value.error_class == ErrorClass.LAYOUT_CHANGED
+    assert "VCALENDAR" in str(exc.value)
+
+
+def test_complete_envelope_with_trailing_blank_lines_is_accepted() -> None:
+    text = (
+        "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1@x\r\nDTSTART:20261014T214500Z\r\n"
+        "SUMMARY:International migration: August 2026\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n\r\n"
+    )
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=text, headers={"content-type": "text/calendar"})
+
+    refs = fetch_calendar(_fetcher(handler), BASE, "/release-calendar/calendar-export/")
+    assert [r.release_key for r in refs] == ["international-migration:august 2026"]

@@ -110,6 +110,11 @@ def _parse_ics(text: str) -> tuple[list[CalendarEvent], int]:
     return events, skipped
 
 
+def _has_complete_envelope(text: str) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return bool(lines) and lines[0] == "BEGIN:VCALENDAR" and lines[-1] == "END:VCALENDAR"
+
+
 def parse_ics(text: str) -> list[CalendarEvent]:
     return _parse_ics(text)[0]
 
@@ -185,7 +190,13 @@ def parse_release_month(payload: Mapping, base_url: str) -> list[ReleaseRef]:
 
 def fetch_calendar(fetcher: Fetcher, base_url: str, ics_path: str) -> list[ReleaseRef]:
     result = fetcher.get(base_url + ics_path, expect=("text/calendar",))
-    events, skipped = _parse_ics(result.body.decode("utf-8"))
+    text = result.body.decode("utf-8")
+    if not _has_complete_envelope(text):
+        # A feed cut after a whole VEVENT has no unterminated event, yet later releases may be gone.
+        raise IngestError(
+            ErrorClass.LAYOUT_CHANGED, "calendar export is not a complete VCALENDAR (truncated?)"
+        )
+    events, skipped = _parse_ics(text)
     if not events:
         raise IngestError(ErrorClass.LAYOUT_CHANGED, "calendar export contained no events")
     if skipped:

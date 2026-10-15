@@ -176,3 +176,29 @@ def test_missing_optional_rolling_citizenship_stays_a_warning() -> None:
     warned = {f.message for f in findings if f.rule == "optional_series"}
     assert len(warned) == 2
     assert all(f.severity == "warning" for f in findings if f.rule == "optional_series")
+
+
+# -- standard errors are persisted and served as JSON, so they must be finite too (#4279007203) ---
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+def test_non_finite_standard_error_is_rejected(bad) -> None:
+    ps = _series(good_bundle(), "mig.m.net")
+    obs = tuple(
+        dataclasses.replace(o, std_error=bad) if o.period == LATEST else o for o in ps.observations
+    )
+    bundle = good_bundle(**{"mig.m.net": dataclasses.replace(ps, observations=obs)})
+    findings = run(bundle)
+    assert "finite" in _rules(findings)
+    message = next(f.message for f in findings if f.rule == "finite")
+    assert "mig.m.net" in message and "standard error" in message and LATEST in message
+
+
+def test_finite_and_absent_standard_errors_pass() -> None:
+    ps = _series(good_bundle(), "mig.m.net")
+    obs = tuple(
+        dataclasses.replace(o, std_error=None if i % 2 else 12.5)
+        for i, o in enumerate(ps.observations)
+    )
+    bundle = good_bundle(**{"mig.m.net": dataclasses.replace(ps, observations=obs)})
+    assert "finite" not in _rules(run(bundle))

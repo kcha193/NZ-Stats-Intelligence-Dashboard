@@ -84,6 +84,14 @@ def validate_migration(
         bad = [o.period for o in ps.observations if not math.isfinite(o.value)]
         if bad:
             error("finite", f"{ps.definition.key}: non-finite values at {bad[:3]}")
+        # Standard errors are stored and served as JSON too, where infinity or NaN is unserialisable.
+        bad_se = [
+            o.period
+            for o in ps.observations
+            if o.std_error is not None and not math.isfinite(o.std_error)
+        ]
+        if bad_se:
+            error("finite", f"{ps.definition.key}: non-finite standard error at {bad_se[:3]}")
 
     values = {k: {o.period: o.value for o in ps.observations} for k, ps in by_key.items()}
 
