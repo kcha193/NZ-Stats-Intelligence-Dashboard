@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { UseQueryResult } from "@tanstack/react-query";
 import type { PointOut, SeriesData } from "@/api/types";
 import { QueryBoundary } from "@/components/QueryBoundary";
 import { Segmented } from "@/components/Segmented";
@@ -24,6 +25,28 @@ const latest = (pts: ChartPoint[]) => pts[pts.length - 1];
 // "Year ended Jul 2026" -> "year ended Jul 2026": lowercase the sentence start only, never the month.
 const lcFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const shortTitle = (t: string) => t.replace(/^International migration: /, "");
+
+// Every series of one ingested bundle shares its release and capture time.
+const bundleId = (d: SeriesData) => `${d.vintage.release_key}\u0000${d.vintage.captured_at}`;
+const sameBundle = (a: SeriesData, b: SeriesData) => bundleId(a) === bundleId(b);
+
+/** True while two independently cached series come from different bundles (e.g. one was cached before a new
+ *  release was ingested). Reloads both once per distinct mismatch, so a stale cache heals without looping. */
+function useBundleMismatch(a: UseQueryResult<SeriesData>, b: UseQueryResult<SeriesData>): boolean {
+  const mismatch = a.data && b.data && !sameBundle(a.data, b.data) ? `${bundleId(a.data)}|${bundleId(b.data)}` : null;
+  const { refetch: refetchA } = a;
+  const { refetch: refetchB } = b;
+  useEffect(() => {
+    if (mismatch === null) return;
+    void refetchA();
+    void refetchB();
+  }, [mismatch, refetchA, refetchB]);
+  return mismatch !== null;
+}
+
+function NotCombined({ children }: { children: string }) {
+  return <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">{children}</p>;
+}
 
 const FREQ_OPTIONS = [
   { value: "monthly", label: "Monthly" },
@@ -72,7 +95,11 @@ export function ArrivalsDeparturesChart({ range }: { range: Range }) {
   const arr = useSeries(`${prefix}.arrivals`);
   const dep = useSeries(`${prefix}.departures`);
   const theme = useChartTheme();
+  const mixed = useBundleMismatch(arr, dep);
   if (!arr.data || !dep.data) return <QueryBoundary query={arr.isError ? arr : dep}>{() => null}</QueryBoundary>;
+  if (mixed) {
+    return <NotCombined>Arrivals and departures are not shown: the two series were loaded from different releases or ingests, so they are not combined. Reload the page to load both from the current release.</NotCombined>;
+  }
   const a = sliceYears(toPoints(arr.data), range);
   const d = sliceYears(toPoints(dep.data), range);
   const la = latest(a);
@@ -98,7 +125,11 @@ export function MonthlyVsAnnualChart({ range }: { range: Range }) {
   const m = useSeries("mig.m.net");
   const y = useSeries("mig.ry.net");
   const theme = useChartTheme();
+  const mixed = useBundleMismatch(m, y);
   if (!m.data || !y.data) return <QueryBoundary query={m.isError ? m : y}>{() => null}</QueryBoundary>;
+  if (mixed) {
+    return <NotCombined>Monthly and year-ended net migration are not shown: the two series were loaded from different releases or ingests, so they are not combined. Reload the page to load both from the current release.</NotCombined>;
+  }
   const monthly = sliceYears(toPoints(m.data), range);
   const yearEnded = sliceYears(toPoints(y.data), range);
   return (
@@ -129,6 +160,7 @@ export function CitizenshipChart({ range }: { range: Range }) {
   const nz = useSeries(`mig.ry.${measure}.nz`);
   const nonnz = useSeries(`mig.ry.${measure}.nonnz`);
   const theme = useChartTheme();
+  const mixed = useBundleMismatch(nz, nonnz);
   const label = MEASURES.find((m) => m.id === measure)!.label.toLowerCase();
   const notIngested = (q: typeof nz) => q.error instanceof ApiError && q.error.status === 404;
   if (notIngested(nz) || notIngested(nonnz)) {
@@ -140,10 +172,6 @@ export function CitizenshipChart({ range }: { range: Range }) {
     );
   }
   if (!nz.data || !nonnz.data) return <QueryBoundary query={nz.isError ? nz : nonnz}>{() => null}</QueryBoundary>;
-  // The pair is only comparable when both series come from the same ingested bundle.
-  const sameBundle =
-    nz.data.vintage.release_key === nonnz.data.vintage.release_key &&
-    nz.data.vintage.captured_at === nonnz.data.vintage.captured_at;
   const a = sliceYears(toPoints(nonnz.data), range);
   const b = sliceYears(toPoints(nz.data), range);
   // Values are quoted for the latest period both series have, never an older point under a newer name.
@@ -156,7 +184,7 @@ export function CitizenshipChart({ range }: { range: Range }) {
       </p>
     );
   }
-  if (!sameBundle || at === undefined) {
+  if (mixed || at === undefined) {
     return (
       <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
         The year-ended {label} split by citizenship is not shown: the two series come from different releases or ingests, or share no period, so they are not combined.

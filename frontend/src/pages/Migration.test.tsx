@@ -170,6 +170,39 @@ describe("Migration page", () => {
       expect(await screen.findByRole("img", { name: /by citizenship chart/i })).toBeInTheDocument();
     });
   });
+
+  describe("paired series from one bundle (review #4280133522)", () => {
+    // Each series is its own query, so one can be cached from before a new release while the other is fresh.
+    const olderIngest = <T extends { vintage: object }>(d: T) => ({
+      ...d, vintage: { ...d.vintage, release_key: "international-migration:june 2026", captured_at: "2026-10-11T15:00:00+13:00" },
+    });
+
+    it("declines to combine arrivals and departures from different ingests", async () => {
+      mockApi({ ...baseRoutes(), "/api/series/mig.ry.departures": olderIngest(depRy) });
+      renderWithProviders(<Migration />);
+      expect(await screen.findByText(/arrivals and departures are not shown/i)).toBeInTheDocument();
+      expect(screen.queryByRole("img", { name: /^arrivals and departures chart$/i })).not.toBeInTheDocument();
+    });
+
+    it("declines to combine the monthly and year-ended net series from different ingests", async () => {
+      mockApi({ ...baseRoutes(), "/api/series/mig.ry.net": olderIngest(netRy) });
+      renderWithProviders(<Migration />);
+      expect(await screen.findByText(/monthly and year-ended net migration are not shown/i)).toBeInTheDocument();
+      expect(screen.queryByRole("img", { name: /monthly estimate and year-ended net migration chart/i })).not.toBeInTheDocument();
+    });
+
+    it("reloads a mismatched pair and shows it once both come from the current bundle", async () => {
+      let calls = 0;
+      const fetchMock = mockApi({
+        ...baseRoutes(),
+        "/api/series/mig.ry.departures": () => (calls++ === 0 ? olderIngest(depRy) : depRy),
+      });
+      renderWithProviders(<Migration />);
+      expect(await screen.findByRole("img", { name: /^arrivals and departures chart$/i })).toBeInTheDocument();
+      const departureRequests = fetchMock.mock.calls.filter(([u]) => String(u).endsWith("/api/series/mig.ry.departures"));
+      expect(departureRequests.length).toBe(2);
+    });
+  });
 });
 
 it("country source caption uses the ranking release URL and publication date", async () => {
