@@ -60,3 +60,8 @@ def test_concurrent_writers_of_the_same_content_both_succeed(
 
     assert (tmp_path / rec.path).read_bytes() == b"shared"
     assert [p.name for p in tmp_path.rglob("*") if p.is_file()] == [rec.sha256]  # no temp left
+
+
+def test_saved_files_are_readable_by_the_backup_user(tmp_path: Path) -> None:
+    rec = ArtifactStore(tmp_path).save(_res(b"mode"))
+    assert (tmp_path / rec.path).stat().st_mode & 0o777 == 0o644

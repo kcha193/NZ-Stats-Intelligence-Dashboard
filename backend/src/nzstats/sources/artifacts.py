@@ -26,6 +26,7 @@ class ArtifactStore:
             # makes whichever replace lands last harmless.
             fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=f".{sha}.", suffix=".tmp")
             try:
+                os.fchmod(fd, 0o644)  # mkstemp creates 0600; backups run as other host users
                 with os.fdopen(fd, "wb") as fh:
                     fh.write(result.body)
                 os.replace(tmp, target)
