@@ -1,3 +1,4 @@
+import calendar
 import csv
 import html
 import io
@@ -13,6 +14,7 @@ from nzstats.clock import AKL
 from nzstats.domain import ErrorClass, ReleaseStatus
 from nzstats.pipeline.ingest import backfill, ingest_release
 from nzstats.sources.calendar import events_to_refs, parse_ics
+from nzstats.stats.periods import add_months, month_range
 from nzstats.stats.revision import revisions
 from nzstats.store import repo
 from tests.conftest import FIXTURES, fixture_bytes, fixture_text
@@ -165,12 +167,56 @@ def _bump(data: bytes, period: str, delta: int) -> bytes:
     return df.to_csv(index=False, quoting=1).encode()
 
 
+def _revise_consistently(site, month: str, period: str, delta: int) -> None:
+    """Model a genuine Stats NZ revision of one month's arrivals (and so net).
+
+    Every published figure derived from that month moves with it: the monthly arrivals and net, the
+    non-NZ citizenship split, and the twelve year-ended chart values whose window contains the month.
+    Validation requires these to agree, so a monthly-only edit would be (correctly) rejected.
+    """
+    age_url = site.file_url(month, "age_sex")
+    site.override(age_url, 200, _bump(fixture_bytes(f"im_{month}_age_sex.csv"), period, delta))
+    df = pd.read_csv(FIXTURES / f"im_{month}_citizenship_country.csv")
+    sel = (
+        (df.year_month == period)
+        & (df.direction == "Arrivals")
+        & (df.citizenship == "non-NZ")
+        & (df.visa == "TOTAL")
+        & (df.country_of_residence == "TOTAL")
+        & (df.passenger_type == "Long-term migrant")
+    )
+    assert sel.sum() == 1
+    df.loc[sel, "estimate"] += delta
+    cit_url = site.file_url(month, "citizenship_visa_country")
+    site.override(cit_url, 200, df.to_csv(index=False, quoting=1).encode())
+
+    windows = {
+        f"{calendar.month_abbr[int(m[5:])]}-{m[:4]}"
+        for m in month_range(period, add_months(period, 11))
+    }
+
+    def edit(obj) -> None:
+        series = _chart_series(obj, _DIRECTION_CHART)
+        rows = list(csv.reader(io.StringIO(series["GraphCsvData"])))
+        header = rows[0]
+        cols = [i for i, h in enumerate(header) if h in windows]
+        assert len(cols) == 12
+        for row in rows[1:]:
+            if row[0] in ("Migrant arrivals", "Net migration"):
+                for i in cols:
+                    row[i] = str(int(row[i]) + delta)
+        out = io.StringIO()
+        csv.writer(out, lineterminator="\n").writerows(rows)
+        series["GraphCsvData"] = out.getvalue().rstrip("\n")
+
+    _edit_page(site, month, edit)
+
+
 def test_corrected_republication_adds_a_vintage_without_duplicates(rt, site) -> None:
     (july,) = _seed(rt, "2026-07")
     _ingest(rt, july)
     obs_before = _count(rt, "observation")
-    url = site.file_url("2026-07", "age_sex")
-    site.override(url, 200, _bump(fixture_bytes("im_2026-07_age_sex.csv"), "2010-01", 10))
+    _revise_consistently(site, "2026-07", "2010-01", 10)
     out = _ingest(rt, july)
     assert out.outcome == "ingested", out.detail
     assert repo.get_release(rt.conn, july)["status"] == ReleaseStatus.CORRECTED.value
@@ -180,6 +226,19 @@ def test_corrected_republication_adds_a_vintage_without_duplicates(rt, site) -> 
     assert second["2010-01"].value == first["2010-01"].value + 10
     assert _count(rt, "observation") > obs_before
     assert _ingest(rt, july).outcome == "unchanged"  # same corrected bytes again
+
+
+def test_inconsistent_correction_is_rejected_and_keeps_the_last_good_vintage(rt, site) -> None:
+    (july,) = _seed(rt, "2026-07")
+    assert _ingest(rt, july).outcome == "ingested"
+    before = (_count(rt, "vintage"), _count(rt, "observation"))
+    url = site.file_url("2026-07", "age_sex")
+    # Monthly arrivals/net revised by 10, but the year-ended chart and citizenship split are not.
+    site.override(url, 200, _bump(fixture_bytes("im_2026-07_age_sex.csv"), "2010-01", 10))
+    out = _ingest(rt, july)
+    assert out.outcome == "failed"
+    assert "rolling_check" in (out.detail or "") and "citizenship_sum" in (out.detail or "")
+    assert (_count(rt, "vintage"), _count(rt, "observation")) == before
 
 
 def test_release_without_registered_adapter_is_skipped(rt) -> None:
@@ -451,9 +510,9 @@ def _bump_net_rolling(obj) -> None:
     lines = series["GraphCsvData"].splitlines()
     row = next(i for i, ln in enumerate(lines) if ln.startswith('"Net migration"'))
     cells = lines[row].split(",")
-    cells[1] = str(
-        int(cells[1]) + 7
-    )  # earliest year-ended point; keeps every validation rule happy
+    # Earliest year-ended point, moved by a rounding-sized 1 (the validator allows 5): the test is
+    # about the chart changing the digest, not about a revision large enough to be rejected.
+    cells[1] = str(int(cells[1]) + 1)
     lines[row] = ",".join(cells)
     series["GraphCsvData"] = "\n".join(lines)
 

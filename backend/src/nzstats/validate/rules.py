@@ -1,8 +1,9 @@
 """Structural and sanity checks. Errors block ingestion; warnings are recorded only.
 
 Thresholds are grounded in measured real data: monthly Net equals Arrivals - Departures to within
-1 (rounding); derived twelve-month sums match published rolling-year figures to within 2. Do not
-loosen a threshold without evidence from the failing file.
+1 (rounding); derived twelve-month sums match published rolling-year figures to within 3 at every
+period (2001 onwards, 2026-06 and 2026-07 releases); NZ + non-NZ arrivals match total arrivals to
+within 1 in every month. Do not loosen a threshold without evidence from the failing file.
 """
 
 from __future__ import annotations
@@ -17,6 +18,10 @@ from nzstats.stats.rolling import rolling_by_period
 
 NET_IDENTITY_TOLERANCE = 2.0
 ROLLING_TOLERANCE = 5.0
+# Both citizenship components are rounded independently, so their sum can differ from total arrivals
+# by rounding alone (observed <= 1); 2 matches the net identity's allowance.
+CITIZENSHIP_TOLERANCE = 2.0
+MAX_REPORTED_PERIODS = 5
 BIG_REVISION = 0.25
 MAX_BIG_REVISION_SHARE = 0.10
 REVISION_FLOOR = 100.0
@@ -27,11 +32,19 @@ MIN_HISTORY_MONTHS = 12
 
 MONTHLY = ("mig.m.arrivals", "mig.m.departures", "mig.m.net")
 ROLLING = ("mig.ry.arrivals", "mig.ry.departures", "mig.ry.net")
-REQUIRED = (*MONTHLY, *ROLLING, "mig.m.arrivals.nz", "mig.m.arrivals.nonnz")
+CITIZENSHIP_MONTHLY = ("mig.m.arrivals.nz", "mig.m.arrivals.nonnz")
+REQUIRED = (*MONTHLY, *ROLLING, *CITIZENSHIP_MONTHLY)
 # Year-ended citizenship series come from a chart Stats NZ did not publish with every release (it is
 # absent from the September 2025 page), so their absence is a warning and the series simply gets no
 # vintage from that release.
 OPTIONAL_ROLLING_CITIZENSHIP = ("mig.ry.net.nz", "mig.ry.net.nonnz")
+
+
+def _listed(items: list[str]) -> str:
+    """First few items for an error message, with a count of the rest."""
+    shown = "; ".join(items[:MAX_REPORTED_PERIODS])
+    rest = len(items) - MAX_REPORTED_PERIODS
+    return f"{shown} (+{rest} more)" if rest > 0 else shown
 
 
 def validate_migration(
@@ -71,7 +84,7 @@ def validate_migration(
 
     values = {k: {o.period: o.value for o in ps.observations} for k, ps in by_key.items()}
 
-    for key in MONTHLY:
+    for key in (*MONTHLY, *CITIZENSHIP_MONTHLY):
         periods = sorted(values[key])
         if len(periods) < MIN_HISTORY_MONTHS:
             error("history", f"{key}: only {len(periods)} months of history")
@@ -112,12 +125,39 @@ def validate_migration(
         latest = max(published)
         if latest not in derived:
             error("rolling_check", f"cannot derive year ended {latest} for {direction}")
-        elif abs(published[latest] - derived[latest]) > ROLLING_TOLERANCE:
+        # Earlier periods without a complete monthly window cannot be checked and are skipped.
+        off = [
+            p
+            for p in sorted(published)
+            if p in derived and abs(published[p] - derived[p]) > ROLLING_TOLERANCE
+        ]
+        if off:
+            detail = _listed(
+                [
+                    f"{p}: published {published[p]:g} vs derived {derived[p]:g} "
+                    f"(diff {published[p] - derived[p]:+g})"
+                    for p in off
+                ]
+            )
             error(
                 "rolling_check",
-                f"{direction}: published year ended {latest} = {published[latest]:g} but the sum "
-                f"of twelve monthly estimates = {derived[latest]:g}",
+                f"{direction}: {len(off)} published year-ended values differ from the sum of twelve "
+                f"monthly estimates by more than {ROLLING_TOLERANCE:g}: {detail}",
             )
+
+    nz, nonnz = (values[k] for k in CITIZENSHIP_MONTHLY)
+    off = [
+        p
+        for p in sorted(set(nz) & set(nonnz) & set(arr))
+        if abs(nz[p] + nonnz[p] - arr[p]) > CITIZENSHIP_TOLERANCE
+    ]
+    if off:
+        detail = _listed([f"{p}: {nz[p] + nonnz[p]:g} vs {arr[p]:g}" for p in off])
+        error(
+            "citizenship_sum",
+            f"NZ + non-NZ arrivals != total arrivals (tolerance {CITIZENSHIP_TOLERANCE:g}) in "
+            f"{len(off)} months: {detail}",
+        )
 
     status = {o.period: o.status for o in by_key["mig.m.net"].observations}
     provisional = sorted(p for p, s in status.items() if s is ObsStatus.PROVISIONAL)
