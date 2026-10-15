@@ -159,3 +159,26 @@ def test_a_window_starting_exactly_at_stored_coverage_is_still_ranked(rt) -> Non
     full = rank_countries(rt.conn, months=14, top=5)
     assert full.available and full.period_start == "2025-06" and full.total is not None
     assert rank_countries(rt.conn, months=15, top=5).available is False
+
+
+def test_windows_and_prior_window_match_independent_sums_after_a_valid_ingest(rt) -> None:
+    """Every stored month reconciles on ingest, so both windows sum from verified observations."""
+    ingest_months(rt, "2026-07")
+    df = pd.read_csv(FIXTURES / "im_2026-07_citizenship_country.csv")
+    sel = df[
+        (df.visa == "TOTAL")
+        & (df.citizenship == "TOTAL")
+        & (df.direction == "Arrivals")
+        & (df.passenger_type == "Long-term migrant")
+        & ~df.country_of_residence.isin(REGIONS | UNALLOCATED | {"TOTAL"})
+    ]
+    window = sel[(sel.year_month >= "2026-02") & (sel.year_month <= "2026-07")]
+    prior = sel[(sel.year_month >= "2025-08") & (sel.year_month <= "2026-01")]
+    now_sum = window.groupby("country_of_residence").estimate.sum()
+    prior_sum = prior.groupby("country_of_residence").estimate.sum()
+    out = rank_countries(rt.conn, months=6, top=1000)
+    assert out.available and (out.period_start, out.period_end) == ("2026-02", "2026-07")
+    for c in out.countries:
+        assert c.value == float(now_sum.get(c.name, 0.0)), c.name
+        assert c.prior_value == float(prior_sum.get(c.name, 0.0)), c.name
+        assert c.change == c.value - c.prior_value

@@ -3,7 +3,10 @@
 Thresholds are grounded in measured real data: monthly Net equals Arrivals - Departures to within
 1 (rounding); derived twelve-month sums match published rolling-year figures to within 3 at every
 period (2001 onwards, 2026-06 and 2026-07 releases); NZ + non-NZ arrivals match total arrivals to
-within 1 in every month. Do not loosen a threshold without evidence from the failing file.
+within 1 in every month. Countries + 'Not Stated' match total arrivals in every stored month of
+the 2026-06 and 2026-07 releases (13 and 14 months, 225-230 series) to within 9, against a tolerance
+of about 100, so the country tolerance applies to every month unchanged. Do not loosen a threshold
+without evidence from the failing file.
 """
 
 from __future__ import annotations
@@ -193,20 +196,59 @@ def validate_migration(
                 f"{BIG_REVISION:.0%} versus the previous vintage",
             )
 
-    latest_total = max(values["mig.m.arrivals"])
-    total = values["mig.m.arrivals"][latest_total]
+    _reconcile_places(by_key, values, error)
+    return findings
+
+
+def _reconcile_places(by_key, values, error) -> None:
+    """Countries + 'Not Stated' must add up to total arrivals in every month `rank_countries` reads.
+
+    The ranking sums up to 36 months and a prior window of the same length from these observations,
+    so a bad historical month corrupts shares and changes even when the latest month reconciles.
+    Stats NZ's country file is sparse (a country with no migrants in a month has no row), so a
+    missing row counts as zero, but only from the first month the file covers: earlier months are
+    unknown, not zero (as in `rank_countries`). Regions are aggregates of countries and are left out
+    to avoid double-counting.
+    """
+    arrivals = values["mig.m.arrivals"]
+    latest = max(arrivals)
     place_keys = [
         k
         for k, ps in by_key.items()
         if ps.definition.category in ("migration:country", "migration:unallocated")
     ]
-    if place_keys:
-        summed = sum(values[k].get(latest_total, 0.0) for k in place_keys)
+    if not place_keys:
+        return
+    country_firsts = [
+        min(values[k])
+        for k, ps in by_key.items()
+        if ps.definition.category == "migration:country" and values[k]
+    ]
+    first = min(country_firsts) if country_firsts else latest
+    absent: list[str] = []
+    off: list[str] = []
+    for period in month_range(first, latest):
+        total = arrivals.get(period, 0.0)
         tolerance = max(COUNTRY_TOLERANCE_ABS, COUNTRY_TOLERANCE_REL * total)
-        if abs(summed - total) > tolerance:
-            error(
-                "country_sum",
-                f"countries (excluding regions) sum to {summed:g} for {latest_total} but total "
-                f"arrivals are {total:g} (tolerance {tolerance:g})",
+        summed = sum(values[k].get(period, 0.0) for k in place_keys)
+        if abs(summed - total) <= tolerance:
+            continue
+        if not any(period in values[k] for k in place_keys):
+            absent.append(f"{period}: no country observations, total arrivals {total:g}")
+        else:
+            off.append(
+                f"{period}: countries sum to {summed:g} vs total arrivals {total:g} "
+                f"(diff {summed - total:+g}, tolerance {tolerance:g})"
             )
-    return findings
+    if absent:
+        error(
+            "country_month_missing",
+            f"country data is missing entirely for {len(absent)} months between {first} and "
+            f"{latest}: {_listed(absent)}",
+        )
+    if off:
+        error(
+            "country_sum",
+            f"countries (excluding regions) plus unallocated do not reconcile with total arrivals "
+            f"in {len(off)} months: {_listed(off)}",
+        )

@@ -12,6 +12,7 @@ import pytest
 
 from nzstats.clock import AKL
 from nzstats.domain import ErrorClass, ReleaseStatus
+from nzstats.insights.countries import rank_countries
 from nzstats.pipeline.ingest import backfill, ingest_release
 from nzstats.sources.calendar import events_to_refs, parse_ics
 from nzstats.stats.periods import add_months, month_range
@@ -105,6 +106,45 @@ def test_validation_failure_writes_nothing_and_keeps_last_known_good(rt, site) -
     assert run["outcome"] == "failed" and run["error_class"] == "validation_failed"
     health = {r["source"]: r["state"] for r in rt.conn.execute("SELECT * FROM source_health")}
     assert health["release:international-migration"] == "degraded"
+
+
+def _drop_largest_country_row(data: bytes, period: str) -> tuple[bytes, str]:
+    """Remove the biggest country's all-citizenship arrivals row for one historical month."""
+    from nzstats.adapters.migration.parse import REGIONS, UNALLOCATED
+
+    df = pd.read_csv(io.BytesIO(data))
+    rows = df[
+        (df.year_month == period)
+        & (df.visa == "TOTAL")
+        & (df.citizenship == "TOTAL")
+        & (df.direction == "Arrivals")
+        & (df.passenger_type == "Long-term migrant")
+        & ~df.country_of_residence.isin(REGIONS | UNALLOCATED | {"TOTAL"})
+    ]
+    name = rows.loc[rows.estimate.idxmax(), "country_of_residence"]
+    drop = (
+        (df.year_month == period) & (df.country_of_residence == name) & (df.citizenship == "TOTAL")
+    )
+    return df[~drop].to_csv(index=False, quoting=1).encode(), str(name)
+
+
+def test_corrupt_historical_country_month_is_rejected_and_keeps_the_last_good_vintage(
+    rt, site
+) -> None:
+    june, july = _seed(rt, "2026-06", "2026-07")
+    assert _ingest(rt, june).outcome == "ingested"
+    before = (_count(rt, "vintage"), _count(rt, "observation"))
+    good_places = repo.latest_points(rt.conn, "mig.m.arrivals")
+    bad, _name = _drop_largest_country_row(
+        fixture_bytes("im_2026-07_citizenship_country.csv"), "2025-09"
+    )
+    site.override(site.file_url("2026-07", "citizenship_visa_country"), 200, bad)
+    out = _ingest(rt, july)  # the latest month (2026-07) is untouched, so only history is wrong
+    assert out.outcome == "failed" and out.error_class is ErrorClass.VALIDATION_FAILED
+    assert "country_sum" in (out.detail or "") and "2025-09" in (out.detail or "")
+    assert (_count(rt, "vintage"), _count(rt, "observation")) == before
+    assert repo.latest_points(rt.conn, "mig.m.arrivals") == good_places
+    assert rank_countries(rt.conn, months=6, top=3).period_end == "2026-06"
 
 
 def _seed_with_status(rt, month: str, status: ReleaseStatus) -> str:
