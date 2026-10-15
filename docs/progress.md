@@ -1,6 +1,56 @@
 # Progress and verification record
 
-Last updated 2026-10-14. Branch `feat/phase-1`. Spec and plan: `docs/superpowers/`.
+Last updated 2026-10-15. Branch `feat/phase-1`. Spec and plan: `docs/superpowers/`.
+
+## Review completion cycle — 15 October 2026
+
+Continued PR #1 from `3c2ed2b` (CI green, 59 of 61 threads resolved, Codex quota exhausted).
+
+Earlier on 15 October (`2bcb809`..`3c2ed2b`, Codex rounds not recorded above): every derivable rolling
+total and the required citizenship series are validated; country totals reconcile for every stored
+month; country provisional flags come from the month; truncated calendar envelopes, non-finite standard
+errors and a release-month response missing either group are rejected; and a release that reverts to an
+earlier bundle (A -> B -> A) reactivates it. That last change adds schema migration
+`002_vintage_activation.sql` (`vintage.activation`, backfilled from `id`). "Latest" now orders by
+activation, and existing databases migrate on start.
+
+This cycle, each fix has a test that failed first:
+
+1. Concurrent artifact writes (#4280133530). Both writers used `<sha>.tmp`, so the slower `os.replace`
+   raised `FileNotFoundError` and recorded a valid ingest as failed. Each writer now uses its own
+   `mkstemp` file, and the files keep mode 0644 so host backups can read them.
+2. Paired charts mixed bundles (#4280133522). Arrivals/departures and the monthly/year-ended net panels
+   combined independently cached series. For example, `mig.ry.net` cached by the Overview before a new
+   release could sit next to a fresh `mig.m.net`. All three paired charts now compare release and
+   capture time. A mismatch reloads both series once; if it persists, the pair is not combined and the
+   page says why.
+3. Redirects skipped the crawl delay (independent review). httpx followed redirects inside one pacer
+   turn, so the hops went out with no 10 s gap and could leave the host. The fetcher now follows up to
+   five same-host hops, each paced, and records the final URL.
+4. Blocks stopped only one release (independent review). After a 403 or a challenge page, batch loops
+   kept requesting other URLs. The fetcher now refuses every request for 30 minutes. This is per
+   process: a CLI run started during the cooldown still makes its first request.
+5. The Overview trend title quoted a provisional value with no period or status. It now states both, as
+   the Migration charts do.
+
+Verification: **516 backend** (ruff lint/format clean, 99 files), **115 frontend** (typecheck, build;
+lint has the 3 known shadcn warnings), **18 Playwright** (desktop and mobile). Playwright ran on port
+8766 through a temporary config because an unrelated local process held 8765. Compose config validates.
+There is no local Docker daemon; the GitHub Actions `docker` job builds the image and checks
+`/api/health`.
+
+**Live scheduler milestone not verified.** No `nzstats serve` was running on 14 October. Every local
+database still shows *International migration: August 2026* as `scheduled`, with no ingest run after
+11 October. Stats NZ was not contacted to compensate. As captured on 11 October, the next opportunity is
+*September 2026*, scheduled for 12 Nov 2026 10:45 NZDT (confirm in the calendar first).
+
+Known and not changed (independent review, Medium): `_bundle_digest` hashes every chart's title and CSV.
+An editorial retitle, or an edit to a chart the adapter does not read, therefore creates a new vintage
+with identical values and marks the release `corrected` on the next re-ingest. Values stay correct. The
+fix (hashing only the charts the adapter reads) changes every stored digest, which gives each release
+one extra vintage once. It needs a decision rather than a quick patch. Also known: 429 `Retry-After` is
+ignored (paced retries); explicit `?base=` newer than `compare` returns inverted revisions (the UI never
+sends it); no `fsync` before the artifact rename.
 
 ## Focused retry, backfill and provenance cycle — 14 October 2026
 
@@ -91,8 +141,8 @@ was written before the regression tests and implementation.
    and `backend/src`, then `nzstats serve --no-scheduler` with the container's environment variables, serving
    `/api/health` (200), `/` (the built SPA) and `/migration` (SPA fallback). The CI `docker` job builds the image
    and checks `/api/health`; the first Docker host must also run the Compose quick start in the README.
-2. **Live scheduler check is pending.** The International migration: August 2026 release is scheduled for
-   14 Oct 2026 10:45 NZDT; today is 12 Oct. To close it: start `nzstats serve` against a data directory with
+2. **Live scheduler check is pending.** The August 2026 release (14 Oct 2026) was missed: no scheduler was
+   running (see the 15 October cycle). Next: September 2026, scheduled 12 Nov 2026 10:45 NZDT. To close it: start `nzstats serve` against a data directory with
    history before 10:45 and confirm the release is ingested within the polling window (Data health page or
    `nzstats health`). The scheduler logic itself is unit-tested (offsets, window expiry, catch-up, blocked back-off).
 
@@ -390,9 +440,9 @@ Two findings, validated and fixed with tests that failed first:
 Before merging or calling Phase 1 shipped:
 
 - Run `docker compose up -d --build` on a Docker host and follow the README quick start (including `chown` of `./data`).
-- Run the live scheduler check on 14 Oct 2026 (above).
+- Run the live scheduler check at the next migration release (12 Nov 2026 10:45 NZDT as captured).
 - Set `NZSTATS_CONTACT` in `.env` (Kevin's choice; not sent so far). Review Stats NZ's terms before any public hosting.
-- Push and open a PR only with Kevin's approval; CI has never run (no remote).
+- Decide the bundle-digest scope (15 October cycle) before merge or as the first follow-up.
 
 Deferred Minor findings (small, none blocks use):
 
@@ -403,8 +453,8 @@ Deferred Minor findings (small, none blocks use):
 - Analysis: the citizenship chart title omits its period.
 - Frontend: revision and chart data tables need `overflow-x-auto`; `/releases/abc` renders blank; the calendar month grid has
   no grid keyboard behaviour and the importance filter has no Low option; TanStack Table is installed but unused.
-- Hygiene: untrack `backend/src/nzstats.egg-info/`; the `.env.example` contact is a placeholder address; the shadcn CLI is a
-  runtime dependency; add a Python lock file for reproducible images; Fetcher has no host allow-list for redirects.
+- Hygiene: the `.env.example` contact is a placeholder address; the shadcn CLI is a
+  runtime dependency; add a Python lock file for reproducible images.
 - CI does not run the Playwright suite or the frontend lint.
 
 ## Resume steps for Phase 2

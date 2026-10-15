@@ -12,3 +12,4 @@ frontend/dist/
 frontend/playwright-report/
 frontend/test-results/
 .DS_Store
+*.egg-info/
