@@ -83,18 +83,23 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
     prior_window = month_range(add_months(start, -months), add_months(start, -1))
     prior_stored = prior_window[0] >= first_stored  # prior window fully inside the latest vintage
     total = sum(totals.get(p, 0.0) for p in window)
+    # A month is provisional when the release marks any of its place rows provisional. A country
+    # with no row that month has an implicit zero, which is as revisable as the month itself, so
+    # the flag follows the month, not the country's own rows.
+    provisional_months = {
+        p
+        for points in points_by_key.values()
+        for p, pt in points.items()
+        if pt.status is ObsStatus.PROVISIONAL
+    }
+    window_provisional = any(p in provisional_months for p in window)
+    prior_window_provisional = any(p in provisional_months for p in prior_window)
 
     groups: dict[str, list[CountryRank]] = {c: [] for c in CATEGORIES}
     for row in rows:
         points = points_by_key[row["key"]]
         value = sum(points[p].value for p in window if p in points)
-        provisional = any(points[p].status is ObsStatus.PROVISIONAL for p in window if p in points)
         prior = sum(points[p].value for p in prior_window if p in points) if prior_stored else None
-        prior_provisional = (
-            any(points[p].status is ObsStatus.PROVISIONAL for p in prior_window if p in points)
-            if prior_stored
-            else None
-        )
         name = (
             row["name"].removeprefix("Migrant arrivals from ").removesuffix(" (monthly estimate)")
         )
@@ -109,8 +114,8 @@ def rank_countries(conn: sqlite3.Connection, *, months: int = 12, top: int = 15)
                     None if prior is None or prior <= 0 else (value - prior) / prior * 100
                 ),
                 share_percent=(value / total * 100) if total > 0 else None,
-                provisional=provisional,
-                prior_provisional=prior_provisional,
+                provisional=window_provisional,
+                prior_provisional=prior_window_provisional if prior_stored else None,
             )
         )
 

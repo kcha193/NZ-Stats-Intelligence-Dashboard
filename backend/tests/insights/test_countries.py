@@ -72,7 +72,8 @@ def test_a_place_the_latest_release_omits_counts_as_zero_not_its_older_value(rt)
     ingest_months(rt, "2026-06", "2026-07")
     out = rank_countries(rt.conn, months=12, top=1000)
     togo = _all_places(out)["mig.m.arrivals.country.togo"]
-    assert togo.value == 0.0 and togo.provisional is False
+    # Its zero covers provisional months, so it is as revisable as they are (review #4278926214).
+    assert togo.value == 0.0 and togo.provisional is True
     expected = _expected()
     assert sum(c.value for c in out.countries) == pytest.approx(float(expected.sum()))
     assert {c.name for c in out.countries if c.value > 0} == set(expected[expected > 0].index)
@@ -182,3 +183,59 @@ def test_windows_and_prior_window_match_independent_sums_after_a_valid_ingest(rt
         assert c.value == float(now_sum.get(c.name, 0.0)), c.name
         assert c.prior_value == float(prior_sum.get(c.name, 0.0)), c.name
         assert c.change == c.value - c.prior_value
+
+
+# --- sparse months inherit the status of the month, not of the country's own rows (review #4278926214)
+
+
+def _ingest_with_small_country_absent(rt, site, *, final_through: str, absent: tuple[str, str]):
+    """Real 2026-07 file, final through `final_through`, minus one tiny country's rows in `absent`.
+
+    Tanzania never exceeds 3 migrants a month, so removing months stays inside the reconciliation
+    tolerance: the release ingests and the country is simply sparse there (an implicit zero).
+    """
+    import io
+
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.conftest import fixture_bytes
+    from tests.support import NOW, release_ref_for
+
+    df = pd.read_csv(io.BytesIO(fixture_bytes("im_2026-07_citizenship_country.csv")))
+    df.loc[df.year_month <= final_through, "status"] = "Final"
+    gone = (
+        (df.country_of_residence == "Tanzania")
+        & (df.year_month >= absent[0])
+        & (df.year_month <= absent[1])
+    )
+    site.override(
+        site.file_url("2026-07", "citizenship_visa_country"),
+        200,
+        df[~gone].to_csv(index=False, quoting=1).encode(),
+    )
+    ref = release_ref_for("2026-07")
+    repo.upsert_release(rt.conn, ref, NOW)
+    assert ingest_release(rt, ref.release_key, now_fn=lambda: NOW).outcome == "ingested"
+    return next(
+        c for c in rank_countries(rt.conn, months=6, top=1000).countries if c.name == "Tanzania"
+    )
+
+
+def test_implicit_zero_in_provisional_months_makes_the_window_provisional(rt, site) -> None:
+    # window 2026-02..2026-07 is provisional; Tanzania has rows only in final months (before it)
+    tz = _ingest_with_small_country_absent(
+        rt, site, final_through="2026-01", absent=("2026-02", "2026-07")
+    )
+    assert tz.value == 0.0
+    assert tz.provisional is True  # the zero may be revised once the source adds rows
+    assert tz.prior_provisional is False  # prior 2025-08..2026-01 is final
+
+
+def test_implicit_zero_in_provisional_prior_months_makes_the_prior_window_provisional(
+    rt, site
+) -> None:
+    # prior window 2025-08..2026-01 is final through 2025-10 only; Tanzania's rows stop there
+    tz = _ingest_with_small_country_absent(
+        rt, site, final_through="2025-10", absent=("2025-11", "2026-07")
+    )
+    assert tz.prior_value is not None
+    assert tz.prior_provisional is True
