@@ -69,3 +69,36 @@ def test_a_failing_migration_leaves_no_partial_schema_and_can_be_retried(
     script.write_text("CREATE TABLE first_table (id INTEGER PRIMARY KEY);\n")  # the fixed migration
     assert migrate(conn) == 1
     assert migrate(conn) == 1  # and re-running stays a no-op
+
+
+def test_upgrade_from_the_initial_schema_keeps_vintage_order(tmp_path: Path, monkeypatch) -> None:
+    """Existing databases gain `activation` = id, so "latest" is unchanged until a revert."""
+    import nzstats.store.db as db
+
+    real = db.MIGRATIONS_DIR
+    first_only = tmp_path / "migrations"
+    first_only.mkdir()
+    (first_only / "001_init.sql").write_text((real / "001_init.sql").read_text())
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", first_only)
+    conn = connect(tmp_path / "t.db")
+    assert migrate(conn) == 1
+    conn.execute(
+        "INSERT INTO release(id, release_key, series_slug, title, published_at, status,"
+        " first_seen_at, updated_at) VALUES (1, 'r', 's', 't', '2026-01-01T00:00:00Z',"
+        " 'published', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO series(id, key, name, unit, frequency, seasonal_adjustment, definition,"
+        " definition_id, category) VALUES (1, 'k', 'n', 'people', 'monthly', 'none', 'd', 'x', 'c')"
+    )
+    for vid, sha in ((1, "a"), (2, "b")):
+        conn.execute(
+            "INSERT INTO vintage(id, release_id, series_id, captured_at, source_kind,"
+            " layout_version, bundle_sha256) VALUES (?, 1, 1, '2026-01-01T00:00:00Z',"
+            " 'release_files', 'v', ?)",
+            (vid, sha),
+        )
+    monkeypatch.setattr(db, "MIGRATIONS_DIR", real)
+    assert migrate(conn) >= 2
+    rows = conn.execute("SELECT id, activation FROM vintage ORDER BY id").fetchall()
+    assert [(r["id"], r["activation"]) for r in rows] == [(1, 1), (2, 2)]

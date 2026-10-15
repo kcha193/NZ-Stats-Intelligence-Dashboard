@@ -214,3 +214,26 @@ def test_unavailable_release_that_is_now_published_becomes_published(conn) -> No
     _unavailable(conn)
     repo.upsert_release(conn, _ref(status=ReleaseStatus.PUBLISHED, at="2026-10-14 10:45:00"), NOW)
     assert repo.get_release(conn, KEY)["status"] == "published"
+
+
+def test_reactivating_an_older_bundle_makes_it_the_latest_without_duplicating_rows(conn) -> None:
+    rid = repo.upsert_release(conn, _ref(), NOW)
+    sid = repo.upsert_series(conn, _series())
+    with transaction(conn):
+        for sha, value in (("sha-a", 1.0), ("sha-b", 2.0)):
+            vid = repo.create_vintage(conn, rid, sid, NOW, "release_files", "v1", sha)
+            repo.insert_observations(
+                conn, vid, [Observation("mig.m.net", "2026-07", value, ObsStatus.FINAL, None, None)]
+            )
+    assert repo.release_bundle(conn, rid) == "sha-b"
+    with transaction(conn):
+        assert repo.reactivate_bundle(conn, rid, "sha-a") == 1
+    assert repo.release_bundle(conn, rid) == "sha-a"
+    assert repo.latest_bundle(conn, "mig.m.net") == (rid, "sha-a")
+    assert repo.latest_points(conn, "mig.m.net")["2026-07"].value == 1.0
+    assert [i.vintage_id for i in repo.list_vintages(conn, "mig.m.net")][-1] == repo.bundle_vintage(
+        conn, "mig.m.net", rid, "sha-a"
+    ).vintage_id
+    assert len(repo.list_vintages(conn, "mig.m.net")) == 2
+    with transaction(conn):
+        assert repo.reactivate_bundle(conn, rid, "sha-missing") == 0

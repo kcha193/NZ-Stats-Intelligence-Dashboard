@@ -505,10 +505,19 @@ def test_a_concurrent_duplicate_ingest_does_not_mark_the_release_corrected(rt, m
 
     (july,) = _seed(rt, "2026-07")
     assert _ingest(rt, july).outcome == "ingested"
-    monkeypatch.setattr(ingest_module.repo, "has_vintage", lambda *a, **k: False)  # stale pre-check
+    real = ingest_module.repo.release_bundle
+    seen = []
+
+    def stale_first_read(*args, **kwargs):
+        seen.append(1)
+        # the pre-check read a snapshot from before the other process committed
+        return None if len(seen) == 1 else real(*args, **kwargs)
+
+    monkeypatch.setattr(ingest_module.repo, "release_bundle", stale_first_read)
     out = _ingest(rt, july)
     assert out.outcome == "unchanged"
     assert repo.get_release(rt.conn, july)["status"] == "published"
+    assert len(seen) >= 2  # the in-transaction check ran and caught the duplicate
 
 
 # --- page-derived charts take part in "unchanged" detection (review #4245952768) ---------------
@@ -784,3 +793,53 @@ def test_citizenship_insight_is_suppressed_when_the_two_series_end_in_different_
     analysis = build_release_analysis(rt.conn, release_id, analysable_slugs=slugs)
     assert analysis is not None
     assert not any(i.id == "citizenship" for i in analysis.context)
+
+
+# --- a release that reverts to an earlier bundle becomes active again (review #4279064982) ------
+
+
+def test_reverting_to_a_previously_seen_bundle_makes_it_the_active_one_again(rt, site) -> None:
+    (july,) = _seed(rt, "2026-07")
+    original = site.routes[page_url("2026-07")]
+    assert _ingest(rt, july).outcome == "ingested"
+    sha_a = repo.release_bundle(rt.conn, int(repo.get_release(rt.conn, july)["id"]))
+    original_rolling = repo.latest_points(rt.conn, "mig.ry.net")
+
+    _edit_page(site, "2026-07", _bump_net_rolling)  # bundle B
+    assert _ingest(rt, july).outcome == "ingested"
+    assert repo.latest_points(rt.conn, "mig.ry.net") != original_rolling
+
+    site.override(page_url("2026-07"), *original)  # upstream restores bundle A
+    out = _ingest(rt, july)
+    assert out.outcome == "ingested", out.detail
+    rid = int(repo.get_release(rt.conn, july)["id"])
+    assert repo.release_bundle(rt.conn, rid) == sha_a
+    assert repo.latest_bundle(rt.conn, "mig.ry.net") == (rid, sha_a)
+    assert repo.latest_points(rt.conn, "mig.ry.net") == original_rolling
+    assert repo.get_release(rt.conn, july)["status"] == ReleaseStatus.CORRECTED.value
+
+    # nothing is duplicated or lost: still one vintage per bundle, and re-ingesting is a no-op
+    assert len(repo.list_vintages(rt.conn, "mig.ry.net")) == 2
+    before = (_count(rt, "vintage"), _count(rt, "observation"))
+    assert _ingest(rt, july).outcome == "unchanged"
+    assert (_count(rt, "vintage"), _count(rt, "observation")) == before
+
+
+def test_a_reverted_bundle_is_validated_again_before_it_is_reactivated(rt, site) -> None:
+    (july,) = _seed(rt, "2026-07")
+    original = site.routes[page_url("2026-07")]
+    assert _ingest(rt, july).outcome == "ingested"
+    _edit_page(site, "2026-07", _bump_net_rolling)
+    assert _ingest(rt, july).outcome == "ingested"
+    rid = int(repo.get_release(rt.conn, july)["id"])
+    active = repo.release_bundle(rt.conn, rid)
+
+    site.override(page_url("2026-07"), *original)
+    site.override(  # the age/sex file is now invalid: monthly history has a gap
+        site.file_url("2026-07", "age_sex"),
+        200,
+        _drop_month(fixture_bytes("im_2026-07_age_sex.csv"), "2015-05"),
+    )
+    out = _ingest(rt, july)
+    assert out.outcome == "failed" and out.error_class is ErrorClass.VALIDATION_FAILED
+    assert repo.release_bundle(rt.conn, rid) == active

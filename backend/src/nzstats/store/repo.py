@@ -180,7 +180,8 @@ def create_vintage(
 ) -> int | None:
     cur = conn.execute(
         "INSERT OR IGNORE INTO vintage(release_id, series_id, captured_at, source_kind,"
-        " layout_version, bundle_sha256) VALUES (?,?,?,?,?,?)",
+        " layout_version, bundle_sha256, activation)"
+        " VALUES (?,?,?,?,?,?, (SELECT COALESCE(MAX(activation), 0) + 1 FROM vintage))",
         (
             release_id,
             series_id,
@@ -217,6 +218,20 @@ def has_vintage(conn: sqlite3.Connection, release_id: int, bundle_sha256: str) -
     )
 
 
+def reactivate_bundle(conn: sqlite3.Connection, release_id: int, bundle_sha256: str) -> int:
+    """Make an already stored bundle the release's current one again; returns vintages touched.
+
+    A release can revert to content it published before. Its vintages already exist, so nothing is
+    inserted: they are moved to the newest activation, which is what every "latest" query orders by.
+    """
+    cur = conn.execute(
+        "UPDATE vintage SET activation = (SELECT MAX(activation) + 1 FROM vintage)"
+        " WHERE release_id = ? AND bundle_sha256 = ?",
+        (release_id, bundle_sha256),
+    )
+    return cur.rowcount
+
+
 def has_any_vintage(conn: sqlite3.Connection, release_id: int) -> bool:
     return (
         conn.execute("SELECT 1 FROM vintage WHERE release_id=? LIMIT 1", (release_id,)).fetchone()
@@ -224,7 +239,7 @@ def has_any_vintage(conn: sqlite3.Connection, release_id: int) -> bool:
     )
 
 
-_VINTAGE_ORDER = "r.published_at, v.id"
+_VINTAGE_ORDER = "r.published_at, v.activation, v.id"
 
 
 def list_vintages(conn: sqlite3.Connection, series_key: str) -> list[VintageInfo]:
@@ -254,7 +269,7 @@ def latest_bundle(conn: sqlite3.Connection, series_key: str) -> tuple[int, str] 
     """(release id, bundle digest) of a series' latest vintage, in the order `list_vintages` uses."""
     row = conn.execute(
         "SELECT v.release_id, v.bundle_sha256 FROM vintage v JOIN release r ON r.id=v.release_id"
-        " JOIN series s ON s.id=v.series_id WHERE s.key=? ORDER BY r.published_at DESC, v.id DESC"
+        " JOIN series s ON s.id=v.series_id WHERE s.key=? ORDER BY r.published_at DESC, v.activation DESC, v.id DESC"
         " LIMIT 1",
         (series_key,),
     ).fetchone()
@@ -413,7 +428,7 @@ def release_vintage(
         "SELECT v.id, r.release_key, r.title, r.published_at, v.captured_at, v.source_kind,"
         " v.layout_version FROM vintage v JOIN release r ON r.id = v.release_id"
         " JOIN series s ON s.id = v.series_id WHERE s.key = ? AND v.release_id = ?"
-        " ORDER BY v.id DESC LIMIT 1",
+        " ORDER BY v.activation DESC, v.id DESC LIMIT 1",
         (series_key, release_id),
     ).fetchone()
     return VintageInfo(*tuple(row)) if row else None
@@ -422,7 +437,8 @@ def release_vintage(
 def release_bundle(conn: sqlite3.Connection, release_id: int) -> str | None:
     """Digest of the release's newest ingested bundle (a corrected re-ingest supersedes the first)."""
     row = conn.execute(
-        "SELECT bundle_sha256 FROM vintage WHERE release_id = ? ORDER BY id DESC LIMIT 1",
+        "SELECT bundle_sha256 FROM vintage WHERE release_id = ?"
+        " ORDER BY activation DESC, id DESC LIMIT 1",
         (release_id,),
     ).fetchone()
     return row["bundle_sha256"] if row else None
@@ -449,7 +465,7 @@ def vintage_superseded(conn: sqlite3.Connection, vintage_id: int) -> bool:
     row = conn.execute(
         "WITH newest AS (SELECT release_id, bundle_sha256 FROM vintage"
         "  WHERE release_id = (SELECT release_id FROM vintage WHERE id = ?)"
-        "  ORDER BY id DESC LIMIT 1)"
+        "  ORDER BY activation DESC, id DESC LIMIT 1)"
         " SELECT v.bundle_sha256 <> n.bundle_sha256 AND NOT EXISTS ("
         "  SELECT 1 FROM vintage w WHERE w.release_id = v.release_id AND w.series_id = v.series_id"
         "  AND w.bundle_sha256 = n.bundle_sha256) AS superseded"
@@ -474,7 +490,7 @@ def series_overview(
         "SELECT s.*, (SELECT COUNT(*) FROM vintage v WHERE v.series_id = s.id) AS n_vintages,"
         " (SELECT MAX(o.period) FROM observation o WHERE o.vintage_id = ("
         "   SELECT v.id FROM vintage v JOIN release r ON r.id = v.release_id"
-        "   WHERE v.series_id = s.id ORDER BY r.published_at DESC, v.id DESC LIMIT 1))"
+        "   WHERE v.series_id = s.id ORDER BY r.published_at DESC, v.activation DESC, v.id DESC LIMIT 1))"
         " AS latest_period FROM series s WHERE (? IS NULL OR s.category LIKE ?) ORDER BY s.key",
         (like, like),
     ).fetchall()

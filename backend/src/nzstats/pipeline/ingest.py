@@ -118,7 +118,9 @@ def _ingest(
     bundle_sha = _bundle_digest(digests, page)
 
     release_id = int(row["id"])
-    if repo.has_vintage(rt.conn, release_id, bundle_sha):
+    # Unchanged only while this bundle is also the release's current one; a revert to an earlier
+    # bundle is new information and is validated and reactivated below.
+    if repo.release_bundle(rt.conn, release_id) == bundle_sha:
         return IngestOutcome(key, "unchanged")
 
     bundle = adapter.parse(page, files)
@@ -138,20 +140,26 @@ def _ingest(
         # Evaluated inside the write transaction: a second process may have committed this same
         # release between the pre-check above and here.
         had_vintages = repo.has_any_vintage(rt.conn, release_id)
-        for ps in bundle.series:
-            series_id = repo.upsert_series(rt.conn, ps.definition)
-            vintage_id = repo.create_vintage(
-                rt.conn,
-                release_id,
-                series_id,
-                now,
-                "release_files",
-                bundle.layout_version,
-                bundle_sha,
-            )
-            if vintage_id is not None:
-                repo.insert_observations(rt.conn, vintage_id, ps.observations)
-                created += 1
+        if repo.release_bundle(rt.conn, release_id) == bundle_sha:
+            return IngestOutcome(key, "unchanged")
+        if repo.has_vintage(rt.conn, release_id, bundle_sha):
+            # The release reverted to content it published earlier: its vintages already exist.
+            created = repo.reactivate_bundle(rt.conn, release_id, bundle_sha)
+        else:
+            for ps in bundle.series:
+                series_id = repo.upsert_series(rt.conn, ps.definition)
+                vintage_id = repo.create_vintage(
+                    rt.conn,
+                    release_id,
+                    series_id,
+                    now,
+                    "release_files",
+                    bundle.layout_version,
+                    bundle_sha,
+                )
+                if vintage_id is not None:
+                    repo.insert_observations(rt.conn, vintage_id, ps.observations)
+                    created += 1
         if created:
             repo.set_release_headline(rt.conn, key, page.headline, page_url)
             repo.set_release_status(
