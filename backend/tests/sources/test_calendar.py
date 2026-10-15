@@ -201,7 +201,8 @@ def test_malformed_month_entry_error_does_not_echo_upstream_text(caplog) -> None
                     },
                     "PageLink": "/information-releases/x/",
                 }
-            ]
+            ],
+            "upcoming": [],
         }
     }
     with pytest.raises(IngestError) as e:
@@ -222,12 +223,13 @@ def test_page_link_rejection_does_not_echo_the_link() -> None:
                     },
                     "PageLink": "@evil.example/x",
                 }
-            ]
+            ],
+            "upcoming": [],
         }
     }
     with pytest.raises(IngestError) as e:
         parse_release_month(payload, "https://www.stats.govt.nz")
-    assert "evil.example" not in str(e.value)
+    assert "evil.example" not in str(e.value) and "malformed" in str(e.value)
 
 
 def test_calendar_with_one_malformed_event_is_a_layout_failure_not_a_healthy_partial() -> None:
@@ -309,3 +311,25 @@ def test_complete_envelope_with_trailing_blank_lines_is_accepted() -> None:
 
     refs = fetch_calendar(_fetcher(handler), BASE, "/release-calendar/calendar-export/")
     assert [r.release_key for r in refs] == ["international-migration:august 2026"]
+
+
+@pytest.mark.parametrize("missing", ["published", "upcoming"])
+def test_release_month_payload_missing_either_group_is_a_layout_failure(missing) -> None:
+    """Review #4279109375: real payloads always carry both groups, even when one is empty.
+
+    A partial layout change that drops `published` would otherwise read as "nothing published"
+    and leave a silent gap in discovered history.
+    """
+    items = {"published": [], "upcoming": []}
+    del items[missing]
+    with pytest.raises(IngestError) as exc:
+        parse_release_month({"items": items}, BASE)
+    assert exc.value.error_class == ErrorClass.LAYOUT_CHANGED
+    assert missing in str(exc.value)
+
+
+@pytest.mark.parametrize("month", ["2026-09", "2026-10"])
+def test_real_release_month_payloads_have_both_groups(month) -> None:
+    payload = json.loads(fixture_text(f"release_month_{month}.json"))
+    assert {"published", "upcoming"} <= payload["items"].keys()
+    assert parse_release_month(payload, BASE)

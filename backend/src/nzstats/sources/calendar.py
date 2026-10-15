@@ -156,8 +156,15 @@ def _same_site_url(base_url: str, path: str) -> str:
 
 def parse_release_month(payload: Mapping, base_url: str) -> list[ReleaseRef]:
     items = payload.get("items") if isinstance(payload, Mapping) else None
-    if not isinstance(items, Mapping) or not {"published", "upcoming"} & items.keys():
+    if not isinstance(items, Mapping):
         raise IngestError(ErrorClass.LAYOUT_CHANGED, "release month payload has no 'items'")
+    # Real payloads carry both groups even when one is empty, so a missing group is a layout change
+    # and not "nothing published": reading it as empty would leave a silent gap in history.
+    absent = sorted({"published", "upcoming"} - items.keys())
+    if absent:
+        raise IngestError(
+            ErrorClass.LAYOUT_CHANGED, f"release month payload lacks {', '.join(absent)}"
+        )
     refs: list[ReleaseRef] = []
     try:
         for p in items.get("published", []):
