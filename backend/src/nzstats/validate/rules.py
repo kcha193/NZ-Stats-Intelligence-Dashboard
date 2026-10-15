@@ -186,6 +186,17 @@ def validate_migration(
             )
         )
 
+    # A truncated file or chart can keep a correct latest value and pass every check above, then
+    # replace the full history as the live vintage. Real files always start in 2001 (monthly 2001-01,
+    # year-ended 2001-12), so coverage that starts later than the previous vintage is an error.
+    shrunk = [
+        f"{key} starts {min(values[key])}, previous vintage {min(prev)}"
+        for key in (*REQUIRED, *OPTIONAL_ROLLING_CITIZENSHIP)
+        if values.get(key) and (prev := previous.get(key)) and min(values[key]) > min(prev)
+    ]
+    if shrunk:
+        error("coverage", f"history is shorter than the previous vintage: {_listed(shrunk)}")
+
     for key in MONTHLY:
         prev = previous.get(key) or {}
         common = [p for p in values[key] if p in prev]

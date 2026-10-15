@@ -32,8 +32,16 @@ This cycle, each fix has a test that failed first:
    process: a CLI run started during the cooldown still makes its first request.
 5. The Overview trend title quoted a provisional value with no period or status. It now states both, as
    the Migration charts do.
+6. Truncated history passed validation (#4280291084, #4280291091). A monthly file cut to its latest 12
+   months, or a year-ended chart left with only its latest column, kept a correct latest value. It passed
+   every check and replaced the full history as the live vintage. Real files start in 2001 (monthly
+   2001-01, year-ended 2001-12, June and July 2026). A series whose coverage now starts later than its
+   previous vintage is a `coverage` error, and the adapter loads the previous vintage of every required
+   and optional series. An isolated blank interior cell is still accepted, as decided in rounds 8 and 12.
+   Not verified: whether any 2024–2025 release started later than its predecessor; if one did, its
+   backfill now fails visibly instead of passing.
 
-Verification: **516 backend** (ruff lint/format clean, 99 files), **115 frontend** (typecheck, build;
+Verification: **523 backend** (ruff lint/format clean, 99 files), **115 frontend** (typecheck, build;
 lint has the 3 known shadcn warnings), **18 Playwright** (desktop and mobile). Playwright ran on port
 8766 through a temporary config because an unrelated local process held 8765. Compose config validates.
 There is no local Docker daemon; the GitHub Actions `docker` job builds the image and checks
