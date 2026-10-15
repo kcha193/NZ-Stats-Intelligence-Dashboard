@@ -843,3 +843,18 @@ def test_a_reverted_bundle_is_validated_again_before_it_is_reactivated(rt, site)
     out = _ingest(rt, july)
     assert out.outcome == "failed" and out.error_class is ErrorClass.VALIDATION_FAILED
     assert repo.release_bundle(rt.conn, rid) == active
+
+
+def test_a_request_refused_during_the_cooldown_is_not_recorded_as_an_attempt(rt, site) -> None:
+    from nzstats.pipeline.ingest import ingest_release
+    from tests.support import page_url, release_ref_for
+
+    ref = release_ref_for("2026-07")
+    repo.upsert_release(rt.conn, ref, NOW)
+    site.override(page_url("2026-07"), 403, b"", "text/html")
+    runs = lambda: rt.conn.execute("SELECT COUNT(*) FROM ingest_run").fetchone()[0]  # noqa: E731
+    first = ingest_release(rt, ref.release_key, now_fn=lambda: NOW)
+    assert first.error_class is ErrorClass.BLOCKED and runs() == 1
+    second = ingest_release(rt, ref.release_key, now_fn=lambda: NOW)
+    assert second.outcome == "failed" and second.error_class is ErrorClass.BLOCKED
+    assert runs() == 1 and len(site.requests) == 1, "nothing was sent, so nothing was attempted"

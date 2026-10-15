@@ -12,7 +12,7 @@ from datetime import datetime
 
 from nzstats.adapters.base import Adapter
 from nzstats.clock import AKL, from_utc_iso, utc_now
-from nzstats.domain import ErrorClass, IngestError, ReleaseStatus
+from nzstats.domain import ErrorClass, IngestError, ReleaseStatus, RequestRefused
 from nzstats.pipeline.discover import attempt, record_batch_health
 from nzstats.runtime import Runtime
 from nzstats.slug import slugify
@@ -49,6 +49,10 @@ def ingest_release(
     started = now_fn()
     try:
         outcome = _ingest(rt, row, adapter, now_fn)
+    except RequestRefused as exc:
+        # Nothing was sent. Recording a run would spend the release's finite polling budget on an
+        # attempt that never happened (the planner counts runs), so report it and leave no trace.
+        return IngestOutcome(release_key, "failed", exc.error_class, str(exc))
     except IngestError as exc:
         kind = "not_available" if exc.error_class is ErrorClass.NOT_FOUND else "failed"
         outcome = IngestOutcome(release_key, kind, exc.error_class, str(exc))

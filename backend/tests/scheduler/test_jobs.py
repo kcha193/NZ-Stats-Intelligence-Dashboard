@@ -206,6 +206,7 @@ def test_unavailable_daily_retry_keeps_blocked_cooldown_across_midnight(rt, site
     assert job_catch_up(rt, now_fn=lambda: first + timedelta(minutes=10)) == []
     assert len(site.requests) == requests
     assert len(_runs(rt, key)) == 1
+    site.clock_now += 30 * 60  # the fetcher's own cooldown ends with the planner's
     assert [
         o.error_class.value for o in job_catch_up(rt, now_fn=lambda: first + timedelta(minutes=30))
     ] == ["blocked"]
@@ -239,3 +240,29 @@ def test_scheduler_registers_three_jobs_in_auckland_time(rt) -> None:
     assert {j.id for j in sched.get_jobs()} == {"refresh_calendar", "release_watch", "catch_up"}
     assert str(sched.timezone) == "Pacific/Auckland"
     assert not sched.running
+
+
+def _seed_two_scheduled(rt) -> list[str]:
+    """Two releases both due at PUB: July at its real time, June published ten minutes earlier."""
+    keys = []
+    for month, published in (("2026-06", PUB - timedelta(minutes=10)), ("2026-07", PUB)):
+        ref = dataclasses.replace(
+            release_ref_for(month),
+            status=ReleaseStatus.SCHEDULED,
+            page_url=None,
+            published_at=published,
+        )
+        repo.upsert_release(rt.conn, ref, NOW)
+        keys.append(ref.release_key)
+    return keys
+
+
+@pytest.mark.parametrize("job", [job_release_watch, job_catch_up], ids=["watch", "catch_up"])
+def test_a_block_ends_the_batch_instead_of_spending_every_due_release(job, rt, site) -> None:
+    keys = _seed_two_scheduled(rt)
+    for month in ("2026-06", "2026-07"):
+        site.override(page_url(month), 403, b"", "text/html")
+    outcomes = job(rt, now_fn=lambda: PUB + timedelta(seconds=5))
+    assert [o.error_class.value for o in outcomes] == ["blocked"]
+    assert len(site.requests) == 1
+    assert sorted(len(_runs(rt, k)) for k in keys) == [0, 1], "only the release actually requested"

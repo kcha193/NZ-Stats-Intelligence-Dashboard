@@ -49,6 +49,10 @@ class IngestError(Exception):
         self.url = url
 
 
+class RequestRefused(IngestError):
+    """A block cooldown is in force, so no request was sent. Not an attempt at anything."""
+
+
 @dataclass(frozen=True)
 class SeriesDef:
     key: str

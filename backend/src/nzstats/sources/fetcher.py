@@ -19,7 +19,7 @@ from typing import NoReturn
 import httpx
 
 from nzstats.clock import utc_now
-from nzstats.domain import ErrorClass, IngestError
+from nzstats.domain import ErrorClass, IngestError, RequestRefused
 
 log = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class Fetcher:
     @staticmethod
     def _refuse(url: str) -> NoReturn:
         # A block page means the site is challenging us: stop all requests, not just this URL.
-        raise IngestError(
+        raise RequestRefused(
             ErrorClass.BLOCKED, f"not requested: cooling down after a block, {url}", url=url
         )
 

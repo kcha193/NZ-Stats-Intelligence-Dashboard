@@ -42,6 +42,7 @@ class FakeSite:
     def __init__(self, months=("2026-06", "2026-07")) -> None:
         self.routes: dict[str, tuple[int, bytes, str]] = {}
         self.requests: list[str] = []
+        self.clock_now = 0.0  # the fetcher's monotonic clock; advance it to end a cooldown
         for month in months:
             html_text = fixture_text(f"im_{month}_page.html")
             self.routes[page_url(month)] = (200, html_text.encode(), "text/html; charset=utf-8")
@@ -87,7 +88,7 @@ class FakeSite:
 
     def fetcher(self) -> Fetcher:
         client = httpx.Client(transport=httpx.MockTransport(self.handler))
-        return Fetcher(client, sleep=lambda s: None, clock=lambda: 0.0)
+        return Fetcher(client, sleep=lambda s: None, clock=lambda: self.clock_now)
 
 
 def ingest_months(rt, *months: str) -> dict[str, int]:

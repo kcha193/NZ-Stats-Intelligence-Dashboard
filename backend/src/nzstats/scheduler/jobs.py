@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from nzstats.clock import AKL, utc_now
+from nzstats.domain import ErrorClass
 from nzstats.pipeline.discover import DiscoveryResult, discover, discovery_months
 from nzstats.pipeline.ingest import IngestOutcome, ingest_release
 from nzstats.runtime import Runtime
@@ -23,13 +24,23 @@ def job_refresh_calendar(rt: Runtime, *, now_fn: NowFn = utc_now) -> DiscoveryRe
         return discover(rt, months=discovery_months(now_fn()), now_fn=now_fn)
 
 
+def _ingest_until_blocked(rt: Runtime, keys: list[str], now_fn: NowFn) -> list[IngestOutcome]:
+    """Ingest in order, stopping at the first block: the site is challenging us, so the rest wait."""
+    outcomes: list[IngestOutcome] = []
+    for key in keys:
+        outcomes.append(ingest_release(rt, key, now_fn=now_fn))
+        if outcomes[-1].error_class is ErrorClass.BLOCKED:
+            break
+    return outcomes
+
+
 def job_release_watch(rt: Runtime, *, now_fn: NowFn = utc_now) -> list[IngestOutcome]:
     """Cheap per-minute tick: touches the network only when a release is due for a poll."""
     with rt.lock:
         now = now_fn()
         offsets = rt.settings.poll_offsets_minutes
         keys = poll_candidates(rt.conn, rt.adapters, now, offsets)
-        outcomes = [ingest_release(rt, k, now_fn=now_fn) for k in keys]
+        outcomes = _ingest_until_blocked(rt, keys, now_fn)
         for key in mark_unavailable(rt.conn, rt.adapters, now, offsets):
             log.warning("release %s marked unavailable: polling budget spent", key)
         return outcomes
@@ -38,7 +49,7 @@ def job_release_watch(rt: Runtime, *, now_fn: NowFn = utc_now) -> list[IngestOut
 def job_catch_up(rt: Runtime, *, now_fn: NowFn = utc_now) -> list[IngestOutcome]:
     with rt.lock:
         keys = releases_needing_ingest(rt.conn, rt.adapters, now_fn(), rt.settings.catch_up_days)
-        return [ingest_release(rt, k, now_fn=now_fn) for k in keys]
+        return _ingest_until_blocked(rt, keys, now_fn)
 
 
 def build_scheduler(rt: Runtime) -> BackgroundScheduler:
