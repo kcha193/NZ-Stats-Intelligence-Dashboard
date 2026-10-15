@@ -24,12 +24,21 @@ def test_discover_upserts_calendar_and_months_idempotently(rt) -> None:
 
 
 def test_ics_failure_degrades_health_but_month_endpoint_still_runs(rt, site) -> None:
-    site.override(f"{BASE}/release-calendar/calendar-export/", 403, b"", "text/html")
+    site.override(f"{BASE}/release-calendar/calendar-export/", 400, b"", "text/html")
     result = discover(rt, months=["2026-09"], now_fn=lambda: NOW)
-    assert len(result.errors) == 1 and "blocked" in result.errors[0]
+    assert len(result.errors) == 1 and "HTTP 400" in result.errors[0]
     health = {r["source"]: r["state"] for r in rt.conn.execute("SELECT * FROM source_health")}
     assert health["calendar_ics"] == "degraded" and health["calendar_month"] == "ok"
     assert rt.conn.execute("SELECT COUNT(*) FROM release").fetchone()[0] > 0
+
+
+def test_a_block_stops_the_rest_of_the_run_and_degrades_every_feed(rt, site) -> None:
+    site.override(f"{BASE}/release-calendar/calendar-export/", 403, b"", "text/html")
+    result = discover(rt, months=["2026-09"], now_fn=lambda: NOW)
+    assert len(result.errors) == 2 and all("blocked" in e for e in result.errors)
+    assert [u for u in site.requests if "releaseCalendarMonth" in u] == []
+    health = {r["source"]: r["state"] for r in rt.conn.execute("SELECT * FROM source_health")}
+    assert health["calendar_ics"] == "degraded" and health["calendar_month"] == "degraded"
 
 
 def test_calendar_never_downgrades_a_published_release(rt) -> None:
@@ -99,15 +108,15 @@ def _month_health(rt):
 
 
 def test_an_earlier_failed_month_is_not_cleared_by_a_later_successful_one(rt, site) -> None:
-    site.override(f"{BASE}/api/v1/releaseCalendarMonth/2026-09", 403, b"", "text/html")
+    site.override(f"{BASE}/api/v1/releaseCalendarMonth/2026-09", 400, b"", "text/html")
     result = discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)  # fail, then succeed
     assert len(result.errors) == 1
     health = _month_health(rt)
-    assert health["state"] == "degraded" and "blocked" in health["detail"]
+    assert health["state"] == "degraded" and "HTTP 400" in health["detail"]
 
 
 def test_a_later_failed_month_also_degrades_and_all_good_months_clear_it(rt, site) -> None:
-    site.override(f"{BASE}/api/v1/releaseCalendarMonth/2026-10", 403, b"", "text/html")
+    site.override(f"{BASE}/api/v1/releaseCalendarMonth/2026-10", 400, b"", "text/html")
     discover(rt, months=["2026-09", "2026-10"], now_fn=lambda: NOW)  # succeed, then fail
     assert _month_health(rt)["state"] == "degraded"
     site.routes.pop(f"{BASE}/api/v1/releaseCalendarMonth/2026-10")

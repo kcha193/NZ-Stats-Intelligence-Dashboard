@@ -171,3 +171,62 @@ def test_network_error_detail_names_the_failure_class_not_the_exception_text(cap
     assert e.value.error_class is ErrorClass.NETWORK
     assert "10.0.0.5" not in str(e.value) and "ConnectError" in str(e.value)
     assert "10.0.0.5" in caplog.text  # the operator still gets the full text in the server log
+
+
+def _redirecting(routes: dict[str, httpx.Response], calls: list[str]):
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return routes[str(request.url)]
+
+    return handler
+
+
+def test_redirect_hops_wait_the_crawl_delay_and_record_the_final_url() -> None:
+    # A redirect is a request too: following it inside the client would skip the 10 s delay.
+    ft, calls = FakeTime(), []
+    routes = {
+        "https://h.test/a": httpx.Response(301, headers={"location": "/b"}),
+        "https://h.test/b": httpx.Response(200, text="x"),
+    }
+    f = _fetcher(_redirecting(routes, calls), ft, min_interval=10.0)
+    result = f.get("https://h.test/a")
+    assert calls == ["https://h.test/a", "https://h.test/b"]
+    assert ft.sleeps == [10.0]
+    assert result.url == "https://h.test/b"
+
+
+def test_off_site_redirect_is_not_followed() -> None:
+    ft, calls = FakeTime(), []
+    routes = {"https://h.test/a": httpx.Response(302, headers={"location": "https://evil.test/c"})}
+    f = _fetcher(_redirecting(routes, calls), ft)
+    with pytest.raises(IngestError) as e:
+        f.get("https://h.test/a")
+    assert e.value.error_class is ErrorClass.UNEXPECTED and calls == ["https://h.test/a"]
+
+
+def test_redirect_loop_gives_up() -> None:
+    ft, calls = FakeTime(), []
+    routes = {
+        "https://h.test/a": httpx.Response(302, headers={"location": "/b"}),
+        "https://h.test/b": httpx.Response(302, headers={"location": "/a"}),
+    }
+    f = _fetcher(_redirecting(routes, calls), ft)
+    with pytest.raises(IngestError) as e:
+        f.get("https://h.test/a")
+    assert e.value.error_class is ErrorClass.UNEXPECTED and len(calls) <= 6
+
+
+def test_a_block_stops_every_request_until_the_cooldown_ends() -> None:
+    # After a 403 or challenge page, requesting other URLs keeps provoking a site that is challenging us.
+    ft, calls = FakeTime(), []
+    f = _fetcher(lambda r: (calls.append(str(r.url)), httpx.Response(403))[1], ft)
+    with pytest.raises(IngestError):
+        f.get("http://h.test/a")
+    ft.t += 29 * 60
+    with pytest.raises(IngestError) as e:
+        f.get("http://h.test/b")
+    assert e.value.error_class is ErrorClass.BLOCKED and calls == ["http://h.test/a"]
+    ft.t += 60
+    with pytest.raises(IngestError):
+        f.get("http://h.test/c")
+    assert calls == ["http://h.test/a", "http://h.test/c"]

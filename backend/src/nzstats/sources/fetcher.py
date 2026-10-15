@@ -20,6 +20,10 @@ log = logging.getLogger(__name__)
 
 # Text Imperva/Incapsula puts in its challenge pages (often served with HTTP 200).
 BLOCK_MARKERS = (b"Request unsuccessful. Incapsula incident ID",)
+# After a block, no request of any kind for this long (the planner's per-release cooldown is the same).
+BLOCKED_COOLDOWN_SECONDS = 30 * 60
+REDIRECT_STATUSES = (301, 302, 303, 307, 308)
+MAX_REDIRECTS = 5
 
 
 @dataclass(frozen=True)
@@ -34,7 +38,8 @@ class FetchResult:
 def build_client(user_agent: str) -> httpx.Client:
     return httpx.Client(
         headers={"User-Agent": user_agent},
-        follow_redirects=True,
+        # Redirects are followed by `Fetcher.get`, one paced request per hop, never by the client.
+        follow_redirects=False,
         timeout=httpx.Timeout(120.0, connect=15.0),
     )
 
@@ -108,6 +113,7 @@ class Fetcher:
         self._now = now
         self._pacer = pacer
         self._last_request: float | None = None
+        self._blocked_until: float | None = None
 
     def _throttle(self) -> None:
         if self._last_request is not None:
@@ -115,13 +121,18 @@ class Fetcher:
             if wait > 0:
                 self._sleep(wait)
 
-    def get(self, url: str, *, expect: tuple[str, ...] = ()) -> FetchResult:
+    def get(self, url: str, *, expect: tuple[str, ...] = (), _hops: int = 0) -> FetchResult:
+        if self._blocked_until is not None and self._clock() < self._blocked_until:
+            # A block page means the site is challenging us: stop all requests, not just this URL.
+            raise IngestError(
+                ErrorClass.BLOCKED, f"not requested: cooling down after a block, {url}", url=url
+            )
         last_problem = "no response"
         for attempt in range(self._max_retries + 1):
             with self._pacer.turn() if self._pacer else nullcontext():
                 self._throttle()
                 try:
-                    resp = self._client.get(url)
+                    resp = self._client.get(url, follow_redirects=False)
                     transport_error = None
                 except httpx.TransportError as exc:
                     resp, transport_error = None, exc
@@ -136,7 +147,10 @@ class Fetcher:
             if status == 404:
                 raise IngestError(ErrorClass.NOT_FOUND, f"404 for {url}", url=url)
             if status == 403 or any(m in resp.content[:20000] for m in BLOCK_MARKERS):
+                self._blocked_until = self._clock() + BLOCKED_COOLDOWN_SECONDS
                 raise IngestError(ErrorClass.BLOCKED, f"blocked ({status}) for {url}", url=url)
+            if status in REDIRECT_STATUSES and "location" in resp.headers:
+                return self._follow(url, resp.headers["location"], expect, _hops)
             if status == 429 or status >= 500:
                 last_problem = f"HTTP {status}"
                 log.warning("fetch %s -> %s, attempt %d", url, status, attempt + 1)
@@ -150,6 +164,14 @@ class Fetcher:
                 raise IngestError(cls, f"expected {expect} but got {ctype!r} for {url}", url=url)
             return FetchResult(url, status, ctype, resp.content, self._now())
         raise IngestError(ErrorClass.NETWORK, f"gave up on {url}: {last_problem}", url=url)
+
+    def _follow(self, url: str, location: str, expect: tuple[str, ...], hops: int) -> FetchResult:
+        target = httpx.URL(url).join(location)
+        if target.host != httpx.URL(url).host:
+            raise IngestError(ErrorClass.UNEXPECTED, f"redirected off-site from {url}", url=url)
+        if hops >= MAX_REDIRECTS:
+            raise IngestError(ErrorClass.UNEXPECTED, f"too many redirects from {url}", url=url)
+        return self.get(str(target), expect=expect, _hops=hops + 1)
 
     def _backoff(self, attempt: int) -> None:
         if attempt < self._max_retries:
