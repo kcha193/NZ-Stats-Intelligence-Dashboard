@@ -1,0 +1,190 @@
+{
+ "series": {
+  "key": "mig.m.net",
+  "name": "Net migration (monthly estimate)",
+  "unit": "people",
+  "frequency": "monthly",
+  "adjustment": "none",
+  "category": "migration",
+  "definition": "Long-term migrant movements under Stats NZ's outcomes-based measure (a traveller is counted as a migrant if they spend 12 of the following 16 months in, or out of, New Zealand). Mean estimates, in people. Estimates for the most recent months are provisional and are revised as travel outcomes become known.",
+  "definition_id": "migration.outcomes_based_long_term",
+  "latest_period": "2026-07",
+  "n_vintages": 2
+ },
+ "coverage": {
+  "kind": "release_files",
+  "n_vintages": 2,
+  "earliest_release": "International migration: June 2026",
+  "note": "Vintages are the official data files published with each Stats NZ release: 2 stored, earliest International migration: June 2026. Revisions before that release cannot be observed."
+ },
+ "base": {
+  "release_key": "international-migration:june 2026",
+  "title": "International migration: June 2026",
+  "published_at": "2026-08-14T10:45:00+12:00",
+  "captured_at": "2026-10-11T16:00:00+13:00",
+  "source_kind": "release_files",
+  "layout_version": "migration-csv-v1",
+  "superseded": false
+ },
+ "compare": {
+  "release_key": "international-migration:july 2026",
+  "title": "International migration: July 2026",
+  "published_at": "2026-09-14T10:45:00+12:00",
+  "captured_at": "2026-10-11T16:00:00+13:00",
+  "source_kind": "release_files",
+  "layout_version": "migration-csv-v1",
+  "superseded": false
+ },
+ "source_url": "https://www.stats.govt.nz/information-releases/international-migration-july-2026/",
+ "n_common": 306,
+ "n_revised": 15,
+ "rows": [
+  {
+   "period": "2025-03",
+   "original": -418.0,
+   "revised": -419.0,
+   "absolute": -1.0,
+   "percent": null,
+   "original_status": "provisional",
+   "revised_status": "final"
+  },
+  {
+   "period": "2025-04",
+   "original": -1189.0,
+   "revised": -1222.0,
+   "absolute": -33.0,
+   "percent": null,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2025-06",
+   "original": 1247.0,
+   "revised": 1177.0,
+   "absolute": -70.0,
+   "percent": -5.613472333600641,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2025-07",
+   "original": 2400.0,
+   "revised": 2301.0,
+   "absolute": -99.0,
+   "percent": -4.125,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2025-08",
+   "original": 1633.0,
+   "revised": 1564.0,
+   "absolute": -69.0,
+   "percent": -4.225352112676056,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2025-09",
+   "original": 2502.0,
+   "revised": 2611.0,
+   "absolute": 109.0,
+   "percent": 4.356514788169465,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2025-10",
+   "original": 2240.0,
+   "revised": 2273.0,
+   "absolute": 33.0,
+   "percent": 1.4732142857142856,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2025-11",
+   "original": 679.0,
+   "revised": 642.0,
+   "absolute": -37.0,
+   "percent": -5.44918998527246,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2025-12",
+   "original": -596.0,
+   "revised": -552.0,
+   "absolute": 44.0,
+   "percent": null,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2026-01",
+   "original": 1630.0,
+   "revised": 1534.0,
+   "absolute": -96.0,
+   "percent": -5.889570552147239,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2026-02",
+   "original": 4364.0,
+   "revised": 4148.0,
+   "absolute": -216.0,
+   "percent": -4.949587534372136,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2026-03",
+   "original": 1298.0,
+   "revised": 1090.0,
+   "absolute": -208.0,
+   "percent": -16.024653312788907,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2026-04",
+   "original": -99.0,
+   "revised": 44.0,
+   "absolute": 143.0,
+   "percent": null,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2026-05",
+   "original": -33.0,
+   "revised": -507.0,
+   "absolute": -474.0,
+   "percent": null,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  },
+  {
+   "period": "2026-06",
+   "original": 1607.0,
+   "revised": 2331.0,
+   "absolute": 724.0,
+   "percent": 45.05289359054138,
+   "original_status": "provisional",
+   "revised_status": "provisional"
+  }
+ ],
+ "history": [
+  {
+   "release_key": "international-migration:july 2026",
+   "title": "International migration: July 2026",
+   "published_at": "2026-09-14T10:45:00+12:00",
+   "n_common": 306,
+   "n_revised": 15,
+   "mean_abs": 157.06666666666666,
+   "max_abs_period": "2026-06",
+   "max_abs": 724.0
+  }
+ ]
+}

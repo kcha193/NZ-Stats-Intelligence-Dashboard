@@ -1,0 +1,14 @@
+.git
+.worktrees
+**/node_modules
+**/.venv
+**/__pycache__
+data
+.env
+frontend/dist
+frontend/playwright-report
+docs
+.superpowers
+.ruff_cache
+.pytest_cache
+frontend/openapi.json

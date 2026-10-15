@@ -1,0 +1,21 @@
+services:
+  nzstats:
+    build: .
+    image: nzstats:local
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: Pacific/Auckland
+      # Pinned here so an `.env` copied from .env.example (NZSTATS_DATA_DIR=./data) cannot move the database off the volume.
+      NZSTATS_DATA_DIR: /data
+      NZSTATS_CONTACT: ${NZSTATS_CONTACT:-}
+      NZSTATS_MIN_INTERVAL_SECONDS: ${NZSTATS_MIN_INTERVAL_SECONDS:-10}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/data
+    # ./data must be writable by this user: `mkdir -p data && sudo chown 10001:10001 data` (see README).
+    # On a Synology NAS set NZSTATS_UID/NZSTATS_GID in .env to the owner of ./data (see `id`).
+    user: "${NZSTATS_UID:-10001}:${NZSTATS_GID:-10001}"

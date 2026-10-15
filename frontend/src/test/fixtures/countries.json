@@ -1,0 +1,252 @@
+{
+ "provenance": {
+  "release_key": "international-migration:july 2026",
+  "title": "International migration: July 2026",
+  "published_at": "2026-09-14T10:45:00+12:00",
+  "source_url": "https://www.stats.govt.nz/information-releases/international-migration-july-2026/",
+  "captured_at": "2026-10-11T16:00:00+13:00",
+  "bundle_sha256": "69a392dc3ae6f985ff3e10f6b07129240b733ee058071305657935df6890629b"
+ },
+ "available": true,
+ "months": 12,
+ "period_start": "2025-08",
+ "period_end": "2026-07",
+ "total": 134434.0,
+ "countries": [
+  {
+   "name": "Australia",
+   "series_key": "mig.m.arrivals.country.australia",
+   "value": 16244.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 12.083252748560632,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "China, People's Republic of",
+   "series_key": "mig.m.arrivals.country.china-peoples-republic-of",
+   "value": 16058.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 11.944894892661083,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "India",
+   "series_key": "mig.m.arrivals.country.india",
+   "value": 14202.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 10.564291771426872,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Philippines",
+   "series_key": "mig.m.arrivals.country.philippines",
+   "value": 9010.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 6.702173557284616,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "United Kingdom",
+   "series_key": "mig.m.arrivals.country.united-kingdom",
+   "value": 5699.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 4.239254950384575,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "United States of America",
+   "series_key": "mig.m.arrivals.country.united-states-of-america",
+   "value": 5399.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 4.016097118288528,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Sri Lanka",
+   "series_key": "mig.m.arrivals.country.sri-lanka",
+   "value": 3596.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 2.6749185473912847,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Fiji",
+   "series_key": "mig.m.arrivals.country.fiji",
+   "value": 2399.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.784518797328057,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Japan",
+   "series_key": "mig.m.arrivals.country.japan",
+   "value": 2294.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.7064135560944402,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Samoa",
+   "series_key": "mig.m.arrivals.country.samoa",
+   "value": 2287.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.7012065400121994,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Bangladesh",
+   "series_key": "mig.m.arrivals.country.bangladesh",
+   "value": 2268.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.6870732106461162,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Korea, Republic of",
+   "series_key": "mig.m.arrivals.country.korea-republic-of",
+   "value": 1955.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.4542452058259072,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Canada",
+   "series_key": "mig.m.arrivals.country.canada",
+   "value": 1898.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.4118452177276581,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Nepal",
+   "series_key": "mig.m.arrivals.country.nepal",
+   "value": 1807.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.344154008658524,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "South Africa",
+   "series_key": "mig.m.arrivals.country.south-africa",
+   "value": 1692.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 1.2586101730217059,
+   "provisional": true,
+   "prior_provisional": null
+  }
+ ],
+ "regions": [
+  {
+   "name": "Asia",
+   "series_key": "mig.m.arrivals.region.asia",
+   "value": 62000.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 46.119285299849736,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Oceania and Antarctica",
+   "series_key": "mig.m.arrivals.region.oceania-and-antarctica",
+   "value": 24047.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 17.887587961378816,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Europe",
+   "series_key": "mig.m.arrivals.region.europe",
+   "value": 13032.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 9.693976226252287,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "The Americas",
+   "series_key": "mig.m.arrivals.region.the-americas",
+   "value": 9952.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 7.402889150066204,
+   "provisional": true,
+   "prior_provisional": null
+  },
+  {
+   "name": "Africa and the Middle East",
+   "series_key": "mig.m.arrivals.region.africa-and-the-middle-east",
+   "value": 6484.0,
+   "prior_value": null,
+   "change": null,
+   "change_percent": null,
+   "share_percent": 4.823184611035899,
+   "provisional": true,
+   "prior_provisional": null
+  }
+ ],
+ "unallocated": {
+  "name": "Not Stated",
+  "series_key": "mig.m.arrivals.country.not-stated",
+  "value": 18923.0,
+  "prior_value": null,
+  "change": null,
+  "change_percent": null,
+  "share_percent": 14.076052189178334,
+  "provisional": true,
+  "prior_provisional": null
+ },
+ "derived": true,
+ "note": "Derived: Stats NZ's published monthly estimates summed over the window. Months absent from the source are treated as zero. Regions and 'Not Stated' are not ranked as countries."
+}

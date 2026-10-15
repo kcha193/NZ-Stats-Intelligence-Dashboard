@@ -1,0 +1,56 @@
+{
+ "generated_at": "2026-10-11T16:00:00+13:00",
+ "database_ok": true,
+ "sources": [
+  {
+   "source": "calendar_ics",
+   "state": "ok",
+   "last_checked_at": "2026-10-11T16:00:00+13:00",
+   "last_success_at": "2026-10-11T16:00:00+13:00",
+   "detail": null
+  },
+  {
+   "source": "calendar_month",
+   "state": "ok",
+   "last_checked_at": "2026-10-11T16:00:00+13:00",
+   "last_success_at": "2026-10-11T16:00:00+13:00",
+   "detail": null
+  },
+  {
+   "source": "calendar_refresh",
+   "state": "ok",
+   "last_checked_at": "2026-10-11T16:00:00+13:00",
+   "last_success_at": "2026-10-11T16:00:00+13:00",
+   "detail": null
+  },
+  {
+   "source": "release:international-migration",
+   "state": "ok",
+   "last_checked_at": "2026-10-11T16:00:00+13:00",
+   "last_success_at": "2026-10-11T16:00:00+13:00",
+   "detail": null
+  }
+ ],
+ "recent_runs": [
+  {
+   "release_key": "international-migration:july 2026",
+   "started_at": "2026-10-11T16:00:00+13:00",
+   "outcome": "ingested",
+   "error_class": null,
+   "detail": null
+  },
+  {
+   "release_key": "international-migration:june 2026",
+   "started_at": "2026-10-11T16:00:00+13:00",
+   "outcome": "ingested",
+   "error_class": null,
+   "detail": null
+  }
+ ],
+ "release_counts": {
+  "published": 10,
+  "scheduled": 12
+ },
+ "series_count": 249,
+ "vintage_count": 493
+}

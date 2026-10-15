@@ -1,0 +1,196 @@
+{
+ "items": {
+  "published": [
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8359",
+     "Date": null,
+     "DisplayName": "Building consents issued: August 2026",
+     "DateFormat": "Y",
+     "DateString": "1 October 2026",
+     "PublicationDate": "2026-10-01 10:45:00"
+    },
+    "ID": "80621",
+    "Title": "Building consents issued: August 2026",
+    "BackgroundColor": "white",
+    "FeaturedText": "<p>Building consent statistics are about the number, floor area, and value of new homes, non-residential buildings, and alterations approved for construction.</p>",
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/information-releases/building-consents-issued-august-2026/",
+    "PageDate": "2026-10-01 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "The seasonally adjusted number of new dwellings consented rose 5.6 percent in August 2026, after falling 4.5 percent in July 2026.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Information releases",
+      "MenuTitle": "Information releases",
+      "Link": "/information-releases/"
+     },
+     {
+      "Title": "Building consents issued: August 2026",
+      "MenuTitle": "Building consents issued: August 2026",
+      "Link": "/information-releases/building-consents-issued-august-2026/"
+     }
+    ],
+    "SiteBanner": []
+   },
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8510",
+     "Date": null,
+     "DisplayName": "Atmospheric ozone: Data to 2025",
+     "DateFormat": "F Y",
+     "DateString": "2 October 2026",
+     "PublicationDate": "2026-10-02 10:45:00"
+    },
+    "ID": "80620",
+    "Title": "Atmospheric ozone: Data to 2025",
+    "BackgroundColor": "white",
+    "FeaturedText": null,
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/indicators/atmospheric-ozone-data-to-2025/",
+    "PageDate": "2026-10-02 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "At Lauder, in Otago, the modelled trend in annual ozone layer thickness very likely decreased between 1979 and 1997 and likely increased between 2008 and 2025.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Indicators",
+      "MenuTitle": "Indicators",
+      "Link": "/indicators/"
+     },
+     {
+      "Title": "Atmospheric ozone: Data to 2025",
+      "MenuTitle": "Atmospheric ozone: Data to 2025",
+      "Link": "/indicators/atmospheric-ozone-data-to-2025/"
+     }
+    ],
+    "SiteBanner": []
+   },
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8511",
+     "Date": null,
+     "DisplayName": "Drought and wet periods: Data to 2025",
+     "DateFormat": "F Y",
+     "DateString": "2 October 2026",
+     "PublicationDate": "2026-10-02 10:45:00"
+    },
+    "ID": "80633",
+    "Title": "Drought and wet periods: Data to 2025",
+    "BackgroundColor": "white",
+    "FeaturedText": null,
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/indicators/drought-and-wet-periods-data-to-2025/",
+    "PageDate": "2026-10-02 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "Of 30 New Zealand sites, 20 (67 percent) had extreme dryness between 2016 and 2025.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Indicators",
+      "MenuTitle": "Indicators",
+      "Link": "/indicators/"
+     },
+     {
+      "Title": "Drought and wet periods: Data to 2025",
+      "MenuTitle": "Drought and wet periods: Data to 2025",
+      "Link": "/indicators/drought-and-wet-periods-data-to-2025/"
+     }
+    ],
+    "SiteBanner": []
+   },
+   {
+    "DateTaxonomyTerm": {
+     "ID": "8512",
+     "Date": null,
+     "DisplayName": "El Ni\u00f1o Southern Oscillation: Data to 2025",
+     "DateFormat": "F Y",
+     "DateString": "2 October 2026",
+     "PublicationDate": "2026-10-02 10:45:00"
+    },
+    "ID": "80637",
+    "Title": "El Ni\u00f1o Southern Oscillation: Data to 2025",
+    "BackgroundColor": "white",
+    "FeaturedText": null,
+    "IsPublishing": false,
+    "MediaPosition": "",
+    "PageLayout": "info",
+    "PageLink": "/indicators/el-nino-southern-oscillation-data-to-2025/",
+    "PageDate": "2026-10-02 10:45:00",
+    "TagPosition": "bottom",
+    "MetaDescription": "The most recent La Ni\u00f1a phase of the Southern Oscillation Index (SOI) was from April 2022 to February 2023 and the most recent El Ni\u00f1o phase was from July 2015 to April 2016.",
+    "PageBreadcrumbs": [
+     {
+      "Title": "Home",
+      "MenuTitle": "Home",
+      "Link": "/"
+     },
+     {
+      "Title": "Indicators",
+      "MenuTitle": "Indicators",
+      "Link": "/indicators/"
+     },
+     {
+      "Title": "El Ni\u00f1o Southern Oscillation: Data to 2025",
+      "MenuTitle": "El Ni\u00f1o Southern Oscillation: Data to 2025",
+      "Link": "/indicators/el-nino-southern-oscillation-data-to-2025/"
+     }
+    ],
+    "SiteBanner": []
+   }
+  ],
+  "upcoming": [
+   {
+    "ID": 8364,
+    "Date": null,
+    "DisplayName": "International migration: August 2026",
+    "DateFormat": "F Y",
+    "DateString": "14 October 2026",
+    "PublicationDate": "2026-10-14 10:45:00"
+   },
+   {
+    "ID": 8365,
+    "Date": null,
+    "DisplayName": "International travel: August 2026",
+    "DateFormat": "F Y",
+    "DateString": "14 October 2026",
+    "PublicationDate": "2026-10-14 10:45:00"
+   },
+   {
+    "ID": 8366,
+    "Date": null,
+    "DisplayName": "Electronic card transactions: September 2026",
+    "DateFormat": "F Y",
+    "DateString": "16 October 2026",
+    "PublicationDate": "2026-10-16 10:45:00"
+   },
+   {
+    "ID": 8367,
+    "Date": null,
+    "DisplayName": "Selected price indexes: September 2026",
+    "DateFormat": "F Y",
+    "DateString": "16 October 2026",
+    "PublicationDate": "2026-10-16 10:45:00"
+   }
+  ]
+ }
+}
