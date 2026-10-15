@@ -6,6 +6,7 @@ import pytest
 
 from nzstats.adapters.migration import series as S
 from nzstats.domain import Observation, ObsStatus
+from nzstats.stats.periods import add_months, month_range
 from nzstats.validate.rules import CITIZENSHIP_TOLERANCE, ROLLING_TOLERANCE
 from tests.validate.test_rules import PERIODS, _ps, _rules, good_bundle, run
 
@@ -79,9 +80,14 @@ def test_published_periods_without_monthly_history_are_not_false_positives() -> 
     # The monthly series starts 2024-08, so year-ended 2024-12 has no complete window: it cannot be
     # checked, whatever its value, and must not be reported.
     ps = _series(good_bundle(), "mig.ry.arrivals")
-    early = Observation("mig.ry.arrivals", "2024-12", 123.0, ObsStatus.FINAL)
+    first = ps.observations[0].period
+    # Contiguous with the rest, as the real chart is: a stray point would be a gap, which is rejected.
+    early = tuple(
+        Observation("mig.ry.arrivals", p, 123.0, ObsStatus.FINAL)
+        for p in month_range("2024-12", add_months(first, -1))
+    )
     bundle = good_bundle(
-        **{"mig.ry.arrivals": dataclasses.replace(ps, observations=(early, *ps.observations))}
+        **{"mig.ry.arrivals": dataclasses.replace(ps, observations=(*early, *ps.observations))}
     )
     assert _rules(run(bundle)) == set()
 

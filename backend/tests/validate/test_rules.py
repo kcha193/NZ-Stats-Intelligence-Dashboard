@@ -172,3 +172,29 @@ def test_overlong_provisional_window_is_only_a_warning() -> None:
     findings = run(prov)
     assert "provisional_window" in _rules(findings, "warning")
     assert "provisional_window" not in _rules(findings, "error")
+
+
+# --- PR #1 review (PRRT_kwDOVEW9cs6st5Jz, PRRT_kwDOVEW9cs6st5J7) ---------------------------------------
+
+
+def test_a_bundle_with_no_country_observations_is_rejected() -> None:
+    # A layout change that renames every TOTAL place row leaves the citizenship totals parseable but
+    # yields no country series; accepting it would replace last-known-good country data with nothing.
+    b = good_bundle()
+    b = dataclasses.replace(
+        b,
+        series=tuple(p for p in b.series if p.definition.category != "migration:country"),
+    )
+    assert "country_missing" in _rules(run(b))
+
+
+def test_a_gap_inside_a_year_ended_series_is_rejected() -> None:
+    # A blank cell drops that month from the published series; the rolling check only looks at months
+    # that remain, so the lost month (still derivable from the monthly data) must be caught here.
+    b = good_bundle()
+    arrivals = next(p for p in b.series if p.definition.key == "mig.ry.arrivals")
+    kept = {o.period: o.value for o in arrivals.observations if o.period != PERIODS[16]}
+    b = good_bundle(**{"mig.ry.arrivals": _ps(S.rolling_def("arrivals"), kept)})
+    findings = run(b)
+    assert "continuity" in _rules(findings)
+    assert any("mig.ry.arrivals" in f.message for f in findings if f.rule == "continuity")

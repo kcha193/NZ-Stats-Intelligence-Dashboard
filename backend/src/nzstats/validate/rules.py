@@ -109,6 +109,12 @@ def validate_migration(
                 "latest_period", f"{key}: latest month {periods[-1]} != release {reference_period}"
             )
     for key in ROLLING:
+        # A blank cell in the chart drops that year-ended month from the published series, and the
+        # rolling check below only compares months that remain, so a lost month needs its own check.
+        periods = sorted(values[key])
+        if periods and len(month_range(periods[0], periods[-1])) != len(periods):
+            missing = sorted(set(month_range(periods[0], periods[-1])) - set(periods))
+            error("continuity", f"{key}: missing months, e.g. {missing[:3]}")
         if values[key] and reference_period and max(values[key]) != reference_period:
             error(
                 "latest_period",
@@ -236,14 +242,17 @@ def _reconcile_places(by_key, values, error) -> None:
         for k, ps in by_key.items()
         if ps.definition.category in ("migration:country", "migration:unallocated")
     ]
-    if not place_keys:
-        return
     country_firsts = [
         min(values[k])
         for k, ps in by_key.items()
         if ps.definition.category == "migration:country" and values[k]
     ]
-    first = min(country_firsts) if country_firsts else latest
+    if not country_firsts:
+        # The country file is a required download, so a bundle without any country observation means
+        # the layout changed; accepting it would replace last-known-good country data with nothing.
+        error("country_missing", "the bundle contains no country observations")
+        return
+    first = min(country_firsts)
     absent: list[str] = []
     off: list[str] = []
     for period in month_range(first, latest):
