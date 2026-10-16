@@ -2,7 +2,8 @@
 
 Scope: remediate findings F01–F10 from the independent Phase 1 audit, against baseline
 `9deca776d69df30ec064fbaea2d9ec19a593d694`. Work is grouped into four logical batches below.
-This record covers local evidence; remote CI results must be read from the new pull request.
+This record covers local evidence and the successful implementation CI run for
+[PR #2](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/2).
 No merge, deployment or Phase 2 implementation is authorised by this record.
 
 ## 1. Findings F01–F10 resolution matrix
@@ -112,7 +113,15 @@ rather than counted as failed tests.
 | Repository | `bash -n scripts/smoke_docker.sh`, `git diff --check`, `docker-compose config --quiet` | Passed. |
 | Repository | `PYTHONPATH=backend/src python "$AUDIT_DIR/reconcile.py"` (preceding audit's local cached-source replay) | Passed; results in §4. The cached audit workspace is local and is not required by CI. |
 | Repository | `nzstats serve --no-scheduler` and `nzstats backup <temporary-destination>` against an isolated temporary database | Live API online-backup consistency and sentinel preservation passed; no source requests. |
-| Repository / CI | `docker build -t nzstats:ci .` then `bash scripts/smoke_docker.sh nzstats:ci` | Local Docker daemon unavailable. New PR's CI is authoritative; result pending. |
+| Repository / CI | `docker build -t nzstats:ci .` then `bash scripts/smoke_docker.sh nzstats:ci` | **Passed in Linux CI**: image build, health, named-volume restart/recreation, scheduler startup and online backup. Local daemon unavailable. |
+
+The [implementation CI run](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/38833986960)
+passed all three jobs (**backend, frontend, docker**) for implementation commit
+`4f68ec217b6d2227e0f0d5ee528c70d73263fa47`. It independently ran the full backend/frontend/browser
+checks and the offline Docker smoke, including the online backup integrity and persistence sentinel.
+This report update records that completed run; check [PR #2's checks](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/2/checks)
+for subsequent commits. CI also emits existing action-runtime deprecation and upcoming runner-image
+migration notices; these did not fail any job.
 
 Browser regressions include freshness wording, explicit standard errors, full calendar details and
 focus restoration, and distinct same-publication corrections with missing values rendered as missing.
@@ -129,7 +138,8 @@ check. A passing workflow proves those exercised cases; it cannot prove an unatt
 ## 6. Remaining deployment verification gaps
 
 - Local container execution could not run because the Docker daemon is absent. Compose configuration
-  and script syntax passed. The new PR must pass its Docker job before merge consideration.
+  and script syntax passed, and Linux CI passed the offline Docker smoke. The actual production host
+  remains a separate verification environment.
 - Production host bind-mount ownership, service deployment and restart with the actual host's data
   remain unverified. CI exercises a named volume under the image's normal user.
 - An entire unattended scheduled publication has not been observed. No source requests were issued
@@ -153,8 +163,9 @@ check. A passing workflow proves those exercised cases; it cannot prove an unatt
 
 ## 8. Final recommendation for independent verification
 
-Open this remediation as a **new PR**, review its diff and require the complete CI workflow to pass.
-Do not merge or deploy as part of this task. Once the PR is available, request a **fresh independent
-Codex audit** of the remediation and its statistical/deployment evidence, with particular attention to
+[PR #2](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/2) is open and its implementation
+CI passed. Review its diff and require passing checks for its latest head before merge consideration.
+Do not merge or deploy as part of this task. Request a **fresh independent Codex audit** of the
+remediation and its statistical/deployment evidence, with particular attention to
 invalid-source rollback, legacy-vintage compatibility and durable pacing failure modes. Stop before
 Phase 2; its design and implementation remain outside this remediation.
