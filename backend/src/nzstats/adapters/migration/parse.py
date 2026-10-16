@@ -175,6 +175,8 @@ def parse_wide_chart(csv_text: str, mapping: Mapping[str, SeriesDef]) -> list[Pa
     if len(rows) < 2:
         raise _layout("chart csv has no data rows")
     periods = [_chart_period(h) for h in rows[0][1:]]
+    if len(periods) != len(set(periods)):
+        raise _layout("chart has duplicate reference periods")
     found: dict[str, ParsedSeries] = {}
     for row in rows[1:]:
         if not row:
@@ -182,6 +184,10 @@ def parse_wide_chart(csv_text: str, mapping: Mapping[str, SeriesDef]) -> list[Pa
         definition = mapping.get(row[0].strip())
         if definition is None:
             continue
+        if row[0].strip() in found:
+            raise _layout("chart has duplicate series labels")
+        if len(row) != len(periods) + 1:
+            raise _layout("chart row length differs from its reference-period header")
         observations = []
         for period, cell in zip(periods, row[1:], strict=False):
             cell = cell.strip()

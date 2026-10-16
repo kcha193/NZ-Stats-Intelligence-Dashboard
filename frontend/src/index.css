@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "./vendor/shadcn-variants.css";
 @import "@fontsource-variable/ibm-plex-sans";
 
 @custom-variant dark (@media (prefers-color-scheme: dark));

@@ -30,23 +30,35 @@ the window the release shows as unavailable (or stays scheduled if an attempt fa
 catch-up job (07:30) and `nzstats ingest --due` retry either once a day.
 
 **Re-run a release.** `docker compose exec nzstats nzstats ingest --release-key "international-migration:august 2026"`.
-This downloads the release page and its files again (three requests, 10 s apart). If the files and the
-charts embedded in the page are identical to a stored vintage the run reports `unchanged` and adds nothing, so it is
-safe to repeat. If Stats NZ republished corrected files, or corrected a chart on the release page, the run stores a new
+This downloads the release page and its files again (three requests, 10 s apart). If the parsed statistical
+data is identical to a stored vintage the run reports `unchanged` and adds nothing, so it is safe to repeat. If Stats NZ changes the statistical data in its files or embedded charts, the run stores a new
 vintage and the release status becomes `corrected`.
 
-**Reprocess after a parser fix (limitation).** Phase 1 has no re-parse command. Downloaded files are kept in
-`data/raw/`, but ingest decides "unchanged" from the hashes of the files and the page's embedded chart data, so a
-fixed parser will not re-process a release whose inputs were already stored. Workaround: stop the server, take a backup
-(`scripts/backup.sh`), delete that release's rows from `vintage` (and their `observation` rows) with
-`sqlite3 data/nzstats.db`, then run the ingest command above. A proper `--reparse` option is listed as
-remaining work in [progress.md](progress.md).
+**Reprocess after a parser fix.** Deploy the fixed parser, take an online backup while the service is
+running (`scripts/backup.sh`), then run the ingest command above. Every ingest parses and validates the
+downloaded inputs before comparing the canonical statistical data with stored vintages. A parser fix that
+changes observations creates a new vintage while preserving earlier vintages; identical statistical data
+reports `unchanged`. Do not delete vintage or observation rows to force reprocessing. This command downloads
+the release page and files again; it does not reparse the saved raw artifacts offline.
 
 **"database is locked".** SQLite allows one writer at a time. Running `docker compose exec nzstats nzstats
 discover` beside the server is supported: network requests from every process sharing `data/` are serialised and
 kept at least 10 s apart through a lock file (`data/.request-pace`), and a writer waits for the other. A block (403 or challenge page) in either process also pauses requests from both
-for 30 minutes; the deadline lives in the same file, and deleting `data/.request-pace` ends the pause early. Avoid
+for 30 minutes; the deadline lives in the same file. Do not delete or replace this journal while any
+server or CLI process is running, because its inode carries the shared lock. Avoid
 pointing a second container at the same `data/` directory.
+
+**Shared pacing storage is unavailable.** No HTTP request is sent unless a durable reservation can be
+written to `data/.request-pace`. Restore free space and write permissions, then retry. An unfinished or
+damaged record causes one fixed 30-minute recovery cooldown after storage becomes writable. The journal
+is append-only and reads are bounded to its latest 64 KiB; retain it across restarts. A server
+`Retry-After` deadline is shared across processes; long waits return promptly and defer later requests.
+If a received deadline could not be persisted, recovery cannot reconstruct it and uses the 30-minute
+fallback instead. No failed refresh replaces the last-known-good statistical bundle.
+
+**Concurrent database startup.** Initialisation and migrations use `data/nzstats.db.schema-lock` in
+addition to SQLite's transaction locks. Keep this sidecar in the writable data directory; a process
+exit releases the operating-system lock automatically. Existing database migrations remain atomic.
 
 **Wrong times.** Timestamps are stored in UTC and shown in Pacific/Auckland. The container sets
 `TZ=Pacific/Auckland`; if times are off by hours, check that `TZ` was not overridden in `.env`.

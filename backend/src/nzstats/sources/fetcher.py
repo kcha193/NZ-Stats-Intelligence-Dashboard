@@ -12,7 +12,8 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import NoReturn
 
@@ -50,51 +51,66 @@ def build_client(user_agent: str) -> httpx.Client:
 
 
 class PaceTurn:
-    """What a caller holding the cross-process lock may see and change: the shared cooldown."""
+    """Shared deadlines visible while the cross-process request lock is held."""
 
-    def __init__(self, blocked_until: float | None, wall: Callable[[], float]) -> None:
-        # Wall-clock deadline (epoch seconds) of the cooldown in force when the turn began, else None.
+    def __init__(
+        self,
+        blocked_until: float | None,
+        wall: Callable[[], float],
+        retry_until: float | None = None,
+    ) -> None:
         self.blocked_until = blocked_until
+        self.retry_until = retry_until
+        self.persistence_failed = False
         self._wall = wall
 
+    @property
+    def retry_wait(self) -> float:
+        return max(0.0, self.retry_until - self._wall()) if self.retry_until else 0.0
+
     def block(self, seconds: float) -> None:
-        """Start a cooldown that every process sharing the state file will observe.
-
-        Published while the lock is still held, so no other process can send a request between the
-        block being seen and the cooldown being visible. A longer cooldown is never shortened.
-        """
         until = self._wall() + seconds
-        self.blocked_until = until if self.blocked_until is None else max(self.blocked_until, until)
+        self.blocked_until = max(self.blocked_until or until, until)
+
+    def retry_after(self, seconds: float) -> None:
+        until = self._wall() + seconds
+        self.retry_until = max(self.retry_until or until, until)
 
 
-# A number must be followed by `,` or `}`: a value cut off mid-digits is unreadable, not a different time.
 _STATE_FIELD = re.compile(r'"(last|blocked_until)"\s*:\s*([-+0-9.eE]+)\s*[,}]')
-_STATE_MAX_BYTES = 4096
+_STATE_MAX_BYTES = 64 * 1024
+MAX_INLINE_RETRY_SECONDS = 60.0
 
 
 def _finite(text: str) -> float | None:
     try:
         value = float(text)
-    except ValueError:
+    except (TypeError, ValueError, OverflowError):
         return None
     return value if math.isfinite(value) else None
 
 
+@dataclass(frozen=True)
+class _PaceState:
+    last: float | None = None
+    blocked_until: float | None = None
+    retry_until: float | None = None
+    pending: bool = False
+
+
 class FilePacer:
-    """Keeps requests at least `min_interval` apart, and shares a block cooldown, across *processes*.
+    """Serialise HTTP across processes, with a durable reservation before every request.
 
-    The server's scheduler and a `nzstats discover` run via `docker compose exec` are separate
-    processes with separate in-memory state. This holds an exclusive `flock` for the duration of
-    each request and keeps, in the same file, the wall-clock time the last one finished and the
-    deadline of any block cooldown, so the crawl delay and the stop-after-a-block rule hold for the
-    processes together. One lock over one file is what makes "check the cooldown, send, publish a
-    block" atomic. POSIX only (the supported targets are Linux, Synology and macOS).
+    The flock stays on the same inode throughout. Compact JSON journal records are appended and
+    fsynced; incomplete writes cannot overwrite an earlier durable reservation. Reads inspect only
+    the last 64 KiB. A pending reservation means a process died or could not save its result: the
+    next healthy writer durably replaces it with one fixed 30-minute recovery cooldown. Nonempty
+    unrecoverable state gets the same treatment. Persistent storage errors refuse all requests;
+    after storage recovers the fixed cooldown expires normally, without sliding on every read.
 
-    State is JSON, `{"last": <epoch>, "blocked_until": <epoch>}`; a bare timestamp (the earlier
-    format) still reads as `last`. Unreadable state is treated as no history, except that a
-    `blocked_until` that can still be read is honoured, and a deadline further out than one
-    cooldown is capped (it can only come from damage or a clock step). If the state cannot be
-    written, the error is logged and the caller carries on with its own in-process cooldown only.
+    Legacy bare timestamps and JSON objects remain readable. The journal is never replaced or
+    compacted while other processes could hold its inode. Retry-After has its own shared deadline;
+    waits over 60 seconds are returned to the caller instead of occupying a worker.
     """
 
     def __init__(
@@ -110,65 +126,168 @@ class FilePacer:
         self._sleep = sleep
         self._wall = wall
 
+    @staticmethod
+    def _storage_refusal() -> NoReturn:
+        raise RequestRefused(
+            ErrorClass.NETWORK, "not requested: shared pacing state is unavailable"
+        )
+
+    def _required_save(self, fd: int, state: _PaceState) -> None:
+        try:
+            self._save(fd, state)
+        except OSError:
+            log.exception("could not reserve request pacing state in %s", self._path)
+            self._storage_refusal()
+
     @contextmanager
     def turn(self) -> Iterator[PaceTurn]:
-        """Wait for the lock, then for the crawl delay unless a cooldown is in force (it is not used up)."""
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        # Raw descriptor, no buffering: a failed write cannot resurface as an error when it is closed.
-        fd = os.open(self._path, os.O_RDWR | os.O_CREAT, 0o666)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(self._path, os.O_RDWR | os.O_CREAT, 0o666)
+        except OSError:
+            log.exception("could not open request pacing state in %s", self._path)
+            self._storage_refusal()
+        try:
             try:
-                last, stored = self._load(fd)
-                now = self._wall()
-                blocked_until = stored
-                if blocked_until is not None and blocked_until <= now:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                # A file fsync alone cannot make a newly created directory entry durable. Sync
+                # every turn so a later healthy process also repairs a previous directory-sync failure.
+                directory_fd = os.open(self._path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                state, damaged = self._load(fd)
+            except OSError:
+                log.exception("could not read request pacing state in %s", self._path)
+                self._storage_refusal()
+            now = self._wall()
+            blocked_until = state.blocked_until
+            if damaged or state.pending:
+                blocked_until = max(blocked_until or now, now + BLOCKED_COOLDOWN_SECONDS)
+            if blocked_until is not None:
+                blocked_until = min(blocked_until, now + BLOCKED_COOLDOWN_SECONDS)
+                if blocked_until <= now:
                     blocked_until = None
-                elif blocked_until is not None:
-                    # The cap is written back below, or it would slide forward with `now` forever.
-                    blocked_until = min(blocked_until, now + BLOCKED_COOLDOWN_SECONDS)
-                turn = PaceTurn(blocked_until, self._wall)
-                if blocked_until is None and last is not None:
-                    # Capped, so a `last` in the future (clock stepped back) cannot stall the lock.
-                    wait = min(self._min_interval - (now - last), self._min_interval)
-                    if wait > 0:
-                        self._sleep(wait)
+            recovered = _PaceState(state.last, blocked_until, state.retry_until)
+            if damaged or state.pending or recovered != state:
+                self._required_save(fd, recovered)
+            turn = PaceTurn(blocked_until, self._wall, state.retry_until)
+            if blocked_until is not None or turn.retry_wait > MAX_INLINE_RETRY_SECONDS:
+                # Refusals consume no crawl slot and never wait out a site-wide cooldown.
                 try:
                     yield turn
                 finally:
-                    sent = blocked_until is None
-                    if sent or turn.blocked_until != stored:
-                        state = {"last": self._wall() if sent else last}
-                        if turn.blocked_until is not None and turn.blocked_until > self._wall():
-                            state["blocked_until"] = turn.blocked_until
-                        try:
-                            self._save(fd, state)
-                        except OSError:
-                            log.exception("could not save request pacing state to %s", self._path)
+                    if turn.blocked_until != blocked_until:
+                        self._required_save(
+                            fd, _PaceState(state.last, turn.blocked_until, turn.retry_until)
+                        )
+                return
+            if turn.retry_wait:
+                self._sleep(turn.retry_wait)
+            if state.last is not None:
+                wait = min(self._min_interval - (self._wall() - state.last), self._min_interval)
+                if wait > 0:
+                    self._sleep(wait)
+            self._required_save(fd, _PaceState(state.last, pending=True))
+            try:
+                yield turn
             finally:
-                fcntl.flock(fd, fcntl.LOCK_UN)
+                try:
+                    self._save(fd, _PaceState(self._wall(), turn.blocked_until, turn.retry_until))
+                except OSError:
+                    # The durable pending record survives. Another process must recover it into a
+                    # cooldown before sending; this process also reports the persistence failure.
+                    turn.persistence_failed = True
+                    log.exception("could not save request pacing result in %s", self._path)
         finally:
-            os.close(fd)
+            os.close(fd)  # closing the descriptor also releases flock
 
-    def _load(self, fd: int) -> tuple[float | None, float | None]:
-        # Bytes decoded leniently: damage that is not valid UTF-8 must read as "unreadable", not raise.
-        text = os.pread(fd, _STATE_MAX_BYTES, 0).decode("utf-8", errors="replace").strip()
-        if not text:
-            return None, None
+    def _load(self, fd: int) -> tuple[_PaceState, bool]:
+        size = os.fstat(fd).st_size
+        if size == 0:
+            return _PaceState(), False
+        start = max(0, size - _STATE_MAX_BYTES)
+        raw = os.pread(fd, _STATE_MAX_BYTES, start)
+        # A journal record is authoritative only when its entire JSON and terminating newline exist.
+        damaged_newer = False
+        for line in reversed(raw.splitlines(keepends=True)):
+            if not line.strip():
+                continue  # separators carry no state and cannot indicate lost request information
+            if not line.endswith(b"\n"):
+                damaged_newer = True
+                continue
+            try:
+                data = json.loads(line)
+                if (
+                    not isinstance(data, dict)
+                    or type(data.get("version")) is not int
+                    or data["version"] != 1
+                ):
+                    raise ValueError("invalid pacing journal record")
+                if not {"last", "blocked_until", "retry_until", "pending"} <= data.keys():
+                    raise ValueError("invalid pacing journal record")
+                fields = [data[k] for k in ("last", "blocked_until", "retry_until")]
+                if any(
+                    v is not None and (type(v) not in (int, float) or _finite(v) is None)
+                    for v in fields
+                ):
+                    raise ValueError("invalid pacing journal record")
+                if not isinstance(data.get("pending"), bool):
+                    raise ValueError("invalid pacing journal record")
+                return _PaceState(
+                    *[float(v) if v is not None else None for v in fields], pending=data["pending"]
+                ), damaged_newer
+            except (UnicodeDecodeError, ValueError):
+                # A newer result may have carried a cooldown. An older completed record alone
+                # cannot prove it is safe to send; recover with a fixed cooldown in that case.
+                damaged_newer = True
+                continue
+        text = raw.decode("utf-8", errors="replace").strip()
         legacy = _finite(text)
-        if legacy is not None:
-            return legacy, None
+        if start == 0 and legacy is not None:
+            return _PaceState(last=legacy), False
+        if start == 0:
+            try:
+                data = json.loads(text)
+                if isinstance(data, dict) and "last" in data and "version" not in data:
+                    fields = [data.get(k) for k in ("last", "blocked_until")]
+                    if all(
+                        v is None or (type(v) in (int, float) and _finite(v) is not None)
+                        for v in fields
+                    ):
+                        return _PaceState(*fields), False
+            except (UnicodeDecodeError, ValueError):
+                pass
         found = {name: _finite(value) for name, value in _STATE_FIELD.findall(text)}
-        if not found:
-            log.warning("unreadable request pacing state in %s; starting fresh", self._path)
-        return found.get("last"), found.get("blocked_until")
+        log.warning("damaged request pacing state in %s; recovering with a cooldown", self._path)
+        return _PaceState(found.get("last"), found.get("blocked_until")), True
 
     @staticmethod
-    def _save(fd: int, state: dict[str, float | None]) -> None:
-        # Overwrite then shorten, never empty-then-write: a crash in between must not lose a cooldown.
-        data = json.dumps(state).encode()
-        os.pwrite(fd, data, 0)
-        os.ftruncate(fd, len(data))
+    def _save(fd: int, state: _PaceState) -> None:
+        data = (
+            b"\n"
+            + json.dumps(
+                {
+                    "version": 1,
+                    "last": state.last,
+                    "blocked_until": state.blocked_until,
+                    "retry_until": state.retry_until,
+                    "pending": state.pending,
+                },
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode()
+            + b"\n"
+        )
+        offset = os.lseek(fd, 0, os.SEEK_END)
+        while data:
+            written = os.pwrite(fd, data, offset)
+            if written <= 0:
+                raise OSError("request pacing journal write made no progress")
+            offset += written
+            data = data[written:]
+        os.fsync(fd)
 
 
 class Fetcher:
@@ -194,6 +313,7 @@ class Fetcher:
         self._pacer = pacer
         self._last_request: float | None = None
         self._blocked_until: float | None = None
+        self._retry_until: float | None = None
 
     def _throttle(self) -> None:
         if self._last_request is not None:
@@ -209,6 +329,8 @@ class Fetcher:
                 if turn is not None and turn.blocked_until is not None:
                     # Another process (or an earlier turn of ours) was blocked: send nothing.
                     self._refuse(url)
+                if turn is not None and turn.retry_wait > MAX_INLINE_RETRY_SECONDS:
+                    self._refuse_retry(url)
                 self._throttle()
                 try:
                     resp = self._client.get(url, follow_redirects=False)
@@ -218,6 +340,11 @@ class Fetcher:
                 self._last_request = self._clock()
                 # Classified and published before the turn ends, so the next process to take the
                 # lock already sees the cooldown.
+                retry_after = self._retry_after(resp) if resp is not None else None
+                if retry_after is not None:
+                    self._retry_until = self._clock() + retry_after
+                    if turn is not None:
+                        turn.retry_after(retry_after)
                 block = self._block_error(resp, url, expect) if resp is not None else None
                 if block is not None:
                     self._blocked_until = self._clock() + BLOCKED_COOLDOWN_SECONDS
@@ -225,6 +352,10 @@ class Fetcher:
                         turn.block(BLOCKED_COOLDOWN_SECONDS)
             if block is not None:
                 raise block
+            if turn is not None and turn.persistence_failed:
+                raise IngestError(
+                    ErrorClass.NETWORK, "request pacing result could not be saved", url=url
+                )
             if transport_error is not None or resp is None:
                 # Only the exception type goes into the stored/served detail; the text may name hosts.
                 last_problem = f"transport error ({type(transport_error).__name__})"
@@ -239,7 +370,11 @@ class Fetcher:
             if status == 429 or status >= 500:
                 last_problem = f"HTTP {status}"
                 log.warning("fetch %s -> %s, attempt %d", url, status, attempt + 1)
-                self._backoff(attempt)
+                if retry_after is not None and retry_after > MAX_INLINE_RETRY_SECONDS:
+                    raise IngestError(
+                        ErrorClass.NETWORK, "retry deferred by server Retry-After", url=url
+                    )
+                self._backoff(attempt, retry_after)
                 continue
             if status >= 400:
                 raise IngestError(ErrorClass.UNEXPECTED, f"HTTP {status} for {url}", url=url)
@@ -254,6 +389,35 @@ class Fetcher:
     def _refuse_if_cooling_down(self, url: str) -> None:
         if self._blocked_until is not None and self._clock() < self._blocked_until:
             self._refuse(url)
+        if self._retry_until is not None:
+            wait = self._retry_until - self._clock()
+            if wait > MAX_INLINE_RETRY_SECONDS:
+                self._refuse_retry(url)
+            if wait > 0:
+                self._sleep(wait)
+
+    @staticmethod
+    def _refuse_retry(url: str) -> NoReturn:
+        raise RequestRefused(
+            ErrorClass.NETWORK, "not requested: server Retry-After is in force", url=url
+        )
+
+    def _retry_after(self, resp: httpx.Response) -> float | None:
+        if resp.status_code != 429 and resp.status_code < 500:
+            return None
+        header = resp.headers.get("retry-after")
+        if header is None:
+            return None
+        seconds = _finite(header)
+        if seconds is not None:
+            return seconds if seconds >= 0 else None
+        try:
+            deadline = parsedate_to_datetime(header)
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=UTC)
+            return max(0.0, deadline.timestamp() - self._now().timestamp())
+        except (TypeError, ValueError, OverflowError):
+            return None
 
     @staticmethod
     def _refuse(url: str) -> NoReturn:
@@ -295,6 +459,6 @@ class Fetcher:
             raise IngestError(ErrorClass.UNEXPECTED, f"too many redirects from {url}", url=url)
         return self.get(str(target), expect=expect, _hops=hops + 1)
 
-    def _backoff(self, attempt: int) -> None:
+    def _backoff(self, attempt: int, retry_after: float | None = None) -> None:
         if attempt < self._max_retries:
-            self._sleep(self._backoff_base ** (attempt + 1))
+            self._sleep(max(self._backoff_base ** (attempt + 1), retry_after or 0.0))

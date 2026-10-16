@@ -30,3 +30,9 @@ def test_interval_below_crawl_delay_is_rejected(tmp_path: Path) -> None:
 def test_base_url_override_for_tests(tmp_path: Path) -> None:
     s = load_settings({"NZSTATS_DATA_DIR": str(tmp_path), "NZSTATS_BASE_URL": "http://x.test/"})
     assert s.base_url == "http://x.test"
+
+
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "1e999"])
+def test_nonfinite_crawl_interval_is_rejected(tmp_path, value):
+    with pytest.raises(ValueError, match="finite"):
+        load_settings({"NZSTATS_DATA_DIR": str(tmp_path), "NZSTATS_MIN_INTERVAL_SECONDS": value})

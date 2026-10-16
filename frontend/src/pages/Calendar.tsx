@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import { Link, useSearchParams } from "react-router-dom";
 import { useCalendar } from "@/api/hooks";
 import type { ReleaseSummary } from "@/api/types";
 import { QueryBoundary } from "@/components/QueryBoundary";
 import { ReleaseRow } from "@/components/ReleaseRow";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Segmented } from "@/components/Segmented";
 import { Button } from "@/components/ui/button";
@@ -61,8 +63,26 @@ function MonthGrid({ items, month }: { items: ReleaseSummary[]; month: string })
                   {day && <span className="text-muted-foreground">{day}</span>}
                   <ul className="mt-0.5 space-y-0.5">
                     {rels.map((r) => (
-                      <li key={r.id} className="truncate" title={r.title}>
-                        {r.has_analysis ? <Link className="underline-offset-2 hover:underline" to={`/releases/${r.id}`}>{r.title}</Link> : r.title}
+                      <li key={r.id}>
+                        <Dialog.Root>
+                          <Dialog.Trigger className="block w-full truncate rounded text-left underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2" aria-label={`Details for ${r.title}`}>
+                            {r.title}
+                          </Dialog.Trigger>
+                          <Dialog.Portal>
+                            <Dialog.Backdrop className="fixed inset-0 z-40 bg-background/80" />
+                            <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 max-h-[85dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-md border bg-card p-5 text-foreground shadow-lg">
+                              <Dialog.Title className="break-words text-lg font-semibold">{r.title}</Dialog.Title>
+                              <Dialog.Description className="mt-2 text-sm text-muted-foreground">{formatAklDateTime(r.published_at)}</Dialog.Description>
+                              <p className="mt-2 flex flex-wrap items-center gap-2 text-sm"><StatusBadge status={r.status} />{r.category}</p>
+                              {r.headline && <p className="mt-3 text-sm">{r.headline}</p>}
+                              <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
+                                {r.has_analysis && <Link className="underline underline-offset-2" to={`/releases/${r.id}`}>Read release analysis</Link>}
+                                {r.page_url && <a className="underline underline-offset-2" href={r.page_url} target="_blank" rel="noreferrer">Open Stats NZ publication</a>}
+                                <Dialog.Close render={<Button variant="outline" size="sm" />}>Close</Dialog.Close>
+                              </div>
+                            </Dialog.Popup>
+                          </Dialog.Portal>
+                        </Dialog.Root>
                       </li>
                     ))}
                   </ul>

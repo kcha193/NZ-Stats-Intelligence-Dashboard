@@ -172,3 +172,18 @@ describe("Calendar", () => {
     expect(await screen.findByText(/no releases in this period/i)).toBeInTheDocument();
   });
 });
+
+it("opens full release details in month view by keyboard", async () => {
+  const scheduled = { ...calendar.items[0], id: 987, title: "International migration: a very long scheduled publication name", published_at: "2026-10-14T10:45:00+13:00", status: "scheduled", has_analysis: false, page_url: null };
+  mockApi({ "/api/calendar": { ...calendar, items: [scheduled] } });
+  renderWithProviders(<Calendar />, { route: "/calendar?view=month&month=2026-10" });
+  const button = await screen.findByRole("button", { name: `Details for ${scheduled.title}` });
+  button.focus();
+  await userEvent.keyboard("{Enter}");
+  const dialog = screen.getByRole("dialog", { name: scheduled.title });
+  expect(within(dialog).getByText("14 Oct 2026, 10:45 NZDT")).toBeInTheDocument();
+  expect(within(dialog).getByText("Scheduled")).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(button).toHaveFocus();
+});

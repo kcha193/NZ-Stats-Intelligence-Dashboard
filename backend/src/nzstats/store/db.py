@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -8,18 +9,48 @@ from pathlib import Path
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
+@contextmanager
+def _schema_lock(path: Path | str) -> Iterator[None]:
+    """Serialise initialisation across processes, including executescript's implicit commits.
+
+    Lock a stable sidecar inode rather than the database, whose locks belong to SQLite. Empty and
+    in-memory paths have no shared database file. flock is supported on our POSIX deployment targets.
+    """
+    if not str(path) or str(path) == ":memory:":
+        yield
+        return
+    target = Path(path).resolve()
+    with target.with_name(target.name + ".schema-lock").open("a+b") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def connect(path: Path | str) -> sqlite3.Connection:
     """Autocommit connection (transactions are explicit via `transaction`)."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), timeout=30, isolation_level=None, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA synchronous=NORMAL")
+    with _schema_lock(path):
+        conn = sqlite3.connect(str(path), timeout=30, isolation_level=None, check_same_thread=False)
+        try:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except BaseException:
+            conn.close()
+            raise
     return conn
 
 
 def migrate(conn: sqlite3.Connection) -> int:
+    path = next(r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main")
+    with _schema_lock(path):
+        return _migrate_locked(conn)
+
+
+def _migrate_locked(conn: sqlite3.Connection) -> int:
     conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)")
     applied = {r[0] for r in conn.execute("SELECT version FROM schema_version")}
     for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):

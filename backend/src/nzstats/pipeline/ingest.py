@@ -3,21 +3,29 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
 from nzstats.adapters.base import Adapter
 from nzstats.clock import AKL, from_utc_iso, utc_now
-from nzstats.domain import ErrorClass, IngestError, ReleaseStatus, RequestRefused
+from nzstats.domain import (
+    ErrorClass,
+    IngestError,
+    Observation,
+    ReleaseStatus,
+    RequestRefused,
+    SeriesDef,
+)
 from nzstats.pipeline.discover import attempt, record_batch_health
 from nzstats.runtime import Runtime
 from nzstats.slug import slugify
 from nzstats.sources.calendar import fetch_release_month
-from nzstats.sources.release_page import ReleasePage, classify_download, parse_release_page
+from nzstats.sources.release_page import classify_download, parse_release_page
 from nzstats.stats.periods import month_range
 from nzstats.store import repo
 from nzstats.store.db import transaction
@@ -80,14 +88,48 @@ def ingest_release(
     return outcome
 
 
-def _bundle_digest(file_digests: list[str], page: ReleasePage) -> str:
-    """Identity of everything `adapter.parse` reads: the downloaded files and the chart data embedded
-    in the release page. Only chart titles and CSV bodies are hashed, never the surrounding HTML, so
-    rotating nonces, markup or script changes cannot create a false revision, while a corrected or
-    newly added chart (e.g. the optional citizenship series) does."""
-    charts = sorted(hashlib.sha256(f"{c.title}\0{c.csv}".encode()).hexdigest() for c in page.charts)
-    parts = ["files", *sorted(file_digests), "charts", *charts]
-    return hashlib.sha256("\n".join(parts).encode()).hexdigest()
+def _bundle_digest(
+    series: Iterable[tuple[SeriesDef, Iterable[Observation | repo.ObservationRow]]],
+) -> str:
+    """Versioned statistical identity, independent of source titles, markup and CSV formatting."""
+    data = []
+    for definition, observations in series:
+        points = sorted(
+            (
+                o.period,
+                float(o.value) if o.value != 0 else 0.0,
+                o.status.value,
+                (float(o.std_error) if o.std_error != 0 else 0.0)
+                if o.std_error is not None
+                else None,
+                o.released_in,
+            )
+            for o in observations
+        )
+        data.append(
+            (
+                definition.key,
+                definition.unit,
+                definition.frequency.value,
+                definition.adjustment.value,
+                definition.definition_id,
+                points,
+            )
+        )
+    payload = json.dumps(sorted(data), separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    return "data-v1:" + hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _matching_bundle(conn: sqlite3.Connection, release_id: int, digest: str) -> str | None:
+    for stored in repo.release_bundles(conn, release_id):
+        if stored == digest:
+            return stored
+        if not stored.startswith("data-v1:"):
+            # Existing databases used source bytes as identity. Compare their retained observations
+            # rather than rewriting/deleting history or manufacturing a correction on upgrade.
+            if _bundle_digest(repo.bundle_series(conn, release_id, stored)) == digest:
+                return stored
+    return None
 
 
 def _ingest(
@@ -112,21 +154,12 @@ def _ingest(
         raise IngestError(ErrorClass.LAYOUT_CHANGED, f"release page lists no {missing} download")
 
     files: dict[str, bytes] = {}
-    digests: list[str] = []
     for kind, url in wanted.items():
         result = rt.fetcher.get(url, expect=DATA_TYPES)
         record = rt.artifacts.save(result)
         repo.record_artifact(rt.conn, record)
         files[kind] = result.body
-        digests.append(record.sha256)
-    bundle_sha = _bundle_digest(digests, page)
-
     release_id = int(row["id"])
-    # Unchanged only while this bundle is also the release's current one; a revert to an earlier
-    # bundle is new information and is validated and reactivated below.
-    if repo.release_bundle(rt.conn, release_id) == bundle_sha:
-        return IngestOutcome(key, "unchanged")
-
     bundle = adapter.parse(page, files)
     published_at = from_utc_iso(row["published_at"])
     previous = {k: repo.previous_points(rt.conn, k, published_at) for k in adapter.previous_keys}
@@ -138,17 +171,21 @@ def _ingest(
             "; ".join(f"[{f.rule}] {f.message}" for f in errors[:5]),
         )
 
+    bundle_sha = _bundle_digest((ps.definition, ps.observations) for ps in bundle.series)
+    if repo.release_bundle(rt.conn, release_id) == bundle_sha:
+        return IngestOutcome(key, "unchanged")
     now = now_fn()
     created = 0
     with transaction(rt.conn):
         # Evaluated inside the write transaction: a second process may have committed this same
         # release between the pre-check above and here.
         had_vintages = repo.has_any_vintage(rt.conn, release_id)
-        if repo.release_bundle(rt.conn, release_id) == bundle_sha:
+        matching = _matching_bundle(rt.conn, release_id, bundle_sha)
+        if matching is not None and repo.release_bundle(rt.conn, release_id) == matching:
             return IngestOutcome(key, "unchanged")
-        if repo.has_vintage(rt.conn, release_id, bundle_sha):
+        if matching is not None:
             # The release reverted to content it published earlier: its vintages already exist.
-            created = repo.reactivate_bundle(rt.conn, release_id, bundle_sha)
+            created = repo.reactivate_bundle(rt.conn, release_id, matching)
         else:
             for ps in bundle.series:
                 series_id = repo.upsert_series(rt.conn, ps.definition)

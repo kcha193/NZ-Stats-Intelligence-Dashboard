@@ -65,6 +65,34 @@ class RevisionBlock(BaseModel):
     largest: list[RevisionRowOut]
 
 
+class CorrectionRowOut(BaseModel):
+    period: str
+    original: float | None
+    revised: float | None
+    original_status: str | None
+    revised_status: str | None
+    original_std_error: float | None
+    revised_std_error: float | None
+    original_released_in: str | None
+    revised_released_in: str | None
+
+
+class CorrectionSeriesOut(BaseModel):
+    series_key: str
+    label: str
+    unit: str
+    n_changed: int
+    changes: list[CorrectionRowOut]  # first eight changed periods; n_changed covers all periods
+
+
+class CorrectionBlock(BaseModel):
+    available: bool
+    note: str
+    against_captured_at: str | None
+    captured_at: str
+    series: list[CorrectionSeriesOut]
+
+
 class Decomposition(BaseModel):
     label: str
     series_key: str
@@ -114,6 +142,7 @@ class ReleaseAnalysis(BaseModel):
     context: list[Insight]
     previous_comparison: PreviousComparison
     revisions: RevisionBlock
+    corrections: CorrectionBlock
     interpretation: list[Insight]
     methodology: Methodology
     vintage_captured_at: str
@@ -284,6 +313,7 @@ class InactiveCategory(BaseModel):
 
 class OverviewOut(BaseModel):
     generated_at: str
+    data_updated_at: str | None
     kpis: list[Kpi]
     latest_releases: list[ReleaseSummary]
     upcoming: list[ReleaseSummary]

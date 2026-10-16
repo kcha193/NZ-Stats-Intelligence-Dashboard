@@ -13,6 +13,9 @@ from nzstats.insights.format import dir_word, fmt_int, fmt_net, fmt_signed
 from nzstats.insights.summary import release_summary
 from nzstats.models import (
     ChangeOut,
+    CorrectionBlock,
+    CorrectionRowOut,
+    CorrectionSeriesOut,
     Decomposition,
     Evidence,
     Insight,
@@ -402,9 +405,86 @@ def build_release_analysis(
         context=context,
         previous_comparison=prev_cmp,
         revisions=rev_block,
+        corrections=_corrections(conn, release_id, bundle, m_net.vintage),
         interpretation=interpretation,
         methodology=methodology,
         vintage_captured_at=to_akl_iso(m_net.vintage.captured_at),
+    )
+
+
+def _corrections(
+    conn: sqlite3.Connection, release_id: int, bundle: str, vintage: repo.VintageInfo
+) -> CorrectionBlock:
+    """Compare statistical data within this publication, independently of earlier releases."""
+    captured_at = to_akl_iso(vintage.captured_at)
+    bundles = repo.release_bundles(conn, release_id)
+    current = None
+    for previous_bundle in bundles:
+        if previous_bundle == bundle:
+            continue
+        if current is None:
+            current = {
+                d.key: {o.period: o for o in observations}
+                for d, observations in repo.bundle_series(conn, release_id, bundle)
+            }
+        previous = {
+            d.key: {o.period: o for o in observations}
+            for d, observations in repo.bundle_series(conn, release_id, previous_bundle)
+        }
+        changes = []
+        for key in sorted(current.keys() | previous.keys()):
+            old, new = previous.get(key, {}), current.get(key, {})
+            periods = [p for p in sorted(old.keys() | new.keys()) if old.get(p) != new.get(p)]
+            if not periods:
+                continue
+            rows = []
+            for period in periods[:8]:
+                a, b = old.get(period), new.get(period)
+                rows.append(
+                    CorrectionRowOut(
+                        period=period,
+                        original=a.value if a else None,
+                        revised=b.value if b else None,
+                        original_status=a.status.value if a else None,
+                        revised_status=b.status.value if b else None,
+                        original_std_error=a.std_error if a else None,
+                        revised_std_error=b.std_error if b else None,
+                        original_released_in=a.released_in if a else None,
+                        revised_released_in=b.released_in if b else None,
+                    )
+                )
+            definition = repo.get_series_row(conn, key)
+            changes.append(
+                CorrectionSeriesOut(
+                    series_key=key,
+                    label=definition["name"],
+                    unit=definition["unit"],
+                    n_changed=len(periods),
+                    changes=rows,
+                )
+            )
+        if not changes:
+            # Legacy source digests may contain editorial-only captures. Keep them in history, but
+            # do not label identical statistical observations as a correction.
+            continue
+        prior = repo.bundle_vintage(conn, "mig.m.net", release_id, previous_bundle)
+        return CorrectionBlock(
+            available=True,
+            note=(
+                "Changes within this publication, compared with its previous distinct statistical "
+                "capture. These are separate from revisions since an earlier publication. "
+                "Each series lists up to eight changed periods; counts include all changed periods."
+            ),
+            against_captured_at=to_akl_iso(prior.captured_at) if prior else None,
+            captured_at=captured_at,
+            series=changes,
+        )
+    return CorrectionBlock(
+        available=False,
+        note="No earlier distinct statistical capture is stored for this publication.",
+        against_captured_at=None,
+        captured_at=captured_at,
+        series=[],
     )
 
 
@@ -413,7 +493,7 @@ def _previous(
 ) -> tuple[RevisionBlock, PreviousComparison, Insight]:
     if prev is None:
         note = (
-            "No earlier vintage is stored for this series, so revisions and changes since the "
+            "No earlier publication is stored for this series, so revisions and changes since the "
             "previous release cannot be assessed. Revision history only covers releases "
             "ingested by this monitor."
         )

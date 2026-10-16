@@ -216,3 +216,23 @@ def test_unreadable_csv_error_does_not_echo_parser_text(caplog) -> None:
         parse_age_sex_csv(bad)
     assert e.value.error_class is ErrorClass.LAYOUT_CHANGED
     assert "UPSTREAM-SECRET" not in str(e.value)
+
+
+@pytest.mark.parametrize("extra", [",999\n", ",1\n"])
+def test_duplicate_chart_series_labels_are_rejected(extra) -> None:
+    # Even identical rows must not conceal a changed upstream layout.
+    data = "Year ended,Jul-2026\nNet migration,1\nNet migration" + extra
+    with pytest.raises(IngestError, match="duplicate"):
+        parse_wide_chart(data, {"Net migration": S.rolling_def("net")})
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        "Year ended,Jul-2026,Jul-2026\nNet migration,1,2\n",
+        "Year ended,Jul-2026\nNet migration,1,2\n",
+    ],
+)
+def test_duplicate_periods_or_extra_chart_cells_are_rejected(data) -> None:
+    with pytest.raises(IngestError):
+        parse_wide_chart(data, {"Net migration": S.rolling_def("net")})

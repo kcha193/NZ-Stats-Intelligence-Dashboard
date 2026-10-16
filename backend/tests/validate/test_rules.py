@@ -41,7 +41,7 @@ def good_bundle(**overrides) -> ParsedBundle:
         "mig.ry.departures": _ps(S.rolling_def("departures"), ry["departures"]),
         "mig.ry.net": _ps(S.rolling_def("net"), ry["net"]),
         "mig.ry.net.nz": _ps(S.rolling_def("net", "nz"), {latest: -100.0}),
-        "mig.ry.net.nonnz": _ps(S.rolling_def("net", "nonnz"), {latest: 500.0}),
+        "mig.ry.net.nonnz": _ps(S.rolling_def("net", "nonnz"), {latest: ry["net"][latest] + 100.0}),
         "mig.m.arrivals.nz": _ps(S.citizenship_monthly_def("nz"), nz),
         "mig.m.arrivals.nonnz": _ps(S.citizenship_monthly_def("nonnz"), nonnz),
         "mig.m.arrivals.country.a": _ps(
