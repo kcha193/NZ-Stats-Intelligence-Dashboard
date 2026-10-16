@@ -70,6 +70,9 @@ To restore: `docker compose stop`, replace `data/nzstats.db` with the backup (de
 
 ## Local development
 
+Quick start without Docker: `scripts/run.sh` (see the header of that script for flags; the first run installs
+dependencies and builds the UI, then serves on http://localhost:8000).
+
 ```sh
 python3 -m venv backend/.venv && . backend/.venv/bin/activate
 pip install -e 'backend[dev]'
