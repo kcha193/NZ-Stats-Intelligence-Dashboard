@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 // Uses the same official-fixture database as smoke.spec.ts; no live source requests.
 test("response time does not masquerade as data freshness", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText(/Migration data ingested 11 Oct 2026/)).toBeVisible();
+  // The fixture DB now includes ECT, captured after migration. Keep checking the capture time,
+  // including its deterministic hour, rather than the response-generation time.
+  await expect(page.getByText(/Data ingested 18 Oct 2026, 13:00 NZDT/)).toBeVisible();
   await expect(page.getByText(/Latest official Stats NZ statistics\. Updated/)).toHaveCount(0);
 });
 

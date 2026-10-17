@@ -13,9 +13,31 @@ sys.path.insert(0, str(ROOT / "backend"))
 from fastapi.testclient import TestClient
 from nzstats.api.app import create_app
 from nzstats.config import load_settings
-from tests.support import BASE, NOW, seed_from_fixtures
+from nzstats.insights.ect import build_ect_dashboard
+from nzstats.pipeline.ingest import ingest_release
+from nzstats.runtime import build_runtime
+from tests.ect_support import NOW as ECT_NOW
+from tests.ect_support import seed_ect
+from tests.support import BASE, NOW, FakeSite, seed_from_fixtures
 
 OUT = ROOT / "frontend" / "src" / "test" / "fixtures"
+
+
+def dump_ect_fixture() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        site = FakeSite()
+        rt = build_runtime(
+            load_settings({"NZSTATS_DATA_DIR": tmp}), fetcher=site.fetcher()
+        )
+        for month in ("2026-08", "2026-09"):
+            _, key, _ = seed_ect(rt, site, month)
+            result = ingest_release(rt, key, now_fn=lambda: ECT_NOW)
+            assert result.outcome == "ingested", result.detail
+        payload = build_ect_dashboard(rt.conn).model_dump(mode="json")
+        # Keep real observations and provenance, limiting only fixture size. API retains full history.
+        for series in payload["series"]:
+            series["points"] = [p for p in series["points"] if p["period"] >= "2021-09"]
+        (OUT / "ect.json").write_text(json.dumps(payload, separators=(",", ":")) + "\n")
 
 
 def main() -> None:
@@ -59,4 +81,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if "--ect-only" not in sys.argv:
+        main()
+    dump_ect_fixture()

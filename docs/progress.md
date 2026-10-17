@@ -1,6 +1,65 @@
 # Progress and verification record
 
-Last updated 2026-10-16. Phase 1 remediation; [PR #2](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/2) open. Spec and plan: `docs/superpowers/`.
+Last updated 2026-10-18. Phase 2A ECT implemented on `feat/phase-2a-ect`, prepared for a new pull
+request and independent review; not merged or deployed. Earlier entries below are historical.
+
+## Phase 2A — Electronic Card Transactions, 18 October 2026
+
+Implemented the ECT adapter through the existing registry, ingestion transaction, raw artifact store,
+health projection and calendar-aware scheduler. Added bounded ZIP/CSV parsing, strict measurement
+metadata and structural validation, embedded-chart/percentage reconciliation, and scoped CLI backfill
+(`--series-slug`, `--until`). No new runtime dependencies or other Phase 2 categories.
+
+Controlled live verification ingested official August and September releases into the local ignored
+database. September exposes **96 series**, **288 adjusted retail months**, **321 actual retail months**,
+**96 adjusted retail quarters**, and **110 genuinely revised retail observations** against August.
+All requested September benchmarks reconcile within documented source rounding tolerances.
+[Official source verification, reconciliation table and limitations](data-sources/ect.md).
+
+Migration 003 snapshots measurement definitions per vintage. Series, bundle, API and revision reads
+follow retained metadata; incompatible comparisons are withheld. Existing migration calculations are
+preserved. Old test fixtures that delete vintages now also remove their dependent metadata, and
+concurrent-migration tests expect schema 3.
+
+The `/electronic-card-transactions` page includes compact KPIs, monthly/quarterly spending histories,
+actual/adjusted/trend and group controls, 1/3/5-year/full ranges, signed industry rankings, actual
+industry composition, evidence-linked findings, source/methodology notes and CSV/PNG exports.
+Overview, navigation, release analysis, calendar links and data health recognise ECT.
+Every dashboard series is read from one release bundle. Chart colours reuse the previously validated
+palette; signed labels and a zero line distinguish industry movements. Desktop/tablet/mobile layouts
+were inspected through Playwright screenshots; the history axis keeps readable year labels.
+
+Verification (offline fixtures except the deliberate paced source check):
+
+| Command | Outcome |
+|---|---|
+| `cd backend && .venv/bin/pytest` | 691 passed; migration regression suite included |
+| `cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check .` | Passed |
+| `cd frontend && npm test` | 129 passed |
+| `npm run typecheck` | Passed |
+| `npm run lint` | Passed; three existing Fast Refresh export warnings in vendor UI components |
+| `npm run build` | Passed; existing ECharts bundle-size warning |
+| `npx playwright test` (venv on PATH; isolated E2E data directory) | 42 passed: desktop, tablet, mobile |
+| `python scripts/dump_frontend_fixtures.py --ect-only` | Passed; official fixture data regenerated |
+| Local live-captured DB/API check | Integrity OK; ECT, release, overview and health endpoints HTTP 200 |
+| `git diff --check` | Passed |
+
+Backend checks use local Python 3.14.6. The existing FastAPI/Starlette TestClient deprecation warning
+remains. Initial regression failures were stale schema/dependent-fixture assumptions and the old
+migration-only freshness assertion; those tests were updated, with focused reruns before final regression.
+
+Changed file groups: `adapters/ect/{adapter,series}.py`; `store/repo.py` and migration 003;
+`runtime.py`, `pipeline/ingest.py`, `cli.py`, `catalog.py`; `insights/ect.py` and vintage-aware shared
+insights; `api/routes.py`, `models.py` and generated frontend API types; `ElectronicCardTransactions.tsx`,
+ECT charts, `Overview.tsx`, `ReleaseAnalysis.tsx`, `App.tsx` and `Layout.tsx`; backend/frontend/browser
+tests and captured official fixtures; fixture-generation/seed scripts; README, source registry and plan.
+
+Self-review completed against the request and final diff; no subagents were used. An independent
+Python/statistical review is recommended before merging. Before deployment, back up SQLite, rebuild
+the image/UI, apply migration 003 on startup and run the existing scheduler. A real Docker-host rollout
+and unattended observation of the next publication remain operator checks; neither was performed here.
+Post-publication corrections still need explicit re-ingestion. Earlier overwritten definitions cannot
+be reconstructed during upgrade; revised `R` source statuses remain conservative `unknown` values.
 
 ## Independent audit remediation — 16 October 2026
 

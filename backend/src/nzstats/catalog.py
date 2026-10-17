@@ -48,7 +48,6 @@ INACTIVE_CATEGORIES: tuple[tuple[str, str], ...] = (
     ("Labour market", "Planned for Phase 2."),
     ("Economic growth", "Planned for Phase 2."),
     ("Housing and building", "Planned for Phase 2."),
-    ("Retail", "Planned for Phase 2."),
     ("Trade", "Planned for Phase 2."),
     ("Population", "Planned for Phase 2."),
 )

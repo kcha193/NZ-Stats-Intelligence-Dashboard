@@ -96,7 +96,8 @@ def _load(
 ) -> dict[str, _S] | None:
     out: dict[str, _S] = {}
     for key in (*NEEDED, *OPTIONAL):
-        vintage, series = pick(key), repo.get_series_row(conn, key)
+        vintage = pick(key)
+        series = repo.get_series_row(conn, key, vintage.vintage_id) if vintage else None
         observations = (
             repo.vintage_observations(conn, vintage.vintage_id) if vintage is not None else {}
         )
@@ -413,7 +414,12 @@ def build_release_analysis(
 
 
 def _corrections(
-    conn: sqlite3.Connection, release_id: int, bundle: str, vintage: repo.VintageInfo
+    conn: sqlite3.Connection,
+    release_id: int,
+    bundle: str,
+    vintage: repo.VintageInfo,
+    *,
+    primary_key: str = "mig.m.net",
 ) -> CorrectionBlock:
     """Compare statistical data within this publication, independently of earlier releases."""
     captured_at = to_akl_iso(vintage.captured_at)
@@ -422,6 +428,22 @@ def _corrections(
     for previous_bundle in bundles:
         if previous_bundle == bundle:
             continue
+        current_defs = {d.key: d for d, _ in repo.bundle_series(conn, release_id, bundle)}
+        previous_defs = {d.key: d for d, _ in repo.bundle_series(conn, release_id, previous_bundle)}
+        if any(
+            any(
+                getattr(current_defs[k], field) != getattr(previous_defs[k], field)
+                for field in ("unit", "frequency", "adjustment", "definition_id", "definition")
+            )
+            for k in current_defs.keys() & previous_defs.keys()
+        ):
+            return CorrectionBlock(
+                available=False,
+                note="Numerical correction comparison withheld: measurement definitions are incompatible.",
+                against_captured_at=None,
+                captured_at=captured_at,
+                series=[],
+            )
         if current is None:
             current = {
                 d.key: {o.period: o for o in observations}
@@ -467,7 +489,7 @@ def _corrections(
             # Legacy source digests may contain editorial-only captures. Keep them in history, but
             # do not label identical statistical observations as a correction.
             continue
-        prior = repo.bundle_vintage(conn, "mig.m.net", release_id, previous_bundle)
+        prior = repo.bundle_vintage(conn, primary_key, release_id, previous_bundle)
         return CorrectionBlock(
             available=True,
             note=(

@@ -116,6 +116,36 @@ def revision_view(
     if base is None:
         return None
 
+    def compatible_pair(a, b):
+        left = repo.get_series_row(conn, series_key, a.vintage_id)
+        right = repo.get_series_row(conn, series_key, b.vintage_id)
+        return all(
+            left[k] == right[k]
+            for k in ("unit", "frequency", "seasonal_adjustment", "definition_id", "definition")
+        )
+
+    series = series_out(
+        repo.get_series_row(conn, series_key, compare.vintage_id), len(vintages), latest
+    )
+    if not compatible_pair(base, compare):
+        coverage = coverage.model_copy(
+            update={
+                "note": coverage.note
+                + " Comparison withheld: vintage measurement definitions are incompatible."
+            }
+        )
+        return RevisionsOut(
+            series=series,
+            coverage=coverage,
+            base=None,
+            compare=None,
+            source_url=None,
+            n_common=0,
+            n_revised=0,
+            rows=[],
+            history=[],
+        )
+
     revs = revisions(_points(conn, base), _points(conn, compare))
     summary = summarise(revs)
     rows = [
@@ -134,6 +164,8 @@ def revision_view(
 
     history = []
     for older, newer in zip(vintages, vintages[1:], strict=False):
+        if not compatible_pair(older, newer):
+            continue
         s = summarise(revisions(_points(conn, older), _points(conn, newer)))
         history.append(
             RevisionHistoryRow(

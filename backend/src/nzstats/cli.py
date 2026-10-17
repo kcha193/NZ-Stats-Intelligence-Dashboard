@@ -43,6 +43,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     group.add_argument("--due", action="store_true")
     p_back = sub.add_parser("backfill", help="ingest historical releases")
     p_back.add_argument("--since", help="oldest reference period, YYYY-MM")
+    p_back.add_argument("--until", help="latest reference period, YYYY-MM")
+    p_back.add_argument("--series-slug", help="restrict backfill to a supported release series")
     p_serve = sub.add_parser("serve", help="run the API, UI and scheduler")
     p_serve.add_argument("--host", default="0.0.0.0")  # noqa: S104 - container default
     p_serve.add_argument("--port", type=int, default=8000)
@@ -104,7 +106,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         outcomes = [ingest_release(rt, k) for k in keys]
     else:  # backfill
-        outcomes = backfill(rt, since=args.since or settings.backfill_since)
+        bounds = {}
+        if args.until:
+            bounds["until"] = args.until
+        if args.series_slug:
+            bounds["series_slug"] = args.series_slug
+        outcomes = backfill(rt, since=args.since or settings.backfill_since, **bounds)
     for o in outcomes:
         suffix = (
             f" ({o.error_class.value}: {o.detail})"

@@ -227,6 +227,11 @@ class SeriesDataOut(BaseModel):
     caveat: str
 
 
+class EctDashboardOut(BaseModel):
+    analysis: ReleaseAnalysis
+    series: list[SeriesDataOut]
+
+
 class RevisionHistoryRow(BaseModel):
     release_key: str
     title: str

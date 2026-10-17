@@ -1,0 +1,31 @@
+import { expect, test } from '@playwright/test';
+
+test('ECT charts, quarterly controls, CSV and analysis work without horizontal overflow', async ({page},testInfo) => {
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('/electronic-card-transactions');
+  await expect(page.getByRole('heading',{level:1,name:'Electronic card transactions'})).toBeVisible();
+  await expect(page.locator('canvas').first()).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath('ect-dashboard.png'),fullPage:true});
+  await page.getByLabel('Spending group').selectOption('core');
+  await page.getByRole('combobox',{name:'Adjustment',exact:true}).selectOption('trend');
+  await page.getByRole('group',{name:'ECT frequency'}).getByText('Quarterly',{exact:true}).click();
+  await expect(page.getByRole('radio',{name:'Quarterly',exact:true})).toBeChecked();
+  await expect(page.getByRole('heading',{name:'Core retail spending · Trend · quarterly'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Industry performance · quarterly change'})).toBeVisible();
+  await page.getByRole('group',{name:'History window'}).getByText('1 year',{exact:true}).click();
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:/download data/i}).first().click()]);
+  expect(download.suggestedFilename()).toBe('ect-spending-history.csv');
+  const stream=await download.createReadStream();const chunks:Buffer[]=[];
+  for await(const chunk of stream!) chunks.push(Buffer.from(chunk));
+  const csv=Buffer.concat(chunks).toString('utf8');
+  expect(csv).toContain('quarterly');expect(csv).toContain('trend');expect(csv).toContain('NZD million');
+  expect(csv.trim().split('\n')).toHaveLength(5);
+  await page.getByText('View data table').first().click();
+  await expect(page.getByRole('table').first()).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  await page.getByRole('link',{name:'Full release analysis',exact:true}).click();
+  await expect(page.getByRole('heading',{level:1,name:'Electronic card transactions: September 2026'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Revision analysis',exact:true})).toBeVisible();
+  await expect(page.getByRole('table',{name:'Headline metrics'})).toContainText('NZD million');
+  expect(errors).toEqual([]);
+});
