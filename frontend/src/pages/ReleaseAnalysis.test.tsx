@@ -26,7 +26,7 @@ describe("ReleaseAnalysis", () => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual([
       "Executive summary", "Headline metrics", "Since the previous release",
-      "Historical context", "Revision analysis", "Interpretation", "Source and methodology",
+      "Historical context", "Revision analysis", "Corrections within this publication", "Interpretation", "Source and methodology",
     ]);
     expect(screen.getByRole("link", { name: /view the original stats nz publication/i })).toHaveAttribute("href", expect.stringContaining("stats.govt.nz"));
   });
@@ -68,4 +68,26 @@ describe("ReleaseAnalysis", () => {
     renderWithProviders(ui, { route: `/releases/${detail.release.id}` });
     expect(await screen.findByRole("button", { name: /print/i })).toBeInTheDocument();
   });
+});
+
+it("labels standard errors explicitly rather than displaying confidence interval notation", async () => {
+  renderWithProviders(ui, { route: `/releases/${detail.release.id}` });
+  const table = await screen.findByRole("table", { name: "Headline metrics" });
+  expect(within(table).getByText("SE 545")).toBeInTheDocument();
+  expect(within(table).queryByText(/±545/)).not.toBeInTheDocument();
+});
+
+it("reports corrections within a publication separately from earlier publications", async () => {
+  const corrected = structuredClone(detail);
+  Object.assign(corrected.analysis!, { corrections: {
+    available: true, note: "A correction within this publication.", against_captured_at: "2026-10-11T16:00:00+13:00", captured_at: "2026-10-12T16:00:00+13:00",
+    series: [{ series_key: "mig.m.net", label: "Net migration (monthly estimate)", unit: "people", n_changed: 1, changes: [{ period: "2026-07", original: 5170, revised: 5171, original_status: "provisional", revised_status: "provisional", original_std_error: 545, revised_std_error: 546, original_released_in: "2026-07", revised_released_in: "2026-07" }] }],
+  } });
+  mockApi({ [`/api/releases/${detail.release.id}`]: corrected });
+  renderWithProviders(ui, { route: `/releases/${detail.release.id}` });
+  const section = (await screen.findByRole("heading", { name: "Corrections within this publication" })).closest("section")!;
+  expect(within(section).getByText("5,170")).toBeInTheDocument();
+  expect(within(section).getByText("5,171")).toBeInTheDocument();
+  expect(within(section).getByText("SE 545 → SE 546")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Since the previous release" })).toBeInTheDocument();
 });

@@ -16,6 +16,7 @@ from collections.abc import Mapping
 
 from nzstats.adapters.base import Finding, ParsedBundle
 from nzstats.domain import ObsStatus, Point
+from nzstats.stats.compat import compatible
 from nzstats.stats.periods import month_range
 from nzstats.stats.rolling import rolling_by_period
 
@@ -41,6 +42,11 @@ REQUIRED = (*MONTHLY, *ROLLING, *CITIZENSHIP_MONTHLY)
 # absent from the September 2025 page), so their absence is a warning and the series simply gets no
 # vintage from that release.
 OPTIONAL_ROLLING_CITIZENSHIP = ("mig.ry.net.nz", "mig.ry.net.nonnz")
+CITIZENSHIP_ROLLING = tuple(
+    f"mig.ry.{direction}.{citizenship}"
+    for direction in ("arrivals", "departures", "net")
+    for citizenship in ("nz", "nonnz")
+)
 
 
 def _listed(items: list[str]) -> str:
@@ -62,6 +68,8 @@ def validate_migration(
         findings.append(Finding(rule, "error", message))
 
     by_key = {ps.definition.key: ps for ps in bundle.series}
+    if len(by_key) != len(bundle.series):
+        error("duplicate", "bundle contains duplicate series keys")
     for key in REQUIRED:
         if key not in by_key:
             error("required_series", f"required series missing: {key}")
@@ -81,6 +89,17 @@ def validate_migration(
             )
 
     for ps in bundle.series:
+        key = ps.definition.key
+        if len({o.period for o in ps.observations}) != len(ps.observations):
+            error("duplicate", f"{key}: duplicate observation periods")
+        negative = [
+            o.period
+            for o in ps.observations
+            if (key.split(".")[2] != "net" and o.value < 0)
+            or (o.std_error is not None and o.std_error < 0)
+        ]
+        if negative:
+            error("nonnegative", f"{key}: negative count or standard error at {negative[:3]}")
         bad = [o.period for o in ps.observations if not math.isfinite(o.value)]
         if bad:
             error("finite", f"{ps.definition.key}: non-finite values at {bad[:3]}")
@@ -176,6 +195,8 @@ def validate_migration(
             f"{len(off)} months: {detail}",
         )
 
+    _reconcile_citizenship(by_key, values, error)
+
     status = {o.period: o.status for o in by_key["mig.m.net"].observations}
     provisional = sorted(p for p, s in status.items() if s is ObsStatus.PROVISIONAL)
     if provisional and (
@@ -197,7 +218,7 @@ def validate_migration(
     # year-ended 2001-12), so coverage that starts later than the previous vintage is an error.
     shrunk = [
         f"{key} starts {min(values[key])}, previous vintage {min(prev)}"
-        for key in (*REQUIRED, *OPTIONAL_ROLLING_CITIZENSHIP)
+        for key in (*REQUIRED, *CITIZENSHIP_ROLLING)
         if values.get(key) and (prev := previous.get(key)) and min(values[key]) > min(prev)
     ]
     if shrunk:
@@ -223,6 +244,78 @@ def validate_migration(
 
     _reconcile_places(by_key, values, error)
     return findings
+
+
+def _reconcile_citizenship(by_key, values, error) -> None:
+    """Check every comparable published citizenship value, including historical periods.
+
+    Missing optional charts remain unavailable, never zero. Only arrivals have citizenship monthly
+    inputs; departures and net are checked against the published annual totals and identities.
+    """
+    comparable = set()
+    for key in CITIZENSHIP_ROLLING:
+        if key not in by_key:
+            continue
+        total_key = key.rsplit(".", 1)[0]
+        if not compatible(by_key[key].definition, by_key[total_key].definition):
+            error("citizenship_compatibility", f"{key}: incompatible with {total_key}")
+        else:
+            comparable.add(key)
+            lower_key = "mig.ry.departures" if ".net." in key else None
+            upper_key = "mig.ry.arrivals" if lower_key else total_key
+            off = []
+            for period, value in values[key].items():
+                if period not in values[upper_key] or (
+                    lower_key and period not in values[lower_key]
+                ):
+                    continue
+                lower = -values[lower_key][period] if lower_key else 0.0
+                upper = values[upper_key][period]
+                if value < lower - CITIZENSHIP_TOLERANCE or value > upper + CITIZENSHIP_TOLERANCE:
+                    off.append(
+                        f"{period}: {value:g} outside total-flow bounds {lower:g}..{upper:g}"
+                    )
+            if off:
+                error("citizenship_bounds", f"{key}: {_listed(off)}")
+
+    def reconcile(rule, keys, tolerance):
+        a, b, total = keys
+        common = set.intersection(*(set(values[k]) for k in keys))
+        differences = {p: values[a][p] + values[b][p] - values[total][p] for p in common}
+        off = [
+            f"{p}: difference {difference:+g}"
+            for p, difference in sorted(differences.items())
+            if abs(difference) > tolerance
+        ]
+        if off:
+            error(rule, f"{', '.join(keys)}: {_listed(off)} (tolerance {tolerance:g})")
+
+    for direction in ("arrivals", "departures", "net"):
+        total = f"mig.ry.{direction}"
+        nz, nonnz = f"{total}.nz", f"{total}.nonnz"
+        if {nz, nonnz} <= comparable:
+            reconcile(
+                "citizenship_annual_sum",
+                (nz, nonnz, total),
+                CITIZENSHIP_TOLERANCE,
+            )
+    for citizenship in ("nz", "nonnz"):
+        arr, dep, net = (f"mig.ry.{d}.{citizenship}" for d in ("arrivals", "departures", "net"))
+        if {arr, dep, net} <= comparable:
+            reconcile(
+                "citizenship_net_identity",
+                (net, dep, arr),
+                NET_IDENTITY_TOLERANCE,
+            )
+        if arr in comparable:
+            derived = rolling_by_period(values[f"mig.m.arrivals.{citizenship}"], 12)
+            off = [
+                f"{p}: published {values[arr][p]:g} vs derived {derived[p]:g}"
+                for p in sorted(values[arr].keys() & derived.keys())
+                if abs(values[arr][p] - derived[p]) > ROLLING_TOLERANCE
+            ]
+            if off:
+                error("citizenship_rolling", f"{arr}: {_listed(off)}")
 
 
 def _reconcile_places(by_key, values, error) -> None:

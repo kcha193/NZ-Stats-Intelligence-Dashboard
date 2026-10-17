@@ -200,6 +200,53 @@ export interface components {
             /** Percent */
             percent: number | null;
         };
+        /** CorrectionBlock */
+        CorrectionBlock: {
+            /** Available */
+            available: boolean;
+            /** Note */
+            note: string;
+            /** Against Captured At */
+            against_captured_at: string | null;
+            /** Captured At */
+            captured_at: string;
+            /** Series */
+            series: components["schemas"]["CorrectionSeriesOut"][];
+        };
+        /** CorrectionRowOut */
+        CorrectionRowOut: {
+            /** Period */
+            period: string;
+            /** Original */
+            original: number | null;
+            /** Revised */
+            revised: number | null;
+            /** Original Status */
+            original_status: string | null;
+            /** Revised Status */
+            revised_status: string | null;
+            /** Original Std Error */
+            original_std_error: number | null;
+            /** Revised Std Error */
+            revised_std_error: number | null;
+            /** Original Released In */
+            original_released_in: string | null;
+            /** Revised Released In */
+            revised_released_in: string | null;
+        };
+        /** CorrectionSeriesOut */
+        CorrectionSeriesOut: {
+            /** Series Key */
+            series_key: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** N Changed */
+            n_changed: number;
+            /** Changes */
+            changes: components["schemas"]["CorrectionRowOut"][];
+        };
         /** CountriesOut */
         CountriesOut: {
             provenance?: components["schemas"]["CountryProvenance"] | null;
@@ -410,6 +457,8 @@ export interface components {
         OverviewOut: {
             /** Generated At */
             generated_at: string;
+            /** Data Updated At */
+            data_updated_at: string | null;
             /** Kpis */
             kpis: components["schemas"]["Kpi"][];
             /** Latest Releases */
@@ -457,6 +506,7 @@ export interface components {
             context: components["schemas"]["Insight"][];
             previous_comparison: components["schemas"]["PreviousComparison"];
             revisions: components["schemas"]["RevisionBlock"];
+            corrections: components["schemas"]["CorrectionBlock"];
             /** Interpretation */
             interpretation: components["schemas"]["Insight"][];
             methodology: components["schemas"]["Methodology"];

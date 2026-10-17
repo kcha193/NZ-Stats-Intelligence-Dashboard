@@ -449,32 +449,39 @@ def test_a_legacy_bare_timestamp_state_file_still_paces(tmp_path) -> None:
 
 
 @pytest.mark.parametrize("junk", ["not a number", '{"last": ', "{}", "nan", "[1, 2"])
-def test_unrecoverable_state_is_treated_as_fresh_and_rewritten(junk, tmp_path) -> None:
+def test_unrecoverable_state_is_repaired_with_a_fixed_recovery_cooldown(junk, tmp_path) -> None:
     wall = FakeTime()
     (tmp_path / ".request-pace").write_text(junk)
     f = _fetcher(lambda r: httpx.Response(200, text="x"), FakeTime(), pacer=_shared(tmp_path, wall))
-    assert f.get("http://h.test/a").status == 200 and wall.sleeps == []
+    with pytest.raises(IngestError):
+        f.get("http://h.test/a")
+    assert wall.sleeps == []
+    wall.t += COOLDOWN
     g = _fetcher(lambda r: httpx.Response(200, text="x"), FakeTime(), pacer=_shared(tmp_path, wall))
-    g.get("http://h.test/b")
-    assert wall.sleeps == [10.0], "the damaged file was replaced by valid state"
+    assert g.get("http://h.test/b").status == 200
 
 
-def test_binary_junk_in_the_state_file_is_treated_as_fresh_and_repaired(tmp_path) -> None:
+def test_binary_junk_is_repaired_with_a_recovery_cooldown(tmp_path) -> None:
     wall = FakeTime()
     (tmp_path / ".request-pace").write_bytes(b"\xff\xfe\x80garbage")
     f = _fetcher(lambda r: httpx.Response(200, text="x"), FakeTime(), pacer=_shared(tmp_path, wall))
-    assert f.get("http://h.test/a").status == 200
+    with pytest.raises(IngestError):
+        f.get("http://h.test/a")
+    wall.t += COOLDOWN
     g = _fetcher(lambda r: httpx.Response(200, text="x"), FakeTime(), pacer=_shared(tmp_path, wall))
-    g.get("http://h.test/b")
-    assert wall.sleeps == [10.0]
+    assert g.get("http://h.test/b").status == 200
 
 
-def test_a_deadline_cut_off_mid_number_is_ignored_not_read_as_a_different_time(tmp_path) -> None:
+def test_a_deadline_cut_off_mid_number_starts_a_bounded_recovery_cooldown(tmp_path) -> None:
     wall = FakeTime()  # now = 1000.0
     # Torn write of 1000600.0: the surviving "10006" would read as a deadline 2.5 h away.
     (tmp_path / ".request-pace").write_text(f'{{"last": {wall.t!r}, "blocked_until": 10006')
     f = _fetcher(lambda r: httpx.Response(200, text="x"), FakeTime(), pacer=_shared(tmp_path, wall))
-    assert f.get("http://h.test/a").status == 200 and wall.sleeps == [10.0]  # only `last` survived
+    with pytest.raises(IngestError):
+        f.get("http://h.test/a")
+    assert wall.sleeps == []
+    wall.t += COOLDOWN
+    assert f.get("http://h.test/a").status == 200
 
 
 def test_a_damaged_file_that_still_shows_an_active_cooldown_keeps_it(tmp_path) -> None:
@@ -510,9 +517,7 @@ def test_a_last_request_time_in_the_future_never_waits_longer_than_the_interval(
     assert wall.sleeps == [10.0]
 
 
-def test_if_the_state_cannot_be_saved_the_block_still_holds_in_this_process(
-    tmp_path, monkeypatch
-) -> None:
+def test_if_the_state_cannot_be_saved_no_request_is_sent(tmp_path, monkeypatch) -> None:
     import os
 
     writes = []
@@ -530,12 +535,11 @@ def test_if_the_state_cannot_be_saved_the_block_still_holds_in_this_process(
     )
     with pytest.raises(IngestError) as first:
         f.get("http://h.test/a")
-    assert first.value.error_class is ErrorClass.BLOCKED, (
-        "the caller still gets the block, not OSError"
-    )
+    assert first.value.error_class is ErrorClass.NETWORK
+    assert "No space" not in str(first.value)
     with pytest.raises(IngestError):
         f.get("http://h.test/b")
-    assert calls == [1] and writes, "the save was attempted and failed"
+    assert calls == [] and writes, "a request requires a durable reservation"
 
 
 # --- processes and lock timing ----------------------------------------------------------------------

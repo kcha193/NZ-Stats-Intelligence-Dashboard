@@ -8,7 +8,16 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from nzstats.clock import to_utc_iso
-from nzstats.domain import Observation, ObsStatus, Point, ReleaseRef, ReleaseStatus, SeriesDef
+from nzstats.domain import (
+    Adjustment,
+    Frequency,
+    Observation,
+    ObsStatus,
+    Point,
+    ReleaseRef,
+    ReleaseStatus,
+    SeriesDef,
+)
 
 # A missing file is meaningful only once it represents an unresolved data gap.
 DATA_GAP_STATUSES = ("published", "corrected", "unavailable")
@@ -442,6 +451,44 @@ def release_bundle(conn: sqlite3.Connection, release_id: int) -> str | None:
         (release_id,),
     ).fetchone()
     return row["bundle_sha256"] if row else None
+
+
+def release_bundles(conn: sqlite3.Connection, release_id: int) -> list[str]:
+    """Distinct bundles, most recently activated first (including a reactivated earlier bundle)."""
+    rows = conn.execute(
+        "SELECT bundle_sha256 FROM vintage WHERE release_id = ? GROUP BY bundle_sha256"
+        " ORDER BY MAX(activation) DESC, MAX(id) DESC",
+        (release_id,),
+    ).fetchall()
+    return [r["bundle_sha256"] for r in rows]
+
+
+def bundle_series(
+    conn: sqlite3.Connection, release_id: int, bundle_sha256: str
+) -> list[tuple[SeriesDef, list[ObservationRow]]]:
+    """All series and observations from exactly one stored release bundle."""
+    rows = conn.execute(
+        "SELECT s.*, v.id AS vintage_id FROM vintage v JOIN series s ON s.id = v.series_id"
+        " WHERE v.release_id = ? AND v.bundle_sha256 = ? ORDER BY s.key",
+        (release_id, bundle_sha256),
+    ).fetchall()
+    return [
+        (
+            SeriesDef(
+                key=r["key"],
+                name=r["name"],
+                unit=r["unit"],
+                frequency=Frequency(r["frequency"]),
+                adjustment=Adjustment(r["seasonal_adjustment"]),
+                definition=r["definition"],
+                definition_id=r["definition_id"],
+                category=r["category"],
+                source_url=r["source_url"],
+            ),
+            list(vintage_observations(conn, r["vintage_id"]).values()),
+        )
+        for r in rows
+    ]
 
 
 def bundle_vintage(

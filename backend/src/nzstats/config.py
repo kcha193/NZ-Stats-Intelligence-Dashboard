@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import tomllib
 from collections.abc import Mapping
@@ -52,6 +53,8 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     cfg = tomllib.loads(sources_file.read_text(encoding="utf-8"))
 
     interval = float(e.get("NZSTATS_MIN_INTERVAL_SECONDS", str(MIN_CRAWL_DELAY_SECONDS)))
+    if not math.isfinite(interval):
+        raise ValueError("NZSTATS_MIN_INTERVAL_SECONDS must be finite")
     if interval < MIN_CRAWL_DELAY_SECONDS:
         raise ValueError("NZSTATS_MIN_INTERVAL_SECONDS must be >= 10 (robots.txt crawl-delay)")
 

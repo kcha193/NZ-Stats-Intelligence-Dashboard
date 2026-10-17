@@ -26,7 +26,7 @@ function MetricsTable({ analysis }: { analysis: Analysis }) {
         {analysis.headline_metrics.map((m) => (
           <tr key={m.series_key} className="border-b last:border-0">
             <th scope="row" className="py-1.5 pr-3 font-normal">{m.label}</th>
-            <td className="py-1.5 pr-3 text-right font-medium">{formatNumber(m.value)}{m.std_error ? <span className="text-xs text-muted-foreground"> ±{formatNumber(m.std_error)}</span> : null}</td>
+            <td className="py-1.5 pr-3 text-right font-medium">{formatNumber(m.value)}{m.std_error !== null ? <span className="block text-xs text-muted-foreground">SE {formatNumber(m.std_error)}</span> : null}</td>
             <td className="py-1.5 pr-3">{m.period_label}</td>
             <td className="py-1.5 pr-3 text-right">{m.change_prior ? `${formatNumber(m.change_prior.absolute, { signed: true })} (${formatPercent(m.change_prior.percent)})` : "n/a"}</td>
             <td className="py-1.5 pr-3 text-right">{m.change_year_ago ? `${formatNumber(m.change_year_ago.absolute, { signed: true })} (${formatPercent(m.change_year_ago.percent)})` : "n/a"}</td>
@@ -42,6 +42,7 @@ function Analysis({ analysis }: { analysis: Analysis }) {
   const rel = analysis.release;
   const cmp = analysis.previous_comparison;
   const rev = analysis.revisions;
+  const corrections = analysis.corrections;
   return (
     <article className="space-y-6">
       <header>
@@ -127,6 +128,47 @@ function Analysis({ analysis }: { analysis: Analysis }) {
                 </tbody>
               </table>
             )}
+          </>
+        )}
+      </section>
+
+      <section aria-labelledby="corrections">
+        <h2 id="corrections" className="text-lg font-semibold">Corrections within this publication</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{corrections.note}</p>
+        {corrections.available && (
+          <>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Earlier capture: {corrections.against_captured_at ? formatAklDateTime(corrections.against_captured_at) : "not recorded"}.
+              Current capture: {formatAklDateTime(corrections.captured_at)}.
+            </p>
+            {corrections.series.map((s) => (
+              <div key={s.series_key} className="mt-3">
+                <h3 className="text-sm font-semibold">{s.label}: {s.n_changed} changed {s.n_changed === 1 ? "period" : "periods"}</h3>
+                <div className="mt-1 overflow-x-auto" role="region" aria-label={`${s.label} corrections`} tabIndex={0}>
+                  <table className="w-full text-left text-sm">
+                    <caption className="sr-only">{s.label} corrections, values in {s.unit}</caption>
+                    <thead><tr className="border-b text-xs text-muted-foreground">
+                      <th scope="col" className="py-1 pr-3">Period</th>
+                      <th scope="col" className="py-1 pr-3">Earlier ({s.unit})</th>
+                      <th scope="col" className="py-1 pr-3">Current ({s.unit})</th>
+                      <th scope="col" className="py-1 pr-3">Status change</th>
+                      <th scope="col" className="py-1 pr-3">Standard error change</th>
+                      <th scope="col" className="py-1">Source release month change</th>
+                    </tr></thead>
+                    <tbody>{s.changes.map((r) => (
+                      <tr key={r.period} className="border-b last:border-0">
+                        <th scope="row" className="py-1.5 pr-3 font-normal">{monthLabel(r.period)}</th>
+                        <td className="pr-3">{r.original === null ? "Not present" : formatNumber(r.original)}</td>
+                        <td className="pr-3">{r.revised === null ? "Not present" : formatNumber(r.revised)}</td>
+                        <td className="pr-3">{r.original_status ?? "not present"} → {r.revised_status ?? "not present"}</td>
+                        <td className="pr-3">SE {r.original_std_error === null ? "not supplied" : formatNumber(r.original_std_error)} → SE {r.revised_std_error === null ? "not supplied" : formatNumber(r.revised_std_error)}</td>
+                        <td>{r.original_released_in ?? "not supplied"} → {r.revised_released_in ?? "not supplied"}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </>
         )}
       </section>

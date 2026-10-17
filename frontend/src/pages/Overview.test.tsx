@@ -71,3 +71,10 @@ describe("Overview", () => {
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
 });
+
+it("uses the ingested data time when the response is generated days later", async () => {
+  mockApi({ "/api/overview": { ...overview, generated_at: "2026-10-16T10:00:00+13:00", data_updated_at: "2026-10-11T16:00:00+13:00" }, "/api/series/mig.ry.net": series });
+  renderWithProviders(<Overview />);
+  expect(await screen.findByText(/Migration data ingested 11 Oct 2026, 16:00 NZDT/)).toBeInTheDocument();
+  expect(screen.queryByText(/Updated 16 Oct/)).not.toBeInTheDocument();
+});

@@ -149,7 +149,7 @@ def test_first_release_has_explicit_limitations_not_errors(rt) -> None:
     ids = ingest_months(rt, "2026-06")
     a = _analysis(rt, ids["2026-06"])
     assert a is not None
-    assert a.revisions.available is False and "No earlier vintage" in a.revisions.note
+    assert a.revisions.available is False and "No earlier publication" in a.revisions.note
     assert a.previous_comparison.available is False
     assert 3 <= len(a.executive_summary) <= 5
 
@@ -290,7 +290,11 @@ def test_corrected_release_without_the_optional_chart_shows_no_stale_citizenship
     after = build_release_analysis(rt.conn, release_id, analysable_slugs=SLUGS)
     assert after is not None and after.headline_metrics
     assert not any(i.id == "citizenship" for i in after.context)
-    assert "mig.ry.net.nz" not in after.model_dump_json()
+    assert "mig.ry.net.nz" not in [m.series_key for m in after.headline_metrics]
+    assert not any(e.series_key == "mig.ry.net.nz" for i in after.context for e in i.evidence)
+    # Its withdrawal remains visible as historical correction evidence, never a current metric.
+    withdrawn = next(s for s in after.corrections.series if s.series_key == "mig.ry.net.nz")
+    assert all(r.original is not None and r.revised is None for r in withdrawn.changes)
 
 
 # --- a streak never bridges a missing month (review #4253711094) --------------------------------

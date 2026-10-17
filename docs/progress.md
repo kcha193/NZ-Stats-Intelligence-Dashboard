@@ -1,6 +1,36 @@
 # Progress and verification record
 
-Last updated 2026-10-15. Branch `feat/phase-1`. Spec and plan: `docs/superpowers/`.
+Last updated 2026-10-16. Phase 1 remediation; [PR #2](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/2) open. Spec and plan: `docs/superpowers/`.
+
+## Independent audit remediation — 16 October 2026
+
+Remediated all ten Phase 1 audit findings in four logical batches: data integrity (validation,
+corrections and statistical identity); reliability (durable pacing and concurrent schema startup); UI
+(freshness, uncertainty, calendar and correction presentation); and security/operations (dependency
+removal, safe reprocessing and CI). See the
+[resolution matrix and full verification report](phase-1-remediation.md) for F01–F10, RED/GREEN evidence,
+commands, remaining risks and deployment gaps. Historical records below describe their original state;
+the F05/F07 limitations listed on 15 October are superseded by this remediation.
+
+Production-version Python 3.12 verification: **651 backend tests passed**, **96.5% statement coverage**.
+Frontend: **120 tests passed**. Browser regressions: **39 passed** across 1440, 768 and 390 px, including
+calendar focus restoration, corrections, freshness and uncertainty labels. Typecheck, lint, build and
+API/fixture generation passed. The unused shadcn CLI removal reduced `npm audit` from seven high
+findings to **zero vulnerabilities**; the app's five CSS variants retain their MIT notice locally.
+A fresh final backend/frontend/browser run passed. The
+[implementation CI run](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/38833986960)
+passed backend, frontend and Docker jobs for `4f68ec2`; see PR #2 checks for subsequent commits.
+
+Replayed the preceding audit's full cached official June/July/August 2026 sources with no external
+requests: all **24 headline values** retained; legacy-compatible re-ingestion kept **164 releases,
+771 vintages, 29,395 observations** unchanged. Malformed HTTP-200 input retained the last good bundle.
+The online backup CLI was checked while an isolated API remained running. Linux CI also passed the offline
+Docker named-volume restart/recreation, scheduler startup and backup checks; local Docker execution
+remains unavailable because there is no daemon. Production bind-mount ownership and a complete unattended live
+publication remain deployment checks. Existing warning classes are unchanged.
+
+Next: review the new remediation PR and its latest-head checks, then obtain a **fresh independent Codex audit**.
+No merge, deployment or Phase 2 work is included. Unrelated local launcher/README work is preserved.
 
 ## Review completion cycle — 15 October 2026
 

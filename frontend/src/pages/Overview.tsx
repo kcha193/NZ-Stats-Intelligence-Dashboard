@@ -60,7 +60,11 @@ export default function Overview() {
         <div className="space-y-5">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Economic overview</h1>
-            <p className="text-sm text-muted-foreground">Latest official Stats NZ statistics. Updated {formatAklDateTime(d.generated_at)}.</p>
+            <p className="text-sm text-muted-foreground">
+              Latest official Stats NZ statistics. {d.data_updated_at
+                ? `Migration data ingested ${formatAklDateTime(d.data_updated_at)}.`
+                : "No migration data has been ingested yet."}
+            </p>
           </div>
           {d.kpis.length > 0 && (
             <section aria-label="Key indicators" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

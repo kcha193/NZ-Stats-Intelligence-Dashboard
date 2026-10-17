@@ -13,7 +13,7 @@ from nzstats.adapters.migration.parse import (
 )
 from nzstats.domain import ErrorClass, IngestError, Point
 from nzstats.sources.release_page import ReleasePage
-from nzstats.validate.rules import OPTIONAL_ROLLING_CITIZENSHIP, REQUIRED, validate_migration
+from nzstats.validate.rules import CITIZENSHIP_ROLLING, REQUIRED, validate_migration
 
 LAYOUT_VERSION = "migration-csv-v1"
 
@@ -22,7 +22,7 @@ class MigrationAdapter:
     series_slug = "international-migration"
     required_downloads = ("age_sex", "citizenship_visa_country")
     # Every series validation compares with its previous vintage (revisions and coverage).
-    previous_keys = (*REQUIRED, *OPTIONAL_ROLLING_CITIZENSHIP)
+    previous_keys = (*REQUIRED, *CITIZENSHIP_ROLLING)
 
     def __init__(self, country_window_months: int = 36) -> None:
         self._window = country_window_months

@@ -35,9 +35,11 @@ def build_overview(
     ).fetchone()
     kpis: list[Kpi] = []
     featured = None
+    data_updated_at = None
     if latest is not None:
         analysis = build_release_analysis(conn, latest["id"], analysable_slugs=analysable_slugs)
         if analysis is not None:
+            data_updated_at = analysis.vintage_captured_at
             kpis = [
                 Kpi(
                     metric=m,
@@ -73,6 +75,7 @@ def build_overview(
     )
     return OverviewOut(
         generated_at=to_akl_iso(now),
+        data_updated_at=data_updated_at,
         kpis=kpis,
         latest_releases=published,
         upcoming=upcoming,

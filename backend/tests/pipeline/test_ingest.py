@@ -265,6 +265,17 @@ def _revise_consistently(site, month: str, period: str, delta: int) -> None:
         out = io.StringIO()
         csv.writer(out, lineterminator="\n").writerows(rows)
         series["GraphCsvData"] = out.getvalue().rstrip("\n")
+        citizenship = _chart_series(obj, _CITIZENSHIP_CHART)
+        rows = list(csv.reader(io.StringIO(citizenship["GraphCsvData"])))
+        cols = [i for i, h in enumerate(rows[0]) if h in windows]
+        assert len(cols) == 12
+        for row in rows[1:]:
+            if row[0] in ("Migrant arrivals (non-NZ citizens)", "Net migration (non-NZ citizens)"):
+                for i in cols:
+                    row[i] = str(int(row[i]) + delta)
+        out = io.StringIO()
+        csv.writer(out, lineterminator="\n").writerows(rows)
+        citizenship["GraphCsvData"] = out.getvalue().rstrip("\n")
 
     _edit_page(site, month, edit)
 

@@ -30,13 +30,21 @@ dropped, e.g. `china-peoples-republic-of`).
   otherwise. Provisional values are drawn with a shaded band or lighter bars and flagged in tooltips, chart
   titles and exports; monthly and year-ended statuses are separate columns. The country ranking flags its
   prior window the same way (`prior_provisional`).
-- **Standard error**: Stats NZ's published standard error for provisional estimates; zero for final.
-  Shown as "±" in the headline table.
+- **Standard error (SE)**: Stats NZ's published standard error for provisional estimates; zero for final.
+  Labelled "SE" in the headline table. One standard error is not a 95 percent confidence interval or a
+  range of possible future revisions. No confidence interval is inferred from it by this dashboard.
 - **Net**: arrivals minus departures; wording is "net gain" or "net loss", never a sign alone.
 - **Percentage change**: shown as "n/a" when the previous value is zero or negative, or the current value
   is negative, because a percentage of a non-positive base is misleading. Absolute change is always shown.
 - **Revision**: revised value minus original, between two stored vintages. Percent only when meaningful.
   Releases before the oldest stored vintage cannot be compared, and the UI says so.
+  Release analysis reports corrections within the same publication separately from revisions between
+  publications, including changes to status or standard error and added/withdrawn observations.
+- **Statistical identity**: new bundles use a `data-v1:` prefix plus a SHA-256 of parsed observations
+  and measurement semantics. Editorial names, chart captions and file formatting are excluded. Legacy
+  bundle identifiers and their observations remain intact; an equivalent legacy capture is reused.
+- **Overview freshness**: `data_updated_at` is the selected migration bundle's ingestion/capture time.
+  `generated_at` is only the API response time. Source checks have their own attempt/success timestamps.
 - **Derived country ranking**: the sum of the published monthly arrivals by country over the requested
   window (the UI asks for the latest 12 months, `GET /api/migration/countries?months=&top=`). Country series are
   stored for the latest `country_window_months` (36, `config/sources.toml`) of each release. Months absent

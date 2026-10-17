@@ -70,6 +70,9 @@ To restore: `docker compose stop`, replace `data/nzstats.db` with the backup (de
 
 ## Local development
 
+Quick start without Docker: `scripts/run.sh` (see the header of that script for flags; the first run installs
+dependencies and builds the UI, then serves on http://localhost:8000).
+
 ```sh
 python3 -m venv backend/.venv && . backend/.venv/bin/activate
 pip install -e 'backend[dev]'
@@ -98,7 +101,10 @@ serves the built app; it never contacts stats.govt.nz.
 
 - Only International migration is active. Other categories appear on the Overview as "not yet active"
   until a verified, maintainable source is wired in.
-- Reprocessing: ingest decides "unchanged" from the hashes of the downloaded files plus the chart data embedded in the release page, so a correction to either is picked up by a manual re-ingest. A parser fix is not applied to releases whose inputs are unchanged (a `--reparse` option is listed in [progress.md](docs/progress.md)); the workaround is in [troubleshooting](docs/troubleshooting.md). Nothing re-checks a release once it has data, so `corrected` appears only after a manual re-ingest or backfill.
+- Reprocessing: every ingest parses and validates the source, then compares canonical statistical data.
+  Editorial titles and file formatting do not create corrections. Parser fixes that change the parsed
+  statistics create a new vintage while preserving existing history; identical statistics are unchanged.
+  Nothing re-checks a release once it has data, so later corrections require manual re-ingestion or backfill.
 - Revision history only covers releases captured since the oldest backfilled vintage. Stats NZ's older
   migration files (before 2024-06) are missing or use a different layout for many months; see
   [docs/data-sources/migration-vintage-depth.md](docs/data-sources/migration-vintage-depth.md). The UI

@@ -520,6 +520,13 @@
     }
    ]
   },
+  "corrections": {
+   "available": false,
+   "note": "No earlier distinct statistical capture is stored for this publication.",
+   "against_captured_at": null,
+   "captured_at": "2026-10-11T16:00:00+13:00",
+   "series": []
+  },
   "interpretation": [
    {
     "id": "driver-share",
