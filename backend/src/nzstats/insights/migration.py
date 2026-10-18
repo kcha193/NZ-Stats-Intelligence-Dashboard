@@ -475,12 +475,12 @@ def _corrections(
                         revised_released_in=b.released_in if b else None,
                     )
                 )
-            definition = repo.get_series_row(conn, key)
+            definition = current_defs.get(key) or previous_defs[key]
             changes.append(
                 CorrectionSeriesOut(
                     series_key=key,
-                    label=definition["name"],
-                    unit=definition["unit"],
+                    label=definition.name,
+                    unit=definition.unit,
                     n_changed=len(periods),
                     changes=rows,
                 )

@@ -18,8 +18,8 @@ def parsed(month="2026-09", raw=None):
     return EctAdapter().parse(page, {"ect_zip": raw or fixture_bytes(f"ect_{month}.zip")})
 
 
-def csv_rows():
-    with zipfile.ZipFile(io.BytesIO(fixture_bytes("ect_2026-09.zip"))) as z:
+def csv_rows(month="2026-09"):
+    with zipfile.ZipFile(io.BytesIO(fixture_bytes(f"ect_{month}.zip"))) as z:
         return list(csv.DictReader(io.StringIO(z.read(z.namelist()[0]).decode("utf-8-sig"))))
 
 
@@ -287,3 +287,58 @@ def test_monthly_publication_without_new_quarter_retains_prior_coverage():
     assert not [f for f in findings if f.severity == "error"]
     quarterly = next(s for s in current.series if s.definition.key == "ect.q.sa.retail.value")
     assert quarterly.observations[-1].period == "2026-06"
+
+
+@pytest.mark.parametrize("month", ["2026-08", "2026-09"])
+def test_initial_archive_rejects_stale_quarterly_series(month):
+    rows = csv_rows(month)
+    # Keep every earlier value, but remove the latest completed quarter from a mandatory
+    # count series so embedded chart/percentage reconciliation cannot mask the reference guard.
+    latest = "2026.06" if month == "2026-08" else "2026.09"
+    rows = [r for r in rows if r["Series_reference"] != "ECTQ.S29A9" or r["Period"] != latest]
+    with pytest.raises(IngestError, match="quarterly.*2026-(06|09)"):
+        parsed(month, raw=archive(rows))
+
+
+@pytest.mark.parametrize(
+    "reference,expected_quarter",
+    [
+        ("2027-01", "2026-12"),
+        ("2027-02", "2026-12"),
+        ("2027-03", "2027-03"),
+        ("2027-04", "2027-03"),
+        ("2027-05", "2027-03"),
+        ("2027-06", "2027-06"),
+        ("2027-07", "2027-06"),
+        ("2027-08", "2027-06"),
+        ("2027-09", "2027-09"),
+        ("2027-10", "2027-09"),
+        ("2027-11", "2027-09"),
+        ("2027-12", "2027-12"),
+    ],
+)
+def test_quarterly_reference_tracks_completed_quarter(reference, expected_quarter):
+    from nzstats.adapters.ect.adapter import EctAdapter
+    from nzstats.stats.periods import add_months
+
+    # Relabel real fixture periods to exercise the calendar boundary without invented values.
+    bundle = parsed()
+    quarterly = next(s for s in bundle.series if s.definition.key == "ect.q.actual.total.count")
+    quarterly = replace(
+        quarterly, observations=(replace(quarterly.observations[-1], period=expected_quarter),)
+    )
+    findings = EctAdapter().validate(
+        replace(bundle, series=(quarterly,)), reference_period=reference, previous={}
+    )
+    assert not [f for f in findings if f.rule == "reference"]
+
+    stale = replace(
+        quarterly,
+        observations=(
+            replace(quarterly.observations[-1], period=add_months(expected_quarter, -3)),
+        ),
+    )
+    findings = EctAdapter().validate(
+        replace(bundle, series=(stale,)), reference_period=reference, previous={}
+    )
+    assert any(f.rule == "reference" and f.severity == "error" for f in findings)

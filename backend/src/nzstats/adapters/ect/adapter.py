@@ -224,6 +224,11 @@ class EctAdapter:
     ) -> list[Finding]:
         findings = []
         definitions = supported_definitions()
+        latest_quarter = (
+            add_months(reference_period, -(int(reference_period[-2:]) % 3))
+            if reference_period
+            else None
+        )
 
         def error(rule, message):
             findings.append(Finding(rule, "error", message))
@@ -266,6 +271,12 @@ class EctAdapter:
                 or (step == 1 and max(periods) != reference_period)
             ):
                 error("reference", "ECT latest period differs from release reference")
+            if step == 3 and latest_quarter and max(periods) != latest_quarter:
+                error(
+                    "reference",
+                    f"ECT quarterly series {d.key} must include latest completed quarter "
+                    f"{latest_quarter}",
+                )
             if any(
                 o.series_key != d.key
                 or not math.isfinite(o.value)

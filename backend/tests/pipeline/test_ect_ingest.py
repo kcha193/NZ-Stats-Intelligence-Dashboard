@@ -252,3 +252,25 @@ def test_ect_historical_backfill_keeps_later_quarterly_vintage(rt, site):
     _, old, _ = seed_ect(rt, site, "2026-08")
     assert ingest_release(rt, old, now_fn=lambda: NOW).outcome == "ingested"
     assert repo.latest_points(rt.conn, "ect.q.sa.retail.value") == before
+
+
+@pytest.mark.parametrize("damage", ["stale_quarter", "no_quarters"])
+def test_first_ect_ingest_rejects_incomplete_quarterly_archive(rt, site, damage):
+    from nzstats.domain import ErrorClass
+    from tests.adapters.test_ect import archive, csv_rows
+
+    rid, key, url = seed_ect(rt, site)
+    rows = csv_rows()
+    if damage == "no_quarters":
+        rows = [r for r in rows if not r["Series_reference"].startswith("ECTQ.")]
+    else:
+        rows = [
+            r for r in rows if r["Series_reference"] != "ECTQ.S29A9" or r["Period"] != "2026.09"
+        ]
+    site.routes[url] = (200, archive(rows), "application/zip")
+    outcome = ingest_release(rt, key, now_fn=lambda: NOW)
+    assert outcome.outcome == "failed"
+    assert outcome.error_class is ErrorClass.VALIDATION_FAILED
+    assert repo.release_bundle(rt.conn, rid) is None
+    for table in ("series", "vintage", "observation", "vintage_series_definition"):
+        assert rt.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0

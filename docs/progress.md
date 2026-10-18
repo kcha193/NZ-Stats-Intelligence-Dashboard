@@ -26,6 +26,26 @@ Verification: **720 backend tests**, **129 frontend tests** and **42 Playwright 
 Ruff lint/format, TypeScript, frontend lint, production build and `git diff --check` passed.
 The existing TestClient deprecation, three UI Fast Refresh warnings and bundle-size warning remain.
 
+## PR #3 — Follow-up review findings, 18 October 2026
+
+The new-commit automatic Codex review of `891a759` is counted as review round 1 of this
+remediation's two-round limit. Its two P2 findings were reproduced with failing tests:
+
+- #4306413400: the first ingestion had no prior vintage, so retained-period checks alone could
+  accept stale quarterly series. Quarterly series must now reach the latest completed quarter
+  implied by the reference month (including December for January/February). Official August
+  and September archive regressions and all twelve month boundaries cover this contract.
+  First-ingestion pipeline tests verify stale or absent quarterly data cannot create vintages.
+- #4306413404: historical correction rows selected the latest publication's metadata. They now
+  use the compared bundle's retained definition, or the previous bundle's for a withdrawn series.
+  Two migration-fixture regressions cover corrected and withdrawn historical series viewed
+  after a newer publication changes its label and unit. Numerical compatibility checks remain.
+
+Independent review of the follow-up diff found no actionable blockers. Final local verification:
+**738 backend tests** and **42 Playwright checks** passed; Ruff lint/format and diff checks passed.
+Frontend code is unchanged from the preceding 129-test/type/lint/build verification. Exact-HEAD
+CI/review results are recorded in the PR; no merge or deployment was performed.
+
 ## Phase 2A — Electronic Card Transactions, 18 October 2026
 
 Implemented the ECT adapter through the existing registry, ingestion transaction, raw artifact store,
