@@ -59,3 +59,25 @@ it('explains an unseeded database', async () => {
   mockApi({});renderWithProviders(<ElectronicCardTransactions />);
   expect(await screen.findByText(/ECT data has not been ingested/)).toBeInTheDocument();
 });
+
+it('zooms the level chart by default with an explicit non-zero axis note, and can return to a zero base', async () => {
+  renderWithProviders(<ElectronicCardTransactions />);
+  const user=userEvent.setup();
+  const history=await screen.findByRole('img',{name:'ECT spending history'});
+  const scale=screen.getByRole('group',{name:'Vertical scale'});
+  expect(within(scale).getByRole('radio',{name:'Zoomed'})).toBeChecked();
+  const zoomed=JSON.parse(history.getAttribute('data-option')!);
+  expect(zoomed.yAxis.min).toBeGreaterThan(0);
+  expect(zoomed.title.text).toMatch(/not zero/);
+  expect(screen.getByText(/Vertical axis starts at \$[\d.]+b, not zero/)).toBeInTheDocument();
+  await user.click(within(scale).getByRole('radio',{name:'From zero'}));
+  const zero=JSON.parse(history.getAttribute('data-option')!);
+  expect(zero.yAxis.min).toBe(0);
+  expect(screen.queryByText(/Vertical axis starts at/)).not.toBeInTheDocument();
+});
+
+it('words the latest-release analysis as plain sentences', async () => {
+  renderWithProviders(<ElectronicCardTransactions />);
+  await screen.findByRole('heading',{name:'Latest release analysis'});
+  expect(screen.queryByText(/, value[:,]/)).not.toBeInTheDocument();
+});

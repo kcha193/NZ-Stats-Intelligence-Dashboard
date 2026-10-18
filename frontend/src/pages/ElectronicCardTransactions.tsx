@@ -4,7 +4,7 @@ import { ApiError } from '@/api/client';
 import { useEct } from '@/api/hooks';
 import type { EctDashboard, SeriesData } from '@/api/types';
 import { ChartCard } from '@/charts/ChartCard';
-import { ectHistoryOption, ectIndustryOption } from '@/charts/ect';
+import { ectHistoryOption, ectIndustryOption, zoomedRange, type HistoryScale } from '@/charts/ect';
 import { sliceYears } from '@/charts/options';
 import { useChartTheme } from '@/charts/theme';
 import { InsightList } from '@/components/InsightList';
@@ -26,12 +26,14 @@ function Dashboard({data}:{data:EctDashboard}) {
   const [adjustment,setAdjustment]=useState<keyof typeof ADJUSTMENTS>('sa');
   const [requestedFrequency,setFrequency]=useState('m');
   const [window,setWindow]=useState('3');
+  const [scale,setScale]=useState<HistoryScale>('zoomed');
   const theme=useChartTheme();const a=data.analysis;const rel=a.release;
   const series=new Map(data.series.map(s=>[s.series.key,s]));
   const quarterly=series.has(`ect.q.${adjustment}.${group}.value`);
   const frequency=requestedFrequency==='q' && quarterly?'q':'m';
   const selected=series.get(`ect.${frequency}.${adjustment}.${group}.value`);
   const points=selected?sliceYears(selected.points,window==='full'?null:Number(window)):[];
+  const axisMin=scale==='zoomed' && points.length?zoomedRange(points).min:null;
   const metrics=new Map(a.headline_metrics.map(m=>[m.series_key,m]));
   const retail=metrics.get('ect.m.sa.retail.value')!;const core=metrics.get('ect.m.sa.core.value')!;
   const total=metrics.get('ect.m.actual.total.value')!;
@@ -78,12 +80,13 @@ function Dashboard({data}:{data:EctDashboard}) {
         <Segmented label="ECT frequency" value={frequency} onChange={setFrequency} options={[{value:'m',label:'Monthly'},...(quarterly?[{value:'q',label:'Quarterly'}]:[])]} />
         <Segmented label="History window" value={window} onChange={setWindow} options={[
           ...[1,3,5].filter(n=>selected && selected.points.length>=(frequency==='q'?4:12)*n).map(n=>({value:String(n),label:`${n} ${n===1?'year':'years'}`})),{value:'full',label:'Full history'}]} />
+        <Segmented label="Vertical scale" value={scale} onChange={v=>setScale(v as HistoryScale)} options={[{value:'zoomed',label:'Zoomed'},{value:'zero',label:'From zero'}]} />
       </div>
       {!quarterly && <p className="text-sm text-muted-foreground">Quarterly data is not available for this selection.</p>}
       {selected?<ChartCard title={`${group==='core'?'Core retail':group==='total'?'Total ECT':'Retail'} spending · ${ADJUSTMENTS[adjustment]} · ${frequency==='q'?'quarterly':'monthly'}`}
         question={last?`${period(last.period)}: ${formatNumber(last.value,{decimals:1})} NZD million. How has spending changed over time?`:'How has spending changed over time?'}
-        unit="NZD million" source={source} caveat="Nominal values include price changes. Seasonal and trend estimates may be revised. Quarterly data is published separately by Stats NZ."
-        option={ectHistoryOption({name:`${group==='core'?'Core retail':group==='total'?'Total ECT':'Retail'}, ${ADJUSTMENTS[adjustment]}`,points,frequency:selected.series.frequency},theme)}
+        unit="NZD million" source={source} caveat={`${axisMin!==null?`Vertical axis starts at $${formatNumber(axisMin/1000,{decimals:2})}b, not zero. `:''}Nominal values include price changes. Seasonal and trend estimates may be revised. Quarterly data is published separately by Stats NZ.`}
+        option={ectHistoryOption({name:`${group==='core'?'Core retail':group==='total'?'Total ECT':'Retail'}, ${ADJUSTMENTS[adjustment]}`,points,frequency:selected.series.frequency},theme,scale)}
         ariaLabel="ECT spending history" csvFilename="ect-spending-history.csv" csvRows={exportRows(selected)} />:
         <EmptyState title="Series unavailable" body="This release does not contain the selected series." />}
     </section>

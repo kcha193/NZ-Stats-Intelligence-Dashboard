@@ -6,6 +6,11 @@ test('ECT charts, quarterly controls, CSV and analysis work without horizontal o
   await expect(page.getByRole('heading',{level:1,name:'Electronic card transactions'})).toBeVisible();
   await expect(page.locator('canvas').first()).toBeVisible();
   await page.screenshot({path:testInfo.outputPath('ect-dashboard.png'),fullPage:true});
+  await expect(page.getByText(/Vertical axis starts at \$[\d.]+b, not zero/)).toBeVisible();
+  await page.locator('canvas').first().hover({position:{x:150,y:120}});
+  await expect(page.getByText(/Retail, Seasonally adjusted: [\d,]+\.\d NZD million/)).toBeVisible();
+  await page.getByRole('group',{name:'Vertical scale'}).getByText('From zero',{exact:true}).click();
+  await expect(page.getByText(/Vertical axis starts at/)).toHaveCount(0);
   await page.getByLabel('Spending group').selectOption('core');
   await page.getByRole('combobox',{name:'Adjustment',exact:true}).selectOption('trend');
   await page.getByRole('group',{name:'ECT frequency'}).getByText('Quarterly',{exact:true}).click();

@@ -3,7 +3,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { Download, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toCsv } from "@/lib/csv";
-import { formatAklDate } from "@/lib/format";
+import { formatAklDate, formatAklDateTime } from "@/lib/format";
 import { EChart, type ChartInstance } from "./EChart";
 import { useChartTheme } from "./theme";
 import { captionedChartPng } from "./imageExport";
@@ -39,7 +39,10 @@ export function ChartCard({
   const publication = source.updated
     ? `published ${formatAklDate(source.updated)}`
     : "publication date unavailable";
-  const capture = source.captured ? `Captured ${source.captured} (vintage).` : null;
+  const captured = source.captured ? formatAklDateTime(source.captured) : null;
+  const capture = captured ? `Captured ${captured} (vintage).` : null;
+  // Exported images keep the exact instant as provenance beside the readable time.
+  const exportCapture = captured ? `Captured ${captured} (${source.captured}; vintage).` : null;
   const columns = csvRows.length ? Object.keys(csvRows[0]) : [];
   const tail = csvRows.slice(-24);
 
@@ -58,7 +61,7 @@ export function ChartCard({
       if (!url) throw new Error("Chart is not ready");
       const paragraphs = [
         title, question, `Unit: ${unit}. Source: ${source.label}, ${publication}.`,
-        source.url ?? "Source URL unavailable.", capture, caveat,
+        source.url ?? "Source URL unavailable.", exportCapture, caveat,
       ].filter((p): p is string => Boolean(p));
       save(await captionedChartPng(url, paragraphs, theme), csvFilename.replace(/\.csv$/, ".png"));
       setExportStatus("Chart image exported with source information.");
