@@ -139,6 +139,22 @@ def test_validation_rejects_truncated_quarterly_history_against_prior_release():
     assert any(f.severity == "error" and f.rule == "coverage" for f in findings)
 
 
+def test_validation_rejects_archive_without_quarterly_series():
+    from nzstats.adapters.ect.adapter import EctAdapter
+
+    current = parsed("2026-09")
+    changed = replace(
+        current,
+        series=tuple(
+            series for series in current.series if not series.definition.key.startswith("ect.q.")
+        ),
+    )
+
+    findings = EctAdapter().validate(changed, reference_period="2026-09", previous={})
+
+    assert any(f.severity == "error" and f.rule == "coverage" for f in findings)
+
+
 def test_source_chart_mismatch_is_rejected():
     rows = csv_rows()
     next(r for r in rows if r["Series_reference"] == "ECTM.S1GS3" and r["Period"] == "2026.09")[
@@ -253,3 +269,21 @@ def test_missing_industry_series_is_rejected_even_without_chart():
         f.severity == "error"
         for f in EctAdapter().validate(changed, reference_period="2026-09", previous={})
     )
+
+
+def test_monthly_publication_without_new_quarter_retains_prior_coverage():
+    from nzstats.adapters.ect.adapter import EctAdapter
+
+    current = parsed("2026-08")
+    previous = {
+        s.definition.key: {
+            o.period: Point(o.period, o.value, o.status)
+            for o in s.observations
+            if o.period <= "2026-07"
+        }
+        for s in current.series
+    }
+    findings = EctAdapter().validate(current, reference_period="2026-08", previous=previous)
+    assert not [f for f in findings if f.severity == "error"]
+    quarterly = next(s for s in current.series if s.definition.key == "ect.q.sa.retail.value")
+    assert quarterly.observations[-1].period == "2026-06"

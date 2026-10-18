@@ -302,10 +302,18 @@ def bundle_points(
 
 
 def previous_points(
-    conn: sqlite3.Connection, series_key: str, published_before: datetime
+    conn: sqlite3.Connection,
+    series_key: str,
+    published_before: datetime,
+    *,
+    include_publication: bool = False,
 ) -> dict[str, Point]:
     cutoff = to_utc_iso(published_before)
-    prior = [i for i in list_vintages(conn, series_key) if i.published_at < cutoff]
+    prior = [
+        i
+        for i in list_vintages(conn, series_key)
+        if i.published_at < cutoff or (include_publication and i.published_at == cutoff)
+    ]
     return vintage_points(conn, prior[-1].vintage_id) if prior else {}
 
 

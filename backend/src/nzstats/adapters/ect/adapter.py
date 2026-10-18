@@ -65,6 +65,7 @@ class EctAdapter:
     series_slug = SLUG
     required_downloads = ("ect_zip",)
     previous_keys = tuple(supported_definitions())
+    preserve_publication_coverage = True
 
     def parse(self, page: ReleasePage, files: Mapping[str, bytes]) -> ParsedBundle:
         if not page.title.lower().startswith("electronic card transactions:"):
@@ -234,8 +235,15 @@ class EctAdapter:
             error("coverage", "Missing required ECT indicators")
         quarterly = {k for k in keys if k.startswith("ect.q.")}
         required_quarters = {k.replace("ect.m.", "ect.q.", 1) for k in REQUIRED}
-        if quarterly and not required_quarters <= quarterly:
-            error("coverage", "Incomplete quarterly ECT indicators")
+        if not required_quarters <= quarterly:
+            missing = ", ".join(sorted(required_quarters - quarterly))
+            error("coverage", f"Missing required quarterly ECT indicators: {missing}")
+        missing_series = {k for k, points in previous.items() if points} - set(keys)
+        if missing_series:
+            error(
+                "coverage",
+                f"ECT previously published series missing: {', '.join(sorted(missing_series))}",
+            )
         for s in bundle.series:
             d = s.definition
             obs = s.observations
@@ -266,8 +274,14 @@ class EctAdapter:
             ):
                 error("values", "ECT observations incompatible with definition")
             prior = previous.get(d.key, {})
-            if prior and min(periods) > min(prior):
-                error("coverage", "ECT historical coverage was truncated")
+            missing_periods = set(prior) - set(periods)
+            if missing_periods:
+                error(
+                    "coverage",
+                    f"ECT published period coverage lost for {d.key}: "
+                    f"{len(missing_periods)} missing periods "
+                    f"({min(missing_periods)} to {max(missing_periods)})",
+                )
             common = set(periods) & set(prior)
             if any(prior[o.period].value != o.value for o in obs if o.period in common):
                 findings.append(

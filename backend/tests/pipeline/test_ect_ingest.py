@@ -159,3 +159,96 @@ def test_analysis_does_not_claim_an_increase_or_decrease_for_unchanged_industrie
         if i.id == "industry"
     )
     assert "increase" not in text.lower() and "decrease" not in text.lower()
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "no_quarters",
+        "missing_series",
+        "earliest",
+        "latest",
+        "intermediate",
+        "optional_series",
+        "metadata",
+    ],
+)
+@pytest.mark.parametrize("correction", [False, True], ids=["new-publication", "same-publication"])
+def test_incomplete_ect_archive_fails_before_commit(rt, site, damage, correction):
+    from nzstats.domain import ErrorClass
+    from tests.adapters.test_ect import archive, csv_rows
+
+    old_id, old_key, _ = seed_ect(rt, site, "2026-08")
+    assert ingest_release(rt, old_key, now_fn=lambda: NOW).outcome == "ingested"
+    rid, key, url = seed_ect(rt, site)
+    if correction:
+        assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    tables = ("series", "vintage", "observation", "vintage_series_definition")
+    before = {table: list(rt.conn.execute(f"SELECT * FROM {table}")) for table in tables}
+    old_bundle = repo.release_bundle(rt.conn, old_id)
+    current_bundle = repo.release_bundle(rt.conn, rid)
+    rows = csv_rows()
+    # Actual counts avoid chart/percentage reconciliation masking the coverage guard.
+    code = "ECTQ.S29A9"
+    if damage == "no_quarters":
+        rows = [r for r in rows if not r["Series_reference"].startswith("ECTQ.")]
+    elif damage in ("missing_series", "optional_series"):
+        missing = "ECTQ.S19AW" if damage == "optional_series" else code
+        rows = [r for r in rows if r["Series_reference"] != missing]
+    elif damage == "metadata":
+        next(r for r in rows if r["Series_reference"] == code)["UNITS"] = "Dollars"
+    else:
+        periods = sorted(
+            r["Period"]
+            for r in rows
+            if r["Series_reference"] == code and r["Data_value"] and not r["Suppressed"]
+        )
+        removed = {
+            "earliest": {periods[0]},
+            "latest": {periods[-1]} if correction else {"2026.06", "2026.09"},
+            "intermediate": {periods[len(periods) // 2]},
+        }[damage]
+        rows = [r for r in rows if r["Series_reference"] != code or r["Period"] not in removed]
+    site.routes[url] = (200, archive(rows), "application/zip")
+    outcome = ingest_release(rt, key, now_fn=lambda: NOW)
+    assert outcome.outcome == "failed"
+    assert outcome.error_class is ErrorClass.VALIDATION_FAILED
+    run = rt.conn.execute("SELECT detail FROM ingest_run ORDER BY id DESC LIMIT 1").fetchone()[0]
+    assert "ECT" in run
+    assert any(word in run.lower() for word in ("quarterly", "coverage", "continuous", "metadata"))
+    assert repo.release_bundle(rt.conn, old_id) == old_bundle
+    assert repo.release_bundle(rt.conn, rid) == current_bundle
+    assert {table: list(rt.conn.execute(f"SELECT * FROM {table}")) for table in tables} == before
+
+
+def test_quarterly_numerical_correction_keeps_periods_and_history(rt, site):
+    from tests.adapters.test_ect import archive, csv_rows
+
+    _, old_key, _ = seed_ect(rt, site, "2026-08")
+    assert ingest_release(rt, old_key, now_fn=lambda: NOW).outcome == "ingested"
+    _, key, url = seed_ect(rt, site)
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    prior = repo.list_vintages(rt.conn, "ect.q.actual.total.count")[-1]
+    original = repo.vintage_points(rt.conn, prior.vintage_id)
+    rows = csv_rows()
+    row = next(
+        r for r in rows if r["Series_reference"] == "ECTQ.S29A9" and r["Period"] == "2026.06"
+    )
+    row["Data_value"] = str(int(float(row["Data_value"])) + 1)
+    site.routes[url] = (200, archive(rows), "application/zip")
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    latest = repo.list_vintages(rt.conn, "ect.q.actual.total.count")[-1]
+    corrected = repo.vintage_points(rt.conn, latest.vintage_id)
+    assert corrected.keys() == original.keys()
+    assert corrected["2026-06"].value == original["2026-06"].value + 1
+    assert repo.vintage_points(rt.conn, prior.vintage_id) == original
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "unchanged"
+
+
+def test_ect_historical_backfill_keeps_later_quarterly_vintage(rt, site):
+    _, new, _ = seed_ect(rt, site)
+    assert ingest_release(rt, new, now_fn=lambda: NOW).outcome == "ingested"
+    before = repo.latest_points(rt.conn, "ect.q.sa.retail.value")
+    _, old, _ = seed_ect(rt, site, "2026-08")
+    assert ingest_release(rt, old, now_fn=lambda: NOW).outcome == "ingested"
+    assert repo.latest_points(rt.conn, "ect.q.sa.retail.value") == before

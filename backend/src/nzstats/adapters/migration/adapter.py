@@ -23,6 +23,7 @@ class MigrationAdapter:
     required_downloads = ("age_sex", "citizenship_visa_country")
     # Every series validation compares with its previous vintage (revisions and coverage).
     previous_keys = (*REQUIRED, *CITIZENSHIP_ROLLING)
+    preserve_publication_coverage = False
 
     def __init__(self, country_window_months: int = 36) -> None:
         self._window = country_window_months

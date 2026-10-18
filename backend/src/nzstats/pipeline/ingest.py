@@ -170,7 +170,15 @@ def _ingest(
     release_id = int(row["id"])
     bundle = adapter.parse(page, files)
     published_at = from_utc_iso(row["published_at"])
-    previous = {k: repo.previous_points(rt.conn, k, published_at) for k in adapter.previous_keys}
+    previous = {
+        k: repo.previous_points(
+            rt.conn,
+            k,
+            published_at,
+            include_publication=adapter.preserve_publication_coverage,
+        )
+        for k in adapter.previous_keys
+    }
     findings = adapter.validate(bundle, reference_period=row["reference_period"], previous=previous)
     errors = [f for f in findings if f.severity == "error"]
     if errors:

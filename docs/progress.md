@@ -1,7 +1,30 @@
 # Progress and verification record
 
-Last updated 2026-10-18. Phase 2A ECT implemented on `feat/phase-2a-ect`, prepared for a new pull
-request and independent review; not merged or deployed. Earlier entries below are historical.
+Last updated 2026-10-18. Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
+coverage review remediation is locally verified, with CI and fresh automated review required after push. Not merged or deployed. Earlier entries below are historical.
+
+## PR #3 — ECT publication coverage remediation, 18 October 2026
+
+Review findings #4305426410 and #4305426414 share incomplete coverage validation. Quarterly
+mandatory indicators are now required even when no ECTQ rows exist. Every previously observed
+supported series must remain present, and its previously published periods must be retained.
+The check covers historical, intermediate and latest periods while allowing numerical revisions.
+ECT coverage comparisons include the latest stored vintage of the same publication for corrected
+re-ingestion; historical backfills still exclude later publications. Migration keeps its existing
+strictly earlier-publication comparison. No current-month quarter-end requirement was introduced.
+
+The existing uncommitted empty-quarterly regression was preserved and observed failing first.
+Official-fixture pipeline regressions also reproduced acceptance of absent quarterly data, missing
+optional series and lost latest periods before the fix. The matrix exercises complete fixtures,
+missing mandatory series, first/latest/intermediate observations, incompatible metadata, valid
+quarterly numerical corrections, idempotent re-ingestion, monthly publication without a new quarter,
+new quarterly coverage and out-of-order backfill. Failed ingestion leaves existing series, vintages,
+observations and vintage measurement definitions unchanged; raw failed-download artifacts remain
+available for audit. An independent diff review found no actionable correctness defects.
+
+Verification: **720 backend tests**, **129 frontend tests** and **42 Playwright checks** passed.
+Ruff lint/format, TypeScript, frontend lint, production build and `git diff --check` passed.
+The existing TestClient deprecation, three UI Fast Refresh warnings and bundle-size warning remain.
 
 ## Phase 2A — Electronic Card Transactions, 18 October 2026
 
