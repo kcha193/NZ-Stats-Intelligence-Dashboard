@@ -101,4 +101,10 @@ describe("ChartCard", () => {
     expect(button).toBeEnabled();
     expect(click).not.toHaveBeenCalled();
   });
+
+  it("shows the capture time as a readable Auckland date, not an ISO string", () => {
+    render(<ChartCard {...props} source={{ ...props.source, captured: "2026-10-18T13:00:00+13:00" }} />);
+    expect(screen.getByText(/Captured 18 Oct 2026, \d{1,2}:00 NZDT/)).toBeInTheDocument();
+    expect(screen.queryByText(/2026-10-18T/)).not.toBeInTheDocument();
+  });
 });

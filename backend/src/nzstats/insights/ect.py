@@ -52,6 +52,35 @@ CAVEATS = [
 ]
 
 
+SUBJECTS = {
+    "retail": "retail card spending",
+    "core": "core retail card spending",
+    "total": "total electronic card spending",
+}
+
+
+def _direction(percent: float) -> str:
+    """Verb for a change published to one decimal place; never claims a direction for 0.0%."""
+    rounded = round(percent, 1)
+    return "was unchanged" if rounded == 0 else "increased" if rounded > 0 else "decreased"
+
+
+def _movement(change: ChangeOut, *, unit: str) -> str:
+    amount = f"{unit} {abs(change.absolute):,.1f} million"
+    return (
+        "unchanged"
+        if round(change.percent, 1) == 0
+        else (f"{'up' if change.absolute > 0 else 'down'} {amount}")
+    )
+
+
+def _versus(change: ChangeOut) -> str:
+    when = month_label(change.comparison_period)
+    if round(change.percent, 1) == 0:
+        return f"unchanged from {when}"
+    return f"{'up' if change.percent > 0 else 'down'} {abs(change.percent):.1f}% from {when}"
+
+
 def metric(
     definition: SeriesDef, observations: Sequence[Observation | repo.ObservationRow]
 ) -> Metric:
@@ -165,12 +194,15 @@ def _build_ect(
         m = metrics[k]
         c = m.change_prior
         if c and c.percent is not None:
+            verb = _direction(c.percent)
+            size = "" if verb == "was unchanged" else f" {abs(c.percent):.1f}%"
             executive.append(
                 Insight(
                     id=group,
                     kind="observation",
-                    text=f"{m.label}: {m.value:,.1f} NZD million in {m.period_label}; "
-                    f"{c.percent:+.1f}% ({c.absolute:+,.1f} NZD million) {c.label}.",
+                    text=f"Seasonally adjusted {SUBJECTS[group]} {verb}{size} in {m.period_label} "
+                    f"(NZD {m.value:,.1f} million, {_movement(c, unit='NZD')} "
+                    f"from {month_label(c.comparison_period)}).",
                     evidence=[evidence(k), evidence(k, c.comparison_period)],
                 )
             )
@@ -182,12 +214,18 @@ def _build_ect(
             industry_changes.append((m.change_prior.percent, label, k))
     if industry_changes:
         low, high = min(industry_changes), max(industry_changes)
+        clauses = []
+        if round(high[0], 1) > 0:
+            clauses.append(f"rose most in {high[1]} ({high[0]:+.1f}%)")
+        if round(low[0], 1) < 0:
+            clauses.append(f"fell most in {low[1]} ({low[0]:+.1f}%)")
+        movement = " and ".join(clauses) or "was unchanged across industries"
         executive.append(
             Insight(
                 id="industry",
                 kind="observation",
-                text=f"Strongest industry movement: {high[1]} ({high[0]:+.1f}%); "
-                f"weakest movement: {low[1]} ({low[0]:+.1f}%). Seasonally adjusted, monthly.",
+                text=f"Seasonally adjusted monthly card spending {movement} in "
+                f"{metrics[high[2]].period_label}.",
                 evidence=[
                     evidence(k, p)
                     for k in (high[2], low[2])
@@ -202,20 +240,25 @@ def _build_ect(
         Insight(
             id="actual",
             kind="observation",
-            text=f"Actual total spending was ${total.value / 1000:.2f} billion across {count.value / 1_000_000:.1f} "
-            f"million transactions; the published mean was ${avg.value:.1f}. These are unadjusted measures.",
+            text=f"Unadjusted (actual) card spending totalled ${total.value / 1000:.2f} billion "
+            f"across {count.value / 1_000_000:.1f} million transactions in {total.period_label}, "
+            f"with a mean transaction value of ${avg.value:.1f}.",
             evidence=[evidence(m.series_key) for m in (total, count, avg)],
         )
     )
     for group in ("retail", "core"):
         k = f"ect.q.sa.{group}.value"
         m = metrics.get(k)
-        if m and m.change_prior:
+        if m and m.change_prior and m.change_prior.percent is not None:
+            verb = _direction(m.change_prior.percent)
+            size = "" if verb == "was unchanged" else f" {abs(m.change_prior.percent):.1f}%"
             executive.append(
                 Insight(
                     id="quarter-" + group,
                     kind="observation",
-                    text=f"{m.label}, {m.period_label}: {m.change_prior.percent:+.1f}% versus the previous quarter.",
+                    text=f"{SUBJECTS[group].capitalize()} {verb}{size} in the {m.period_label.removeprefix('Quarter ended ')} "
+                    f"quarter (seasonally adjusted), compared with the "
+                    f"{month_label(m.change_prior.comparison_period)} quarter.",
                     evidence=[evidence(k), evidence(k, m.change_prior.comparison_period)],
                 )
             )
@@ -225,9 +268,10 @@ def _build_ect(
         Insight(
             id="history",
             kind="observation",
-            text=f"Retail seasonally adjusted spending is {retail.value:,.1f} NZD million; "
-            f"the captured history has {len(values)} monthly observations with a range of "
-            f"{min(values):,.1f}–{max(values):,.1f} NZD million. Nominal comparisons include price changes.",
+            text=f"Seasonally adjusted retail card spending was NZD {retail.value:,.1f} million in "
+            f"{retail.period_label}. The {len(values)} monthly observations captured range from "
+            f"NZD {min(values):,.1f} million to NZD {max(values):,.1f} million; these nominal "
+            "values include price changes.",
             evidence=[
                 evidence(retail.series_key, o.period)
                 for o in stored[retail.series_key][1]
@@ -237,10 +281,11 @@ def _build_ect(
         Insight(
             id="trend",
             kind="observation",
-            text=f"Retail trend spending: {trend.value:,.1f} NZD million"
+            text=f"Retail card spending trend was NZD {trend.value:,.1f} million in "
+            f"{trend.period_label}"
             + (
-                f", {trend.change_prior.percent:+.1f}% versus the previous month."
-                if trend.change_prior
+                f", {_versus(trend.change_prior)}."
+                if trend.change_prior and trend.change_prior.percent is not None
                 else "."
             ),
             evidence=[evidence(trend.series_key)]

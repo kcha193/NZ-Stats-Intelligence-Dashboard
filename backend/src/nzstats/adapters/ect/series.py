@@ -104,6 +104,14 @@ def identity(code: str, source_url: str | None = None) -> tuple[SeriesDef, dict[
     ), expected
 
 
+# Actual (unadjusted) aggregates and the industries that make them up. Seasonally adjusted and trend
+# components are adjusted independently and are deliberately absent: they need not add up.
+ACTUAL_COMPONENTS = {
+    "retail": ("consumables", "durables", "hospitality", "apparel", "motor_vehicles", "fuel"),
+    "core": ("consumables", "durables", "hospitality", "apparel"),
+    "total": tuple(industry for industry, _ in INDUSTRIES.values()),
+}
+
 REQUIRED = tuple(
     f"ect.m.{adj}.{group}.value"
     for adj in ("actual", "sa", "trend")

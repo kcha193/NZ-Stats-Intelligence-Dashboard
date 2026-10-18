@@ -274,3 +274,83 @@ def test_first_ect_ingest_rejects_incomplete_quarterly_archive(rt, site, damage)
     assert repo.release_bundle(rt.conn, rid) is None
     for table in ("series", "vintage", "observation", "vintage_series_definition"):
         assert rt.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+
+
+def test_scaled_core_actual_levels_fail_closed_and_keep_last_known_good(rt, site):
+    from nzstats.domain import ErrorClass
+    from tests.adapters.test_ect import archive, csv_rows
+
+    old_id, old_key, _ = seed_ect(rt, site, "2026-08")
+    assert ingest_release(rt, old_key, now_fn=lambda: NOW).outcome == "ingested"
+    rid, key, url = seed_ect(rt, site)
+    tables = ("series", "vintage", "observation", "vintage_series_definition")
+    before = {t: list(rt.conn.execute(f"SELECT * FROM {t}")) for t in tables}
+    rows = csv_rows()
+    for r in rows:
+        if r["Series_reference"] == "ECTM.S19A2" and r["Data_value"]:
+            r["Data_value"] = str(float(r["Data_value"]) * 10)
+    site.routes[url] = (200, archive(rows), "application/zip")
+    outcome = ingest_release(rt, key, now_fn=lambda: NOW)
+    assert outcome.outcome == "failed"
+    assert outcome.error_class is ErrorClass.VALIDATION_FAILED
+    detail = rt.conn.execute("SELECT detail FROM ingest_run ORDER BY id DESC LIMIT 1").fetchone()[0]
+    assert "consistency" in detail
+    assert repo.release_bundle(rt.conn, old_id) is not None
+    assert {t: list(rt.conn.execute(f"SELECT * FROM {t}")) for t in tables} == before
+
+
+def test_wording_only_metadata_change_does_not_mint_a_new_vintage(rt, site):
+    from dataclasses import replace
+
+    from nzstats.adapters.base import ParsedBundle, ParsedSeries
+
+    rid, key, _ = seed_ect(rt, site)
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    vintages = rt.conn.execute("SELECT COUNT(*) FROM vintage").fetchone()[0]
+    adapter = rt.adapters["electronic-card-transactions"]
+    real_parse = adapter.parse
+
+    def reworded(page, files):
+        b = real_parse(page, files)
+        return ParsedBundle(
+            b.layout_version,
+            tuple(
+                ParsedSeries(
+                    replace(s.definition, definition="Edited caveat wording", name="Renamed"),
+                    s.observations,
+                )
+                for s in b.series
+            ),
+        )
+
+    adapter.parse = reworded
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "unchanged"
+    assert rt.conn.execute("SELECT COUNT(*) FROM vintage").fetchone()[0] == vintages
+
+
+def test_ect_bundle_stored_under_the_earlier_digest_is_not_reminted(rt, site):
+    """Databases created before wording left the digest hold ECT bundles hashed with the wording."""
+    import hashlib
+    import json
+
+    rid, key, _ = seed_ect(rt, site)
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    stored = repo.release_bundle(rt.conn, rid)
+    data = []
+    for d, observations in repo.bundle_series(rt.conn, rid, stored):
+        points = sorted(
+            (o.period, float(o.value) if o.value != 0 else 0.0, o.status.value, None, o.released_in)
+            for o in observations
+        )
+        data.append(
+            (d.key, d.unit, d.frequency.value, d.adjustment.value, d.definition_id, points)
+            + (d.definition, d.name, d.category)
+        )
+    payload = json.dumps(sorted(data), separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    legacy = "data-v1:" + hashlib.sha256(payload.encode()).hexdigest()
+    assert legacy != stored
+    rt.conn.execute("UPDATE vintage SET bundle_sha256=? WHERE bundle_sha256=?", (legacy, stored))
+    rt.conn.commit()
+    count = rt.conn.execute("SELECT COUNT(*) FROM vintage").fetchone()[0]
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "unchanged"
+    assert rt.conn.execute("SELECT COUNT(*) FROM vintage").fetchone()[0] == count
