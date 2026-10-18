@@ -209,9 +209,24 @@ def build_ect_dashboard(
             ),
         ),
     ]
-    rev = revision_view(conn, retail.series_key, compare_release_key=row["release_key"])
+    previous = repo.previous_vintage(conn, retail.series_key, row["published_at"])
+    rev = (
+        revision_view(
+            conn,
+            retail.series_key,
+            base_release_key=previous.release_key,
+            compare_release_key=row["release_key"],
+        )
+        if previous
+        else None
+    )
     available = bool(rev and rev.base and rev.compare)
-    note = rev.coverage.note if rev else "No compatible earlier vintage is available."
+    note = (
+        rev.coverage.note
+        if rev
+        else "No earlier publication is stored for this series, so revisions and changes since "
+        "the previous release cannot be assessed."
+    )
     revisions = RevisionBlock(
         available=available,
         note=note,
@@ -230,7 +245,6 @@ def build_ect_dashboard(
     )
     decomposition = []
     if available:
-        previous = repo.previous_vintage(conn, retail.series_key, row["published_at"])
         points = repo.vintage_points(conn, previous.vintage_id) if previous else {}
         if points:
             p = max(points)
