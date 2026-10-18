@@ -64,7 +64,7 @@ def read_archive(raw: bytes) -> str:
 class EctAdapter:
     series_slug = SLUG
     required_downloads = ("ect_zip",)
-    previous_keys = REQUIRED
+    previous_keys = tuple(supported_definitions())
 
     def parse(self, page: ReleasePage, files: Mapping[str, bytes]) -> ParsedBundle:
         if not page.title.lower().startswith("electronic card transactions:"):

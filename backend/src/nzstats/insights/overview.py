@@ -6,7 +6,7 @@ from datetime import datetime
 
 from nzstats.catalog import INACTIVE_CATEGORIES
 from nzstats.clock import to_akl_iso, to_utc_iso
-from nzstats.insights.ect import build_ect_dashboard
+from nzstats.insights.ect import build_ect_overview_kpi
 from nzstats.insights.migration import SLUG, build_release_analysis
 from nzstats.insights.summary import release_summary
 from nzstats.models import FeaturedOut, InactiveCategory, Kpi, OverviewOut, SourceHealthOut
@@ -58,18 +58,11 @@ def build_overview(
                 else None,
             )
 
-    ect = build_ect_dashboard(conn)
+    ect = build_ect_overview_kpi(conn)
     if ect is not None:
-        a = ect.analysis
-        kpis.append(
-            Kpi(
-                metric=a.headline_metrics[0],
-                release_id=a.release.id,
-                published_at=a.release.published_at,
-                source_url=a.release.page_url,
-            )
-        )
-        data_updated_at = max(filter(None, [data_updated_at, a.vintage_captured_at]))
+        kpi, captured_at = ect
+        kpis.append(kpi)
+        data_updated_at = max(filter(None, [data_updated_at, captured_at]))
 
     def summaries(sql: str, params: tuple) -> list:
         return [

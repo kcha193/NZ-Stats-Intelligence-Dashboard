@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 from nzstats.adapters.ect.series import INDUSTRIES, REQUIRED, SLUG
 from nzstats.clock import to_akl_iso
-from nzstats.domain import Observation, SeriesDef
+from nzstats.domain import Adjustment, Frequency, Observation, SeriesDef
 from nzstats.insights.migration import _corrections
 from nzstats.insights.revisions import revision_view, series_out, vintage_out
 from nzstats.insights.summary import release_summary
@@ -17,6 +17,7 @@ from nzstats.models import (
     EctDashboardOut,
     Evidence,
     Insight,
+    Kpi,
     Methodology,
     Metric,
     PointOut,
@@ -85,6 +86,47 @@ def metric(
         std_error=None,
         change_prior=change(3 if quarterly else 1),
         change_year_ago=change(12),
+    )
+
+
+def build_ect_overview_kpi(conn: sqlite3.Connection) -> tuple[Kpi, str] | None:
+    """Project the latest ECT retail KPI without materialising the full dashboard payload."""
+    row = conn.execute(
+        "SELECT r.* FROM release r WHERE r.series_slug=? AND EXISTS "
+        "(SELECT 1 FROM vintage v WHERE v.release_id=r.id) ORDER BY r.published_at DESC LIMIT 1",
+        (SLUG,),
+    ).fetchone()
+    if row is None:
+        return None
+    bundle = repo.release_bundle(conn, row["id"])
+    if bundle is None:
+        return None
+    vintage = repo.bundle_vintage(conn, "ect.m.sa.retail.value", row["id"], bundle)
+    if vintage is None:
+        return None
+    stored = repo.get_series_row(conn, "ect.m.sa.retail.value", vintage.vintage_id)
+    observations = list(repo.vintage_observations(conn, vintage.vintage_id).values())
+    if stored is None or not observations:
+        return None
+    definition = SeriesDef(
+        key=stored["key"],
+        name=stored["name"],
+        unit=stored["unit"],
+        frequency=Frequency(stored["frequency"]),
+        adjustment=Adjustment(stored["seasonal_adjustment"]),
+        definition=stored["definition"],
+        definition_id=stored["definition_id"],
+        category=stored["category"],
+        source_url=stored["source_url"],
+    )
+    return (
+        Kpi(
+            metric=metric(definition, observations),
+            release_id=row["id"],
+            published_at=to_akl_iso(row["published_at"]),
+            source_url=row["page_url"],
+        ),
+        to_akl_iso(vintage.captured_at),
     )
 
 

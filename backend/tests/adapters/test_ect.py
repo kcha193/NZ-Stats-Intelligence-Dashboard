@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pytest
 
-from nzstats.domain import IngestError
+from nzstats.domain import IngestError, Point
 from nzstats.sources.release_page import classify_download, parse_release_page
 from tests.conftest import fixture_bytes, fixture_text
 from tests.support import BASE
@@ -109,6 +109,34 @@ def test_validation_detects_gaps_missing_series_duplicates_and_reference_drift()
         f.severity == "error"
         for f in EctAdapter().validate(b, reference_period="2026-08", previous={})
     )
+
+
+def test_validation_rejects_truncated_quarterly_history_against_prior_release():
+    from nzstats.adapters.ect.adapter import EctAdapter
+
+    adapter = EctAdapter()
+    previous_bundle = parsed("2026-08")
+    previous = {
+        series.definition.key: {
+            observation.period: Point(observation.period, observation.value, observation.status)
+            for observation in series.observations
+        }
+        for series in previous_bundle.series
+        if series.definition.key in adapter.previous_keys
+    }
+    current = parsed("2026-09")
+    quarterly = next(
+        series for series in current.series if series.definition.key == "ect.q.sa.retail.value"
+    )
+    truncated = replace(quarterly, observations=quarterly.observations[1:])
+    changed = replace(
+        current,
+        series=tuple(truncated if series is quarterly else series for series in current.series),
+    )
+
+    findings = adapter.validate(changed, reference_period="2026-09", previous=previous)
+
+    assert any(f.severity == "error" and f.rule == "coverage" for f in findings)
 
 
 def test_source_chart_mismatch_is_rejected():
