@@ -10,6 +10,7 @@ export type ReleaseDetail = S["ReleaseDetail"];
 export type ReleaseAnalysis = S["ReleaseAnalysis"];
 export type Insight = S["Insight"];
 export type SeriesData = S["SeriesDataOut"];
+export type EctDashboard = S['EctDashboardOut'];
 export type PointOut = S["PointOut"];
 export type RevisionsOut = S["RevisionsOut"];
 export type CountriesOut = S["CountriesOut"];

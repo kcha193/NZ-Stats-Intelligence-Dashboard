@@ -194,6 +194,7 @@ def _drop_citizenship_vintages(rt, release_id) -> None:
     assert ids, "fixture should contain citizenship vintages to remove"
     for vid in ids:
         rt.conn.execute("DELETE FROM observation WHERE vintage_id = ?", (vid,))
+        rt.conn.execute("DELETE FROM vintage_series_definition WHERE vintage_id = ?", (vid,))
         rt.conn.execute("DELETE FROM vintage WHERE id = ?", (vid,))
     rt.conn.commit()
 
@@ -229,6 +230,7 @@ def test_unavailable_reason_never_calls_a_successful_ingest_the_reason(both) -> 
         (ids["2026-07"],),
     ).fetchone()[0]
     rt.conn.execute("DELETE FROM observation WHERE vintage_id = ?", (vid,))
+    rt.conn.execute("DELETE FROM vintage_series_definition WHERE vintage_id = ?", (vid,))
     rt.conn.execute("DELETE FROM vintage WHERE id = ?", (vid,))
     rt.conn.commit()
     row = repo.get_release_by_id(rt.conn, ids["2026-07"])

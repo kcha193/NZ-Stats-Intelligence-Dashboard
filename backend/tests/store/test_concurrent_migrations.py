@@ -54,7 +54,7 @@ def test_concurrent_creation_and_upgrade_are_idempotent(tmp_path, initial_versio
         for process in processes:
             process.start()
         outcomes = [results.get(timeout=20) for _ in processes]
-        assert outcomes == [2, 2, 2, 2]
+        assert outcomes == [3, 3, 3, 3]
     finally:
         for process in processes:
             process.join(timeout=5)
@@ -66,6 +66,7 @@ def test_concurrent_creation_and_upgrade_are_idempotent(tmp_path, initial_versio
     assert [r[0] for r in conn.execute("SELECT version FROM schema_version ORDER BY version")] == [
         1,
         2,
+        3,
     ]
     assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     if initial_version:
@@ -101,7 +102,7 @@ def test_simultaneous_initialisation_retains_committed_rows(tmp_path):
     try:
         for process in processes:
             process.start()
-        assert [results.get(timeout=20) for _ in processes] == [2, 2, 2, 2]
+        assert [results.get(timeout=20) for _ in processes] == [3, 3, 3, 3]
     finally:
         for process in processes:
             process.join(timeout=5)

@@ -15,7 +15,7 @@ function MetricsTable({ analysis }: { analysis: Analysis }) {
       <thead>
         <tr className="border-b text-xs text-muted-foreground">
           <th scope="col" className="py-1 pr-3 font-medium">Measure</th>
-          <th scope="col" className="py-1 pr-3 text-right font-medium">Value (people)</th>
+          <th scope="col" className="py-1 pr-3 text-right font-medium">Value (unit)</th>
           <th scope="col" className="py-1 pr-3 font-medium">Period</th>
           <th scope="col" className="py-1 pr-3 text-right font-medium">Change vs prior period</th>
           <th scope="col" className="py-1 pr-3 text-right font-medium">Change vs year earlier</th>
@@ -26,7 +26,7 @@ function MetricsTable({ analysis }: { analysis: Analysis }) {
         {analysis.headline_metrics.map((m) => (
           <tr key={m.series_key} className="border-b last:border-0">
             <th scope="row" className="py-1.5 pr-3 font-normal">{m.label}</th>
-            <td className="py-1.5 pr-3 text-right font-medium">{formatNumber(m.value)}{m.std_error !== null ? <span className="block text-xs text-muted-foreground">SE {formatNumber(m.std_error)}</span> : null}</td>
+            <td className="py-1.5 pr-3 text-right font-medium">{formatNumber(m.value, { decimals: m.unit === 'NZD million' || m.unit === 'NZD' ? 1 : 0 })} <span className="text-xs text-muted-foreground">{m.unit}</span>{m.std_error !== null ? <span className="block text-xs text-muted-foreground">SE {formatNumber(m.std_error)}</span> : null}</td>
             <td className="py-1.5 pr-3">{m.period_label}</td>
             <td className="py-1.5 pr-3 text-right">{m.change_prior ? `${formatNumber(m.change_prior.absolute, { signed: true })} (${formatPercent(m.change_prior.percent)})` : "n/a"}</td>
             <td className="py-1.5 pr-3 text-right">{m.change_year_ago ? `${formatNumber(m.change_year_ago.absolute, { signed: true })} (${formatPercent(m.change_year_ago.percent)})` : "n/a"}</td>
@@ -106,10 +106,10 @@ function Analysis({ analysis }: { analysis: Analysis }) {
         <p className="mt-1 text-sm text-muted-foreground">{rev.note}</p>
         {rev.available && (
           <>
-            <p className="mt-1 text-sm">{rev.n_revised} of {rev.n_common} overlapping months were revised{rev.mean_abs !== null ? `; mean absolute revision ${formatNumber(rev.mean_abs, { decimals: 1 })} people` : ""}.</p>
+            <p className="mt-1 text-sm">{rev.n_revised} of {rev.n_common} overlapping periods were revised{rev.mean_abs !== null ? `; mean absolute revision ${formatNumber(rev.mean_abs, { decimals: 1 })} ${analysis.headline_metrics.find(m => m.series_key === rev.series_key)?.unit ?? ''}` : ""}.</p>
             {rev.largest.length > 0 && (
               <table className="mt-2 w-full text-left text-sm">
-                <caption className="sr-only">Largest revisions to monthly net migration</caption>
+                <caption className="sr-only">Largest revisions to {analysis.headline_metrics.find(m => m.series_key === rev.series_key)?.label ?? rev.series_key}</caption>
                 <thead><tr className="border-b text-xs text-muted-foreground">
                   <th scope="col" className="py-1 pr-3 font-medium">Month</th><th scope="col" className="py-1 pr-3 text-right font-medium">Original</th>
                   <th scope="col" className="py-1 pr-3 text-right font-medium">Revised</th><th scope="col" className="py-1 pr-3 text-right font-medium">Revision</th>

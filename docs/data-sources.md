@@ -1,5 +1,9 @@
 # Data-source registry
 
+Phase 2A ECT was verified on 18 October 2026: official CSV ZIP, workbook and embedded chart data,
+with full historical coverage and genuine August/September publication vintages.
+[ECT source details and statistical reconciliation](data-sources/ect.md).
+
 Verified on 2026-10-11 (probes) and 2026-10-12 (real-site integration check, see [progress.md](progress.md)).
 Rules for every source: descriptive User-Agent, at least 10 s between requests to stats.govt.nz
 (`robots.txt` crawl-delay 10; `/admin` and `/Security` are disallowed), aggressive caching, attribution

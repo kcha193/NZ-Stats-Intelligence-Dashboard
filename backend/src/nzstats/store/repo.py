@@ -302,10 +302,18 @@ def bundle_points(
 
 
 def previous_points(
-    conn: sqlite3.Connection, series_key: str, published_before: datetime
+    conn: sqlite3.Connection,
+    series_key: str,
+    published_before: datetime,
+    *,
+    include_publication: bool = False,
 ) -> dict[str, Point]:
     cutoff = to_utc_iso(published_before)
-    prior = [i for i in list_vintages(conn, series_key) if i.published_at < cutoff]
+    prior = [
+        i
+        for i in list_vintages(conn, series_key)
+        if i.published_at < cutoff or (include_publication and i.published_at == cutoff)
+    ]
     return vintage_points(conn, prior[-1].vintage_id) if prior else {}
 
 
@@ -408,7 +416,17 @@ class ObservationRow:
     released_in: str | None
 
 
-def get_series_row(conn: sqlite3.Connection, key: str) -> sqlite3.Row | None:
+def get_series_row(
+    conn: sqlite3.Connection, key: str, vintage_id: int | None = None
+) -> sqlite3.Row | None:
+    if vintage_id is None:
+        vintages = list_vintages(conn, key)
+        vintage_id = vintages[-1].vintage_id if vintages else None
+    if vintage_id is not None:
+        return conn.execute(
+            "SELECT * FROM vintage_series_definition WHERE key=? AND vintage_id=?",
+            (key, vintage_id),
+        ).fetchone()
     return conn.execute("SELECT * FROM series WHERE key = ?", (key,)).fetchone()
 
 
@@ -468,8 +486,9 @@ def bundle_series(
 ) -> list[tuple[SeriesDef, list[ObservationRow]]]:
     """All series and observations from exactly one stored release bundle."""
     rows = conn.execute(
-        "SELECT s.*, v.id AS vintage_id FROM vintage v JOIN series s ON s.id = v.series_id"
-        " WHERE v.release_id = ? AND v.bundle_sha256 = ? ORDER BY s.key",
+        "SELECT d.*, v.id AS vintage_id FROM vintage v"
+        " JOIN vintage_series_definition d ON d.vintage_id=v.id"
+        " WHERE v.release_id = ? AND v.bundle_sha256 = ? ORDER BY d.key",
         (release_id, bundle_sha256),
     ).fetchall()
     return [
@@ -529,11 +548,9 @@ def previous_vintage(
     return prior[-1] if prior else None
 
 
-def series_overview(
-    conn: sqlite3.Connection, category_prefix: str | None = None
-) -> list[sqlite3.Row]:
+def series_overview(conn: sqlite3.Connection, category_prefix: str | None = None) -> list[dict]:
     like = None if category_prefix is None else category_prefix + "%"
-    return conn.execute(
+    rows = conn.execute(
         "SELECT s.*, (SELECT COUNT(*) FROM vintage v WHERE v.series_id = s.id) AS n_vintages,"
         " (SELECT MAX(o.period) FROM observation o WHERE o.vintage_id = ("
         "   SELECT v.id FROM vintage v JOIN release r ON r.id = v.release_id"
@@ -541,3 +558,4 @@ def series_overview(
         " AS latest_period FROM series s WHERE (? IS NULL OR s.category LIKE ?) ORDER BY s.key",
         (like, like),
     ).fetchall()
+    return [dict(r) | dict(get_series_row(conn, r["key"])) for r in rows]

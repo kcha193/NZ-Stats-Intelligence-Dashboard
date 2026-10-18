@@ -33,7 +33,14 @@ from nzstats.store.db import transaction
 log = logging.getLogger(__name__)
 
 HTML = ("text/html",)
-DATA_TYPES = ("text/csv", "application/octet-stream", "text/plain", "application/vnd.ms-excel")
+DATA_TYPES = (
+    "text/csv",
+    "application/octet-stream",
+    "text/plain",
+    "application/vnd.ms-excel",
+    "application/zip",
+    "application/x-zip-compressed",
+)
 
 
 @dataclass(frozen=True)
@@ -106,16 +113,17 @@ def _bundle_digest(
             )
             for o in observations
         )
-        data.append(
-            (
-                definition.key,
-                definition.unit,
-                definition.frequency.value,
-                definition.adjustment.value,
-                definition.definition_id,
-                points,
-            )
+        identity = (
+            definition.key,
+            definition.unit,
+            definition.frequency.value,
+            definition.adjustment.value,
+            definition.definition_id,
+            points,
         )
+        if definition.key.startswith("ect."):
+            identity += (definition.definition, definition.name, definition.category)
+        data.append(identity)
     payload = json.dumps(sorted(data), separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     return "data-v1:" + hashlib.sha256(payload.encode()).hexdigest()
 
@@ -162,7 +170,15 @@ def _ingest(
     release_id = int(row["id"])
     bundle = adapter.parse(page, files)
     published_at = from_utc_iso(row["published_at"])
-    previous = {k: repo.previous_points(rt.conn, k, published_at) for k in adapter.previous_keys}
+    previous = {
+        k: repo.previous_points(
+            rt.conn,
+            k,
+            published_at,
+            include_publication=adapter.preserve_publication_coverage,
+        )
+        for k in adapter.previous_keys
+    }
     findings = adapter.validate(bundle, reference_period=row["reference_period"], previous=previous)
     errors = [f for f in findings if f.severity == "error"]
     if errors:
@@ -221,6 +237,7 @@ def backfill(
     *,
     since: str,
     until: str | None = None,
+    series_slug: str | None = None,
     now_fn: Callable[[], datetime] = utc_now,
 ) -> list[IngestOutcome]:
     """Ingest published releases with reference periods in inclusive `since`..`until` bounds.
@@ -230,6 +247,8 @@ def backfill(
     Missing reference periods are excluded. Invalid or reversed bounds raise ValueError before
     any requests or writes. Stored releases are ingested oldest first.
     """
+    if series_slug is not None and series_slug not in rt.adapters:
+        raise ValueError("series_slug must have a registered release adapter")
     for name, value in (("since", since), ("until", until)):
         if name == "until" and value is None:
             continue
@@ -270,7 +289,7 @@ def backfill(
             )
             month_errors.extend(errors)
     record_batch_health(rt, "calendar_month", now_fn, month_errors)
-    slugs = list(rt.adapters)
+    slugs = [series_slug] if series_slug else list(rt.adapters)
     marks = ",".join("?" * len(slugs))
     keys = [
         r["release_key"]

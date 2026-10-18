@@ -5,9 +5,10 @@ result compares with history, and whether earlier estimates were revised. It che
 release-aware schedule (Pacific/Auckland), stores every release's official data files as a dated
 vintage, and generates deterministic, evidence-linked findings. No paid AI, no notifications.
 
-**Phase 1 (this branch) covers International migration end to end**: Economic overview, Release
-analysis, Migration dashboard (trend, arrivals vs departures, monthly vs year-ended, citizenship,
-country ranking, revisions), Release calendar and Data health. Inflation, labour market, GDP, housing,
+**International migration and Phase 2A Electronic Card Transactions are implemented**: Economic overview,
+Release analysis, Migration dashboard (trend, arrivals vs departures, monthly vs year-ended,
+citizenship, country ranking, revisions), ECT spending dashboard (actual, adjusted, trend and official
+quarterly series), Release calendar and Data health. Inflation, labour market, GDP, housing,
 the Data Explorer and the Revision Explorer are Phase 2; see [docs/progress.md](docs/progress.md).
 
 Source: Stats NZ (stats.govt.nz), licensed under Creative Commons Attribution 4.0. This project is
@@ -99,7 +100,8 @@ serves the built app; it never contacts stats.govt.nz.
 
 ## Known limitations
 
-- Only International migration is active. Other categories appear on the Overview as "not yet active"
+- International migration and Electronic Card Transactions are active. Other categories appear on
+  the Overview as "not yet active"
   until a verified, maintainable source is wired in.
 - Reprocessing: every ingest parses and validates the source, then compares canonical statistical data.
   Editorial titles and file formatting do not create corrections. Parser fixes that change the parsed
@@ -116,6 +118,17 @@ serves the built app; it never contacts stats.govt.nz.
 - The Stats NZ API Portal (ADE) needs registration and a key and has no vintage history; it is not used.
 
 ## Documentation
+
+ECT source verification, rounding reconciliation and bounded backfill commands:
+[Electronic Card Transactions](docs/data-sources/ect.md). The dashboard is at
+`/electronic-card-transactions`. To capture the latest full history and a genuine previous vintage:
+
+```sh
+nzstats backfill --series-slug electronic-card-transactions --since 2026-08 --until 2026-09
+```
+
+Future ECT releases use the existing official-calendar scheduler. Database migration 003 preserves
+measurement definitions per vintage; back up the database before updating an existing installation.
 
 [Architecture](docs/architecture.md) · [Data-source registry](docs/data-sources.md) ·
 [Data dictionary](docs/data-dictionary.md) · [Troubleshooting](docs/troubleshooting.md) ·

@@ -15,7 +15,7 @@ from nzstats.domain import ErrorClass, IngestError
 log = logging.getLogger(__name__)
 
 _DATA_VALUE = re.compile(r'data-value="([^"]+)"')
-_ASSET = re.compile(r"/assets/Uploads/[^\"\\\s]+?\.(?:csv|xlsx)")
+_ASSET = re.compile(r"/assets/Uploads/[^\"\\\s]+?\.(?:csv|xlsx|zip)")
 
 
 @dataclass(frozen=True)
@@ -80,6 +80,8 @@ def parse_release_page(html_text: str, base_url: str) -> ReleasePage:
 
 def classify_download(url: str) -> str | None:
     name = url.rsplit("/", 1)[-1].lower()
+    if name.startswith("electronic-card-transactions-") and name.endswith(".zip"):
+        return "ect_zip"
     if name.endswith(".xlsx"):
         return "workbook"
     if not name.endswith(".csv"):

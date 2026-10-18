@@ -1,6 +1,108 @@
 # Progress and verification record
 
-Last updated 2026-10-16. Phase 1 remediation; [PR #2](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/2) open. Spec and plan: `docs/superpowers/`.
+Last updated 2026-10-18. Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
+coverage review remediation is locally verified, with CI and fresh automated review required after push. Not merged or deployed. Earlier entries below are historical.
+
+## PR #3 — ECT publication coverage remediation, 18 October 2026
+
+Review findings #4305426410 and #4305426414 share incomplete coverage validation. Quarterly
+mandatory indicators are now required even when no ECTQ rows exist. Every previously observed
+supported series must remain present, and its previously published periods must be retained.
+The check covers historical, intermediate and latest periods while allowing numerical revisions.
+ECT coverage comparisons include the latest stored vintage of the same publication for corrected
+re-ingestion; historical backfills still exclude later publications. Migration keeps its existing
+strictly earlier-publication comparison. No current-month quarter-end requirement was introduced.
+
+The existing uncommitted empty-quarterly regression was preserved and observed failing first.
+Official-fixture pipeline regressions also reproduced acceptance of absent quarterly data, missing
+optional series and lost latest periods before the fix. The matrix exercises complete fixtures,
+missing mandatory series, first/latest/intermediate observations, incompatible metadata, valid
+quarterly numerical corrections, idempotent re-ingestion, monthly publication without a new quarter,
+new quarterly coverage and out-of-order backfill. Failed ingestion leaves existing series, vintages,
+observations and vintage measurement definitions unchanged; raw failed-download artifacts remain
+available for audit. An independent diff review found no actionable correctness defects.
+
+Verification: **720 backend tests**, **129 frontend tests** and **42 Playwright checks** passed.
+Ruff lint/format, TypeScript, frontend lint, production build and `git diff --check` passed.
+The existing TestClient deprecation, three UI Fast Refresh warnings and bundle-size warning remain.
+
+## PR #3 — Follow-up review findings, 18 October 2026
+
+The new-commit automatic Codex review of `891a759` is counted as review round 1 of this
+remediation's two-round limit. Its two P2 findings were reproduced with failing tests:
+
+- #4306413400: the first ingestion had no prior vintage, so retained-period checks alone could
+  accept stale quarterly series. Quarterly series must now reach the latest completed quarter
+  implied by the reference month (including December for January/February). Official August
+  and September archive regressions and all twelve month boundaries cover this contract.
+  First-ingestion pipeline tests verify stale or absent quarterly data cannot create vintages.
+- #4306413404: historical correction rows selected the latest publication's metadata. They now
+  use the compared bundle's retained definition, or the previous bundle's for a withdrawn series.
+  Two migration-fixture regressions cover corrected and withdrawn historical series viewed
+  after a newer publication changes its label and unit. Numerical compatibility checks remain.
+
+Independent review of the follow-up diff found no actionable blockers. Final local verification:
+**738 backend tests** and **42 Playwright checks** passed; Ruff lint/format and diff checks passed.
+Frontend code is unchanged from the preceding 129-test/type/lint/build verification. Exact-HEAD
+CI/review results are recorded in the PR; no merge or deployment was performed.
+
+## Phase 2A — Electronic Card Transactions, 18 October 2026
+
+Implemented the ECT adapter through the existing registry, ingestion transaction, raw artifact store,
+health projection and calendar-aware scheduler. Added bounded ZIP/CSV parsing, strict measurement
+metadata and structural validation, embedded-chart/percentage reconciliation, and scoped CLI backfill
+(`--series-slug`, `--until`). No new runtime dependencies or other Phase 2 categories.
+
+Controlled live verification ingested official August and September releases into the local ignored
+database. September exposes **96 series**, **288 adjusted retail months**, **321 actual retail months**,
+**96 adjusted retail quarters**, and **110 genuinely revised retail observations** against August.
+All requested September benchmarks reconcile within documented source rounding tolerances.
+[Official source verification, reconciliation table and limitations](data-sources/ect.md).
+
+Migration 003 snapshots measurement definitions per vintage. Series, bundle, API and revision reads
+follow retained metadata; incompatible comparisons are withheld. Existing migration calculations are
+preserved. Old test fixtures that delete vintages now also remove their dependent metadata, and
+concurrent-migration tests expect schema 3.
+
+The `/electronic-card-transactions` page includes compact KPIs, monthly/quarterly spending histories,
+actual/adjusted/trend and group controls, 1/3/5-year/full ranges, signed industry rankings, actual
+industry composition, evidence-linked findings, source/methodology notes and CSV/PNG exports.
+Overview, navigation, release analysis, calendar links and data health recognise ECT.
+Every dashboard series is read from one release bundle. Chart colours reuse the previously validated
+palette; signed labels and a zero line distinguish industry movements. Desktop/tablet/mobile layouts
+were inspected through Playwright screenshots; the history axis keeps readable year labels.
+
+Verification (offline fixtures except the deliberate paced source check):
+
+| Command | Outcome |
+|---|---|
+| `cd backend && .venv/bin/pytest` | 691 passed; migration regression suite included |
+| `cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check .` | Passed |
+| `cd frontend && npm test` | 129 passed |
+| `npm run typecheck` | Passed |
+| `npm run lint` | Passed; three existing Fast Refresh export warnings in vendor UI components |
+| `npm run build` | Passed; existing ECharts bundle-size warning |
+| `npx playwright test` (venv on PATH; isolated E2E data directory) | 42 passed: desktop, tablet, mobile |
+| `python scripts/dump_frontend_fixtures.py --ect-only` | Passed; official fixture data regenerated |
+| Local live-captured DB/API check | Integrity OK; ECT, release, overview and health endpoints HTTP 200 |
+| `git diff --check` | Passed |
+
+Backend checks use local Python 3.14.6. The existing FastAPI/Starlette TestClient deprecation warning
+remains. Initial regression failures were stale schema/dependent-fixture assumptions and the old
+migration-only freshness assertion; those tests were updated, with focused reruns before final regression.
+
+Changed file groups: `adapters/ect/{adapter,series}.py`; `store/repo.py` and migration 003;
+`runtime.py`, `pipeline/ingest.py`, `cli.py`, `catalog.py`; `insights/ect.py` and vintage-aware shared
+insights; `api/routes.py`, `models.py` and generated frontend API types; `ElectronicCardTransactions.tsx`,
+ECT charts, `Overview.tsx`, `ReleaseAnalysis.tsx`, `App.tsx` and `Layout.tsx`; backend/frontend/browser
+tests and captured official fixtures; fixture-generation/seed scripts; README, source registry and plan.
+
+Self-review completed against the request and final diff; no subagents were used. An independent
+Python/statistical review is recommended before merging. Before deployment, back up SQLite, rebuild
+the image/UI, apply migration 003 on startup and run the existing scheduler. A real Docker-host rollout
+and unattended observation of the next publication remain operator checks; neither was performed here.
+Post-publication corrections still need explicit re-ingestion. Earlier overwritten definitions cannot
+be reconstructed during upgrade; revised `R` source statuses remain conservative `unknown` values.
 
 ## Independent audit remediation — 16 October 2026
 

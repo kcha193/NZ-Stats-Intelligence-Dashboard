@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getJson } from "./client";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
-  SeriesData,
+  SeriesData, EctDashboard,
 } from "./types";
 
 const qs = (params: Record<string, string | number | undefined>): string => {
@@ -14,6 +14,13 @@ const qs = (params: Record<string, string | number | undefined>): string => {
 
 export const useOverview = () =>
   useQuery({ queryKey: ["overview"], queryFn: ({ signal }) => getJson<Overview>("/api/overview", signal), refetchInterval: 60_000 });
+
+export const useEct = () =>
+  useQuery({
+    queryKey: ["ect"],
+    queryFn: ({ signal }) => getJson<EctDashboard>("/api/ect", signal),
+    refetchInterval: 60_000,
+  });
 
 export const useReleases = (params: { status?: string; category?: string; limit?: number } = {}) =>
   useQuery({

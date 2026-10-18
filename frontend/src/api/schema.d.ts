@@ -174,6 +174,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ect Dashboard */
+        get: operations["ect_dashboard_api_ect_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -344,6 +361,12 @@ export interface components {
             new_period_component: number;
             /** Total Change */
             total_change: number;
+        };
+        /** EctDashboardOut */
+        EctDashboardOut: {
+            analysis: components["schemas"]["ReleaseAnalysis"];
+            /** Series */
+            series: components["schemas"]["SeriesDataOut"][];
         };
         /** Evidence */
         Evidence: {
@@ -1018,6 +1041,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ect_dashboard_api_ect_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EctDashboardOut"];
                 };
             };
         };

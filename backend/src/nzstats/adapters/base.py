@@ -31,6 +31,7 @@ class Adapter(Protocol):
     series_slug: str
     required_downloads: tuple[str, ...]
     previous_keys: tuple[str, ...]  # series whose previous vintage is loaded for validation
+    preserve_publication_coverage: bool  # include this publication when checking retained periods
 
     def parse(self, page: ReleasePage, files: Mapping[str, bytes]) -> ParsedBundle: ...
 
