@@ -39,6 +39,28 @@ one CSV, maximum 250:1 compression ratio, 150,000 rows; unsafe paths/encrypted m
 Schema, official identities, units, magnitude, adjustment, industry, dates, duplicates, finite and
 nonnegative levels, continuity and retained historical coverage are checked before commit.
 
+## Actual-value consistency checks
+
+Percentage reconciliation cannot detect a series whose absolute levels are wrong but whose
+changes are right (for example a consistent x10 scaling). The adapter therefore checks identities
+on actual (unadjusted) levels only, with tolerances derived from the 0.1 million rounding of the
+CSV. Seasonally adjusted and trend components are adjusted independently and are never checked.
+Periods where any component is absent (confidential or unpublished) are skipped, never read as zero.
+Failure is a `consistency` validation error: nothing is committed and last-known-good data stays.
+
+Measured on the official August and September 2026 files before choosing tolerances:
+
+| Identity | Holds | Tolerance used |
+|---|---|---|
+| Monthly retail / core / total = sum of 6 / 4 / 8 industries | within rounding from 2017-01 (all 117 months); earlier months differ by up to 0.43% | 0.05 x (components + 1) from 2017-01; 1% before |
+| Quarterly industry = sum of its three months | within rounding for every quarter | 0.15 |
+| Quarterly retail / core / total and transaction count = sum of three months | not exact: Stats NZ does not recompute them (up to ~0.06% through June 2025) | 1% (scale-error guard) |
+| Monthly count x mean transaction value = total value | within the rounding of mean (0.05) and total (0.05) | 1.1 x (0.05/mean + 0.05/value) |
+
+Rounding-level tolerance is applied only where the official data supports it; a scale error is
+orders of magnitude larger than every residual above. If Stats NZ revises recent history so that a
+strict identity no longer holds, ingestion fails closed and needs a deliberate review.
+
 ## September reconciliation
 
 Differences below use the CSV's published levels, rounded to NZD 0.1 million. Stats NZ calculates
@@ -89,8 +111,10 @@ The default backfill retains its existing behaviour across all registered adapte
 Schema migration 003 snapshots definitions per vintage, including source, units, frequency,
 adjustment and methodology identity. Upgrade seeds pre-existing vintages with metadata available
 at upgrade time; previously overwritten historical definitions cannot be recovered. Subsequent
-metadata changes and older backfills cannot relabel retained vintages. Incompatible revision
-definitions are withheld. Back up the SQLite database before rollout; migrations run on startup.
+metadata changes and older backfills cannot relabel retained vintages. Revision and correction
+comparisons are withheld when unit, frequency, adjustment or `definition_id` differ. The prose
+`definition` and `name` are editorial: rewording them neither withholds comparisons nor mints a new
+vintage, so a genuine methodology change must change `definition_id` (ECT: `ect-anzsic06-vN:...`). Back up the SQLite database before rollout; migrations run on startup.
 
 ECT represents participating providers' electronic transactions, not all retail sales, real
 consumption or all household spending. Provider coverage and classifications can change.

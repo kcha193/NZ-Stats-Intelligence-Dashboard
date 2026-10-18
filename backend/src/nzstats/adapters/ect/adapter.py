@@ -14,7 +14,14 @@ from pathlib import PurePosixPath
 from typing import NoReturn
 
 from nzstats.adapters.base import Finding, ParsedBundle, ParsedSeries
-from nzstats.adapters.ect.series import INDUSTRIES, REQUIRED, SLUG, identity, supported_definitions
+from nzstats.adapters.ect.series import (
+    ACTUAL_COMPONENTS,
+    INDUSTRIES,
+    REQUIRED,
+    SLUG,
+    identity,
+    supported_definitions,
+)
 from nzstats.clock import AKL
 from nzstats.domain import ErrorClass, IngestError, Observation, ObsStatus, Point
 from nzstats.sources.calendar import parse_title
@@ -24,6 +31,18 @@ from nzstats.stats.periods import add_months
 MAX_ARCHIVE = 16 * 1024 * 1024
 MAX_UNPACKED = 32 * 1024 * 1024
 MAX_ROWS = 150_000
+
+# Official CSV levels are rounded to NZD 0.1 million, so each rounded figure is off by <= 0.05.
+ROUNDING = 0.05
+# Measured on the official August and September 2026 files (every period with complete components):
+# monthly actual aggregates equal the sum of their industries within rounding from January 2017
+# (earlier months differ by up to 0.43%), quarterly industries equal the sum of their three months
+# within rounding for all history, but quarterly aggregates and counts differ from the sum of their
+# months by up to ~0.06% (Stats NZ does not recompute them). Rounding-level tolerance is therefore
+# enforced only where the source supports it; elsewhere a coarse plausibility bound still rejects
+# scale errors, which are an order of magnitude larger.
+STRICT_FROM = "2017-01"
+COARSE_RELATIVE = 0.01
 
 
 def fail(message: str) -> NoReturn:
@@ -311,4 +330,77 @@ class EctAdapter:
                         f"Large ECT movement requires review: {d.key}",
                     )
                 )
+        for message in actual_value_inconsistencies(bundle):
+            error("consistency", f"ECT actual-value consistency failed: {message}")
         return findings
+
+
+def _levels(bundle: ParsedBundle) -> dict[str, dict[str, float]]:
+    return {s.definition.key: {o.period: o.value for o in s.observations} for s in bundle.series}
+
+
+def actual_value_inconsistencies(bundle: ParsedBundle) -> list[str]:
+    """Cross-series identities that hold for actual (unadjusted) ECT levels.
+
+    Catches a series whose absolute levels are wrong while its published percentage changes still
+    reconcile (for example a consistent x10 scaling). Periods where a component is absent
+    (confidential or not published) are skipped, never treated as zero. Seasonally adjusted and
+    trend series are not checked because their components are adjusted independently.
+    """
+    data = _levels(bundle)
+    problems: list[str] = []
+
+    def series(freq: str, name: str, measure: str = "value") -> dict[str, float]:
+        return data.get(f"ect.{freq}.actual.{name}.{measure}", {})
+
+    # Monthly aggregate = sum of its industries.
+    for aggregate, parts in ACTUAL_COMPONENTS.items():
+        total, components = series("m", aggregate), [series("m", p) for p in parts]
+        for period, value in sorted(total.items()):
+            if not all(period in c for c in components):
+                continue
+            expected = sum(c[period] for c in components)
+            tolerance = (
+                ROUNDING * (len(parts) + 1)
+                if period >= STRICT_FROM
+                else COARSE_RELATIVE * abs(value)
+            )
+            if abs(value - expected) > tolerance + 1e-9:
+                problems.append(
+                    f"{aggregate} {period} is {value:,.1f} but its industries sum to {expected:,.1f}"
+                )
+                break
+    # Quarter = sum of its three months (industries exactly; aggregates and counts coarsely).
+    quarterly = {name: "strict" for name, _ in INDUSTRIES.values()}
+    quarterly |= {name: "coarse" for name in ACTUAL_COMPONENTS}
+    for name, mode in quarterly.items():
+        months = series("m", name)
+        for period, value in sorted(series("q", name).items()):
+            parts = [months.get(add_months(period, -k)) for k in range(3)]
+            if any(p is None for p in parts):
+                continue
+            tolerance = 3 * ROUNDING if mode == "strict" else COARSE_RELATIVE * abs(value)
+            if abs(value - sum(parts)) > tolerance + 1e-9:
+                problems.append(f"{name} quarter {period} differs from the sum of its months")
+                break
+    months, quarters = series("m", "total", "count"), series("q", "total", "count")
+    for period, value in sorted(quarters.items()):
+        parts = [months.get(add_months(period, -k)) for k in range(3)]
+        if all(p is not None for p in parts) and abs(value - sum(parts)) > COARSE_RELATIVE * value:
+            problems.append(
+                f"transaction count quarter {period} differs from the sum of its months"
+            )
+            break
+    # Monthly count x mean transaction value = total value, within the rounding of mean and total.
+    values, means = series("m", "total"), series("m", "total", "average")
+    for period, count in sorted(months.items()):
+        mean, value = means.get(period), values.get(period)
+        if not mean or not value:
+            continue
+        tolerance = 1.1 * (ROUNDING / mean + ROUNDING / value)
+        if abs(count * mean / 1_000_000 - value) / value > tolerance:
+            problems.append(
+                f"count x mean transaction value does not equal total value in {period}"
+            )
+            break
+    return problems

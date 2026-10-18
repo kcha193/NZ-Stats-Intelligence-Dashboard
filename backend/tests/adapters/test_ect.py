@@ -342,3 +342,110 @@ def test_quarterly_reference_tracks_completed_quarter(reference, expected_quarte
         replace(bundle, series=(stale,)), reference_period=reference, previous={}
     )
     assert any(f.rule == "reference" and f.severity == "error" for f in findings)
+
+
+# --- Actual-value consistency (audit finding F1) -------------------------------------------------
+
+
+def _consistency_errors(bundle):
+    from nzstats.adapters.ect.adapter import EctAdapter
+
+    findings = EctAdapter().validate(bundle, reference_period="2026-09", previous={})
+    return [f for f in findings if f.severity == "error" and f.rule == "consistency"]
+
+
+def _altered(bundle, key, *, factor=1.0, offset=0.0, period=None, drop=None):
+    """Copy of a parsed bundle with one series scaled/shifted, or one period removed."""
+    from nzstats.adapters.base import ParsedBundle, ParsedSeries
+
+    def change(o):
+        if period is None or o.period == period:
+            return replace(o, value=o.value * factor + offset)
+        return o
+
+    series = []
+    for s in bundle.series:
+        if s.definition.key == key:
+            obs = tuple(change(o) for o in s.observations if o.period != drop)
+            s = ParsedSeries(s.definition, obs)
+        series.append(s)
+    return ParsedBundle(bundle.layout_version, tuple(series))
+
+
+@pytest.mark.parametrize("month", ["2026-08", "2026-09"])
+def test_official_releases_satisfy_actual_value_consistency(month):
+    assert _consistency_errors(parsed(month)) == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "ect.m.actual.core.value",  # the audited case: passes percentage and chart reconciliation
+        "ect.m.actual.retail.value",
+        "ect.m.actual.total.value",
+        "ect.m.actual.durables.value",
+        "ect.q.actual.durables.value",  # quarterly industries must equal their three months
+        "ect.q.actual.retail.value",  # quarterly aggregates: coarse plausibility only
+        "ect.q.actual.total.count",
+        "ect.m.actual.total.count",
+        "ect.m.actual.total.average",
+    ],
+)
+def test_actual_levels_scaled_by_ten_fail_consistency(key):
+    assert _consistency_errors(_altered(parsed(), key, factor=10)), key
+
+
+def test_core_actual_levels_scaled_by_ten_are_rejected_at_parse():
+    rows = csv_rows()
+    for r in rows:
+        if r["Series_reference"] == "ECTM.S19A2" and r["Data_value"]:
+            r["Data_value"] = str(float(r["Data_value"]) * 10)
+    with pytest.raises(IngestError, match="consistency"):
+        parsed(raw=archive(rows))
+
+
+def test_source_rounding_residuals_are_accepted_but_real_discrepancies_are_not():
+    bundle = parsed()
+    period = "2020-06"
+    levels = {s.definition.key: {o.period: o.value for o in s.observations} for s in bundle.series}
+    parts = ("consumables", "durables", "hospitality", "apparel", "motor_vehicles", "fuel")
+    components = sum(levels[f"ect.m.actual.{p}.value"][period] for p in parts)
+    retail = levels["ect.m.actual.retail.value"][period]
+
+    def with_residual(residual):
+        return _altered(
+            bundle,
+            "ect.m.actual.retail.value",
+            offset=components + residual - retail,
+            period=period,
+        )
+
+    # Six rounded components plus the rounded aggregate can legitimately differ by up to 7 x 0.05.
+    assert _consistency_errors(with_residual(0.3)) == []
+    assert _consistency_errors(with_residual(-0.3)) == []
+    assert _consistency_errors(with_residual(0.6))
+
+
+def test_seasonally_adjusted_components_are_not_forced_to_add_up():
+    bundle = parsed()
+    sa = {s.definition.key: s for s in bundle.series if ".sa." in s.definition.key}
+    retail = {o.period: o.value for o in sa["ect.m.sa.retail.value"].observations}
+    parts = [
+        {o.period: o.value for o in sa[f"ect.m.sa.{i}.value"].observations}
+        for i in ("consumables", "durables", "hospitality", "apparel", "motor_vehicles", "fuel")
+    ]
+    # Independently adjusted: the official file really does differ by tens of millions.
+    assert abs(retail["2021-11"] - sum(p["2021-11"] for p in parts)) > 10
+    assert _consistency_errors(bundle) == []
+
+
+def test_missing_component_period_is_skipped_not_treated_as_zero():
+    bundle = parsed()
+    first = min(
+        o.period
+        for s in bundle.series
+        if s.definition.key == "ect.m.actual.fuel.value"
+        for o in s.observations
+    )
+    trimmed = _altered(bundle, "ect.m.actual.fuel.value", drop=first)
+    assert _consistency_errors(trimmed) == []

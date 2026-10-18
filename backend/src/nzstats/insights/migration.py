@@ -433,7 +433,7 @@ def _corrections(
         if any(
             any(
                 getattr(current_defs[k], field) != getattr(previous_defs[k], field)
-                for field in ("unit", "frequency", "adjustment", "definition_id", "definition")
+                for field in ("unit", "frequency", "adjustment", "definition_id")
             )
             for k in current_defs.keys() & previous_defs.keys()
         ):

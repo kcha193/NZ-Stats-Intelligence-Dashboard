@@ -119,9 +119,10 @@ def revision_view(
     def compatible_pair(a, b):
         left = repo.get_series_row(conn, series_key, a.vintage_id)
         right = repo.get_series_row(conn, series_key, b.vintage_id)
+        # Wording of `definition` is editorial; a methodology change must change `definition_id`.
         return all(
             left[k] == right[k]
-            for k in ("unit", "frequency", "seasonal_adjustment", "definition_id", "definition")
+            for k in ("unit", "frequency", "seasonal_adjustment", "definition_id")
         )
 
     series = series_out(

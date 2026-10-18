@@ -83,3 +83,86 @@ def test_correction_with_changed_units_does_not_compare_incompatible_numbers(rt)
     block = _corrections(rt.conn, rid, "b", vintage, primary_key=d.key)
     assert block.available is False
     assert "incompatible" in block.note.lower()
+
+
+def _two_vintages(rt, second):
+    """Store the same observation under two publications, the second with `second` metadata."""
+    from nzstats.domain import Observation, ObsStatus
+
+    first = SeriesDef(
+        "ect.m.sa.retail.value",
+        "Retail",
+        "NZD million",
+        Frequency.MONTHLY,
+        Adjustment.SEASONALLY_ADJUSTED,
+        "First wording",
+        "ect-anzsic06-v1:retail:value",
+        "ect:retail",
+    )
+    for i, (month, d) in enumerate((("2026-06", first), ("2026-07", second(first)))):
+        rid = repo.upsert_release(rt.conn, release_ref_for(month), NOW)
+        sid = repo.upsert_series(rt.conn, d)
+        vid = repo.create_vintage(rt.conn, rid, sid, NOW, "release_files", "v1", str(i))
+        repo.insert_observations(
+            rt.conn, vid, [Observation(d.key, "2026-06", 100 + i, ObsStatus.FINAL)]
+        )
+    return first
+
+
+def test_wording_only_definition_edit_keeps_revision_comparison_available(rt):
+    from nzstats.insights.revisions import revision_view
+
+    first = _two_vintages(
+        rt, lambda d: replace(d, definition="Reworded caveats", name="Retail card spending")
+    )
+    view = revision_view(rt.conn, first.key)
+    assert view.n_common == 1 and view.n_revised == 1
+    assert "incompatible" not in view.coverage.note.lower()
+    assert len(view.history) == 1
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"unit": "NZD"},
+        {"frequency": Frequency.QUARTERLY},
+        {"adjustment": Adjustment.TREND},
+        {"definition_id": "ect-anzsic06-v2:retail:value"},
+    ],
+)
+def test_genuine_measurement_change_still_withholds_revision_comparison(rt, change):
+    from nzstats.insights.revisions import revision_view
+
+    first = _two_vintages(rt, lambda d: replace(d, definition="Reworded", **change))
+    view = revision_view(rt.conn, first.key)
+    assert view.n_common == 0
+    assert "incompatible" in view.coverage.note.lower()
+
+
+def test_wording_only_definition_edit_keeps_numerical_correction_comparison(rt):
+    from nzstats.domain import Observation, ObsStatus
+    from nzstats.insights.migration import _corrections
+
+    d = SeriesDef(
+        "ect.m.sa.retail.value",
+        "Retail",
+        "NZD million",
+        Frequency.MONTHLY,
+        Adjustment.SEASONALLY_ADJUSTED,
+        "First wording",
+        "ect-anzsic06-v1:retail:value",
+        "ect:retail",
+    )
+    rid = repo.upsert_release(rt.conn, release_ref_for("2026-07"), NOW)
+    for definition, digest, value in [("First wording", "a", 100), ("Edited wording", "b", 101)]:
+        sid = repo.upsert_series(rt.conn, replace(d, definition=definition))
+        vid = repo.create_vintage(rt.conn, rid, sid, NOW, "release_files", "v1", digest)
+        repo.insert_observations(
+            rt.conn, vid, [Observation(d.key, "2026-07", value, ObsStatus.FINAL)]
+        )
+    vintage = repo.release_vintage(rt.conn, d.key, rid)
+    block = _corrections(rt.conn, rid, "b", vintage, primary_key=d.key)
+    assert "incompatible" not in block.note.lower()

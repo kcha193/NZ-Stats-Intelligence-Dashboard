@@ -113,17 +113,16 @@ def _bundle_digest(
             )
             for o in observations
         )
-        identity = (
-            definition.key,
-            definition.unit,
-            definition.frequency.value,
-            definition.adjustment.value,
-            definition.definition_id,
-            points,
+        data.append(
+            (
+                definition.key,
+                definition.unit,
+                definition.frequency.value,
+                definition.adjustment.value,
+                definition.definition_id,
+                points,
+            )
         )
-        if definition.key.startswith("ect."):
-            identity += (definition.definition, definition.name, definition.category)
-        data.append(identity)
     payload = json.dumps(sorted(data), separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     return "data-v1:" + hashlib.sha256(payload.encode()).hexdigest()
 
@@ -132,11 +131,11 @@ def _matching_bundle(conn: sqlite3.Connection, release_id: int, digest: str) -> 
     for stored in repo.release_bundles(conn, release_id):
         if stored == digest:
             return stored
-        if not stored.startswith("data-v1:"):
-            # Existing databases used source bytes as identity. Compare their retained observations
-            # rather than rewriting/deleting history or manufacturing a correction on upgrade.
-            if _bundle_digest(repo.bundle_series(conn, release_id, stored)) == digest:
-                return stored
+        # Older databases used source bytes (or, for ECT, also definition wording) as identity.
+        # Compare retained observations and measurement identity rather than rewriting history or
+        # manufacturing a correction on upgrade.
+        if _bundle_digest(repo.bundle_series(conn, release_id, stored)) == digest:
+            return stored
     return None
 
 

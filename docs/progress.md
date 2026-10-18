@@ -597,6 +597,24 @@ Deferred Minor findings (small, none blocks use):
   runtime dependency; add a Python lock file for reproducible images.
 - CI does not run the Playwright suite or the frontend lint.
 
+## ECT independent-audit remediation (branch `fix/ect-audit-remediation`)
+
+Audit of `b4c8823` (GO WITH CONDITIONS): official reconciliation passed (18,426 points, 0 mismatches). Fixed:
+
+- F1 (MEDIUM): a consistent x10 scaling of core actual levels was accepted. Added fail-closed `consistency` validation
+  (`actual_value_inconsistencies`): actual retail/core/total vs industries, quarterly industries vs months, count x mean.
+  Tolerances come from measured residuals in the official files (see `docs/data-sources/ect.md`): strict additivity holds
+  only from 2017-01 for monthly aggregates, and quarterly aggregates are not recomputed by Stats NZ, so those use a 1% guard.
+- Metadata compatibility (reproduced): definition wording was part of revision/correction compatibility and of the ECT bundle
+  digest, so a wording-only edit withheld revisions and re-minted all vintages as a "correction". Wording is now editorial;
+  compatibility is unit, frequency, adjustment and `definition_id`. Bundles stored under the old digest still match.
+- F2: sentences rewritten ("Seasonally adjusted retail card spending decreased 0.4% in September 2026 ..."); chart
+  captions show Auckland time (PNG exports keep the exact ISO instant as provenance).
+- F3: history chart gains a Zoomed (default) / From zero scale, with the non-zero axis stated in the chart, caption and
+  exports; industry charts size to their labels at 390px.
+
+Not done: percentage-change companion chart; checks on seasonally adjusted/trend levels (not additive by design).
+
 ## Resume steps for Phase 2
 
 1. Read `docs/superpowers/specs/2026-10-11-nz-stats-dashboard-design.md` §12 and `docs/data-sources.md` ("Adding a source").
