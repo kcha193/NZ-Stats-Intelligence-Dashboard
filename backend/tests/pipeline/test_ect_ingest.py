@@ -73,6 +73,34 @@ def test_ect_api_analysis_overview_calendar_and_freshness(rt, site):
         )
 
 
+def test_ect_release_detail_skips_the_dashboard_series_projection(rt, site):
+    from types import SimpleNamespace
+
+    from nzstats.api.routes import release_detail
+
+    release_id, key, _ = seed_ect(rt, site)
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(analysable_slugs=set(rt.adapters)))
+    )
+    statements = []
+    rt.conn.set_trace_callback(statements.append)
+    try:
+        detail = release_detail(release_id, request, rt.conn)
+    finally:
+        rt.conn.set_trace_callback(None)
+
+    vintage_list_reads = [
+        sql
+        for sql in statements
+        if "SELECT v.id, r.release_key" in sql
+        and "JOIN series s ON s.id=v.series_id WHERE s.key=" in sql
+    ]
+    assert detail.analysis is not None
+    assert detail.analysis.headline_metrics[0].series_key == "ect.m.sa.retail.value"
+    assert len(vintage_list_reads) <= 3
+
+
 def test_ect_api_empty_is_explicit(rt):
     with TestClient(create_app(rt.settings)) as client:
         assert client.get("/api/ect").status_code == 404

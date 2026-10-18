@@ -13,7 +13,7 @@ from nzstats.api.deps import Conn, Now
 from nzstats.clock import AKL, to_akl_iso, to_utc_iso
 from nzstats.insights.countries import rank_countries
 from nzstats.insights.ect import CAVEATS as ECT_CAVEATS
-from nzstats.insights.ect import build_ect_dashboard
+from nzstats.insights.ect import build_ect_analysis, build_ect_dashboard
 from nzstats.insights.migration import build_release_analysis
 from nzstats.insights.overview import build_overview, health_rows
 from nzstats.insights.revisions import revision_view, series_out, vintage_out
@@ -138,13 +138,10 @@ def release_detail(release_id: int, request: Request, conn: Conn) -> ReleaseDeta
         raise HTTPException(404, "release not found")
     slugs = _slugs(request)
     summary = release_summary(conn, row, analysable_slugs=slugs)
-    ect = (
-        build_ect_dashboard(conn, release_id)
-        if row["series_slug"] == "electronic-card-transactions"
-        else None
-    )
     analysis = (
-        ect.analysis if ect else build_release_analysis(conn, release_id, analysable_slugs=slugs)
+        build_ect_analysis(conn, release_id)
+        if row["series_slug"] == "electronic-card-transactions"
+        else build_release_analysis(conn, release_id, analysable_slugs=slugs)
     )
     reason = None if analysis else _unavailable_reason(conn, row, summary, slugs)
     return ReleaseDetail(release=summary, analysis=analysis, unavailable_reason=reason)

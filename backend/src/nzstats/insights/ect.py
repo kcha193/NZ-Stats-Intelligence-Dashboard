@@ -130,8 +130,8 @@ def build_ect_overview_kpi(conn: sqlite3.Connection) -> tuple[Kpi, str] | None:
     )
 
 
-def build_ect_dashboard(
-    conn: sqlite3.Connection, release_id: int | None = None
+def _build_ect(
+    conn: sqlite3.Connection, release_id: int | None, *, include_series: bool
 ) -> EctDashboardOut | None:
     if release_id is None:
         row = conn.execute(
@@ -338,27 +338,43 @@ def build_ect_dashboard(
         vintage_captured_at=to_akl_iso(vintage.captured_at),
     )
     series = []
-    for key, (d, observations) in stored.items():
-        v = repo.bundle_vintage(conn, key, row["id"], bundle)
-        meta = repo.get_series_row(conn, key, v.vintage_id)
-        series.append(
-            SeriesDataOut(
-                series=series_out(
-                    meta, len(repo.list_vintages(conn, key)), max(o.period for o in observations)
-                ),
-                vintage=vintage_out(conn, v),
-                points=[
-                    PointOut(
-                        period=o.period,
-                        value=o.value,
-                        status=o.status.value,
-                        std_error=o.std_error,
-                        released_in=o.released_in,
-                    )
-                    for o in observations
-                ],
-                source_url=d.source_url,
-                caveat=" ".join(CAVEATS[1:3]),
+    if include_series:
+        for key, (d, observations) in stored.items():
+            v = repo.bundle_vintage(conn, key, row["id"], bundle)
+            meta = repo.get_series_row(conn, key, v.vintage_id)
+            series.append(
+                SeriesDataOut(
+                    series=series_out(
+                        meta,
+                        len(repo.list_vintages(conn, key)),
+                        max(o.period for o in observations),
+                    ),
+                    vintage=vintage_out(conn, v),
+                    points=[
+                        PointOut(
+                            period=o.period,
+                            value=o.value,
+                            status=o.status.value,
+                            std_error=o.std_error,
+                            released_in=o.released_in,
+                        )
+                        for o in observations
+                    ],
+                    source_url=d.source_url,
+                    caveat=" ".join(CAVEATS[1:3]),
+                )
             )
-        )
     return EctDashboardOut(analysis=analysis, series=series)
+
+
+def build_ect_analysis(
+    conn: sqlite3.Connection, release_id: int | None = None
+) -> ReleaseAnalysis | None:
+    result = _build_ect(conn, release_id, include_series=False)
+    return result.analysis if result else None
+
+
+def build_ect_dashboard(
+    conn: sqlite3.Connection, release_id: int | None = None
+) -> EctDashboardOut | None:
+    return _build_ect(conn, release_id, include_series=True)
