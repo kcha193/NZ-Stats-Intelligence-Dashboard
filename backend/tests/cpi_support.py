@@ -39,8 +39,8 @@ KIND_FILE = {
 }
 
 
-def seed_cpi(rt, site, month="2026-06"):
-    """Register a published CPI release and serve its real page and files from the fake site."""
+def serve_cpi(site, month="2026-06"):
+    """Serve a CPI release's real page and files from the fake site, without touching the database."""
     pg = page(month)
     parts = parse_title(pg.title)
     url = f"{BASE}/information-releases/{parts.series_slug}-{parts.period_label.lower().replace(' ', '-')}/"
@@ -54,7 +54,6 @@ def seed_cpi(rt, site, month="2026-06"):
         ReleaseStatus.PUBLISHED,
         page_url=url,
     )
-    rid = repo.upsert_release(rt.conn, ref, NOW)
     site.routes[url] = (200, fixture_bytes(f"cpi_{month}_page.html"), "text/html")
     downloads = {}
     for u in pg.download_urls:
@@ -62,12 +61,17 @@ def seed_cpi(rt, site, month="2026-06"):
         if kind in KIND_FILE:
             downloads[kind] = u
             site.routes[u] = (200, fixture_bytes(f"cpi_{month}_{KIND_FILE[kind]}.csv"), "text/csv")
-        elif kind == "workbook" and (FIXTURES / f"cpi_{month}_workbook.xlsx").exists():
-            downloads[kind] = u
-            site.routes[u] = (200, fixture_bytes(f"cpi_{month}_workbook.xlsx"), XLSX)
         elif kind == "workbook":
             downloads[kind] = u
-    return rid, ref.release_key, url, downloads
+            if (FIXTURES / f"cpi_{month}_workbook.xlsx").exists():
+                site.routes[u] = (200, fixture_bytes(f"cpi_{month}_workbook.xlsx"), XLSX)
+    return ref, url, downloads
+
+
+def seed_cpi(rt, site, month="2026-06"):
+    """Register a published CPI release and serve its real page and files from the fake site."""
+    ref, url, downloads = serve_cpi(site, month)
+    return repo.upsert_release(rt.conn, ref, NOW), ref.release_key, url, downloads
 
 
 def ingest_cpi(rt, site, *months):
