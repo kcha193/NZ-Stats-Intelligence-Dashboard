@@ -20,7 +20,7 @@ Releases captured as fixtures (`backend/tests/fixtures/cpi_<YYYY-MM>_*`, regener
 | `…-tradeables-and-non-tradeables.csv` | **required** | `CPIQ.SE9A`, `CPIQ.SE9NS6000` tradeable and `CPIQ.SE9NS6500` non-tradeable all-groups, plus a tradeable/non-tradeable by group matrix (not used) |
 | `…-seasonally-adjusted.csv` | **required** | Seasonally adjusted all groups, tradeable/non-tradeable, Level-1/2/3 |
 | `…-infoshare-data.csv` | no | Weighted average prices of items (not an index) |
-| `….xlsx` workbook | no (see below) | 27 sheets, see below |
+| `….xlsx` workbook | optional (`cpi_workbook`) | 27 sheets; tables 10 and 11 are read for official trimmed means and percentiles |
 | `…-central-and-local-government-charges.xlsx` | no | Supplementary |
 
 Schema of the three required CSVs (identical across December 2025, March 2026 and June 2026): columns `Series_reference, Period,
@@ -30,6 +30,9 @@ the seasonally adjusted file mixes `REVISED` and `FINAL`. File names say "tradea
 "tradables" in places. Official group names, as published: Food; Alcoholic beverages and tobacco; Clothing and footwear;
 Housing and household utilities; Household contents and services; Health; Transport; Communication; Recreation and culture;
 Education; Miscellaneous goods and services (the chart label "Housing contents and services" differs and is mapped).
+
+Republished files carry a `-corrected` suffix (December 2025 lists `…-quarter-corrected.xlsx`); the classifier accepts it and a corrected file wins over the original.
+Optional Level-2/3 or SA Level-1 series whose metadata, status or values are invalid are dropped with a warning; core series failures reject the bundle.
 
 Missing values are written `NA` or `0` (for example early Food and Alcohol history), never as a real zero; both are treated as
 missing. Contiguous unbroken quarterly history (latest unbroken run, measured on the June 2026 release):
@@ -73,6 +76,7 @@ the trimmed-mean, percentile or selected-grouping series; those are workbook-onl
 | Quantity | Measured | Constant used |
 |---|---|---|
 | Computed change from published (rounded) indexes vs the page charts: 68 points per release (17 quarters × quarterly all groups, annual all groups, tradeables, non-tradeables) | All 204 round to the published 1 d.p. value exactly; max absolute difference 0.0492 pp | `CHART_PCT_TOLERANCE = 0.05` (half a unit of the chart's 1 d.p.) |
+| All groups lies between tradables and non-tradables changes | Max excursion outside the components' range 0.082 pp over 1999 to 2026 on three releases | Tolerance derived from index rounding (each rate is off by up to (0.5/I now + 0.5/I before) × 100), not a constant |
 | Sum of the 11 published group contributions vs computed headline change | Quarterly: Dec 0.008, Mar 0.004, Jun 0.094 pp. Annual: Dec 0.009, Mar −0.021, Jun 0.058 pp | `CONTRIBUTION_SUM_TOLERANCE_PP = 0.15`. Explained by the footnote above (unrounded vs rounded indexes; rounding alone allows about 0.075 pp); the gap is shown, never absorbed |
 | Unadjusted index revisions between consecutive releases | None (0 changed values in all-groups and tradables across Dec→Mar→Jun) | Any change in a previously published unadjusted value is a genuine revision and is reported |
 | SA index revisions between consecutive releases | Large and genuine: SA all groups, March→June, 71 of 403 common quarters differ, 17 by more than 0.05 index points, maximum 1.14; the rest differ at 1e-8 (floating-point noise) | `SA_REVISION_MATERIALITY = 0.05` index points: smaller differences are not reported as revisions (raw values are stored unchanged) |

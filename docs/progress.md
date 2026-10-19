@@ -1,7 +1,15 @@
 # Progress and verification record
 
-Last updated 2026-10-18. Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
+Last updated 2026-10-19. Phase 2B CPI is implemented on `feat/phase-2b-cpi` (not merged or deployed; see [phase-2b-cpi.md](phase-2b-cpi.md)). Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
 coverage review remediation is locally verified, with CI and fresh automated review required after push. Not merged or deployed. Earlier entries below are historical.
+
+## Phase 2B — CPI and inflation, 19 October 2026
+
+Implemented the CPI adapter, validation, API, release analysis and `/inflation` dashboard on `feat/phase-2b-cpi`, with Overview, Latest Releases,
+Calendar and Data health integration. Verified against real December 2025, March 2026 and June 2026 releases (benchmarks 1.5/4.1, 2.7/4.9,
+0.6/3.4 reconcile). Offline release-day rehearsal passes. **The September 2026 quarter release (22 October 2026) has not been ingested.**
+Verification: 894 backend tests, 161 frontend tests and 48 Playwright checks passed; Ruff, TypeScript, lint and build passed.
+Details, decisions, limitations: [phase-2b-cpi.md](phase-2b-cpi.md); operation and fallback: [cpi-release-runbook.md](cpi-release-runbook.md).
 
 ## PR #3 — ECT publication coverage remediation, 18 October 2026
 
