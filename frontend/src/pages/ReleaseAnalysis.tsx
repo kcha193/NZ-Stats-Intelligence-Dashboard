@@ -7,6 +7,7 @@ import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { formatAklDateTime, formatNumber, formatPercent, monthLabel } from "@/lib/format";
+import { formatChange, formatMetricValue, isRate } from "@/lib/metric";
 
 function MetricsTable({ analysis }: { analysis: Analysis }) {
   return (
@@ -26,10 +27,10 @@ function MetricsTable({ analysis }: { analysis: Analysis }) {
         {analysis.headline_metrics.map((m) => (
           <tr key={m.series_key} className="border-b last:border-0">
             <th scope="row" className="py-1.5 pr-3 font-normal">{m.label}</th>
-            <td className="py-1.5 pr-3 text-right font-medium">{formatNumber(m.value, { decimals: m.unit === 'NZD million' || m.unit === 'NZD' ? 1 : 0 })} <span className="text-xs text-muted-foreground">{m.unit}</span>{m.std_error !== null ? <span className="block text-xs text-muted-foreground">SE {formatNumber(m.std_error)}</span> : null}</td>
+            <td className="py-1.5 pr-3 text-right font-medium">{formatMetricValue(m.value, m.unit)}{isRate(m.unit) ? null : <> <span className="text-xs text-muted-foreground">{m.unit}</span></>}{m.std_error !== null ? <span className="block text-xs text-muted-foreground">SE {formatNumber(m.std_error)}</span> : null}</td>
             <td className="py-1.5 pr-3">{m.period_label}</td>
-            <td className="py-1.5 pr-3 text-right">{m.change_prior ? `${formatNumber(m.change_prior.absolute, { signed: true })} (${formatPercent(m.change_prior.percent)})` : "n/a"}</td>
-            <td className="py-1.5 pr-3 text-right">{m.change_year_ago ? `${formatNumber(m.change_year_ago.absolute, { signed: true })} (${formatPercent(m.change_year_ago.percent)})` : "n/a"}</td>
+            <td className="py-1.5 pr-3 text-right">{m.change_prior ? formatChange(m.change_prior, m.unit) : "n/a"}</td>
+            <td className="py-1.5 pr-3 text-right">{m.change_year_ago ? formatChange(m.change_year_ago, m.unit) : "n/a"}</td>
             <td className="py-1.5"><StatusBadge status={m.status} /></td>
           </tr>
         ))}
@@ -40,6 +41,8 @@ function MetricsTable({ analysis }: { analysis: Analysis }) {
 
 function Analysis({ analysis }: { analysis: Analysis }) {
   const rel = analysis.release;
+  const indexRevisions = analysis.revisions.series_key.startsWith("cpi.");
+  const revisionValue = (v: number) => formatNumber(v, { decimals: indexRevisions ? 2 : 0 });
   const cmp = analysis.previous_comparison;
   const rev = analysis.revisions;
   const corrections = analysis.corrections;
@@ -84,15 +87,19 @@ function Analysis({ analysis }: { analysis: Analysis }) {
                 <th scope="col" className="py-1 text-right font-medium">Now</th>
               </tr></thead>
               <tbody>
-                {cmp.decompositions.map((d) => (
+                {cmp.decompositions.map((d) => {
+                  const unit = analysis.headline_metrics.find((m) => m.series_key === d.series_key)?.unit ?? "";
+                  const show = (v: number, signed = false) => isRate(unit) ? (signed ? `${formatNumber(v, { signed: true, decimals: 1 })} pp` : formatMetricValue(v, unit)) : formatNumber(v, { signed });
+                  return (
                   <tr key={d.series_key} className="border-b last:border-0">
                     <th scope="row" className="py-1.5 pr-3 font-normal">{d.label}<span className="block text-xs text-muted-foreground">{monthLabel(d.previous_period)} → {monthLabel(d.new_period)}</span></th>
-                    <td className="py-1.5 pr-3 text-right">{formatNumber(d.previous_published_value)}</td>
-                    <td className="py-1.5 pr-3 text-right">{formatNumber(d.revision_component, { signed: true })} <span className="text-xs text-muted-foreground">(revision of {monthLabel(d.previous_period)})</span></td>
-                    <td className="py-1.5 pr-3 text-right">{formatNumber(d.new_period_component, { signed: true })} <span className="text-xs text-muted-foreground">(new reference period {monthLabel(d.new_period)})</span></td>
-                    <td className="py-1.5 text-right font-medium">{formatNumber(d.new_value)}</td>
+                    <td className="py-1.5 pr-3 text-right">{show(d.previous_published_value)}</td>
+                    <td className="py-1.5 pr-3 text-right">{show(d.revision_component, true)} <span className="text-xs text-muted-foreground">(revision of {monthLabel(d.previous_period)})</span></td>
+                    <td className="py-1.5 pr-3 text-right">{show(d.new_period_component, true)} <span className="text-xs text-muted-foreground">(new reference period {monthLabel(d.new_period)})</span></td>
+                    <td className="py-1.5 text-right font-medium">{show(d.new_value)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -106,12 +113,12 @@ function Analysis({ analysis }: { analysis: Analysis }) {
         <p className="mt-1 text-sm text-muted-foreground">{rev.note}</p>
         {rev.available && (
           <>
-            <p className="mt-1 text-sm">{rev.n_revised} of {rev.n_common} overlapping periods were revised{rev.mean_abs !== null ? `; mean absolute revision ${formatNumber(rev.mean_abs, { decimals: 1 })} ${analysis.headline_metrics.find(m => m.series_key === rev.series_key)?.unit ?? ''}` : ""}.</p>
+            <p className="mt-1 text-sm">{rev.n_revised} of {rev.n_common} overlapping periods were revised{rev.mean_abs !== null ? `; mean absolute revision ${formatNumber(rev.mean_abs, { decimals: indexRevisions ? 2 : 1 })} ${indexRevisions ? "index points" : (analysis.headline_metrics.find(m => m.series_key === rev.series_key)?.unit ?? '')}` : ""}.</p>
             {rev.largest.length > 0 && (
               <table className="mt-2 w-full text-left text-sm">
                 <caption className="sr-only">Largest revisions to {analysis.headline_metrics.find(m => m.series_key === rev.series_key)?.label ?? rev.series_key}</caption>
                 <thead><tr className="border-b text-xs text-muted-foreground">
-                  <th scope="col" className="py-1 pr-3 font-medium">Month</th><th scope="col" className="py-1 pr-3 text-right font-medium">Original</th>
+                  <th scope="col" className="py-1 pr-3 font-medium">{indexRevisions ? "Quarter" : "Month"}</th><th scope="col" className="py-1 pr-3 text-right font-medium">Original</th>
                   <th scope="col" className="py-1 pr-3 text-right font-medium">Revised</th><th scope="col" className="py-1 pr-3 text-right font-medium">Revision</th>
                   <th scope="col" className="py-1 font-medium">Status change</th>
                 </tr></thead>
@@ -119,9 +126,9 @@ function Analysis({ analysis }: { analysis: Analysis }) {
                   {rev.largest.map((r) => (
                     <tr key={r.period} className="border-b last:border-0">
                       <th scope="row" className="py-1.5 pr-3 font-normal">{monthLabel(r.period)}</th>
-                      <td className="py-1.5 pr-3 text-right">{formatNumber(r.original)}</td>
-                      <td className="py-1.5 pr-3 text-right">{formatNumber(r.revised)}</td>
-                      <td className="py-1.5 pr-3 text-right">{formatNumber(r.absolute, { signed: true })} ({formatPercent(r.percent)})</td>
+                      <td className="py-1.5 pr-3 text-right">{revisionValue(r.original)}</td>
+                      <td className="py-1.5 pr-3 text-right">{revisionValue(r.revised)}</td>
+                      <td className="py-1.5 pr-3 text-right">{formatNumber(r.absolute, { signed: true, decimals: indexRevisions ? 2 : 0 })} ({formatPercent(r.percent)})</td>
                       <td className="py-1.5">{r.original_status} → {r.revised_status}</td>
                     </tr>
                   ))}

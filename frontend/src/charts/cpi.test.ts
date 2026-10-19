@@ -51,8 +51,15 @@ describe("headline inflation charts", () => {
     expect(s.markPoint.data[0].coord[0]).toBe("2026-06");
     expect(s.markPoint.label.formatter()).toBe("4.1%");
     expect(s.markArea.data).toEqual([[{ yAxis: 1 }, { yAxis: 3 }]]);
-    expect(s.markArea.label.formatter).toMatch(/1% to 3% target band \(reference\)/);
+    expect(option.title.text).toMatch(/Shaded: 1% to 3% reference band/);  // labelled once, away from the line
+    expect(s.markArea.label.show).toBe(false);
     expect(opt(annualInflationOption(points(ALL), TEST_THEME)).series[0].markArea).toBeUndefined();
+  });
+  it("never prints duplicate tick labels for half-point steps", () => {
+    const { formatter } = opt(quarterlyInflationOption(points(ALL), TEST_THEME)).yAxis.axisLabel;
+    expect(formatter(0.5)).toBe("0.5%");
+    expect(formatter(1)).toBe("1%");
+    expect(formatter(-1)).toBe("\u22121%");
   });
   it("does not bridge a missing observation", () => {
     const without = Object.fromEntries(Object.entries(ALL).filter(([p]) => p !== "2025-12"));
@@ -96,6 +103,7 @@ describe("contributions", () => {
     const option = opt(contributionOption(block, TEST_THEME));
     const s = option.series[0];
     expect(option.xAxis.name).toBe("Percentage points");
+    expect(option.xAxis.nameLocation).toBe("middle");  // an end-aligned title is clipped at the chart edge
     expect(option.yAxis.data).toEqual(["Transport", "Housing and household utilities", "Food", "Miscellaneous goods and services"]);
     expect(s.label.formatter({ value: 0.824 })).toBe("+0.82");
     expect(s.label.formatter({ value: -0.009 })).toBe("−0.01");

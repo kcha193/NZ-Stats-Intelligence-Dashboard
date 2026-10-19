@@ -57,7 +57,7 @@ function axes(periods: string[], theme: ChartTheme, yName: string, yExtra: objec
     },
     yAxis: {
       type: "value", name: yName, nameLocation: "end", nameTextStyle: { color: theme.muted, align: "left" },
-      axisLabel: { color: theme.muted, formatter: (v: number) => pct(v, 0) },
+      axisLabel: { color: theme.muted, formatter: (v: number) => pct(v, Number.isInteger(v) ? 0 : 1) },
       splitLine: { lineStyle: { color: theme.grid } }, ...yExtra,
     },
   };
@@ -85,7 +85,8 @@ function lineRates(name: string, data: Row[], yName: string, theme: ChartTheme, 
   const color = theme.series[0];
   return {
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
-    grid: { left: 56, right: 56, top: 32, bottom: 28 },
+    grid: { left: 56, right: 56, top: band ? 52 : 32, bottom: 28 },
+    ...(band ? { title: { text: "Shaded: 1% to 3% reference band", left: 56, top: 0, textStyle: { fontSize: 11, fontWeight: "normal", color: theme.muted } } } : {}),
     tooltip: rateTooltip(name, byPeriod),
     ...axes(periods, theme, yName),
     series: [{
@@ -100,7 +101,7 @@ function lineRates(name: string, data: Row[], yName: string, theme: ChartTheme, 
       } } : {}),
       ...(band ? { markArea: {
         silent: true, itemStyle: { color: theme.grid, opacity: 0.4 },
-        label: { show: true, position: "insideTopRight", color: theme.muted, formatter: "1% to 3% target band (reference)" },
+        label: { show: false },
         data: [[{ yAxis: 1 }, { yAxis: 3 }]],
       } } : {}),
     }],
@@ -171,13 +172,13 @@ export function contributionOption(block: CpiContributionBlock, theme: ChartThem
   const floor = Math.floor(Math.min(0, ...items.map((i) => i.points)) * 12) / 10;
   return {
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
-    grid: { left: 4, right: 64, top: 28, bottom: 8, containLabel: true },
+    grid: { left: 4, right: 64, top: 8, bottom: 40, containLabel: true },
     tooltip: {
       trigger: "item",
       formatter: (p: { name: string; value: number }) => `${escapeHtml(p.name)}: <b>${signed(p.value)}</b> percentage points`,
     },
     xAxis: {
-      type: "value", name: "Percentage points", nameLocation: "end", nameTextStyle: { color: theme.muted, align: "left" },
+      type: "value", name: "Percentage points", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: theme.muted },
       min: floor, axisLabel: { color: theme.muted, hideOverlap: true, formatter: (v: number) => formatNumber(v, { decimals: 1 }) },
       splitLine: { lineStyle: { color: theme.grid } },
     },

@@ -6,6 +6,7 @@ const NAMES: Record<string, string> = {
   calendar_month: "Release listings (monthly)",
   calendar_refresh: "Release calendar (complete refresh)",
   "release:international-migration": "International migration releases",
+  "release:consumers-price-index": "Consumers price index releases",
 };
 
 export function Freshness({ sources }: { sources: SourceHealth[] }) {

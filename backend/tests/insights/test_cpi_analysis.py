@@ -37,6 +37,9 @@ def test_executive_summary_answers_the_release_questions_in_order(analysis):
         and "percentage points" in t["drivers"]
         and "0.82" in t["drivers"]
     )
+    assert (
+        "0.31 percentage points" in t["drivers"]
+    )  # published 0.305 rounds half up, as the chart label does
     assert all(i.evidence and i.kind == "observation" for i in analysis.executive_summary)
     assert all(
         e.release_key.startswith("consumers-price-index")

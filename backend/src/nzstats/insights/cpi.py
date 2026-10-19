@@ -9,6 +9,7 @@ movement are different measures and are kept apart in every model.
 from __future__ import annotations
 
 import sqlite3
+from decimal import ROUND_HALF_UP, Decimal
 from statistics import mean
 
 from nzstats.adapters.cpi.adapter import SA_REVISION_MATERIALITY
@@ -332,7 +333,8 @@ def _revisions(conn, row, stored) -> tuple[RevisionBlock, object | None]:
 
 
 def _pp(value: float) -> str:
-    return f"{value:.2f}"
+    """Two decimals, rounding ties up like the chart labels (published 0.305 reads 0.31, not 0.30)."""
+    return f"{Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
 
 
 def _drivers(row, stored, ref: str, blocks: list[CpiContributionBlock]) -> Insight:
@@ -487,7 +489,7 @@ def _build(
             text=f"Tradables inflation was {ta[ref]:.1f}% over the year ({tq[ref]:.1f}% in the quarter) and "
             f"non-tradables inflation was {na[ref]:.1f}% ({nq[ref]:.1f}%); "
             + (
-                f"{higher} inflation was higher over the year. "
+                f"{higher.lower()} inflation was higher over the year. "
                 if higher != "Neither"
                 else "annual rates were equal. "
             )

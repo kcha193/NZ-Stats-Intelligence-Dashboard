@@ -39,7 +39,7 @@ it("changes the history range and keeps a zero line and the reference band", asy
   expect(optionOf("Quarterly CPI inflation history").xAxis.data).toHaveLength(12);
   await user.click(ranges.getByRole("radio", { name: "Full history" }));
   expect(optionOf("Annual CPI inflation history").xAxis.data.length).toBeGreaterThan(40);
-  expect(optionOf("Annual CPI inflation history").series[0].markArea.label.formatter).toMatch(/reference/);
+  expect(optionOf("Annual CPI inflation history").title.text).toMatch(/1% to 3% reference band/);
   await user.click(screen.getByRole("checkbox", { name: /1% to 3% reference band/ }));
   expect(optionOf("Annual CPI inflation history").series[0].markArea).toBeUndefined();
   expect(optionOf("Quarterly CPI inflation history").series[0].markLine.data).toEqual([{ yAxis: 0 }]);
