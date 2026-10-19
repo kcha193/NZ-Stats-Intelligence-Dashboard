@@ -13,9 +13,12 @@ sys.path.insert(0, str(ROOT / "backend"))
 from fastapi.testclient import TestClient
 from nzstats.api.app import create_app
 from nzstats.config import load_settings
+from nzstats.insights.cpi import build_cpi_dashboard
 from nzstats.insights.ect import build_ect_dashboard
 from nzstats.pipeline.ingest import ingest_release
 from nzstats.runtime import build_runtime
+from tests.cpi_support import NOW as CPI_NOW
+from tests.cpi_support import ingest_cpi
 from tests.ect_support import NOW as ECT_NOW
 from tests.ect_support import seed_ect
 from tests.support import BASE, NOW, FakeSite, seed_from_fixtures
@@ -38,6 +41,19 @@ def dump_ect_fixture() -> None:
         for series in payload["series"]:
             series["points"] = [p for p in series["points"] if p["period"] >= "2021-09"]
         (OUT / "ect.json").write_text(json.dumps(payload, separators=(",", ":")) + "\n")
+
+
+def dump_cpi_fixture() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        site = FakeSite()
+        rt = build_runtime(load_settings({"NZSTATS_DATA_DIR": tmp}), fetcher=site.fetcher())
+        ids = ingest_cpi(rt, site, "2026-03", "2026-06")
+        payload = build_cpi_dashboard(rt.conn).model_dump(mode="json")
+        # Keep real observations and provenance, limiting only fixture size. API retains full history.
+        for series in payload["series"]:
+            series["points"] = [p for p in series["points"] if p["period"] >= "2012-03"]
+        (OUT / "cpi.json").write_text(json.dumps(payload, separators=(",", ":")) + "\n")
+        assert payload["analysis"]["release"]["id"] == ids["2026-06"] and CPI_NOW
 
 
 def main() -> None:
@@ -81,6 +97,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    if "--ect-only" not in sys.argv:
+    only = [a for a in sys.argv[1:] if a.endswith("-only")]
+    if not only:
         main()
-    dump_ect_fixture()
+    if not only or "--ect-only" in only:
+        dump_ect_fixture()
+    if not only or "--cpi-only" in only:
+        dump_cpi_fixture()

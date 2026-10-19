@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getJson } from "./client";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
-  SeriesData, EctDashboard,
+  SeriesData, EctDashboard, CpiDashboard,
 } from "./types";
 
 const qs = (params: Record<string, string | number | undefined>): string => {
@@ -19,6 +19,13 @@ export const useEct = () =>
   useQuery({
     queryKey: ["ect"],
     queryFn: ({ signal }) => getJson<EctDashboard>("/api/ect", signal),
+    refetchInterval: 60_000,
+  });
+
+export const useCpi = () =>
+  useQuery({
+    queryKey: ["cpi"],
+    queryFn: ({ signal }) => getJson<CpiDashboard>("/api/cpi", signal),
     refetchInterval: 60_000,
   });
 
