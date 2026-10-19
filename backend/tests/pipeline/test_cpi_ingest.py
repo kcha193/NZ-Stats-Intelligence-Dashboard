@@ -22,14 +22,14 @@ def test_cpi_registered_ingests_once_and_is_idempotent(rt, site):
     outcome = ingest(rt, key)
     assert outcome.outcome == "ingested", outcome.detail
     assert repo.get_release(rt.conn, key)["status"] == "published"
-    assert len(site.requests) == 4  # release page plus the three required CSVs, nothing else
+    assert len(site.requests) == 5  # release page, three required CSVs and the optional workbook
     first = counts(rt)
     assert first["vintage"] >= 22 + 3 + 11  # contributions, headline, groups
     assert repo.latest_points(rt.conn, CORE)["2026-06"].value == 1359.0
     assert repo.latest_points(rt.conn, "cpi.contrib.q.transport")["2026-06"].value == 0.824
     assert ingest(rt, key).outcome == "unchanged"
     assert counts(rt) == first
-    assert rt.conn.execute("SELECT COUNT(*) FROM raw_artifact").fetchone()[0] == 4
+    assert rt.conn.execute("SELECT COUNT(*) FROM raw_artifact").fetchone()[0] == 5
 
 
 def test_march_then_june_keep_distinct_vintages_and_report_sa_revisions(rt, site):
@@ -105,3 +105,23 @@ def test_failed_ingestion_changes_nothing_and_keeps_last_known_good(rt, site, mu
         ).fetchone()[0]
         == "degraded"
     )
+
+
+def test_workbook_adds_underlying_measures_and_its_absence_only_warns(rt, site):
+    _, june, _, _ = seed_cpi(rt, site)
+    assert ingest(rt, june).outcome == "ingested"
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value is not None
+    _, march, _, downloads = seed_cpi(
+        rt, site, "2026-03"
+    )  # no workbook fixture is served for March
+    outcome = ingest(rt, march)
+    assert outcome.outcome == "ingested", outcome.detail
+    assert any("underlying" in w for w in outcome.warnings)
+
+
+def test_a_blocked_workbook_request_fails_the_ingestion(rt, site):
+    _, june, _, downloads = seed_cpi(rt, site)
+    site.override(downloads["workbook"], 200, b"<html>Incapsula incident</html>", "text/html")
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "failed" and outcome.error_class.value == "blocked"
+    assert counts(rt)["vintage"] == 0

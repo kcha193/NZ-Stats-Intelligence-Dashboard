@@ -47,6 +47,21 @@ OPTIONAL = (
     ("CPIQ.SE9072", "private_transport", "Private transport supplies and services", 2),
     ("CPIQ.SE907202", "petrol", "Petrol", 3),
 )
+# Official quarterly percentage-change measures that Stats NZ publishes only in the workbook
+# (tables 10 and 11): (reference, slug, official name).
+UNDERLYING = (
+    ("SE9NS4000", "tm05", "Trimmed mean, 5 percent trim"),
+    ("SE9NS4005", "tm10", "Trimmed mean, 10 percent trim"),
+    ("SE9NS4010", "tm15", "Trimmed mean, 15 percent trim"),
+    ("SE9NS4015", "tm20", "Trimmed mean, 20 percent trim"),
+    ("SE9NS4020", "tm25", "Trimmed mean, 25 percent trim"),
+    ("SE9NS4025", "tm30", "Trimmed mean, 30 percent trim"),
+    ("SE9NS4100", "pct10", "Weighted 10th percentile"),
+    ("SE9NS4105", "pct25", "Weighted 25th percentile"),
+    ("SE9NS4110", "median", "Weighted median"),
+    ("SE9NS4115", "pct75", "Weighted 75th percentile"),
+    ("SE9NS4120", "pct90", "Weighted 90th percentile"),
+)
 # Contribution-chart group labels that differ from the CSV names.
 CHART_ALIASES = {"Housing contents and services": "household_contents"}
 TRADABLE_NAME, NON_TRADABLE_NAME = "Tradable All Groups", "Non-Tradable All Groups"
@@ -188,4 +203,28 @@ def supported_definitions() -> dict[str, SeriesDef]:
         for slug in LEVEL1_SLUGS:
             d = contribution_definition(horizon, slug)
             defs[d.key] = d
+    for _, slug, _ in UNDERLYING:
+        d = underlying_definition(slug)
+        defs[d.key] = d
     return defs
+
+
+def underlying_key(slug: str) -> str:
+    return f"cpi.underlying.{slug}"
+
+
+def underlying_definition(slug: str, source_url: str | None = None) -> SeriesDef:
+    ref, _, name = next(u for u in UNDERLYING if u[1] == slug)
+    return SeriesDef(
+        underlying_key(slug),
+        f"{name}, quarterly percentage change",
+        "percent",
+        Frequency.QUARTERLY,
+        Adjustment.NONE,
+        f"Stats NZ official CPI series CPIQ.{ref} ({name}), percentage change from the previous quarter, "
+        "published in the release workbook (tables 10 and 11) and calculated from unrounded index numbers. "
+        "An official Stats NZ measure shown as published; the dashboard does not label any measure core inflation.",
+        f"cpi-v1:underlying:{slug}",
+        "cpi:underlying",
+        source_url,
+    )

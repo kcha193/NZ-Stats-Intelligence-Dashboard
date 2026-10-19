@@ -22,11 +22,15 @@ from nzstats.adapters.cpi.series import (
     SA_FILE,
     SLUG,
     TRADABLES_FILE,
+    UNDERLYING,
     contribution_definition,
     contribution_key,
     identity,
     supported_definitions,
+    underlying_definition,
+    underlying_key,
 )
+from nzstats.adapters.cpi.workbook import read_quarterly_tables
 from nzstats.clock import AKL
 from nzstats.domain import ErrorClass, IngestError, Observation, ObsStatus, Point
 from nzstats.sources.calendar import parse_title
@@ -107,6 +111,7 @@ def _read(raw: bytes, label: str) -> list[dict[str, str]]:
 class CpiAdapter:
     series_slug = SLUG
     required_downloads = (INDEX_FILE, SA_FILE, TRADABLES_FILE)
+    optional_downloads = ("workbook",)
     previous_keys = CORE_KEYS
     preserve_publication_coverage = True
 
@@ -186,7 +191,9 @@ class CpiAdapter:
             )
             series.append(ParsedSeries(definitions[key], observations))
         series.extend(self._contributions(page, reference))
-        bundle = ParsedBundle(LAYOUT_VERSION, tuple(series))
+        underlying, warnings = self._underlying(files.get("workbook"), points, reference)
+        series.extend(underlying)
+        bundle = ParsedBundle(LAYOUT_VERSION, tuple(series), tuple(warnings))
         findings = self.validate(bundle, reference_period=reference, previous={})
         if not any(f.severity == "error" for f in findings):
             findings += self._reconcile(page, bundle)
@@ -194,6 +201,40 @@ class CpiAdapter:
         if errors:
             fail("; ".join(errors[:5]))
         return bundle
+
+    @staticmethod
+    def _underlying(
+        raw: bytes | None, points: dict[str, dict[str, tuple[float, ObsStatus]]], reference: str
+    ) -> tuple[list[ParsedSeries], list[str]]:
+        """Official trimmed means and percentiles from the optional workbook; any problem warns."""
+        if raw is None:
+            return [], ["official underlying measures unavailable: workbook not downloaded"]
+        try:
+            tables = read_quarterly_tables(raw)
+        except IngestError:
+            return [], ["official underlying measures unavailable: workbook layout changed"]
+        if any(max(t) != reference for t in tables.values()):
+            return [], [
+                "official underlying measures dropped: workbook is not for the reference quarter"
+            ]
+        levels = {p: v for p, (v, _) in points.get("cpi.index.nsa.all_groups", {}).items()}
+        computed = quarterly_changes(levels)
+        if any(
+            p in computed and abs(computed[p] - v) > CHART_PCT_TOLERANCE + 1e-9
+            for p, v in tables["SE9A"].items()
+        ):
+            return [], [
+                "official underlying measures dropped: workbook does not reconcile with the index"
+            ]
+        out = []
+        for ref, slug, _ in UNDERLYING:
+            definition = underlying_definition(slug)
+            run = contiguous_run(tables[ref])
+            observations = tuple(
+                Observation(underlying_key(slug), p, tables[ref][p], ObsStatus.UNKNOWN) for p in run
+            )
+            out.append(ParsedSeries(definition, observations))
+        return out, []
 
     def _contributions(self, page: ReleasePage, reference: str) -> list[ParsedSeries]:
         out: list[ParsedSeries] = []
@@ -296,7 +337,7 @@ class CpiAdapter:
 
     @staticmethod
     def _check_reference(key, latest, reference, error, warn) -> None:
-        optional = key.startswith("cpi.index.") and key not in CORE_KEYS
+        optional = key not in CORE_KEYS and not key.startswith("cpi.contrib.")
         if latest > reference:
             error("reference", f"CPI latest period postdates the release reference: {key}")
         elif latest < reference:

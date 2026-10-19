@@ -40,6 +40,7 @@ DATA_TYPES = (
     "application/vnd.ms-excel",
     "application/zip",
     "application/x-zip-compressed",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 )
 
 
@@ -166,6 +167,23 @@ def _ingest(
         record = rt.artifacts.save(result)
         repo.record_artifact(rt.conn, record)
         files[kind] = result.body
+    optional_notes: list[str] = []
+    for kind in getattr(adapter, "optional_downloads", ()):
+        url = next((u for u in page.download_urls if classify_download(u) == kind), None)
+        if url is None:
+            optional_notes.append(f"optional {kind} download is not listed")
+            continue
+        try:
+            result = rt.fetcher.get(url, expect=DATA_TYPES)
+        except RequestRefused:
+            raise
+        except IngestError as exc:
+            if exc.error_class is ErrorClass.BLOCKED:
+                raise
+            optional_notes.append(f"optional {kind} download unavailable ({exc.error_class.value})")
+            continue
+        repo.record_artifact(rt.conn, rt.artifacts.save(result))
+        files[kind] = result.body
     release_id = int(row["id"])
     bundle = adapter.parse(page, files)
     published_at = from_utc_iso(row["published_at"])
@@ -227,7 +245,13 @@ def _ingest(
     if not created:
         return IngestOutcome(key, "unchanged")
     return IngestOutcome(
-        key, "ingested", warnings=tuple(f.message for f in findings if f.severity == "warning")
+        key,
+        "ingested",
+        warnings=(
+            *optional_notes,
+            *bundle.warnings,
+            *(f.message for f in findings if f.severity == "warning"),
+        ),
     )
 
 

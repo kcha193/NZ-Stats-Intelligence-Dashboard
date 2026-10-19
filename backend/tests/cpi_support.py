@@ -8,9 +8,10 @@ from nzstats.domain import ReleaseRef, ReleaseStatus
 from nzstats.sources.calendar import make_release_key, parse_title
 from nzstats.sources.release_page import ReleasePage, classify_download, parse_release_page
 from nzstats.store import repo
-from tests.conftest import fixture_bytes, fixture_text
+from tests.conftest import FIXTURES, fixture_bytes, fixture_text
 from tests.support import BASE
 
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 KINDS = ("index_numbers", "seasonally_adjusted", "tradables")
 
 
@@ -61,4 +62,9 @@ def seed_cpi(rt, site, month="2026-06"):
         if kind in KIND_FILE:
             downloads[kind] = u
             site.routes[u] = (200, fixture_bytes(f"cpi_{month}_{KIND_FILE[kind]}.csv"), "text/csv")
+        elif kind == "workbook" and (FIXTURES / f"cpi_{month}_workbook.xlsx").exists():
+            downloads[kind] = u
+            site.routes[u] = (200, fixture_bytes(f"cpi_{month}_workbook.xlsx"), XLSX)
+        elif kind == "workbook":
+            downloads[kind] = u
     return rid, ref.release_key, url, downloads
