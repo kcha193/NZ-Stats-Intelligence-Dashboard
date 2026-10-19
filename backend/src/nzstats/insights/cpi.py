@@ -145,7 +145,8 @@ def _rate_metric(stored, slug: str, horizon: str, label: str) -> Metric:
             else f"vs {_quarter(period)} (a year earlier)",
             comparison_period=period,
             previous=rates[period],
-            absolute=rates[ref] - rates[period],  # percentage points: a change in a rate
+            # Percentage points between the rates as published (1 d.p.), so 3.04 -> 2.96 reads 3.0 -> 3.0 = 0.0.
+            absolute=round(round(rates[ref], 1) - round(rates[period], 1), 1),
             percent=None,
         )
 
@@ -463,7 +464,7 @@ def _build(
                 kind="observation",
                 text=f"Annual inflation of {a[ref]:.1f}% compares with {d.previous_published_value:.1f}% published for "
                 f"the {_quarter(d.previous_period)} in the previous release, a change of "
-                f"{d.total_change:+.1f} percentage points.",
+                f"{round(round(a[ref], 1) - round(d.previous_published_value, 1), 1):+.1f} percentage points.",
                 evidence=[ev(ALL, ref), ev(ALL, year), ev(ALL, d.previous_period)],
             )
         )

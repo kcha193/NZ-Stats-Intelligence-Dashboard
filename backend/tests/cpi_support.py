@@ -61,7 +61,7 @@ def serve_cpi(site, month="2026-06"):
         if kind in KIND_FILE:
             downloads[kind] = u
             site.routes[u] = (200, fixture_bytes(f"cpi_{month}_{KIND_FILE[kind]}.csv"), "text/csv")
-        elif kind == "workbook":
+        elif kind == "cpi_workbook":
             downloads[kind] = u
             if (FIXTURES / f"cpi_{month}_workbook.xlsx").exists():
                 site.routes[u] = (200, fixture_bytes(f"cpi_{month}_workbook.xlsx"), XLSX)
@@ -85,3 +85,18 @@ def ingest_cpi(rt, site, *months):
         assert outcome.outcome == "ingested", outcome.detail
         ids[month] = rid
     return ids
+
+
+def mutated(source: dict[str, bytes], kind: str, reference: str, **fields: str) -> dict[str, bytes]:
+    """A copy of `source` where the first row of `reference` in one file has `fields` replaced."""
+    import csv
+    import io
+
+    rows = list(csv.reader(io.StringIO(source[kind].decode("utf-8"))))
+    header = rows[0]
+    row = next(r for r in rows[1:] if r[header.index("Series_reference")] == reference)
+    for name, value in fields.items():
+        row[header.index(name)] = value
+    out = io.StringIO()
+    csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\n").writerows(rows)
+    return {**source, kind: out.getvalue().encode("utf-8")}

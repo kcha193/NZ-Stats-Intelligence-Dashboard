@@ -63,7 +63,9 @@ def read_quarterly_tables(raw: bytes) -> dict[str, dict[str, float]]:
                 ):
                     _bad("CPI workbook contains unsafe members")
             return _tables(z)
-    except (zipfile.BadZipFile, KeyError, ET.ParseError, ValueError, RuntimeError, EOFError) as exc:
+    except IngestError:
+        raise
+    except Exception as exc:  # untrusted optional input: whatever goes wrong is a layout change
         raise IngestError(ErrorClass.LAYOUT_CHANGED, "CPI workbook cannot be read") from exc
 
 

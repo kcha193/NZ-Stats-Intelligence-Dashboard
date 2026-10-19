@@ -121,7 +121,40 @@ def test_workbook_adds_underlying_measures_and_its_absence_only_warns(rt, site):
 
 def test_a_blocked_workbook_request_fails_the_ingestion(rt, site):
     _, june, _, downloads = seed_cpi(rt, site)
-    site.override(downloads["workbook"], 200, b"<html>Incapsula incident</html>", "text/html")
+    site.override(downloads["cpi_workbook"], 200, b"<html>Incapsula incident</html>", "text/html")
     outcome = ingest(rt, june)
     assert outcome.outcome == "failed" and outcome.error_class.value == "blocked"
     assert counts(rt)["vintage"] == 0
+
+
+def test_a_flaky_optional_workbook_never_creates_a_correction(rt, site):
+    _, june, _, downloads = seed_cpi(rt, site)
+    assert ingest(rt, june).outcome == "ingested"
+    first = counts(rt)
+    site.override(downloads["cpi_workbook"], 503, b"", "text/html")  # transient failure
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "unchanged" and any("underlying" in w for w in outcome.warnings)
+    assert counts(rt) == first
+    assert repo.get_release(rt.conn, june)["status"] == "published"  # not "corrected"
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")  # the stored measures survive
+
+
+def test_a_real_correction_still_lands_when_the_workbook_is_unavailable(rt, site):
+    _, june, _, downloads = seed_cpi(rt, site)
+    assert ingest(rt, june).outcome == "ingested"
+    site.override(downloads["cpi_workbook"], 503, b"", "text/html")
+    index_url = downloads["cpi_index_numbers"]
+    text = (
+        site.routes[index_url][1]
+        .decode()
+        .replace('"CPIQ.SE9011","2026.06"', '"CPIQ.SE9011","2026.06"', 1)
+    )
+    row = next(line for line in text.splitlines() if line.startswith('"CPIQ.SE9013","2026.06"'))
+    value = row.split(",")[2]
+    site.override(
+        index_url, body=text.replace(row, row.replace(value, '"1387.5"')).encode(), ctype="text/csv"
+    )
+    outcome = ingest(rt, june)
+    assert (
+        outcome.outcome == "ingested" and repo.get_release(rt.conn, june)["status"] == "corrected"
+    )

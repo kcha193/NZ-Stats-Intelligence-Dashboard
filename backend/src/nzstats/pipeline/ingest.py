@@ -96,6 +96,21 @@ def ingest_release(
     return outcome
 
 
+def pick_downloads(urls: Iterable[str], kinds: Iterable[str]) -> dict[str, str]:
+    """The first listed URL of each wanted kind, except that a `-corrected` republication wins."""
+    wanted, chosen = set(kinds), {}
+    for url in urls:
+        kind = classify_download(url)
+        if kind not in wanted:
+            continue
+        if kind not in chosen or (
+            "-corrected" in url.rsplit("/", 1)[-1]
+            and "-corrected" not in chosen[kind].rsplit("/", 1)[-1]
+        ):
+            chosen[kind] = url
+    return chosen
+
+
 def _bundle_digest(
     series: Iterable[tuple[SeriesDef, Iterable[Observation | repo.ObservationRow]]],
 ) -> str:
@@ -152,11 +167,7 @@ def _ingest(
     repo.record_artifact(rt.conn, rt.artifacts.save(page_result))
     page = parse_release_page(page_result.body.decode("utf-8"), settings.base_url)
 
-    wanted: dict[str, str] = {}
-    for url in page.download_urls:
-        kind = classify_download(url)
-        if kind in adapter.required_downloads and kind not in wanted:
-            wanted[kind] = url
+    wanted = pick_downloads(page.download_urls, adapter.required_downloads)
     missing = [k for k in adapter.required_downloads if k not in wanted]
     if missing:
         raise IngestError(ErrorClass.LAYOUT_CHANGED, f"release page lists no {missing} download")
@@ -169,7 +180,7 @@ def _ingest(
         files[kind] = result.body
     optional_notes: list[str] = []
     for kind in getattr(adapter, "optional_downloads", ()):
-        url = next((u for u in page.download_urls if classify_download(u) == kind), None)
+        url = pick_downloads(page.download_urls, (kind,)).get(kind)
         if url is None:
             optional_notes.append(f"optional {kind} download is not listed")
             continue
@@ -205,6 +216,20 @@ def _ingest(
         )
 
     bundle_sha = _bundle_digest((ps.definition, ps.observations) for ps in bundle.series)
+    optional_prefixes = tuple(getattr(adapter, "optional_series_prefixes", ()))
+    active = repo.release_bundle(rt.conn, release_id)
+    if optional_notes and optional_prefixes and active is not None:
+        # An optional download failed. Stats NZ did not correct anything just because we could not
+        # fetch an extra file: unless the required data itself differs, keep the stored bundle.
+        def required(series):
+            return _bundle_digest(
+                (d, o) for d, o in series if not d.key.startswith(optional_prefixes)
+            )
+
+        if required(repo.bundle_series(rt.conn, release_id, active)) == required(
+            (ps.definition, ps.observations) for ps in bundle.series
+        ):
+            return IngestOutcome(key, "unchanged", warnings=(*optional_notes, *bundle.warnings))
     if repo.release_bundle(rt.conn, release_id) == bundle_sha:
         return IngestOutcome(key, "unchanged")
     now = now_fn()

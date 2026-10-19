@@ -15,7 +15,7 @@ def test_june_2026_downloads_are_classified():
     page = parse_release_page(fixture_text("cpi_2026-06_page.html"), BASE)
     kinds = {u.rsplit("/", 1)[-1]: classify_download(u) for u in page.download_urls}
     assert kinds == {
-        "consumers-price-index-june-2026-quarter.xlsx": "workbook",
+        "consumers-price-index-june-2026-quarter.xlsx": "cpi_workbook",
         "consumers-price-index-june-2026-quarter-infoshare-data.csv": None,
         "consumers-price-index-june-2026-quarter-seasonally-adjusted.csv": "cpi_seasonally_adjusted",
         "consumers-price-index-june-2026-quarter-index-numbers.csv": "cpi_index_numbers",
@@ -51,3 +51,44 @@ def test_september_quarter_title_maps_to_cpi_release():
         make_release_key("Consumers price index: September 2026 quarter")
         == "consumers-price-index:september 2026 quarter"
     )
+
+
+@pytest.mark.parametrize(
+    ("name", "kind"),
+    [
+        (
+            "consumers-price-index-december-2025-quarter-index-numbers-corrected.csv",
+            "cpi_index_numbers",
+        ),
+        (
+            "consumers-price-index-december-2025-quarter-seasonally-adjusted-corrected.csv",
+            "cpi_seasonally_adjusted",
+        ),
+        (
+            "consumers-price-index-december-2025-quarter-tradeables-and-non-tradeables-corrected.csv",
+            "cpi_tradables",
+        ),
+        ("consumers-price-index-december-2025-quarter-corrected.xlsx", "cpi_workbook"),
+        ("consumers-price-index-december-2025-quarter-infoshare-data-corrected.csv", None),
+        (
+            "central-and-local-government-charges.xlsx",
+            "workbook",
+        ),  # not a CPI file: never the CPI workbook
+    ],
+)
+def test_corrected_republications_are_recognised(name, kind):
+    assert classify_download(f"{DL}{name}") == kind
+
+
+def test_the_corrected_file_wins_when_both_are_listed():
+    from nzstats.pipeline.ingest import pick_downloads
+
+    urls = [
+        f"{DL}consumers-price-index-june-2026-quarter-index-numbers-corrected.csv",
+        f"{DL}consumers-price-index-june-2026-quarter-index-numbers.csv",
+    ]
+    for ordering in (urls, urls[::-1]):
+        assert pick_downloads(ordering, ("cpi_index_numbers",)) == {"cpi_index_numbers": urls[0]}
+    assert pick_downloads(urls[1:], ("cpi_index_numbers", "cpi_tradables")) == {
+        "cpi_index_numbers": urls[1]
+    }

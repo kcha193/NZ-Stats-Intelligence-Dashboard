@@ -105,3 +105,17 @@ it("shows a plain empty state before any CPI release is ingested", async () => {
   renderWithProviders(<Inflation />);
   expect(await screen.findByText("CPI data has not been ingested yet")).toBeInTheDocument();
 });
+
+it("shows n/a, never an invented 0.0%, when a rate is not available", async () => {
+  const gap = structuredClone(data);
+  for (const slug of ["tradables", "non_tradables"]) {
+    const series = gap.series.find((x) => x.slug === slug && x.adjustment === "none")!;
+    series.points[series.points.length - 1].quarterly_pct = null as unknown as number;
+  }
+  mockApi({ "/api/cpi": gap });
+  renderWithProviders(<Inflation />);
+  const user = userEvent.setup();
+  await screen.findByRole("heading", { name: "Inflation", level: 1 });
+  await user.click(within(screen.getByRole("group", { name: "Rate" })).getByRole("radio", { name: "Quarterly" }));
+  expect(screen.getByText(/tradables n\/a, non-tradables n\/a/)).toBeInTheDocument();
+});

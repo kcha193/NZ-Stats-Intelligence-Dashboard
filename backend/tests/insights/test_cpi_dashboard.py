@@ -22,7 +22,8 @@ def test_headline_metrics_are_rates_with_correct_comparisons(june):
     assert "annual" in annual.label.lower() and "quarterly" in quarterly.label.lower()
     prior = annual.change_prior
     assert prior.comparison_period == "2026-03" and round(prior.previous, 1) == 3.1
-    assert prior.absolute == pytest.approx(annual.value - prior.previous)
+    # Differences are taken between the rates as published (1 d.p.): 4.1 - 3.1, not 4.058 - 3.079.
+    assert prior.absolute == pytest.approx(round(annual.value, 1) - round(prior.previous, 1))
     assert (
         prior.percent is None
     )  # a change in a rate is in percentage points, never a percent of a percent

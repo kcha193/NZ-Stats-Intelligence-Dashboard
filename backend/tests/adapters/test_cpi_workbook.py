@@ -54,7 +54,7 @@ def test_unsafe_or_unexpected_workbooks_are_rejected_as_layout_changes(raw):
 
 
 def test_underlying_series_are_official_percent_changes():
-    bundle = CpiAdapter().parse(page(), {**files(), "workbook": workbook()})
+    bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": workbook()})
     by_key = {s.definition.key: s for s in bundle.series}
     median = by_key["cpi.underlying.median"]
     assert median.definition.unit == "percent" and median.observations[-1].period == "2026-06"
@@ -63,7 +63,7 @@ def test_underlying_series_are_official_percent_changes():
     assert bundle.warnings == ()
 
 
-@pytest.mark.parametrize("extra", [{}, {"workbook": b"junk"}])
+@pytest.mark.parametrize("extra", [{}, {"cpi_workbook": b"junk"}])
 def test_missing_or_unreadable_workbook_never_blocks_headline_cpi(extra):
     bundle = CpiAdapter().parse(page(), {**files(), **extra})
     assert not [s for s in bundle.series if ".underlying." in s.definition.key]
@@ -75,7 +75,7 @@ def test_workbook_that_disagrees_with_the_index_is_dropped(monkeypatch):
     tables = read_quarterly_tables(workbook())
     tables["SE9A"] = {**tables["SE9A"], "2026-06": 2.5}
     monkeypatch.setattr(cpi_adapter, "read_quarterly_tables", lambda raw: tables)
-    bundle = CpiAdapter().parse(page(), {**files(), "workbook": workbook()})
+    bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": workbook()})
     assert not [s for s in bundle.series if ".underlying." in s.definition.key]
     assert any("does not reconcile" in w for w in bundle.warnings)
 
@@ -86,6 +86,37 @@ def test_workbook_for_a_different_quarter_is_dropped(monkeypatch):
         for k, d in read_quarterly_tables(workbook()).items()
     }
     monkeypatch.setattr(cpi_adapter, "read_quarterly_tables", lambda raw: tables)
-    bundle = CpiAdapter().parse(page(), {**files(), "workbook": workbook()})
+    bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": workbook()})
     assert any("reference quarter" in w for w in bundle.warnings)
     assert replace(bundle, warnings=()).series
+
+
+def test_a_workbook_with_dangling_string_references_is_a_layout_change():
+    out = io.BytesIO()
+    with (
+        zipfile.ZipFile(io.BytesIO(workbook())) as src,
+        zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst,
+    ):
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename == "xl/sharedStrings.xml":
+                data = (
+                    b'<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"></sst>'
+                )
+            dst.writestr(item, data)
+    with pytest.raises(IngestError) as caught:
+        read_quarterly_tables(out.getvalue())
+    assert caught.value.error_class is ErrorClass.LAYOUT_CHANGED
+
+
+@pytest.mark.parametrize(
+    "error", [IndexError("x"), NotImplementedError("x"), TypeError("x"), ZeroDivisionError("x")]
+)
+def test_no_workbook_failure_can_block_headline_cpi(monkeypatch, error):
+    def explode(raw):
+        raise error
+
+    monkeypatch.setattr(cpi_adapter, "read_quarterly_tables", explode)
+    bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": workbook()})
+    assert any(s.definition.key == "cpi.index.nsa.all_groups" for s in bundle.series)
+    assert any("underlying" in w for w in bundle.warnings)

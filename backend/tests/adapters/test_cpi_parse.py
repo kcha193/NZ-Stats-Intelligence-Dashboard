@@ -5,7 +5,7 @@ import pytest
 from nzstats.adapters.cpi.adapter import CpiAdapter
 from nzstats.domain import Adjustment, ErrorClass, Frequency, IngestError, ObsStatus
 from nzstats.sources.release_page import Chart
-from tests.cpi_support import edited, files, page
+from tests.cpi_support import edited, files, mutated, page
 
 ALL_NSA = '"CPIQ.SE9A","2026.06","1359","FINAL","Index","CPI","CPI All Groups for New Zealand","All groups","NA"'
 
@@ -183,3 +183,36 @@ def test_source_title_and_reference_must_match_a_quarter_release():
         parse(pg=pg)
     with pytest.raises(IngestError):  # reference after publication (2026-07-21)
         parse(pg=replace(page(), title="Consumers price index: December 2026 quarter"))
+
+
+@pytest.mark.parametrize(
+    ("kind", "reference", "fields", "key"),
+    [
+        (
+            "cpi_index_numbers",
+            "CPIQ.SE9015",
+            {"Series_title_1": "Restaurant meals and ready to eat food"},
+            "restaurant_meals",
+        ),
+        ("cpi_index_numbers", "CPIQ.SE904501", {"Data_value": "-3"}, "electricity"),
+        ("cpi_index_numbers", "CPIQ.SE907202", {"STATUS": "DRAFT"}, "petrol"),
+        ("cpi_index_numbers", "CPIQ.SE9045", {"UNITS": "Percent"}, "household_energy"),
+        ("cpi_seasonally_adjusted", "CPIQ.SE9S06", {"Series_title_2": "Health care"}, "health"),
+    ],
+)
+def test_a_problem_in_an_optional_series_drops_it_with_a_warning(
+    june, kind, reference, fields, key
+):
+    adjustment = "sa" if kind == "cpi_seasonally_adjusted" else "nsa"
+    bundle = parse(mutated(files(), kind, reference, **fields))
+    keys = {s.definition.key for s in bundle.series}
+    assert f"cpi.index.{adjustment}.{key}" not in keys
+    assert keys == set(june) - {f"cpi.index.{adjustment}.{key}"}  # nothing else is lost
+    assert any(reference in w for w in bundle.warnings)
+
+
+def test_core_series_problems_still_reject_the_bundle():
+    with pytest.raises(IngestError):
+        parse(
+            mutated(files(), "cpi_index_numbers", "CPIQ.SE907", Series_title_1="Transport services")
+        )

@@ -96,13 +96,13 @@ def classify_download(url: str) -> str | None:
 
 
 _CPI_CSV = (
-    ("cpi_index_numbers", re.compile(r"-index-numbers\.csv$")),
-    ("cpi_seasonally_adjusted", re.compile(r"-seasonally-adjusted\.csv$")),
-    ("cpi_tradables", re.compile(r"-trad(?:e)?ables-and-non-trad(?:e)?ables\.csv$")),
+    ("cpi_index_numbers", re.compile(r"-index-numbers(?:-corrected)?\.csv$")),
+    ("cpi_seasonally_adjusted", re.compile(r"-seasonally-adjusted(?:-corrected)?\.csv$")),
+    ("cpi_tradables", re.compile(r"-trad(?:e)?ables-and-non-trad(?:e)?ables(?:-corrected)?\.csv$")),
 )
 
 
 def _classify_cpi(name: str) -> str | None:
     if name.endswith(".xlsx"):
-        return None if name.endswith("-central-and-local-government-charges.xlsx") else "workbook"
+        return None if "central-and-local-government-charges" in name else "cpi_workbook"
     return next((kind for kind, pattern in _CPI_CSV if pattern.search(name)), None)

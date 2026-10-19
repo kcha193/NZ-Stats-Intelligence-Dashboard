@@ -108,6 +108,15 @@ def test_all_groups_must_lie_between_tradables_and_non_tradables(june):
     assert "ordering" in rules(validate(modified(june, key, o)))
 
 
+def test_rounding_alone_never_trips_the_ordering_check(june):
+    # Published indexes are integers, so an all-groups rate can sit just outside its components'
+    # rates by rounding. 1348.5 gives 3.25% annual against non-tradables at 3.38%.
+    key = "cpi.index.nsa.all_groups"
+    o = list(series(june, key).observations)
+    o[-1] = obs(key, "2026-06", 1348.5)
+    assert "ordering" not in rules(validate(modified(june, key, o)))
+
+
 def test_large_movement_warns(june):
     key = "cpi.index.nsa.all_groups"
     o = list(series(june, key).observations)

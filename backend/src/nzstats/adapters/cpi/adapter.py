@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import math
 import re
 from collections import defaultdict
@@ -42,8 +43,8 @@ from nzstats.stats.periods import add_months
 CHART_PCT_TOLERANCE = 0.05  # computed vs published 1 d.p. percentage; measured max 0.0492
 CONTRIBUTION_SUM_TOLERANCE_PP = 0.15  # |headline - sum of group contributions|; measured max 0.094
 SA_REVISION_MATERIALITY = 0.05  # index points; smaller seasonal-adjustment differences are noise
-ORDERING_TOLERANCE_PP = 0.1  # all groups vs [min, max] of tradables/non-tradables; measured 0.082
 LARGE_MOVE = 0.05  # quarterly index move that warrants review
+log = logging.getLogger(__name__)
 MAX_FILE = 16 * 1024 * 1024
 MAX_ROWS = 150_000
 LAYOUT_VERSION = "cpi-csv-v1"
@@ -111,7 +112,10 @@ def _read(raw: bytes, label: str) -> list[dict[str, str]]:
 class CpiAdapter:
     series_slug = SLUG
     required_downloads = (INDEX_FILE, SA_FILE, TRADABLES_FILE)
-    optional_downloads = ("workbook",)
+    optional_downloads = ("cpi_workbook",)
+    optional_series_prefixes = (
+        "cpi.underlying.",
+    )  # present only when the optional download was read
     previous_keys = CORE_KEYS
     preserve_publication_coverage = True
 
@@ -131,6 +135,10 @@ class CpiAdapter:
         points: dict[str, dict[str, tuple[float, ObsStatus]]] = defaultdict(dict)
         definitions = {}
         cross: dict[str, float] = {}
+        dropped: set[str] = (
+            set()
+        )  # optional series with a problem: left out, never blocking headline CPI
+        notes: list[str] = []
         for kind in self.required_downloads:
             seen: set[tuple[str, str]] = set()
             for row in _read(files[kind], kind.removeprefix("cpi_")):
@@ -141,11 +149,21 @@ class CpiAdapter:
                     if any(token in row["Group"] for token in IGNORED_GROUPS[kind]):
                         continue
                     layout(f"CPI source contains an unexpected series: {ref}")
+                optional = False
                 if found is not None:
                     definition, expected = found
+                    optional = definition.key not in CORE_KEYS
+                    if definition.key in dropped:
+                        continue
                     if any(row[k] != v for k, v in expected.fields.items()) or not all(
                         t in row["Group"] for t in expected.group_tokens
                     ):
+                        if optional:
+                            dropped.add(definition.key)
+                            notes.append(
+                                f"optional CPI series {ref} dropped: metadata incompatible"
+                            )
+                            continue
                         fail(f"CPI metadata incompatible for {ref}")
                 elif row["UNITS"] != "Index" or row["Subject"] != "CPI":
                     fail(f"CPI metadata incompatible for {ref}")
@@ -161,17 +179,27 @@ class CpiAdapter:
                     fail("CPI duplicate observation")
                 seen.add((ref, period))
                 status = STATUS.get(row["STATUS"])
-                if status is None:
-                    fail("CPI unknown observation status")
                 raw = row["Data_value"]
+                value = math.nan
+                if status is not None and raw not in ("NA", ""):
+                    try:
+                        value = float(raw)
+                    except ValueError:
+                        pass
+                if status is None or (
+                    raw not in ("NA", "") and (not math.isfinite(value) or value < 0)
+                ):
+                    if optional:
+                        dropped.add(definition.key)
+                        notes.append(f"optional CPI series {ref} dropped: invalid status or value")
+                        continue
+                    fail(
+                        "CPI unknown observation status"
+                        if status is None
+                        else "CPI numeric value is invalid"
+                    )
                 if raw in ("NA", ""):
                     continue  # missing, never zero
-                try:
-                    value = float(raw)
-                except ValueError:
-                    fail("CPI numeric value is invalid")
-                if not math.isfinite(value) or value < 0:
-                    fail("CPI numeric value is invalid")
                 if value == 0:
                     continue  # the files write unpublished early history as 0
                 if is_cross:
@@ -179,6 +207,9 @@ class CpiAdapter:
                     continue
                 definitions[definition.key] = definition
                 points[definition.key][period] = (value, status)
+        for key in dropped:
+            points.pop(key, None)
+            definitions.pop(key, None)
         stored = points.get("cpi.index.nsa.all_groups", {})
         if any(p in stored and stored[p][0] != v for p, v in cross.items()):
             fail("CPI all-groups index differs between source files")
@@ -191,9 +222,9 @@ class CpiAdapter:
             )
             series.append(ParsedSeries(definitions[key], observations))
         series.extend(self._contributions(page, reference))
-        underlying, warnings = self._underlying(files.get("workbook"), points, reference)
+        underlying, warnings = self._underlying(files.get("cpi_workbook"), points, reference)
         series.extend(underlying)
-        bundle = ParsedBundle(LAYOUT_VERSION, tuple(series), tuple(warnings))
+        bundle = ParsedBundle(LAYOUT_VERSION, tuple(series), (*notes, *warnings))
         findings = self.validate(bundle, reference_period=reference, previous={})
         if not any(f.severity == "error" for f in findings):
             findings += self._reconcile(page, bundle)
@@ -211,7 +242,8 @@ class CpiAdapter:
             return [], ["official underlying measures unavailable: workbook not downloaded"]
         try:
             tables = read_quarterly_tables(raw)
-        except IngestError:
+        except Exception:  # optional input: nothing it does may block headline CPI
+            log.warning("CPI workbook could not be read", exc_info=True)
             return [], ["official underlying measures unavailable: workbook layout changed"]
         if any(max(t) != reference for t in tables.values()):
             return [], [
@@ -378,18 +410,25 @@ class CpiAdapter:
 
     @staticmethod
     def _check_ordering(data, reference, error) -> None:
+        """All groups lies between its tradables and non-tradables components, within the rounding of
+        the published (integer) indexes: each rate is off by up to (0.5/I_now + 0.5/I_before) x 100."""
         names = ("all_groups", "tradables", "non_tradables")
         levels = [data.get(f"cpi.index.nsa.{n}") for n in names]
         if not all(levels):
             return
-        for change in (quarterly_changes, annual_changes):
+        for change, lag in ((quarterly_changes, 3), (annual_changes, 12)):
             try:
                 a, t, n = (change(lv).get(reference) for lv in levels)
             except ValueError:
                 return
             if None in (a, t, n):
                 error("ordering", "CPI tradables reconciliation cannot be checked")
-            elif not min(t, n) - ORDERING_TOLERANCE_PP <= a <= max(t, n) + ORDERING_TOLERANCE_PP:
+                continue
+            err = [
+                (0.5 / lv[reference] + 0.5 / lv[add_months(reference, -lag)]) * 100 for lv in levels
+            ]
+            tolerance = err[0] + max(err[1], err[2])
+            if not min(t, n) - tolerance <= a <= max(t, n) + tolerance:
                 error(
                     "ordering",
                     "CPI all-groups change lies outside its tradables/non-tradables components",

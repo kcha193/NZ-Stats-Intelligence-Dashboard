@@ -56,6 +56,10 @@ function Dashboard({ data }: { data: CpiDashboard }) {
   const block = data.contributions.find((b) => b.horizon === contribution)!;
   const rangeOptions = CPI_RANGES.map((r) => ({ value: r.value, label: r.label }));
   const quarter = `${fullMonth(data.reference_period)} quarter`;
+  const latestRate = (slug: string, key: "annual_pct" | "quarterly_pct") => {
+    const v = nsa(slug).points.at(-1)?.[key];
+    return v === null || v === undefined ? "n/a" : rate(v);
+  };
   return (
     <div className="space-y-6">
       <header>
@@ -104,7 +108,7 @@ function Dashboard({ data }: { data: CpiDashboard }) {
           <Segmented<Horizon> label="Rate" value={horizon} onChange={setHorizon} options={[{ value: "annual", label: "Annual" }, { value: "quarterly", label: "Quarterly" }]} />
         </div>
         <ChartCard title={`Tradables and non-tradables · ${horizon}`}
-          question={`${quarter}: tradables ${rate(horizon === "annual" ? tradables.value : (nsa("tradables").points.at(-1)?.quarterly_pct ?? 0))}, non-tradables ${rate(horizon === "annual" ? non.value : (nsa("non_tradables").points.at(-1)?.quarterly_pct ?? 0))}. Which is rising faster?`}
+          question={`${quarter}: tradables ${latestRate("tradables", horizon === "annual" ? "annual_pct" : "quarterly_pct")}, non-tradables ${latestRate("non_tradables", horizon === "annual" ? "annual_pct" : "quarterly_pct")}. Which is rising faster?`}
           unit="percent" source={source}
           caveat="Tradables are exposed to foreign competition; non-tradables are not. Both are on one percentage axis, so gaps are in percentage points. Non-tradables is not core inflation."
           option={tradablesOption(rangeFilter(nsa("tradables").points, range), rangeFilter(nsa("non_tradables").points, range), horizon, theme)}
@@ -124,7 +128,7 @@ function Dashboard({ data }: { data: CpiDashboard }) {
         </div>
         {block.available ? (
           <ChartCard title={`Contribution to ${contribution} CPI change, by group`}
-            question={`${quarter}: which groups drove the ${contribution} change of ${rate(block.headline_pct ?? 0)}?`}
+            question={`${quarter}: which groups drove the ${contribution} change${block.headline_pct == null ? "" : ` of ${rate(block.headline_pct)}`}?`}
             unit="percentage points" source={source} caveat={block.note}
             option={contributionOption(block, theme)} ariaLabel="CPI group contributions" height={380}
             csvFilename={`cpi-contributions-${contribution}.csv`} csvRows={contributionCsvRows(block, meta)} />
