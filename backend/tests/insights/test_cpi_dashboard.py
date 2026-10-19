@@ -23,7 +23,9 @@ def test_headline_metrics_are_rates_with_correct_comparisons(june):
     prior = annual.change_prior
     assert prior.comparison_period == "2026-03" and round(prior.previous, 1) == 3.1
     assert prior.absolute == pytest.approx(annual.value - prior.previous)
-    assert prior.percent is None  # a change in a rate is in percentage points, never a percent of a percent
+    assert (
+        prior.percent is None
+    )  # a change in a rate is in percentage points, never a percent of a percent
     assert round(annual.change_year_ago.previous, 1) == 2.7
     assert annual.period == "2026-06" and annual.period_label == "Quarter ended June 2026"
 
@@ -55,7 +57,9 @@ def test_contributions_are_published_values_with_the_gap_disclosed(june):
     assert [i.points for i in q.items] == sorted((i.points for i in q.items), reverse=True)
     assert next(i for i in a.items if i.slug == "housing").points == 1.066
     assert q.sum_points == pytest.approx(1.400) and a.sum_points == pytest.approx(4.000)
-    assert round(q.headline_pct, 3) == 1.494 and q.gap_points == pytest.approx(q.headline_pct - q.sum_points)
+    assert round(q.headline_pct, 3) == 1.494 and q.gap_points == pytest.approx(
+        q.headline_pct - q.sum_points
+    )
     assert "unrounded" in q.note
 
 

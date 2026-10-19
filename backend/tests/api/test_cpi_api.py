@@ -29,7 +29,9 @@ def test_empty_database_returns_a_plain_404(client):
 def test_dashboard_contract_and_units(rt, site, client):
     ingest_cpi(rt, site, "2026-03", "2026-06")
     body = client.get("/api/cpi").json()
-    assert body["reference_period"] == "2026-06" and body["published_at"].startswith("2026-07-21T10:45")
+    assert body["reference_period"] == "2026-06" and body["published_at"].startswith(
+        "2026-07-21T10:45"
+    )
     assert all(b["unit"] == "percentage points" for b in body["contributions"])
     assert all(m["unit"] == "percent" for m in body["analysis"]["headline_metrics"])
     assert body["base"] == "June 2017 quarter (=1000)" and body["caveats"]
