@@ -6,6 +6,7 @@ from datetime import datetime
 
 from nzstats.catalog import INACTIVE_CATEGORIES
 from nzstats.clock import to_akl_iso, to_utc_iso
+from nzstats.insights.cpi import build_cpi_overview_kpi
 from nzstats.insights.ect import build_ect_overview_kpi
 from nzstats.insights.migration import SLUG, build_release_analysis
 from nzstats.insights.summary import release_summary
@@ -64,6 +65,12 @@ def build_overview(
         kpis.append(kpi)
         data_updated_at = max(filter(None, [data_updated_at, captured_at]))
 
+    cpi = build_cpi_overview_kpi(conn)
+    if cpi is not None:
+        kpi, captured_at = cpi
+        kpis.append(kpi)
+        data_updated_at = max(filter(None, [data_updated_at, captured_at]))
+
     def summaries(sql: str, params: tuple) -> list:
         return [
             release_summary(conn, r, analysable_slugs=analysable_slugs)
@@ -88,5 +95,9 @@ def build_overview(
         upcoming=upcoming,
         freshness=health_rows(conn),
         featured=featured,
-        inactive_categories=[InactiveCategory(name=n, reason=r) for n, r in INACTIVE_CATEGORIES],
+        inactive_categories=[
+            InactiveCategory(name=n, reason=r)
+            for n, r in INACTIVE_CATEGORIES
+            if not (cpi is not None and n == "Prices and inflation")
+        ],
     )

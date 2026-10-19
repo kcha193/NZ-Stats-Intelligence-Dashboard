@@ -228,3 +228,24 @@ def underlying_definition(slug: str, source_url: str | None = None) -> SeriesDef
         "cpi:underlying",
         source_url,
     )
+
+
+_LEVELS = {slug: "Level 1 group" for slug in LEVEL1_SLUGS} | {
+    slug: f"Level {level} {'subgroup' if level == 2 else 'class'}" for _, slug, _, level in OPTIONAL
+}
+
+
+def classification(slug: str) -> str:
+    if slug == "all_groups":
+        return "All groups"
+    if slug in ("tradables", "non_tradables"):
+        return "Tradability grouping"
+    return _LEVELS[slug]
+
+
+def source_reference(key: str) -> str | None:
+    """The Stats NZ series reference (for example CPIQ.SE904) behind a stored index key."""
+    for spec in _SPECS.values():
+        if index_key(spec.adjustment, spec.slug) == key:
+            return spec.reference
+    return None

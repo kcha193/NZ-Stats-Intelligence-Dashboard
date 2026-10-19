@@ -68,3 +68,16 @@ def seed_cpi(rt, site, month="2026-06"):
         elif kind == "workbook":
             downloads[kind] = u
     return rid, ref.release_key, url, downloads
+
+
+def ingest_cpi(rt, site, *months):
+    """Seed and ingest real fixture releases, oldest first; returns {month: release id}."""
+    from nzstats.pipeline.ingest import ingest_release
+
+    ids = {}
+    for month in months:
+        rid, key, _, _ = seed_cpi(rt, site, month)
+        outcome = ingest_release(rt, key, now_fn=lambda: NOW)
+        assert outcome.outcome == "ingested", outcome.detail
+        ids[month] = rid
+    return ids

@@ -12,6 +12,7 @@ from fastapi.responses import Response
 from nzstats.api.deps import Conn, Now
 from nzstats.clock import AKL, to_akl_iso, to_utc_iso
 from nzstats.insights.countries import rank_countries
+from nzstats.insights.cpi import build_cpi_analysis, build_cpi_dashboard
 from nzstats.insights.ect import CAVEATS as ECT_CAVEATS
 from nzstats.insights.ect import build_ect_analysis, build_ect_dashboard
 from nzstats.insights.migration import build_release_analysis
@@ -21,6 +22,7 @@ from nzstats.insights.summary import release_summary
 from nzstats.models import (
     CalendarOut,
     CountriesOut,
+    CpiDashboardOut,
     EctDashboardOut,
     HealthOut,
     OverviewOut,
@@ -138,9 +140,14 @@ def release_detail(release_id: int, request: Request, conn: Conn) -> ReleaseDeta
         raise HTTPException(404, "release not found")
     slugs = _slugs(request)
     summary = release_summary(conn, row, analysable_slugs=slugs)
+    builders = {
+        "electronic-card-transactions": build_ect_analysis,
+        "consumers-price-index": build_cpi_analysis,
+    }
+    builder = builders.get(row["series_slug"])
     analysis = (
-        build_ect_analysis(conn, release_id)
-        if row["series_slug"] == "electronic-card-transactions"
+        builder(conn, release_id)
+        if builder
         else build_release_analysis(conn, release_id, analysable_slugs=slugs)
     )
     reason = None if analysis else _unavailable_reason(conn, row, summary, slugs)
@@ -328,6 +335,14 @@ def countries(
     top: Annotated[int, Query(ge=1, le=50)] = 15,
 ) -> CountriesOut:
     return rank_countries(conn, months=months, top=top)
+
+
+@router.get("/cpi", response_model=CpiDashboardOut)
+def cpi_dashboard(conn: Conn) -> CpiDashboardOut:
+    result = build_cpi_dashboard(conn)
+    if result is None:
+        raise HTTPException(404, "CPI data has not been ingested yet")
+    return result
 
 
 @router.get("/ect", response_model=EctDashboardOut)
