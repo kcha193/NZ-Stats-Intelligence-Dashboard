@@ -82,6 +82,8 @@ def classify_download(url: str) -> str | None:
     name = url.rsplit("/", 1)[-1].lower()
     if name.startswith("electronic-card-transactions-") and name.endswith(".zip"):
         return "ect_zip"
+    if name.startswith("consumers-price-index-"):
+        return _classify_cpi(name)
     if name.endswith(".xlsx"):
         return "workbook"
     if not name.endswith(".csv"):
@@ -91,3 +93,16 @@ def classify_download(url: str) -> str | None:
     if re.search(r"citizenship.*visa.*country", name):
         return "citizenship_visa_country"
     return None
+
+
+_CPI_CSV = (
+    ("cpi_index_numbers", re.compile(r"-index-numbers\.csv$")),
+    ("cpi_seasonally_adjusted", re.compile(r"-seasonally-adjusted\.csv$")),
+    ("cpi_tradables", re.compile(r"-trad(?:e)?ables-and-non-trad(?:e)?ables\.csv$")),
+)
+
+
+def _classify_cpi(name: str) -> str | None:
+    if name.endswith(".xlsx"):
+        return None if name.endswith("-central-and-local-government-charges.xlsx") else "workbook"
+    return next((kind for kind, pattern in _CPI_CSV if pattern.search(name)), None)
