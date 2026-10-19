@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from nzstats.sources.release_page import ReleasePage, parse_release_page
+from datetime import UTC, datetime
+
+from nzstats.domain import ReleaseRef, ReleaseStatus
+from nzstats.sources.calendar import make_release_key, parse_title
+from nzstats.sources.release_page import ReleasePage, classify_download, parse_release_page
+from nzstats.store import repo
 from tests.conftest import fixture_bytes, fixture_text
 from tests.support import BASE
 
@@ -23,3 +28,37 @@ def edited(source: dict[str, bytes], kind: str, old: str, new: str) -> dict[str,
     text = source[kind].decode("utf-8")
     assert old in text, f"{old!r} not found in {kind}"
     return {**source, kind: text.replace(old, new, 1).encode("utf-8")}
+
+
+NOW = datetime(2026, 10, 18, tzinfo=UTC)
+KIND_FILE = {
+    "cpi_index_numbers": "index_numbers",
+    "cpi_seasonally_adjusted": "seasonally_adjusted",
+    "cpi_tradables": "tradables",
+}
+
+
+def seed_cpi(rt, site, month="2026-06"):
+    """Register a published CPI release and serve its real page and files from the fake site."""
+    pg = page(month)
+    parts = parse_title(pg.title)
+    url = f"{BASE}/information-releases/{parts.series_slug}-{parts.period_label.lower().replace(' ', '-')}/"
+    ref = ReleaseRef(
+        make_release_key(pg.title),
+        parts.series_slug,
+        pg.title,
+        parts.period_label,
+        parts.reference_period,
+        pg.published_at,
+        ReleaseStatus.PUBLISHED,
+        page_url=url,
+    )
+    rid = repo.upsert_release(rt.conn, ref, NOW)
+    site.routes[url] = (200, fixture_bytes(f"cpi_{month}_page.html"), "text/html")
+    downloads = {}
+    for u in pg.download_urls:
+        kind = classify_download(u)
+        if kind in KIND_FILE:
+            downloads[kind] = u
+            site.routes[u] = (200, fixture_bytes(f"cpi_{month}_{KIND_FILE[kind]}.csv"), "text/csv")
+    return rid, ref.release_key, url, downloads

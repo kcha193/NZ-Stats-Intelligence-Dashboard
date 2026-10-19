@@ -1,0 +1,107 @@
+import pytest
+
+from nzstats.pipeline.ingest import ingest_release
+from nzstats.store import repo
+from tests.cpi_support import NOW, seed_cpi
+
+CORE = "cpi.index.nsa.all_groups"
+
+
+def counts(rt):
+    tables = ("series", "vintage", "observation", "vintage_series_definition")
+    return {t: rt.conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tables}
+
+
+def ingest(rt, key):
+    return ingest_release(rt, key, now_fn=lambda: NOW)
+
+
+def test_cpi_registered_ingests_once_and_is_idempotent(rt, site):
+    assert "consumers-price-index" in rt.adapters
+    rid, key, _, _ = seed_cpi(rt, site)
+    outcome = ingest(rt, key)
+    assert outcome.outcome == "ingested", outcome.detail
+    assert repo.get_release(rt.conn, key)["status"] == "published"
+    assert len(site.requests) == 4  # release page plus the three required CSVs, nothing else
+    first = counts(rt)
+    assert first["vintage"] >= 22 + 3 + 11  # contributions, headline, groups
+    assert repo.latest_points(rt.conn, CORE)["2026-06"].value == 1359.0
+    assert repo.latest_points(rt.conn, "cpi.contrib.q.transport")["2026-06"].value == 0.824
+    assert ingest(rt, key).outcome == "unchanged"
+    assert counts(rt) == first
+    assert rt.conn.execute("SELECT COUNT(*) FROM raw_artifact").fetchone()[0] == 4
+
+
+def test_march_then_june_keep_distinct_vintages_and_report_sa_revisions(rt, site):
+    _, march, _, _ = seed_cpi(rt, site, "2026-03")
+    assert ingest(rt, march).outcome == "ingested"
+    _, june, _, _ = seed_cpi(rt, site, "2026-06")
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "ingested", outcome.detail
+    assert any("cpi.index.sa.all_groups" in w for w in outcome.warnings)  # genuine SA revisions
+    assert not any(
+        "cpi.index.nsa.all_groups" in w for w in outcome.warnings
+    )  # unadjusted never revised
+    vintages = repo.list_vintages(rt.conn, CORE)
+    assert [v.release_key for v in vintages] == [march, june]
+    assert max(repo.vintage_points(rt.conn, vintages[0].vintage_id)) == "2026-03"
+    assert max(repo.vintage_points(rt.conn, vintages[1].vintage_id)) == "2026-06"
+    assert len(repo.list_vintages(rt.conn, "cpi.contrib.q.transport")) == 2
+
+
+def _page_without_tradables_link(page_html: bytes) -> bytes:
+    return page_html.replace(b"-tradeables-and-non-tradeables.csv", b"-something-else.csv")
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error_class"),
+    [
+        ("link", "layout_changed"),
+        ("header", "layout_changed"),
+        ("missing_latest", "validation_failed"),
+        ("rebased", "validation_failed"),
+        ("inconsistent_level", "validation_failed"),
+    ],
+)
+def test_failed_ingestion_changes_nothing_and_keeps_last_known_good(rt, site, mutate, error_class):
+    _, march, _, _ = seed_cpi(rt, site, "2026-03")
+    assert ingest(rt, march).outcome == "ingested"
+    before = counts(rt)
+    _, june, page_url, downloads = seed_cpi(rt, site, "2026-06")
+    index_url, tradables_url = downloads["cpi_index_numbers"], downloads["cpi_tradables"]
+    index = site.routes[index_url][1].decode()
+    row = '"CPIQ.SE9A","2026.06","1359"'
+    if mutate == "link":
+        status, body, ctype = site.routes[page_url]
+        site.routes[page_url] = (status, _page_without_tradables_link(body), ctype)
+    elif mutate == "header":
+        site.override(
+            index_url, body=index.replace('"STATUS"', '"Status"').encode(), ctype="text/csv"
+        )
+    elif mutate == "missing_latest":
+        lines = [ln for ln in index.splitlines() if not ln.startswith(row)]
+        site.override(index_url, body="\n".join(lines).encode(), ctype="text/csv")
+    elif mutate == "rebased":
+        site.override(
+            index_url,
+            body=index.replace(
+                '"CPIQ.SE907","2017.06","1000"', '"CPIQ.SE907","2017.06","1001"'
+            ).encode(),
+            ctype="text/csv",
+        )
+    else:
+        for url in (index_url, tradables_url):
+            text = site.routes[url][1].decode().replace(row, '"CPIQ.SE9A","2026.06","1400"')
+            site.override(url, body=text.encode(), ctype="text/csv")
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "failed" and outcome.error_class.value == error_class
+    assert "Traceback" not in (outcome.detail or "") and ".py" not in (outcome.detail or "")
+    assert counts(rt) == before
+    assert repo.get_release(rt.conn, june)["status"] == "published"  # calendar status unchanged
+    assert max(repo.latest_points(rt.conn, CORE)) == "2026-03"  # March data still the latest
+    assert (
+        rt.conn.execute(
+            "SELECT state FROM source_health WHERE source='release:consumers-price-index'"
+        ).fetchone()[0]
+        == "degraded"
+    )
