@@ -74,11 +74,11 @@ describe("headline inflation charts", () => {
 });
 
 describe("tradables and non-tradables", () => {
-  it.each([["annual", "Annual change (%)"], ["quarterly", "Quarterly change (%)"]] as const)("compares both on one %s axis with direct labels", (horizon, name) => {
+  it.each([["annual", "Annual change (%)"], ["quarterly", "Quarterly change (%)"]] as const)("compares both on one %s axis with a legend and direct labels", (horizon, name) => {
     const option = opt(tradablesOption(points(TRAD), points(NON), horizon, TEST_THEME));
     expect(option.series.map((s: { name: string }) => s.name)).toEqual(["Tradables", "Non-tradables"]);
     expect(option.series.every((s: { endLabel: { show: boolean } }) => s.endLabel.show)).toBe(true);
-    expect(option.legend).toBeUndefined();
+    expect(option.legend.data).toEqual(["Tradables", "Non-tradables"]);  // legend always present for two or more series
     expect(Array.isArray(option.yAxis)).toBe(false);
     expect(option.yAxis.name).toBe(name);
     expect(option.series[0].markLine.data).toEqual([{ yAxis: 0 }]);

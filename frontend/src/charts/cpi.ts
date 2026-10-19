@@ -138,7 +138,8 @@ export function tradablesOption(tradables: CpiPoint[], non: CpiPoint[], horizon:
   const maps = sets.map(([, r]) => new Map(r.map((x) => [x.period, x.value])));
   return {
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
-    grid: { left: 56, right: 112, top: 32, bottom: 28 },
+    grid: { left: 56, right: 112, top: 56, bottom: 28 },
+    legend: { top: 0, data: sets.map(([n]) => n), textStyle: { color: theme.text } },
     tooltip: {
       trigger: "axis",
       formatter: (params: { axisValue: string }[]) => {
