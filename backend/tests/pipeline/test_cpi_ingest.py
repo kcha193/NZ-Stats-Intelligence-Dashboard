@@ -238,7 +238,15 @@ def test_workbook_arriving_later_enriches_without_a_false_correction(rt, site, b
     assert counts_of(rt) == before == counts_all
 
     site.routes[url] = BROKEN[broken]()  # and the recovered measures survive a later failure
-    assert ingest(rt, june).outcome == "unchanged"
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "unchanged"
+    # The enriched bundle keeps its required-only identity, so this repeat takes the digest fast
+    # path: it must still report the optional failure instead of recording a clean success.
+    assert any("underlying" in w for w in outcome.warnings)
+    detail = rt.conn.execute(
+        "SELECT detail FROM ingest_run WHERE release_key=? ORDER BY id DESC LIMIT 1", (june,)
+    ).fetchone()[0]
+    assert "warnings:" in detail and "underlying" in detail
     assert counts_of(rt) == before
     assert repo.get_release(rt.conn, june)["status"] == "published"
     assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
@@ -387,3 +395,11 @@ def test_a_concurrent_enrichment_is_not_applied_twice(rt, site, monkeypatch):
     counts_ = vintage_counts(rt, rid)
     assert_core_unduplicated(counts_) and set(underlying(counts_).values()) == {1}
     assert repo.get_release(rt.conn, june)["status"] == "published"
+
+
+def test_a_release_that_never_had_the_workbook_keeps_reporting_it_is_missing(rt, site):
+    _, june, _, downloads = seed_cpi(rt, site)
+    site.routes[downloads["cpi_workbook"]] = BROKEN["http_503"]()
+    assert ingest(rt, june).outcome == "ingested"
+    repeat = ingest(rt, june)
+    assert repeat.outcome == "unchanged" and any("underlying" in w for w in repeat.warnings)

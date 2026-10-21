@@ -4,9 +4,11 @@ import pytest
 
 from nzstats.adapters.cpi.adapter import CpiAdapter
 from nzstats.domain import Adjustment, ErrorClass, Frequency, IngestError, ObsStatus
-from nzstats.sources.release_page import Chart
+from nzstats.pipeline.ingest import pick_downloads
+from nzstats.sources.release_page import Chart, classify_download
 from tests.cpi_support import edited, files, mutated, page
 
+REQUIRED = CpiAdapter.required_downloads
 ALL_NSA = '"CPIQ.SE9A","2026.06","1359","FINAL","Index","CPI","CPI All Groups for New Zealand","All groups","NA"'
 
 
@@ -216,3 +218,25 @@ def test_core_series_problems_still_reject_the_bundle():
         parse(
             mutated(files(), "cpi_index_numbers", "CPIQ.SE907", Series_title_1="Transport services")
         )
+
+
+def test_series_cite_the_corrected_file_when_the_page_lists_both(june):
+    """Ingestion fetches `-corrected` downloads; provenance must name the file the values came from."""
+    pg = page()
+    originals = {k: u for u in pg.download_urls if (k := classify_download(u)) in REQUIRED}
+    corrected = {k: u.replace(".csv", "-corrected.csv") for k, u in originals.items()}
+    others = tuple(u for u in pg.download_urls if u not in originals.values())
+    # the uncorrected file is listed first, as in the real page
+    urls = (*originals.values(), *corrected.values(), *others)
+    assert pick_downloads(urls, REQUIRED) == corrected  # what ingestion actually fetches
+    bundle = parse(pg=replace(pg, download_urls=urls))
+    cited = {
+        s.definition.source_url for s in bundle.series if s.definition.key.startswith("cpi.index.")
+    }
+    assert cited <= set(corrected.values()) and cited.isdisjoint(originals.values())
+    assert (
+        by_key(bundle)["cpi.index.nsa.all_groups"].definition.source_url
+        == corrected["cpi_index_numbers"]
+    )
+    # the uncorrected listing alone still cites the original file
+    assert june["cpi.index.nsa.all_groups"].definition.source_url == originals["cpi_index_numbers"]

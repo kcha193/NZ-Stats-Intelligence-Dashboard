@@ -35,7 +35,7 @@ from nzstats.adapters.cpi.workbook import read_quarterly_tables
 from nzstats.clock import AKL
 from nzstats.domain import ErrorClass, IngestError, Observation, ObsStatus, Point
 from nzstats.sources.calendar import parse_title
-from nzstats.sources.release_page import ReleasePage, classify_download
+from nzstats.sources.release_page import ReleasePage, pick_downloads
 from nzstats.stats.cpi import annual_changes, contiguous_run, is_quarter_end, quarterly_changes
 from nzstats.stats.periods import add_months
 
@@ -154,7 +154,7 @@ class CpiAdapter:
         ):
             fail("CPI reference period is incompatible with publication")
         published_month = page.published_at.astimezone(AKL).strftime("%Y-%m")
-        sources = {classify_download(u): u for u in reversed(page.download_urls)}
+        sources = pick_downloads(page.download_urls, self.required_downloads)
 
         points: dict[str, dict[str, tuple[float, ObsStatus]]] = defaultdict(dict)
         definitions = {}

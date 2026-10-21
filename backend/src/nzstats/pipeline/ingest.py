@@ -25,7 +25,7 @@ from nzstats.pipeline.discover import attempt, record_batch_health
 from nzstats.runtime import Runtime
 from nzstats.slug import slugify
 from nzstats.sources.calendar import fetch_release_month
-from nzstats.sources.release_page import classify_download, parse_release_page
+from nzstats.sources.release_page import parse_release_page, pick_downloads
 from nzstats.stats.periods import month_range
 from nzstats.store import repo
 from nzstats.store.db import transaction
@@ -94,21 +94,6 @@ def ingest_release(
         detail,
     )
     return outcome
-
-
-def pick_downloads(urls: Iterable[str], kinds: Iterable[str]) -> dict[str, str]:
-    """The first listed URL of each wanted kind, except that a `-corrected` republication wins."""
-    wanted, chosen = set(kinds), {}
-    for url in urls:
-        kind = classify_download(url)
-        if kind not in wanted:
-            continue
-        if kind not in chosen or (
-            "-corrected" in url.rsplit("/", 1)[-1]
-            and "-corrected" not in chosen[kind].rsplit("/", 1)[-1]
-        ):
-            chosen[kind] = url
-    return chosen
 
 
 def _bundle_digest(
@@ -217,10 +202,12 @@ def _ingest(
 
     bundle_sha = _bundle_digest((ps.definition, ps.observations) for ps in bundle.series)
     optional_prefixes = tuple(getattr(adapter, "optional_series_prefixes", ()))
-    if repo.release_bundle(rt.conn, release_id) == bundle_sha:
-        return IngestOutcome(key, "unchanged")
-    # Optional data coming or going is not something Stats NZ published or corrected.
+    # Optional data coming or going is not something Stats NZ published or corrected, but a failed
+    # optional input is still reported, including on the fast path: an enriched bundle keeps its
+    # required-only digest, so a later optional failure parses to exactly that digest.
     optional_warnings = (*optional_notes, *bundle.warnings) if optional_prefixes else ()
+    if repo.release_bundle(rt.conn, release_id) == bundle_sha:
+        return IngestOutcome(key, "unchanged", warnings=optional_warnings)
     now = now_fn()
     created = 0
     official = True  # False when only optional series were added to an already stored bundle

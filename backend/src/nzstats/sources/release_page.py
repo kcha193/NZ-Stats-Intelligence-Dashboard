@@ -6,6 +6,7 @@ import html
 import json
 import logging
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -93,6 +94,21 @@ def classify_download(url: str) -> str | None:
     if re.search(r"citizenship.*visa.*country", name):
         return "citizenship_visa_country"
     return None
+
+
+def pick_downloads(urls: Iterable[str], kinds: Iterable[str]) -> dict[str, str]:
+    """The first listed URL of each wanted kind, except that a `-corrected` republication wins."""
+    wanted, chosen = set(kinds), {}
+    for url in urls:
+        kind = classify_download(url)
+        if kind not in wanted:
+            continue
+        if kind not in chosen or (
+            "-corrected" in url.rsplit("/", 1)[-1]
+            and "-corrected" not in chosen[kind].rsplit("/", 1)[-1]
+        ):
+            chosen[kind] = url
+    return chosen
 
 
 _CPI_CSV = (
