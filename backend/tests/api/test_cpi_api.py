@@ -79,3 +79,30 @@ def test_failed_ingestion_is_visible_while_last_known_good_is_served(rt, site, c
     assert source["state"] == "degraded"
     assert health["recent_runs"][0]["outcome"] == "failed"
     assert client.get("/api/cpi").json()["reference_period"] == "2026-03"
+
+
+def test_recovered_optional_workbook_reaches_the_dashboard_without_a_correction(rt, site, client):
+    from tests.cpi_support import XLSX
+
+    _, june, _, downloads = seed_cpi(rt, site)
+    url = downloads["cpi_workbook"]
+    good = site.routes[url]
+    site.routes[url] = (503, b"", "text/html")
+    assert ingest_release(rt, june, now_fn=lambda: NOW).outcome == "ingested"
+    before = client.get("/api/cpi").json()
+    assert before["underlying"] == []
+
+    site.routes[url] = good
+    assert ingest_release(rt, june, now_fn=lambda: NOW).outcome == "ingested"
+    after = client.get("/api/cpi").json()
+    assert len(after["underlying"]) == 11
+    for key in ("reference_period", "published_at", "series", "contributions"):
+        assert after[key] == before[key]  # required statistics are untouched
+    assert after["analysis"]["revisions"] == before["analysis"]["revisions"]
+    assert repo.get_release(rt.conn, june)["status"] == "published"
+    releases = client.get("/api/releases").json()
+    assert {r["status"] for r in releases if r["release_key"] == june} == {"published"}
+
+    site.routes[url] = (200, b"junk", XLSX)  # a later bad workbook cannot remove them
+    assert ingest_release(rt, june, now_fn=lambda: NOW).outcome == "unchanged"
+    assert client.get("/api/cpi").json()["underlying"] == after["underlying"]

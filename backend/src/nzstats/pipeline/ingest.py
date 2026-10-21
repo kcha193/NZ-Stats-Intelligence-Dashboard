@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
-from nzstats.adapters.base import Adapter
+from nzstats.adapters.base import Adapter, ParsedBundle
 from nzstats.clock import AKL, from_utc_iso, utc_now
 from nzstats.domain import (
     ErrorClass,
@@ -217,49 +217,38 @@ def _ingest(
 
     bundle_sha = _bundle_digest((ps.definition, ps.observations) for ps in bundle.series)
     optional_prefixes = tuple(getattr(adapter, "optional_series_prefixes", ()))
-    active = repo.release_bundle(rt.conn, release_id)
-    if optional_notes and optional_prefixes and active is not None:
-        # An optional download failed. Stats NZ did not correct anything just because we could not
-        # fetch an extra file: unless the required data itself differs, keep the stored bundle.
-        def required(series):
-            return _bundle_digest(
-                (d, o) for d, o in series if not d.key.startswith(optional_prefixes)
-            )
-
-        if required(repo.bundle_series(rt.conn, release_id, active)) == required(
-            (ps.definition, ps.observations) for ps in bundle.series
-        ):
-            return IngestOutcome(key, "unchanged", warnings=(*optional_notes, *bundle.warnings))
     if repo.release_bundle(rt.conn, release_id) == bundle_sha:
         return IngestOutcome(key, "unchanged")
+    # Optional data coming or going is not something Stats NZ published or corrected.
+    optional_warnings = (*optional_notes, *bundle.warnings) if optional_prefixes else ()
     now = now_fn()
     created = 0
+    official = True  # False when only optional series were added to an already stored bundle
     with transaction(rt.conn):
         # Evaluated inside the write transaction: a second process may have committed this same
         # release between the pre-check above and here.
         had_vintages = repo.has_any_vintage(rt.conn, release_id)
+        active = repo.release_bundle(rt.conn, release_id)
         matching = _matching_bundle(rt.conn, release_id, bundle_sha)
-        if matching is not None and repo.release_bundle(rt.conn, release_id) == matching:
-            return IngestOutcome(key, "unchanged")
+        enrich = False
+        if matching is None and optional_prefixes:
+            matching, enrich = _optional_match(rt.conn, release_id, bundle, optional_prefixes)
+        if matching is not None and matching == active and not enrich:
+            return IngestOutcome(key, "unchanged", warnings=optional_warnings)
         if matching is not None:
-            # The release reverted to content it published earlier: its vintages already exist.
-            created = repo.reactivate_bundle(rt.conn, release_id, matching)
-        else:
-            for ps in bundle.series:
-                series_id = repo.upsert_series(rt.conn, ps.definition)
-                vintage_id = repo.create_vintage(
-                    rt.conn,
-                    release_id,
-                    series_id,
-                    now,
-                    "release_files",
-                    bundle.layout_version,
-                    bundle_sha,
+            # Content the release already has (it reverted to earlier content, or only optional
+            # data differs by availability): its vintages exist, so core series are never copied.
+            if enrich:
+                created += _write_vintages(
+                    rt.conn, release_id, matching, now, bundle, optional_prefixes
                 )
-                if vintage_id is not None:
-                    repo.insert_observations(rt.conn, vintage_id, ps.observations)
-                    created += 1
-        if created:
+            if matching != active:
+                created += repo.reactivate_bundle(rt.conn, release_id, matching)
+            else:
+                official = False
+        else:
+            created = _write_vintages(rt.conn, release_id, bundle_sha, now, bundle)
+        if created and official:
             repo.set_release_headline(rt.conn, key, page.headline, page_url)
             repo.set_release_status(
                 rt.conn,
@@ -268,7 +257,7 @@ def _ingest(
                 now,
             )
     if not created:
-        return IngestOutcome(key, "unchanged")
+        return IngestOutcome(key, "unchanged", warnings=optional_warnings)
     return IngestOutcome(
         key,
         "ingested",
@@ -278,6 +267,64 @@ def _ingest(
             *(f.message for f in findings if f.severity == "warning"),
         ),
     )
+
+
+def _required_digest(
+    series: Iterable[tuple[SeriesDef, Iterable[Observation | repo.ObservationRow]]],
+    optional_prefixes: tuple[str, ...],
+) -> str:
+    """Statistical identity of the required series alone: optional series never change it."""
+    return _bundle_digest((d, o) for d, o in series if not d.key.startswith(optional_prefixes))
+
+
+def _optional_match(
+    conn: sqlite3.Connection,
+    release_id: int,
+    bundle: ParsedBundle,
+    optional_prefixes: tuple[str, ...],
+) -> tuple[str | None, bool]:
+    """A stored bundle holding exactly the same required statistics, as `(bundle, enrich)`.
+
+    The new bundle may lack optional series the stored one has (a failed or invalid optional
+    download): the stored bundle stands. It may carry optional series a stored bundle lacks (the
+    optional download arrived later): `enrich` says to add them to that bundle. A stored bundle
+    whose optional series differ from the new ones is not a match: that is a real revision.
+    """
+    fresh = [(ps.definition, ps.observations) for ps in bundle.series]
+    required = _required_digest(fresh, optional_prefixes)
+    offered = any(d.key.startswith(optional_prefixes) for d, _ in fresh)
+    for stored in repo.release_bundles(conn, release_id):  # newest activation first
+        series = repo.bundle_series(conn, release_id, stored)
+        if _required_digest(series, optional_prefixes) != required:
+            continue
+        if not offered:
+            return stored, False
+        if not any(d.key.startswith(optional_prefixes) for d, _ in series):
+            return stored, True
+    return None, False
+
+
+def _write_vintages(
+    conn: sqlite3.Connection,
+    release_id: int,
+    bundle_sha: str,
+    now: datetime,
+    bundle: ParsedBundle,
+    only_prefixes: tuple[str, ...] | None = None,
+) -> int:
+    """Insert one vintage per series (only those with a matching key prefix, if given)."""
+    created = 0
+    for ps in bundle.series:
+        if only_prefixes is not None and not ps.definition.key.startswith(only_prefixes):
+            continue
+        series_id = repo.upsert_series(conn, ps.definition)
+        vintage_id = repo.create_vintage(
+            conn, release_id, series_id, now, "release_files", bundle.layout_version, bundle_sha
+        )
+        if vintage_id is not None:
+            repo.insert_observations(conn, vintage_id, ps.observations)
+            created += 1
+    return created
 
 
 def backfill(

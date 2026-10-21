@@ -26,7 +26,16 @@ Operating notes: [cpi-release-runbook.md](cpi-release-runbook.md).
 3. Official trimmed means and weighted percentiles exist only in the workbook (tables 10 and 11). They are read from the optional
    workbook (quarterly blocks only: the annual blocks splice two weight bases) and shown as official Stats NZ measures. The dashboard never
    defines core inflation.
-4. Strict for core series, lenient for optional ones; a failed optional download cannot create a correction.
+4. Strict for core series, lenient for optional ones. The optional workbook is validated as a whole inside its own boundary (expected
+   series set, quarter-end periods, finite numeric values within a sanity bound, enough unbroken history, reconciliation with the index
+   that rejects NaN); anything wrong drops the optional series with a warning and never blocks required CPI.
+   Required and optional series are compared separately on re-ingestion (`pipeline/ingest.py::_optional_match`):
+   - optional data missing or invalid while a stored bundle has the same required statistics: the stored bundle stands (`unchanged`);
+   - optional data arriving later: its vintages are added under the stored bundle's identity, core series are not copied, and the
+     release status is not changed (it is enrichment, not a publication);
+   - changed required statistics, or changed values of already stored optional measures: a new full bundle and `corrected`, as for any
+     official correction; a revert reactivates the earlier bundle.
+   Only adapters declaring `optional_series_prefixes` (CPI) use this rule; migration and ECT are unchanged.
 5. Rate changes are percentage points between published 1 d.p. rates, never a percent of a percent.
 
 ## Verification (run 19 October 2026, on this branch)
@@ -47,6 +56,10 @@ all pass unchanged.
 
 One whole-branch review (Opus) found no Critical issues and eight Important/Minor findings; all eight were fixed test-first in a single
 pass (commit "fix(cpi): reviewer findings"). No second review was run on the fix pass.
+
+Codex review of PR #5 at `bb213be` raised two P2 findings, both reproduced with failing tests first: a non-finite optional workbook value
+passed the optional boundary and blocked required CPI (#4312128553), and a workbook arriving after the first ingestion created new
+vintages for every series and a false `corrected` status (#4312128556). Fixes and tests are described in decision 4 above.
 
 ## Limitations
 

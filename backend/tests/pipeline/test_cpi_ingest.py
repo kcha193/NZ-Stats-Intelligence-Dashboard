@@ -2,9 +2,10 @@ import pytest
 
 from nzstats.pipeline.ingest import ingest_release
 from nzstats.store import repo
-from tests.cpi_support import NOW, seed_cpi
+from tests.cpi_support import NOW, XLSX, seed_cpi, workbook_with_cell
 
 CORE = "cpi.index.nsa.all_groups"
+MEDIAN = 0.4  # official weighted median, quarter ended June 2026
 
 
 def counts(rt):
@@ -158,3 +159,231 @@ def test_a_real_correction_still_lands_when_the_workbook_is_unavailable(rt, site
     assert (
         outcome.outcome == "ingested" and repo.get_release(rt.conn, june)["status"] == "corrected"
     )
+
+
+# --- optional-workbook recovery, loss and corrections (review #4312128553, #4312128556) ----------
+
+UNDERLYING = "cpi.underlying."
+BROKEN = {
+    "http_503": lambda: (503, b"", "text/html"),
+    "nan_cell": lambda: (200, workbook_with_cell("NaN"), XLSX),
+    "inf_cell": lambda: (200, workbook_with_cell("inf"), XLSX),
+    "junk": lambda: (200, b"junk", XLSX),
+}
+
+
+def vintage_counts(rt, release_id):
+    rows = rt.conn.execute(
+        "SELECT s.key, COUNT(*) FROM vintage v JOIN series s ON s.id = v.series_id"
+        " WHERE v.release_id = ? GROUP BY s.key",
+        (release_id,),
+    ).fetchall()
+    return {key: n for key, n in rows}
+
+
+def core_values(rt, release_id):
+    """Latest values of every required (non-optional) series: the statistics Stats NZ published."""
+    keys = [k for k in vintage_counts(rt, release_id) if not k.startswith(UNDERLYING)]
+    return {k: {p: pt.value for p, pt in repo.latest_points(rt.conn, k).items()} for k in keys}
+
+
+def underlying(counts):
+    return {k: n for k, n in counts.items() if k.startswith(UNDERLYING)}
+
+
+def assert_core_unduplicated(counts, expected=1):
+    assert {n for k, n in counts.items() if not k.startswith(UNDERLYING)} == {expected}
+
+
+def corrected_index(site, downloads):
+    """A genuine official correction: one required index value differs."""
+    url = downloads["cpi_index_numbers"]
+    text = site.routes[url][1].decode()
+    row = next(ln for ln in text.splitlines() if ln.startswith('"CPIQ.SE9013","2026.06"'))
+    value = row.split(",")[2]
+    return (200, text.replace(row, row.replace(value, '"1387.5"')).encode(), "text/csv")
+
+
+@pytest.mark.parametrize("broken", BROKEN)
+def test_workbook_arriving_later_enriches_without_a_false_correction(rt, site, broken):
+    rid, june, _, downloads = seed_cpi(rt, site)
+    url = downloads["cpi_workbook"]
+    good = site.routes[url]
+    site.routes[url] = BROKEN[broken]()
+    assert ingest(rt, june).outcome == "ingested"
+    assert not underlying(vintage_counts(rt, rid))
+    core, bundle = core_values(rt, rid), repo.release_bundle(rt.conn, rid)
+
+    site.routes[url] = good  # the safe repeat/backfill finds the workbook
+    outcome = ingest(rt, june)
+    counts = vintage_counts(rt, rid)
+    assert outcome.outcome == "ingested", outcome.detail
+    assert repo.get_release(rt.conn, june)["status"] == "published"  # nothing was corrected
+    assert_core_unduplicated(counts)
+    assert len(underlying(counts)) == 11 and set(underlying(counts).values()) == {1}
+    assert core_values(rt, rid) == core  # required statistics untouched
+    assert repo.release_bundle(rt.conn, rid) == bundle  # one bundle: no new publication snapshot
+    active = repo.release_bundle(rt.conn, rid)
+    assert {d.key for d, _ in repo.bundle_series(rt.conn, rid, active)} >= set(underlying(counts))
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
+    superseded = [
+        repo.vintage_superseded(rt.conn, v.vintage_id)
+        for k in counts
+        for v in repo.list_vintages(rt.conn, k)
+    ]
+    assert not any(superseded)
+
+    before = counts_all = counts_of(rt)
+    assert ingest(rt, june).outcome == "unchanged"  # idempotent
+    assert counts_of(rt) == before == counts_all
+
+    site.routes[url] = BROKEN[broken]()  # and the recovered measures survive a later failure
+    assert ingest(rt, june).outcome == "unchanged"
+    assert counts_of(rt) == before
+    assert repo.get_release(rt.conn, june)["status"] == "published"
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
+
+
+def counts_of(rt):
+    return counts(rt)
+
+
+@pytest.mark.parametrize("broken", BROKEN)
+def test_a_bad_optional_workbook_never_corrects_or_removes_stored_measures(rt, site, broken):
+    rid, june, _, downloads = seed_cpi(rt, site)
+    url = downloads["cpi_workbook"]
+    assert ingest(rt, june).outcome == "ingested"
+    before, core = counts(rt), core_values(rt, rid)
+    site.routes[url] = BROKEN[broken]()
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "unchanged" and any("underlying" in w for w in outcome.warnings)
+    assert counts(rt) == before and core_values(rt, rid) == core
+    assert repo.get_release(rt.conn, june)["status"] == "published"
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
+
+
+@pytest.mark.parametrize("broken", ["nan_cell", "junk"])
+def test_a_bad_workbook_never_blocks_the_first_ingestion(rt, site, broken):
+    rid, june, _, downloads = seed_cpi(rt, site)
+    site.routes[downloads["cpi_workbook"]] = BROKEN[broken]()
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "ingested", outcome.detail
+    assert any("underlying" in w for w in outcome.warnings)
+    assert repo.latest_points(rt.conn, CORE)["2026-06"].value == 1359.0
+    assert not underlying(vintage_counts(rt, rid))
+
+
+def test_a_true_correction_with_the_workbook_present_keeps_the_full_history(rt, site):
+    rid, june, _, downloads = seed_cpi(rt, site)
+    index_url = downloads["cpi_index_numbers"]
+    original = site.routes[index_url]
+    assert ingest(rt, june).outcome == "ingested"
+    first_bundle = repo.release_bundle(rt.conn, rid)
+    site.routes[index_url] = corrected_index(site, downloads)
+    assert ingest(rt, june).outcome == "ingested"
+    assert repo.get_release(rt.conn, june)["status"] == "corrected"
+    assert set(vintage_counts(rt, rid).values()) == {2}  # every series snapshotted per bundle
+    corrected_bundle = repo.release_bundle(rt.conn, rid)
+    assert corrected_bundle != first_bundle
+    assert ingest(rt, june).outcome == "unchanged"
+
+    site.routes[index_url] = original  # the correction is reverted: reactivate, never duplicate
+    assert ingest(rt, june).outcome == "ingested"
+    assert repo.release_bundle(rt.conn, rid) == first_bundle
+    assert set(vintage_counts(rt, rid).values()) == {2}
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
+    assert ingest(rt, june).outcome == "unchanged"
+
+
+def test_enrichment_after_a_true_correction_does_not_duplicate_or_recorrect(rt, site):
+    rid, june, _, downloads = seed_cpi(rt, site)
+    url, index_url = downloads["cpi_workbook"], downloads["cpi_index_numbers"]
+    good = site.routes[url]
+    site.routes[url] = BROKEN["http_503"]()
+    assert ingest(rt, june).outcome == "ingested"
+    site.routes[index_url] = corrected_index(site, downloads)
+    assert ingest(rt, june).outcome == "ingested"
+    assert repo.get_release(rt.conn, june)["status"] == "corrected"
+    corrected_bundle, core = repo.release_bundle(rt.conn, rid), core_values(rt, rid)
+
+    site.routes[url] = good  # the workbook finally arrives for the corrected release
+    assert ingest(rt, june).outcome == "ingested"
+    counts_ = vintage_counts(rt, rid)
+    assert_core_unduplicated(counts_, 2)  # original + correction, nothing more
+    assert set(underlying(counts_).values()) == {1}
+    assert repo.get_release(rt.conn, june)["status"] == "corrected"
+    assert repo.release_bundle(rt.conn, rid) == corrected_bundle
+    assert core_values(rt, rid) == core
+    assert ingest(rt, june).outcome == "unchanged"
+
+
+def test_reverting_a_correction_enriches_the_original_bundle_in_place(rt, site):
+    rid, june, _, downloads = seed_cpi(rt, site)
+    url, index_url = downloads["cpi_workbook"], downloads["cpi_index_numbers"]
+    good, original = site.routes[url], site.routes[index_url]
+    site.routes[url] = BROKEN["http_503"]()
+    assert ingest(rt, june).outcome == "ingested"
+    first_bundle, first_core = repo.release_bundle(rt.conn, rid), core_values(rt, rid)
+    site.routes[index_url] = corrected_index(site, downloads)
+    assert ingest(rt, june).outcome == "ingested"
+
+    site.routes[index_url], site.routes[url] = original, good  # reverted, and workbook present
+    assert ingest(rt, june).outcome == "ingested"
+    counts_ = vintage_counts(rt, rid)
+    assert_core_unduplicated(counts_, 2)
+    assert set(underlying(counts_).values()) == {1}
+    assert repo.release_bundle(rt.conn, rid) == first_bundle
+    assert core_values(rt, rid) == first_core
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
+    assert ingest(rt, june).outcome == "unchanged"
+
+
+def test_a_revision_to_published_optional_measures_is_a_correction_of_the_whole_bundle(rt, site):
+    """Explicit rule: changed official optional statistics are a new bundle, like any correction."""
+    rid, june, _, downloads = seed_cpi(rt, site)
+    url = downloads["cpi_workbook"]
+    good = site.routes[url]
+    assert ingest(rt, june).outcome == "ingested"
+    core = core_values(rt, rid)
+    site.routes[url] = (200, workbook_with_cell("1.1"), XLSX)  # Stats NZ revised the median
+    assert ingest(rt, june).outcome == "ingested"
+    assert repo.get_release(rt.conn, june)["status"] == "corrected"
+    assert set(vintage_counts(rt, rid).values()) == {2}
+    assert core_values(rt, rid) == core
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == 1.1
+    first = repo.list_vintages(rt.conn, "cpi.underlying.median")[0]
+    assert repo.vintage_points(rt.conn, first.vintage_id)["2026-06"].value == MEDIAN  # kept
+    site.routes[url] = good
+    assert ingest(rt, june).outcome == "ingested"
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
+    assert set(vintage_counts(rt, rid).values()) == {2}
+    assert ingest(rt, june).outcome == "unchanged"
+
+
+def test_a_concurrent_enrichment_is_not_applied_twice(rt, site, monkeypatch):
+    import contextlib
+
+    import nzstats.pipeline.ingest as ingest_module
+
+    rid, june, _, downloads = seed_cpi(rt, site)
+    url = downloads["cpi_workbook"]
+    good = site.routes[url]
+    site.routes[url] = BROKEN["http_503"]()
+    assert ingest(rt, june).outcome == "ingested"
+    site.routes[url] = good
+    real, raced = ingest_module.transaction, []
+
+    @contextlib.contextmanager
+    def other_process_commits_first(conn):
+        if not raced:
+            raced.append(None)  # claim the slot first: the rival itself passes through here
+            raced[0] = ingest(rt, june)  # the rival enriches and commits before we lock
+        with real(conn) as c:
+            yield c
+
+    monkeypatch.setattr(ingest_module, "transaction", other_process_commits_first)
+    outcome = ingest(rt, june)
+    assert raced[0].outcome == "ingested" and outcome.outcome == "unchanged"
+    counts_ = vintage_counts(rt, rid)
+    assert_core_unduplicated(counts_) and set(underlying(counts_).values()) == {1}
+    assert repo.get_release(rt.conn, june)["status"] == "published"
