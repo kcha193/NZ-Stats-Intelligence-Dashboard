@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { formatAklDateTime, formatNumber, formatPercent, monthLabel } from "@/lib/format";
 import { formatChange, formatMetricValue, isRate } from "@/lib/metric";
 
+// CPI has annual and quarterly all-groups metrics under one series key, so the label disambiguates.
+const metricKey = (m: { series_key: string; label: string }) => `${m.series_key}|${m.label}`;
+
 function MetricsTable({ analysis }: { analysis: Analysis }) {
   return (
     <table className="w-full text-left text-sm">
@@ -25,7 +28,7 @@ function MetricsTable({ analysis }: { analysis: Analysis }) {
       </thead>
       <tbody>
         {analysis.headline_metrics.map((m) => (
-          <tr key={m.series_key} className="border-b last:border-0">
+          <tr key={metricKey(m)} className="border-b last:border-0">
             <th scope="row" className="py-1.5 pr-3 font-normal">{m.label}</th>
             <td className="py-1.5 pr-3 text-right font-medium">{formatMetricValue(m.value, m.unit)}{isRate(m.unit) ? null : <> <span className="text-xs text-muted-foreground">{m.unit}</span></>}{m.std_error !== null ? <span className="block text-xs text-muted-foreground">SE {formatNumber(m.std_error)}</span> : null}</td>
             <td className="py-1.5 pr-3">{m.period_label}</td>
@@ -71,7 +74,7 @@ function Analysis({ analysis }: { analysis: Analysis }) {
         <h2 id="metrics" className="text-lg font-semibold">Headline metrics</h2>
         <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 print:hidden">
           {analysis.headline_metrics.slice(0, 4).map((m) => (
-            <KpiCard key={m.series_key} kpi={{ metric: m, release_id: rel.id, published_at: rel.published_at, source_url: rel.page_url }} />
+            <KpiCard key={metricKey(m)} kpi={{ metric: m, release_id: rel.id, published_at: rel.published_at, source_url: rel.page_url }} />
           ))}
         </div>
         <div className="mt-3 overflow-x-auto"><MetricsTable analysis={analysis} /></div>

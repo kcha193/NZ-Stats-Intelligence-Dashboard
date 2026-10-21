@@ -1,5 +1,5 @@
 import { screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
 import detail from "@/test/fixtures/release_detail.json";
 import scheduled from "@/test/fixtures/release_scheduled.json";
@@ -114,4 +114,23 @@ it("keeps CPI's published decimal precision in correction rows", async () => {
     expect(within(section).getByText(text)).toBeInTheDocument();
   }
   expect(within(section).queryByText("1,360")).not.toBeInTheDocument();
+});
+
+it("gives CPI's annual and quarterly all-groups metrics distinct React identities", async () => {
+  const cpi = structuredClone(detail);
+  const [first] = cpi.analysis!.headline_metrics;
+  // CPI's annual and quarterly all-groups headline metrics share one series key.
+  cpi.analysis!.headline_metrics = [
+    { ...first, label: "CPI annual inflation, all groups" },
+    { ...first, label: "CPI quarterly inflation, all groups" },
+    ...cpi.analysis!.headline_metrics.slice(1),
+  ];
+  mockApi({ [`/api/releases/${detail.release.id}`]: cpi });
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  renderWithProviders(ui, { route: `/releases/${detail.release.id}` });
+  await screen.findByRole("heading", { name: "Headline metrics" });
+  const duplicateKeys = errors.mock.calls.filter((c) => String(c[0]).includes("same key"));
+  errors.mockRestore();
+  expect(duplicateKeys).toEqual([]);
+  expect(screen.getAllByText("CPI quarterly inflation, all groups").length).toBeGreaterThan(0);
 });

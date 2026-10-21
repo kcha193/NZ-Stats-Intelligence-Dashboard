@@ -8,7 +8,7 @@ coverage review remediation is locally verified, with CI and fresh automated rev
 Implemented the CPI adapter, validation, API, release analysis and `/inflation` dashboard on `feat/phase-2b-cpi`, with Overview, Latest Releases,
 Calendar and Data health integration. Verified against real December 2025, March 2026 and June 2026 releases (benchmarks 1.5/4.1, 2.7/4.9,
 0.6/3.4 reconcile). Offline release-day rehearsal passes. **The September 2026 quarter release (22 October 2026) has not been ingested.**
-Verification: 965 backend tests, 162 frontend tests and 48 Playwright checks passed; Ruff, TypeScript, lint and build passed
+Verification: 965 backend tests, 163 frontend tests and 48 Playwright checks passed; Ruff, TypeScript, lint and build passed
 (re-run after the PR #5 review round below).
 Details, decisions, limitations: [phase-2b-cpi.md](phase-2b-cpi.md); operation and fallback: [cpi-release-runbook.md](cpi-release-runbook.md).
 
@@ -35,6 +35,9 @@ Details, decisions, limitations: [phase-2b-cpi.md](phase-2b-cpi.md); operation a
   and carry a value for the reference quarter, otherwise the release is rejected as a layout change. #4334468798 (P2) correction
   rows formatted every value with zero decimals, so 1359.64 -> 1359.92 read 1,360 -> 1,360; CPI corrections now use index 2 dp,
   percentage points 3 dp, percent 1 dp (other categories are unchanged).
+- Round 5 finding on `9b9e190`: #4334565185 (P2) CPI's annual and quarterly all-groups headline metrics share one `series_key`, which
+  `ReleaseAnalysis.tsx` used as the React key for the KPI cards and metric rows (duplicate sibling keys). Both sites now use a
+  composite series-key and label key. This is the fifth and last automatic fix cycle allowed in this session.
 - Tests (failed first): workbook NaN/inf/-inf/1e999 (including a real rewritten xlsx cell) and structural cases; recovery, loss, true
   correction, reverted correction, enrichment after a correction, a revised optional measure, a simulated concurrent enrichment, and a
   dashboard API check. The September 2026 release (22 October 2026, 10:45 NZDT) remains un-ingested.
