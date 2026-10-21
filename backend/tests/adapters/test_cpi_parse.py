@@ -240,3 +240,51 @@ def test_series_cite_the_corrected_file_when_the_page_lists_both(june):
     )
     # the uncorrected listing alone still cites the original file
     assert june["cpi.index.nsa.all_groups"].definition.source_url == originals["cpi_index_numbers"]
+
+
+PERCENT_ROW_LABELS = (
+    "CPI all groups (quarterly)",
+    "CPI all groups (annual)",
+    "Tradeables (annual)",
+    "Non-tradeables (annual)",
+)
+
+
+def _percent_row_edit(label, edit):
+    """The release page with one published-percentage row rewritten by `edit(cells)`."""
+
+    def change(chart):
+        lines = chart.csv.split("\n")
+        for n, line in enumerate(lines):
+            if line.startswith(label + ","):
+                ending = "\r" if line.endswith("\r") else ""  # keep the page's line endings
+                lines[n] = ",".join(edit(line.removesuffix("\r").split(","))) + ending
+        return chart.title, "\n".join(lines)
+
+    pg = page()
+    charts = tuple(
+        Chart(*change(c)) if c.csv.startswith("Quarter,") and label in c.csv else c
+        for c in pg.charts
+    )
+    return replace(pg, charts=charts)
+
+
+@pytest.mark.parametrize("label", PERCENT_ROW_LABELS)
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda cells: cells[:-1],  # the newest cell is missing: row narrower than its header
+        lambda cells: [*cells[:-1], ""],  # the newest cell is blank
+        lambda cells: [*cells[:-1], "NaN"],  # not a finite percentage
+        lambda cells: [*cells, "9.9"],  # wider than the header
+    ],
+    ids=["missing_newest", "blank_newest", "nan_newest", "extra_cell"],
+)
+def test_a_malformed_published_percentage_row_rejects_the_release(label, edit):
+    with pytest.raises(IngestError):
+        parse(pg=_percent_row_edit(label, edit))
+
+
+@pytest.mark.parametrize("label", PERCENT_ROW_LABELS)
+def test_complete_published_percentage_rows_still_reconcile(label):
+    assert parse(pg=_percent_row_edit(label, lambda cells: cells))

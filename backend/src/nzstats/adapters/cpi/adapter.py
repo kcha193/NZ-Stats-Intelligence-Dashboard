@@ -256,7 +256,7 @@ class CpiAdapter:
         bundle = ParsedBundle(LAYOUT_VERSION, tuple(series), (*notes, *warnings))
         findings = self.validate(bundle, reference_period=reference, previous={})
         if not any(f.severity == "error" for f in findings):
-            findings += self._reconcile(page, bundle)
+            findings += self._reconcile(page, bundle, reference)
         errors = [f.message for f in findings if f.severity == "error"]
         if errors:
             fail("; ".join(errors[:5]))
@@ -497,7 +497,7 @@ class CpiAdapter:
                     f"CPI {label} contributions do not reconcile with the headline change",
                 )
 
-    def _reconcile(self, page: ReleasePage, bundle: ParsedBundle) -> list[Finding]:
+    def _reconcile(self, page: ReleasePage, bundle: ParsedBundle, reference: str) -> list[Finding]:
         levels = {
             s.definition.key: {o.period: o.value for o in s.observations} for s in bundle.series
         }
@@ -512,14 +512,20 @@ class CpiAdapter:
                 if target is None:
                     continue
                 slug, lag = target
+                if len(row) != len(rows[0]):
+                    # zip() would silently drop a missing newest cell and the row would still
+                    # count as present, so the latest index values would go unreconciled.
+                    layout("CPI percentage chart row width differs from its header")
                 found.add(target)
                 changes = (quarterly_changes if lag == 3 else annual_changes)(
                     levels[f"cpi.index.nsa.{slug}"]
                 )
-                for label, text in zip(rows[0][1:], row[1:], strict=False):
+                published_reference = False
+                for label, text in zip(rows[0][1:], row[1:], strict=True):
+                    period = _quarter_label(label)
                     if text == "":
                         continue
-                    period = _quarter_label(label)
+                    published_reference |= period == reference
                     try:
                         published = float(text)
                     except ValueError:
@@ -539,6 +545,8 @@ class CpiAdapter:
                                 f"CPI published percentage does not reconcile with levels: {slug} {period}",
                             )
                         )
+                if not published_reference:
+                    layout("CPI percentage chart has no published value for the reference quarter")
         if found != REQUIRED_PERCENT_ROWS:
             layout("CPI percentage chart rows are missing or renamed")
         return findings
