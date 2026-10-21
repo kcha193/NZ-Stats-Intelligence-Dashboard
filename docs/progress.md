@@ -8,7 +8,7 @@ coverage review remediation is locally verified, with CI and fresh automated rev
 Implemented the CPI adapter, validation, API, release analysis and `/inflation` dashboard on `feat/phase-2b-cpi`, with Overview, Latest Releases,
 Calendar and Data health integration. Verified against real December 2025, March 2026 and June 2026 releases (benchmarks 1.5/4.1, 2.7/4.9,
 0.6/3.4 reconcile). Offline release-day rehearsal passes. **The September 2026 quarter release (22 October 2026) has not been ingested.**
-Verification: 943 backend tests, 161 frontend tests and 48 Playwright checks passed; Ruff, TypeScript, lint and build passed
+Verification: 945 backend tests, 161 frontend tests and 48 Playwright checks passed; Ruff, TypeScript, lint and build passed
 (re-run after the PR #5 review round below).
 Details, decisions, limitations: [phase-2b-cpi.md](phase-2b-cpi.md); operation and fallback: [cpi-release-runbook.md](cpi-release-runbook.md).
 
@@ -26,6 +26,9 @@ Details, decisions, limitations: [phase-2b-cpi.md](phase-2b-cpi.md); operation a
   optional warnings, which the ingest run records. #4334244723 (P2) series `source_url` came from the first listed download while
   ingestion fetches the `-corrected` one; `pick_downloads` moved to `sources/release_page.py` and the adapter uses it, so the
   cited file is the one the values came from. Neither changes a statistic or a bundle digest (source URLs are not part of identity).
+- Round 3 finding on `6a4cba8`: #4334350633 (P2) underlying series had no `source_url`, so the workbook (or a corrected workbook)
+  never appeared in the dashboard sources. The adapter now resolves the workbook with the same corrected-file precedence and
+  stores it on those definitions. As with the CSVs, a source URL change alone (identical values) is not a new bundle.
 - Tests (failed first): workbook NaN/inf/-inf/1e999 (including a real rewritten xlsx cell) and structural cases; recovery, loss, true
   correction, reverted correction, enrichment after a correction, a revised optional measure, a simulated concurrent enrichment, and a
   dashboard API check. The September 2026 release (22 October 2026, 10:45 NZDT) remains un-ingested.

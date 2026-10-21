@@ -90,12 +90,12 @@ def test_recovered_optional_workbook_reaches_the_dashboard_without_a_correction(
     site.routes[url] = (503, b"", "text/html")
     assert ingest_release(rt, june, now_fn=lambda: NOW).outcome == "ingested"
     before = client.get("/api/cpi").json()
-    assert before["underlying"] == []
+    assert before["underlying"] == [] and url not in before["sources"]
 
     site.routes[url] = good
     assert ingest_release(rt, june, now_fn=lambda: NOW).outcome == "ingested"
     after = client.get("/api/cpi").json()
-    assert len(after["underlying"]) == 11
+    assert len(after["underlying"]) == 11 and url in after["sources"]  # the workbook is cited
     for key in ("reference_period", "published_at", "series", "contributions"):
         assert after[key] == before[key]  # required statistics are untouched
     assert after["analysis"]["revisions"] == before["analysis"]["revisions"]

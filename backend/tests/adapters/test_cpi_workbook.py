@@ -9,6 +9,7 @@ from nzstats.adapters.cpi import adapter as cpi_adapter
 from nzstats.adapters.cpi.adapter import CpiAdapter
 from nzstats.adapters.cpi.workbook import read_quarterly_tables
 from nzstats.domain import ErrorClass, IngestError
+from nzstats.sources.release_page import classify_download, pick_downloads
 from tests.conftest import fixture_bytes
 from tests.cpi_support import files, page, workbook_with_cell
 
@@ -192,3 +193,28 @@ def test_non_finite_cells_in_a_real_workbook_never_block_headline_cpi(text):
     assert not math.isfinite(read_quarterly_tables(raw)["SE9NS4110"]["2026-06"])
     bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": raw})
     _assert_headline_survives_with_warning(bundle)
+
+
+def _workbook_url(pg):
+    return next(u for u in pg.download_urls if classify_download(u) == "cpi_workbook")
+
+
+def test_underlying_series_cite_the_workbook_they_came_from():
+    pg = page()
+    bundle = CpiAdapter().parse(pg, {**files(), "cpi_workbook": workbook()})
+    cited = {s.definition.source_url for s in bundle.series if ".underlying." in s.definition.key}
+    assert cited == {_workbook_url(pg)}
+
+
+def test_underlying_series_cite_the_corrected_workbook_when_both_are_listed():
+    pg = page()
+    original = _workbook_url(pg)
+    corrected = original.replace(".xlsx", "-corrected.xlsx")
+    assert classify_download(corrected) == "cpi_workbook"
+    urls = (original, corrected, *(u for u in pg.download_urls if u != original))
+    assert pick_downloads(urls, ("cpi_workbook",)) == {"cpi_workbook": corrected}
+    bundle = CpiAdapter().parse(
+        replace(pg, download_urls=urls), {**files(), "cpi_workbook": workbook()}
+    )
+    cited = {s.definition.source_url for s in bundle.series if ".underlying." in s.definition.key}
+    assert cited == {corrected}

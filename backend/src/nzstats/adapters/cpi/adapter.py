@@ -246,7 +246,12 @@ class CpiAdapter:
             )
             series.append(ParsedSeries(definitions[key], observations))
         series.extend(self._contributions(page, reference))
-        underlying, warnings = self._underlying(files.get("cpi_workbook"), points, reference)
+        workbook_url = pick_downloads(page.download_urls, self.optional_downloads).get(
+            "cpi_workbook"
+        )
+        underlying, warnings = self._underlying(
+            files.get("cpi_workbook"), points, reference, workbook_url
+        )
         series.extend(underlying)
         bundle = ParsedBundle(LAYOUT_VERSION, tuple(series), (*notes, *warnings))
         findings = self.validate(bundle, reference_period=reference, previous={})
@@ -259,7 +264,10 @@ class CpiAdapter:
 
     @staticmethod
     def _underlying(
-        raw: bytes | None, points: dict[str, dict[str, tuple[float, ObsStatus]]], reference: str
+        raw: bytes | None,
+        points: dict[str, dict[str, tuple[float, ObsStatus]]],
+        reference: str,
+        source_url: str | None,
     ) -> tuple[list[ParsedSeries], list[str]]:
         """Official trimmed means and percentiles from the optional workbook; any problem warns."""
         if raw is None:
@@ -288,7 +296,7 @@ class CpiAdapter:
             ]
         out = []
         for ref, slug, _ in UNDERLYING:
-            definition = underlying_definition(slug)
+            definition = underlying_definition(slug, source_url)
             run = contiguous_run(tables[ref])
             observations = tuple(
                 Observation(underlying_key(slug), p, tables[ref][p], ObsStatus.UNKNOWN) for p in run
