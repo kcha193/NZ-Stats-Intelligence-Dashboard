@@ -91,3 +91,27 @@ it("reports corrections within a publication separately from earlier publication
   expect(within(section).getByText("SE 545 → SE 546")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Since the previous release" })).toBeInTheDocument();
 });
+
+it("keeps CPI's published decimal precision in correction rows", async () => {
+  const corrected = structuredClone(detail);
+  const change = (period: string, original: number, revised: number) => ({
+    period, original, revised, original_status: "final", revised_status: "final",
+    original_std_error: null, revised_std_error: null, original_released_in: null, revised_released_in: null,
+  });
+  Object.assign(corrected.analysis!, { corrections: {
+    available: true, note: "A correction within this publication.", against_captured_at: "2026-10-11T16:00:00+13:00", captured_at: "2026-10-12T16:00:00+13:00",
+    series: [
+      { series_key: "cpi.index.sa.all_groups", label: "CPI all groups, seasonally adjusted", unit: "index", n_changed: 1, changes: [change("2026-06", 1359.64, 1359.92)] },
+      { series_key: "cpi.contrib.q.transport", label: "Transport contribution", unit: "percentage points", n_changed: 1, changes: [change("2026-06", 0.824, 0.831)] },
+      { series_key: "cpi.underlying.median", label: "Weighted median", unit: "percent", n_changed: 1, changes: [change("2026-06", 0.4, 0.5)] },
+    ],
+  } });
+  mockApi({ [`/api/releases/${detail.release.id}`]: corrected });
+  renderWithProviders(ui, { route: `/releases/${detail.release.id}` });
+  const section = (await screen.findByRole("heading", { name: "Corrections within this publication" })).closest("section")!;
+  // 1,359.64 -> 1,359.92 must not collapse to 1,360 -> 1,360
+  for (const text of ["1,359.64", "1,359.92", "0.824", "0.831", "0.4", "0.5"]) {
+    expect(within(section).getByText(text)).toBeInTheDocument();
+  }
+  expect(within(section).queryByText("1,360")).not.toBeInTheDocument();
+});

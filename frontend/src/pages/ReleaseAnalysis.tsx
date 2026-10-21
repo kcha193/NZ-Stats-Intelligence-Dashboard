@@ -39,6 +39,11 @@ function MetricsTable({ analysis }: { analysis: Analysis }) {
   );
 }
 
+// CPI values are fractional: index points to 2 dp (as in the revision table), contributions to 3 dp,
+// rates to 1 dp. Other categories publish whole numbers here.
+const correctionDecimals = (seriesKey: string, unit: string) =>
+  !seriesKey.startsWith("cpi.") ? 0 : unit === "index" ? 2 : unit === "percentage points" ? 3 : 1;
+
 function Analysis({ analysis }: { analysis: Analysis }) {
   const rel = analysis.release;
   const indexRevisions = analysis.revisions.series_key.startsWith("cpi.");
@@ -148,7 +153,9 @@ function Analysis({ analysis }: { analysis: Analysis }) {
               Earlier capture: {corrections.against_captured_at ? formatAklDateTime(corrections.against_captured_at) : "not recorded"}.
               Current capture: {formatAklDateTime(corrections.captured_at)}.
             </p>
-            {corrections.series.map((s) => (
+            {corrections.series.map((s) => {
+              const decimals = correctionDecimals(s.series_key, s.unit);
+              return (
               <div key={s.series_key} className="mt-3">
                 <h3 className="text-sm font-semibold">{s.label}: {s.n_changed} changed {s.n_changed === 1 ? "period" : "periods"}</h3>
                 <div className="mt-1 overflow-x-auto" role="region" aria-label={`${s.label} corrections`} tabIndex={0}>
@@ -165,8 +172,8 @@ function Analysis({ analysis }: { analysis: Analysis }) {
                     <tbody>{s.changes.map((r) => (
                       <tr key={r.period} className="border-b last:border-0">
                         <th scope="row" className="py-1.5 pr-3 font-normal">{monthLabel(r.period)}</th>
-                        <td className="pr-3">{r.original === null ? "Not present" : formatNumber(r.original)}</td>
-                        <td className="pr-3">{r.revised === null ? "Not present" : formatNumber(r.revised)}</td>
+                        <td className="pr-3">{r.original === null ? "Not present" : formatNumber(r.original, { decimals })}</td>
+                        <td className="pr-3">{r.revised === null ? "Not present" : formatNumber(r.revised, { decimals })}</td>
                         <td className="pr-3">{r.original_status ?? "not present"} → {r.revised_status ?? "not present"}</td>
                         <td className="pr-3">SE {r.original_std_error === null ? "not supplied" : formatNumber(r.original_std_error)} → SE {r.revised_std_error === null ? "not supplied" : formatNumber(r.revised_std_error)}</td>
                         <td>{r.original_released_in ?? "not supplied"} → {r.revised_released_in ?? "not supplied"}</td>
@@ -175,7 +182,8 @@ function Analysis({ analysis }: { analysis: Analysis }) {
                   </table>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </>
         )}
       </section>
