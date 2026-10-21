@@ -100,3 +100,59 @@ def mutated(source: dict[str, bytes], kind: str, reference: str, **fields: str) 
     out = io.StringIO()
     csv.writer(out, quoting=csv.QUOTE_ALL, lineterminator="\n").writerows(rows)
     return {**source, kind: out.getvalue().encode("utf-8")}
+
+
+def workbook_with_cell(text: str, ref: str = "SE9NS4110", period: str = "2026-06") -> bytes:
+    """The real June 2026 workbook with one quarterly cell rewritten as raw cell text (e.g. NaN)."""
+    import io
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    from nzstats.adapters.cpi.workbook import CELL, MONTH, M
+
+    ET.register_namespace("", M[1:-1])
+    shared = [
+        "".join(t.text or "" for t in si.iter(M + "t"))
+        for si in ET.fromstring(
+            zipfile.ZipFile(io.BytesIO(fixture_bytes("cpi_2026-06_workbook.xlsx"))).read(
+                "xl/sharedStrings.xml"
+            )
+        ).iter(M + "si")
+    ]
+    out, hits = io.BytesIO(), 0
+    with (
+        zipfile.ZipFile(io.BytesIO(fixture_bytes("cpi_2026-06_workbook.xlsx"))) as src,
+        zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst,
+    ):
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename in ("xl/worksheets/sheet16.xml", "xl/worksheets/sheet17.xml"):
+                root = ET.fromstring(data)
+                refs: dict[str, str] = {}
+                quarterly, year = False, None
+                for row in root.iter(M + "row"):
+                    cells = {}
+                    for c in row:
+                        v = c.find(M + "v")
+                        m = CELL.fullmatch(c.get("r", ""))
+                        if v is not None and v.text is not None and m:
+                            text_ = shared[int(v.text)] if c.get("t") == "s" else v.text
+                            cells[m[1]] = (text_, v)
+                    head = cells.get("A", ("",))[0]
+                    if head.startswith("Series ref"):
+                        refs, quarterly = {k: t for k, (t, _) in cells.items() if k != "A"}, False
+                    elif head == "Percentage change from previous quarter":
+                        quarterly = True
+                    elif head.startswith("Percentage change from same quarter"):
+                        quarterly = False
+                    elif quarterly:
+                        year = int(head) if head.isdigit() else year
+                        month = MONTH.get(cells.get("B", ("",))[0])
+                        for col, ref_ in refs.items():
+                            if ref == ref_ and f"{year}-{month}" == period and col in cells:
+                                cells[col][1].text = text
+                                hits += 1
+                data = ET.tostring(root, xml_declaration=True, encoding="UTF-8")
+            dst.writestr(item, data)
+    assert hits == 1
+    return out.getvalue()

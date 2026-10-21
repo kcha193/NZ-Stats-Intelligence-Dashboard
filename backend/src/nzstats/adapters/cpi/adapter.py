@@ -48,6 +48,9 @@ log = logging.getLogger(__name__)
 MAX_FILE = 16 * 1024 * 1024
 MAX_ROWS = 150_000
 LAYOUT_VERSION = "cpi-csv-v1"
+WORKBOOK_SERIES = {ref for ref, _, _ in UNDERLYING} | {"SE9A"}
+MIN_WORKBOOK_QUARTERS = 4  # a year of unbroken history; the real file has 18
+MAX_WORKBOOK_PCT = 25.0  # real quarterly changes span -3.5..7.1
 HEADER = {
     "Series_reference",
     "Period",
@@ -107,6 +110,27 @@ def _read(raw: bytes, label: str) -> list[dict[str, str]]:
         return rows
     except (UnicodeError, csv.Error) as exc:
         raise IngestError(ErrorClass.LAYOUT_CHANGED, f"CPI {label} file cannot be decoded") from exc
+
+
+def _table_problem(tables: object) -> str | None:
+    """Why the workbook's tables are unusable, or None. Never raises: this guards optional data."""
+    if not isinstance(tables, dict) or set(tables) != WORKBOOK_SERIES:
+        return "series do not match the expected set"
+    for series in tables.values():
+        if not isinstance(series, dict) or len(series) < MIN_WORKBOOK_QUARTERS:
+            return "has too little history"
+        for period, value in series.items():
+            if not isinstance(period, str) or not is_quarter_end(period):
+                return "has a period that is not a quarter end"
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+                or abs(value) > MAX_WORKBOOK_PCT
+            ):
+                return "has a value that is not a finite percentage"
+        if len(contiguous_run(series)) < MIN_WORKBOOK_QUARTERS:
+            return "has too little unbroken history"
+    return None
 
 
 class CpiAdapter:
@@ -245,15 +269,19 @@ class CpiAdapter:
         except Exception:  # optional input: nothing it does may block headline CPI
             log.warning("CPI workbook could not be read", exc_info=True)
             return [], ["official underlying measures unavailable: workbook layout changed"]
+        problem = _table_problem(tables)
+        if problem is not None:
+            return [], [f"official underlying measures dropped: workbook {problem}"]
         if any(max(t) != reference for t in tables.values()):
             return [], [
                 "official underlying measures dropped: workbook is not for the reference quarter"
             ]
         levels = {p: v for p, (v, _) in points.get("cpi.index.nsa.all_groups", {}).items()}
         computed = quarterly_changes(levels)
-        if any(
-            p in computed and abs(computed[p] - v) > CHART_PCT_TOLERANCE + 1e-9
-            for p, v in tables["SE9A"].items()
+        overlap = [p for p in tables["SE9A"] if p in computed]
+        # `not (<=)`, never `>`: a comparison with NaN is False and would let it through.
+        if reference not in overlap or any(
+            not abs(computed[p] - tables["SE9A"][p]) <= CHART_PCT_TOLERANCE + 1e-9 for p in overlap
         ):
             return [], [
                 "official underlying measures dropped: workbook does not reconcile with the index"

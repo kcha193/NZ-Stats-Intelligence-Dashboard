@@ -1,4 +1,5 @@
 import io
+import math
 import zipfile
 from dataclasses import replace
 
@@ -9,7 +10,7 @@ from nzstats.adapters.cpi.adapter import CpiAdapter
 from nzstats.adapters.cpi.workbook import read_quarterly_tables
 from nzstats.domain import ErrorClass, IngestError
 from tests.conftest import fixture_bytes
-from tests.cpi_support import files, page
+from tests.cpi_support import files, page, workbook_with_cell
 
 
 def workbook() -> bytes:
@@ -120,3 +121,74 @@ def test_no_workbook_failure_can_block_headline_cpi(monkeypatch, error):
     bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": workbook()})
     assert any(s.definition.key == "cpi.index.nsa.all_groups" for s in bundle.series)
     assert any("underlying" in w for w in bundle.warnings)
+
+
+def _underlying_keys(bundle):
+    return [s.definition.key for s in bundle.series if ".underlying." in s.definition.key]
+
+
+def _assert_headline_survives_with_warning(bundle):
+    keys = {s.definition.key for s in bundle.series}
+    assert "cpi.index.nsa.all_groups" in keys and "cpi.contrib.q.transport" in keys
+    assert not _underlying_keys(bundle)
+    assert any("underlying" in w for w in bundle.warnings)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")], ids=str)
+@pytest.mark.parametrize("ref", ["SE9NS4110", "SE9NS4000", "SE9A"])
+@pytest.mark.parametrize("period", ["2026-06", "2022-03"])
+def test_non_finite_workbook_values_drop_the_optional_series_without_blocking(
+    monkeypatch, ref, period, bad
+):
+    tables = read_quarterly_tables(workbook())
+    tables[ref] = {**tables[ref], period: bad}
+    monkeypatch.setattr(cpi_adapter, "read_quarterly_tables", lambda raw: tables)
+    bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": workbook()})
+    _assert_headline_survives_with_warning(bundle)
+
+
+def _patched(monkeypatch, mutate):
+    tables = read_quarterly_tables(workbook())
+    mutate(tables)
+    monkeypatch.setattr(cpi_adapter, "read_quarterly_tables", lambda raw: tables)
+    return CpiAdapter().parse(page(), {**files(), "cpi_workbook": workbook()})
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda t: t["SE9NS4110"].update({"2026-05": 1.0}),  # not a quarter-end month
+        lambda t: t["SE9NS4110"].update({"2026-13": 1.0}),  # not a month at all
+        lambda t: t.update({"SE9NS4110": {}}),  # empty series
+        lambda t: t.pop("SE9NS4110"),  # missing series
+        lambda t: t.update({"SE9NS4110": {"2026-06": 1.0}}),  # too little history
+        lambda t: t["SE9NS4110"].update({"2026-06": "1.0"}),  # not a number
+        lambda t: t["SE9NS4110"].update({"2026-06": True}),  # bool is not a measurement
+        lambda t: t["SE9NS4110"].update({"2026-06": 1e9}),  # absurd magnitude
+        lambda t: t.update({"SE9ZZ": {"2026-06": 1.0}}),  # unexpected extra series
+    ],
+    ids=[
+        "off_quarter",
+        "bad_month",
+        "empty",
+        "missing",
+        "short",
+        "string",
+        "bool",
+        "absurd",
+        "extra",
+    ],
+)
+def test_structurally_invalid_workbook_tables_drop_optional_series_without_blocking(
+    monkeypatch, mutate
+):
+    _assert_headline_survives_with_warning(_patched(monkeypatch, mutate))
+
+
+@pytest.mark.parametrize("text", ["NaN", "inf", "-inf", "1e999"])
+def test_non_finite_cells_in_a_real_workbook_never_block_headline_cpi(text):
+    raw = workbook_with_cell(text)
+    # The mutation must reach the reader's output, or this test proves nothing.
+    assert not math.isfinite(read_quarterly_tables(raw)["SE9NS4110"]["2026-06"])
+    bundle = CpiAdapter().parse(page(), {**files(), "cpi_workbook": raw})
+    _assert_headline_survives_with_warning(bundle)
