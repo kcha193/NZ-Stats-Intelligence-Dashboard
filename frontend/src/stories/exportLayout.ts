@@ -23,7 +23,7 @@ const FAMILY = '"IBM Plex Sans Variable", "IBM Plex Sans", system-ui, sans-serif
 export const font = (size: number, weight = 400) => `${weight} ${size}px ${FAMILY}`;
 
 /** Everything printed on the image, so it can be read without visiting the dashboard. */
-export function exportText(story: Story, figure: { title: string; unit: string; caveat: string }, url: string): ExportText {
+export function exportText(story: Story, figure: { title: string; unit: string; caveat: string }, storyUrl: string): ExportText {
   const p = story.provenance;
   const flags = [story.dataStatus === "provisional" ? "provisional" : null, p.status === "corrected" ? "corrected release" : null].filter(Boolean);
   return {
@@ -35,8 +35,8 @@ export function exportText(story: Story, figure: { title: string; unit: string; 
     chartTitle: figure.title,
     context: `Reference period: ${story.referenceLabel}${flags.length ? ` (${flags.join(", ")})` : ""}. Unit: ${figure.unit}.`,
     caveat: [p.status === "corrected" ? story.caveats[0] : null, figure.caveat].filter(Boolean).join(" "),
-    source: `Source: Stats NZ, ${p.title}, published ${formatAklDate(p.publishedAt)}. Licensed CC BY 4.0.`,
-    attribution: `NZ Stats Intelligence (independent, not endorsed by Stats NZ) · ${url}`,
+    source: `Source: Stats NZ, ${p.title}, published ${formatAklDate(p.publishedAt)}${p.pageUrl ? ` (${p.pageUrl})` : ""}. Licensed CC BY 4.0.`,
+    attribution: `NZ Stats Intelligence (independent, not endorsed by Stats NZ) · ${storyUrl}`,
   };
 }
 

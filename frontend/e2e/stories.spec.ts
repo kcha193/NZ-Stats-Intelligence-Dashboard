@@ -96,7 +96,8 @@ for (const [format, width, height] of [["Landscape", 1200, 675], ["Portrait", 12
     expect(all).toContain("Contribution to annual CPI change, by group"); // the variant shown on the page
     expect(all).toContain("Source: Stats NZ, Consumers price index: June 2026 quarter, published 21 Jul 2026");
     expect(all).toContain("Reference period: June 2026 quarter");
-    expect(all).toContain("NZ Stats Intelligence");
+    expect(all).toContain("(https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/)");
+    expect(all).toContain("NZ Stats Intelligence (independent, not endorsed by Stats NZ) · http://127.0.0.1:8765/stories/inflation-drivers-2026-06");
     await expect(page.getByRole("status").filter({ hasText: "exported with source" })).toBeVisible();
   });
 }

@@ -13,6 +13,9 @@ export type MigrationInput = {
 const DASHBOARD = { to: "/migration", label: "Explore the migration dashboard" };
 const PROVISIONAL = "Estimates for recent months are provisional and are revised as travellers' outcomes become known.";
 
+/** A year-ended net figure in words, inside a sentence: "a net gain of 9,592" or "no net change". */
+const netPhrase = (v: number) => (Math.round(v) === 0 ? "no net change" : `a ${formatNet(v)}`);
+
 const latestOf = (d: SeriesData) => d.points.at(-1);
 const atPeriod = (d: SeriesData, p: string) => d.points.find((x) => x.period === p);
 const tenYears = (d: SeriesData, period: string) => d.points.filter((p) => p.period > addMonths(period, -120));
@@ -56,7 +59,7 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
     const peak = tenYears(net, n.period).reduce((m, p) => (p.value > m.value ? p : m), n);
     stories.push({
       ...common(net, n), id: `migration-net-${n.period}`, template: "migration-net", priority: 0, headline,
-      dek: `${n.value >= 0 ? `New Zealand gained ${v} more migrants than it lost` : `New Zealand lost ${v} more migrants than it gained`} in the ${yearEndedName(n.period)}, ${movement} a ${formatNet(n0.value)} a year earlier.${n.status === "provisional" ? " The latest estimate is provisional." : ""}`,
+      dek: `${Math.round(n.value) === 0 ? "Arrivals and departures were balanced" : n.value > 0 ? `New Zealand gained ${v} more migrants than it lost` : `New Zealand lost ${v} more migrants than it gained`} in the ${yearEndedName(n.period)}, ${movement} ${netPhrase(n0.value)} a year earlier.${n.status === "provisional" ? " The latest estimate is provisional." : ""}`,
       stat: {
         value: signedPeople(n.value), unit: `people, net migration in the ${yearEndedName(n.period)}`,
         label: `${n.status === "provisional" ? "Provisional" : "Final"} estimate${n.std_error != null ? `, standard error ${people(n.std_error)}` : ""}`,
@@ -125,7 +128,6 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
           ? "Net loss of New Zealand citizens is offset by a larger gain of other citizens"
           : "Net loss of New Zealand citizens outweighs the gain of other citizens"
         : `Net migration by citizenship: New Zealand citizens ${signedPeople(z.value)}, other citizens ${signedPeople(o.value)}`;
-      const phrase = (v: number) => (v === 0 ? "no net change" : `a ${formatNet(v)}`);
       // How long New Zealand citizens' year-ended net has kept its current sign.
       let first = z;
       for (let i = nz.points.length - 2; i >= 0 && Math.sign(nz.points[i].value) === Math.sign(z.value); i--) first = nz.points[i];
@@ -136,7 +138,7 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
         ...common(nz, z), id: `migration-citizenship-${z.period}`, template: "migration-citizenship", priority: 2,
         dataStatus: z.status === "provisional" || o.status === "provisional" ? "provisional" : z.status,
         headline,
-        dek: `In the ${yearEndedName(z.period)}, New Zealand citizens recorded ${phrase(z.value)} and non-New Zealand citizens ${phrase(o.value)}.`,
+        dek: `In the ${yearEndedName(z.period)}, New Zealand citizens recorded ${netPhrase(z.value)} and non-New Zealand citizens ${netPhrase(o.value)}.`,
         stat: {
           value: signedPeople(z.value), unit: `people, net migration of New Zealand citizens, ${yearEndedName(z.period)}`,
           label: `Non-New Zealand citizens: ${signedPeople(o.value)}`, sign: signOf(z.value, 0),

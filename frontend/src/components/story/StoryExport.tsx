@@ -21,7 +21,7 @@ export function StoryExport({ story, view, theme }: { story: Story; view: Figure
     setBusy(true);
     setStatus("");
     try {
-      const text = exportText(story, view, story.provenance.pageUrl ?? storyUrl);
+      const text = exportText(story, view, storyUrl);
       saveFile(await storyPng(text, format, view.option, theme, accentInk()), `${story.id}-${format}.png`);
       setStatus(`${FORMATS[format].label} exported with source, publication date and reference period.`);
     } catch {

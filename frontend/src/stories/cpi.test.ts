@@ -162,3 +162,41 @@ describe("CPI drivers: which groups pull the other way", () => {
   });
 });
 
+describe("CPI evidence status", () => {
+  it("does not call persisted contribution values final: the adapter stores them with unknown status", () => {
+    const s = byTemplate(cpi).get("inflation-drivers")!;
+    const contributions = s.evidence.filter((e) => e.unit === "percentage points");
+    expect(contributions.length).toBeGreaterThan(1);
+    expect(contributions.every((e) => e.status === "unknown")).toBe(true);
+  });
+});
+
+describe("CPI wording follows the sign of each displayed rate", () => {
+  const withAnnual = (slug: string, annual: number) => {
+    const series = cpi.series.map((x) => x.slug === slug && x.adjustment === "none"
+      ? { ...x, points: [...x.points.slice(0, -1), { ...x.points.at(-1)!, annual_pct: annual }] } : x);
+    return byTemplate({ ...cpi, series });
+  };
+
+  it("says prices were lower, not 'higher by a negative', when annual inflation is negative", () => {
+    const s = withAnnual("all_groups", -0.5).get("inflation-annual")!;
+    expect(s.dek).toBe("Consumer prices were 0.5% lower in the June 2026 quarter than a year earlier, down from 3.1% in the March 2026 quarter.");
+  });
+
+  it("says prices were unchanged when annual inflation rounds to zero", () => {
+    const s = withAnnual("all_groups", 0.04).get("inflation-annual")!;
+    expect(s.dek).toBe("Consumer prices in the June 2026 quarter were unchanged from a year earlier, down from 3.1% in the March 2026 quarter.");
+  });
+
+  it("keeps the wording for positive annual inflation", () => {
+    expect(byTemplate(cpi).get("inflation-annual")!.dek).toBe(
+      "Consumer prices were 4.1% higher in the June 2026 quarter than a year earlier, up from 3.1% in the March 2026 quarter.");
+  });
+
+  it("chooses rose, fell or were unchanged separately for tradables and non-tradables", () => {
+    const fell = withAnnual("tradables", -1.14).get("inflation-tradables")!;
+    expect(fell.dek).toBe("Prices of goods and services exposed to foreign competition fell 1.1% over the year to the June 2026 quarter; domestically driven prices rose 3.4%.");
+    const both = withAnnual("non_tradables", 0.03).get("inflation-tradables")!;
+    expect(both.dek).toBe("Prices of goods and services exposed to foreign competition rose 4.9% over the year to the June 2026 quarter; domestically driven prices were unchanged.");
+  });
+});

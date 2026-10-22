@@ -93,3 +93,23 @@ describe("migration release status", () => {
   });
 });
 
+describe("migration net headline and dek at zero", () => {
+  /** Sets the latest year-ended net, and optionally the same month a year earlier. */
+  const withNet = (latest: number, yearAgo?: number) => {
+    const points = (net as SeriesData).points.map((p) => ({ ...p }));
+    points[points.length - 1].value = latest;
+    if (yearAgo !== undefined) points[points.length - 13].value = yearAgo;
+    return byTemplate({ ...input, net: { ...(net as SeriesData), points } }).get("migration-net")!;
+  };
+
+  it("describes a balanced year rather than a gain of zero", () => {
+    const s = withNet(0);
+    expect(s.headline).toBe("Annual net migration is balanced");
+    expect(s.dek).toBe("Arrivals and departures were balanced in the year ended July 2026, compared with a net gain of 9,592 a year earlier. The latest estimate is provisional.");
+  });
+
+  it("describes a balanced year earlier as no net change, not 'a no net change'", () => {
+    const s = withNet(20350, 0);
+    expect(s.dek).toBe("New Zealand gained 20,350 more migrants than it lost in the year ended July 2026, compared with no net change a year earlier. The latest estimate is provisional.");
+  });
+});

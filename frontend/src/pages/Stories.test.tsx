@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import cpi from "@/test/fixtures/cpi.json";
@@ -10,9 +10,12 @@ import net from "@/test/fixtures/series_net_ry.json";
 import nonNz from "@/test/fixtures/series_net_nonnz_ry.json";
 import nz from "@/test/fixtures/series_net_nz_ry.json";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
+import { storyPng } from "@/stories/exportImage";
 import Stories from "./Stories";
 import StoryPage from "./Story";
 
+vi.mock("@/stories/exportImage", () => ({ storyPng: vi.fn(async () => "data:image/png;base64,") }));
+vi.mock("@/lib/download", () => ({ saveFile: vi.fn() }));
 vi.mock("@/charts/EChart", () => ({
   EChart: ({ ariaLabel }: { ariaLabel: string }) => <div role="img" aria-label={ariaLabel} />,
 }));
@@ -270,5 +273,19 @@ describe("categories that are ready do not wait for the others", () => {
     renderWithProviders(routes, { route: "/stories?category=spending" });
     expect(await screen.findByRole("status", { name: "Loading" })).toBeInTheDocument();
     expect(screen.queryByText(/No consumer spending stories are available/)).not.toBeInTheDocument();
+  });
+});
+
+describe("story PNG export", () => {
+  it("prints the dashboard's story address as attribution and the Stats NZ page as the source", async () => {
+    mockApi({ "/api/cpi": cpi, "/api/releases": [] });
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
+    const group = await screen.findByRole("group", { name: "Export and share" });
+    within(group).getByRole("button", { name: /Landscape PNG/ }).click();
+    await waitFor(() => expect(storyPng).toHaveBeenCalled());
+    const text = vi.mocked(storyPng).mock.calls[0][0];
+    expect(text.attribution).toContain(`${window.location.origin}/stories/inflation-annual-2026-06`);
+    expect(text.attribution).not.toContain("stats.govt.nz");
+    expect(text.source).toContain("https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/");
   });
 });

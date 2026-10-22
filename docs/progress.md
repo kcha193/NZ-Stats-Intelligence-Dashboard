@@ -61,9 +61,25 @@ Five findings, all frontend story builders; each fixed test-first (watched faili
   the release summaries that carry their status have loaded. The homepage still waits for all sources so its featured
   story does not change under the reader.
 
+### PR #7 review round 3 (Codex, head 9eff876)
+
+- `cpi.ts`: contribution evidence rows are `unknown`, as the adapter stores them (`ObsStatus.UNKNOWN`), not `final`.
+  Known limit: the index-based evidence rows (annual, tradables) still say `final`; the API exposes a status only for
+  the reference period, so earlier periods cannot be checked from the payload.
+- `cpi.ts`: the annual and tradables deks follow the sign of each displayed rate ("0.5% lower", "fell 1.1%",
+  "were unchanged") instead of assuming a rise.
+- `migration.ts`: a zero net year reads "Arrivals and departures were balanced", and a zero year earlier reads
+  "no net change", not "a no net change".
+- `StoryExport.tsx`, `exportLayout.ts`: the PNG attributes the dashboard at the story address (it printed the Stats NZ
+  page there) and cites the release page in the source line.
+- Not changed, deliberately: the homepage lead (`Overview.tsx`) still waits for every story source. Its featured story
+  is "the newest verified release", so showing it before a slower category settles could present an older release as
+  the newest and then swap it. The rest of the homepage does not wait.
+
 Round 1 verified locally: `npm test` 256 passed (30 new), `typecheck`, `lint` (same 3 vendor warnings), `build`, Playwright 81
 passed; backend `pytest` 999 passed, `ruff check` and `ruff format --check` clean (backend unchanged).
 Round 2: `npm test` 269 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
+Round 3: `npm test` 279 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
 
 ## CPI September 2026 release-day failure, 22 October 2026
 

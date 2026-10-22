@@ -76,3 +76,18 @@ describe("export of a corrected migration release", () => {
     expect(text.caveat).toMatch(/^Corrected release: Stats NZ corrected this release/);
   });
 });
+
+describe("export attribution and source", () => {
+  it("attributes the dashboard at the story address and cites the release page as the source", () => {
+    const story = stories.find((x) => x.provenance.pageUrl)!;
+    const text = exportText(story, figure, "https://example.test/stories/" + story.id);
+    expect(text.attribution).toContain("https://example.test/stories/" + story.id);
+    expect(text.attribution).not.toContain("stats.govt.nz");
+    expect(text.source).toContain(story.provenance.pageUrl!);
+  });
+
+  it("omits the page address from the source when the release has none", () => {
+    const story = { ...stories[0], provenance: { ...stories[0].provenance, pageUrl: null } };
+    expect(exportText(story, figure, "https://example.test/x").source).not.toMatch(/https?:/);
+  });
+});

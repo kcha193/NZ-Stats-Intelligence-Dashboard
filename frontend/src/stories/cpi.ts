@@ -6,6 +6,8 @@ import { direction, lastAtLeast, lastAtMost, ppShort, quarterName, rate, signOf 
 import type { EvidenceRow, Sign, Story } from "./types";
 
 const DASHBOARD = { to: "/inflation", label: "Explore the inflation dashboard" };
+/** The adapter stores every contribution with unknown status (the release does not label them), so none is called final. */
+const CONTRIBUTION_STATUS = "unknown";
 const BAND_CAVEAT = "The 1% to 3% band is drawn for reference only and is not a forecast.";
 
 type Rate = { period: string; value: number };
@@ -29,6 +31,20 @@ type Contribution = { slug: string; group: string; points: number };
  * rounds to zero has no direction, so size alone decides. */
 function drivingOrder<T extends Contribution>(items: T[], dir: "up" | "down" | "flat"): T[] {
   return [...items].sort((x, y) => (dir === "down" ? x.points - y.points : dir === "up" ? y.points - x.points : Math.abs(y.points) - Math.abs(x.points)));
+}
+
+/** Annual change in words, from the sign of the displayed rate: "4.1% higher", "0.5% lower" or "unchanged". */
+function yearOnYear(annual: number, quarter: string): string {
+  const dir = direction(annual, 0, 1);
+  return dir === "flat"
+    ? `Consumer prices in the ${quarter} were unchanged from a year earlier`
+    : `Consumer prices were ${rate(Math.abs(annual))} ${dir === "up" ? "higher" : "lower"} in the ${quarter} than a year earlier`;
+}
+
+/** What a price level did over a period, from the sign of the displayed rate: "rose 4.9%", "fell 1.1%" or "were unchanged". */
+function moved(annual: number): string {
+  const dir = direction(annual, 0, 1);
+  return dir === "flat" ? "were unchanged" : `${dir === "up" ? "rose" : "fell"} ${rate(Math.abs(annual))}`;
 }
 
 export function buildCpiStories(data: CpiDashboard): Story[] {
@@ -70,7 +86,7 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
     stories.push({
       ...base, id: `inflation-annual-${period}`, template: "inflation-annual", priority: 0,
       headline: `Annual inflation ${verb} ${rate(latest.value)}`,
-      dek: `Consumer prices were ${rate(latest.value)} higher in the ${quarterName(period)} than a year earlier, ${was} ${rate(prior.value)} in the ${quarterName(prior.period)}.`,
+      dek: `${yearOnYear(latest.value, quarterName(period))}, ${was} ${rate(prior.value)} in the ${quarterName(prior.period)}.`,
       stat: { value: rate(latest.value), unit: "annual change in the CPI", label: "All groups, not seasonally adjusted", sign: signOf(latest.value, 1) },
       explanation: [
         a.executive_summary[0]?.text ?? (quarterly == null ? "" : `Prices changed ${rate(quarterly)} within the quarter.`),
@@ -136,11 +152,11 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
       evidence: [
         ...q.items.map((i) => ({
           label: `${i.group}, quarterly contribution`, seriesKey: contributionKey("quarterly", i.slug), period, value: i.points,
-          unit: "percentage points", status: "final", releaseKey,
+          unit: "percentage points", status: CONTRIBUTION_STATUS, releaseKey,
         })),
         ...(yearTop ? [{
           label: `${yearTop.group}, annual contribution`, seriesKey: contributionKey("annual", yearTop.slug), period: yearBlock?.reference_period ?? period,
-          value: yearTop.points, unit: "percentage points", status: "final", releaseKey,
+          value: yearTop.points, unit: "percentage points", status: CONTRIBUTION_STATUS, releaseKey,
         }] : []),
       ],
       thumb: { kind: "bars", items: [...q.items].sort((x, y) => y.points - x.points).map((i) => ({ label: i.group, value: i.points })) },
@@ -177,7 +193,7 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
       stories.push({
         ...base, id: `inflation-tradables-${period}`, template: "inflation-tradables", priority: 2,
         headline,
-        dek: `Prices of goods and services exposed to foreign competition rose ${rate(tl.value)} over the year to the ${quarterName(period)}; domestically driven prices rose ${rate(nl.value)}.`,
+        dek: `Prices of goods and services exposed to foreign competition ${moved(tl.value)} over the year to the ${quarterName(period)}; domestically driven prices ${moved(nl.value)}.`,
         stat: {
           value: ppShort(gap, 1), unit: "gap in annual inflation, tradables minus non-tradables",
           label: `Tradables ${rate(tl.value)} · non-tradables ${rate(nl.value)}`, sign: signOf(gap, 1),
