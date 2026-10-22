@@ -31,6 +31,27 @@ Design and decisions: [visual-storytelling-redesign.md](superpowers/specs/visual
 | `npx playwright test` (offline seeded DB) | 81 passed (desktop, tablet, mobile), including PNG dimension and drawn-text checks |
 | Backend `pytest`, `ruff check`, `ruff format --check` | 999 passed; ruff and format passed (backend code unchanged) |
 
+### PR #7 review round 1 (Codex, head 6377324)
+
+Five findings, all frontend story builders; each fixed test-first (watched failing, then passing).
+
+- `figures.ts`: contribution horizons are derived from blocks that are available and non-empty, quarterly first; the
+  initial selection is always one of them, a stale selection falls back to the first, and a release with neither renders
+  an empty labelled figure instead of throwing. The control is hidden when only one horizon exists.
+- `cpi.ts`: evidence keys use the persisted `cpi.contrib.q.<slug>` / `cpi.contrib.a.<slug>` (`contributionKey`, checked
+  against the keys the API's own analysis cites). The annual contribution the story mentions now has an evidence row.
+- `cpi.ts`: direction comes from the displayed headline. Groups with the opposite sign pull against it (positives when
+  prices fall); a headline that rounds to zero attributes no direction; contributions that round to zero at two decimals
+  are neither. The headline and the annual sentence say "downward" when the change is negative.
+- `ect.ts`: rise and fall clauses are built from positively and negatively signed industries only ("was the only
+  industry to rise", nothing invented when a group is empty); an all-unchanged month says so.
+- `migration.ts`, `common.ts`: release status comes from the matching release summary, with a "Corrected release"
+  caveat first so the card badge, source panel and PNG export all carry it. Known limit: with no matching summary (for
+  example the overview payload does not list that release) status falls back to `published`.
+
+Verified locally: `npm test` 256 passed (30 new), `typecheck`, `lint` (same 3 vendor warnings), `build`, Playwright 81
+passed; backend `pytest` 999 passed, `ruff check` and `ruff format --check` clean (backend unchanged).
+
 ## CPI September 2026 release-day failure, 22 October 2026
 
 PR #5 merged at 14:46 NZDT; the September quarter release (10:45 NZDT) had already failed ingestion on every attempt since 11:24 NZDT

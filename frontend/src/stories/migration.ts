@@ -1,13 +1,13 @@
 import type { PointOut, ReleaseSummary, SeriesData } from "@/api/types";
 import { formatNet, formatNumber } from "@/lib/format";
-import { provenanceOfSeries, sameBundle } from "./common";
+import { provenanceOfSeries, sameBundle, statusCaveats } from "./common";
 import { addMonths, direction, monthName, people, signedPeople, signedRate, signOf, yearEndedName } from "./text";
 import type { EvidenceRow, Story } from "./types";
 
 export type MigrationInput = {
   net?: SeriesData; arrivals?: SeriesData; departures?: SeriesData; nz?: SeriesData; nonNz?: SeriesData;
-  /** Release summaries used only to attach the release id and page to a series vintage. */
-  releases: Pick<ReleaseSummary, "id" | "release_key" | "page_url">[];
+  /** Release summaries that attach the release id, page and status to a series vintage. */
+  releases: Pick<ReleaseSummary, "id" | "release_key" | "page_url" | "status">[];
 };
 
 const DASHBOARD = { to: "/migration", label: "Explore the migration dashboard" };
@@ -21,8 +21,10 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
   const anchor = input.net ?? input.arrivals ?? input.nz;
   if (!anchor) return [];
   const release = input.releases.find((r) => r.release_key === anchor.vintage.release_key);
+  // A series that was ingested belongs to a published release; without its summary that is all that can be said.
+  const status = release?.status ?? "published";
   const provenance = {
-    ...provenanceOfSeries(anchor, "international-migration", release?.id ?? null),
+    ...provenanceOfSeries(anchor, "international-migration", release?.id ?? null, status),
     pageUrl: release?.page_url ?? anchor.source_url ?? null,
   };
   const inBundle = (d: SeriesData | undefined): d is SeriesData => d !== undefined && sameBundle(d, anchor);
@@ -33,7 +35,7 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
     category: "migration" as const, referencePeriod: p.period, referenceLabel: `Year ended ${monthName(p.period)}`,
     dataStatus: p.status, provenance, dashboard: DASHBOARD, insights: [],
     methodology: [d.series.definition, "Net migration is long-term migrant arrivals minus long-term migrant departures."],
-    caveats: [...(p.status === "provisional" ? [PROVISIONAL] : []), d.caveat],
+    caveats: [...statusCaveats(status), ...(p.status === "provisional" ? [PROVISIONAL] : []), d.caveat],
   });
   const stories: Story[] = [];
 

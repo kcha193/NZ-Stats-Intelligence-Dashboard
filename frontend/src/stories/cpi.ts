@@ -3,7 +3,7 @@ import { addQuarters } from "@/charts/cpi";
 import { formatNumber } from "@/lib/format";
 import { provenanceOf, releaseCaveats } from "./common";
 import { direction, lastAtLeast, lastAtMost, ppShort, quarterName, rate, signOf } from "./text";
-import type { EvidenceRow, Story } from "./types";
+import type { EvidenceRow, Sign, Story } from "./types";
 
 const DASHBOARD = { to: "/inflation", label: "Explore the inflation dashboard" };
 const BAND_CAVEAT = "The 1% to 3% band is drawn for reference only and is not a forecast.";
@@ -18,6 +18,17 @@ function yearAgoText(latest: number, yearAgo: Rate): string {
   const where = direction(latest, yearAgo.value, 1);
   const tail = where === "flat" ? "the same rate as now" : `${formatNumber(Math.abs(gap), { decimals: 1 })} percentage points ${where === "up" ? "lower" : "higher"} than now`;
   return `A year earlier, in the ${quarterName(yearAgo.period)}, annual inflation was ${rate(yearAgo.value)}, ${tail}.`;
+}
+
+/** The persisted series key of a group's contribution, as the backend names it: `cpi.contrib.q.transport`. */
+export const contributionKey = (horizon: "quarterly" | "annual", slug: string) => `cpi.contrib.${horizon === "annual" ? "a" : "q"}.${slug}`;
+
+type Contribution = { slug: string; group: string; points: number };
+
+/** Groups ordered by how strongly they drive the headline: those moving with it first, largest first. A headline that
+ * rounds to zero has no direction, so size alone decides. */
+function drivingOrder<T extends Contribution>(items: T[], dir: "up" | "down" | "flat"): T[] {
+  return [...items].sort((x, y) => (dir === "down" ? x.points - y.points : dir === "up" ? y.points - x.points : Math.abs(y.points) - Math.abs(x.points)));
 }
 
 export function buildCpiStories(data: CpiDashboard): Story[] {
@@ -86,15 +97,29 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
   const q = data.contributions.find((b) => b.horizon === "quarterly");
   if (q?.available && q.items.length && q.headline_pct != null) {
     const headline = q.headline_pct;
-    const sorted = [...q.items].sort((x, y) => (headline >= 0 ? y.points - x.points : x.points - y.points));
-    const [top, second] = sorted;
-    const negative = q.items.filter((i) => signOf(i.points, 2) === "negative");
+    // Direction is read from the headline as displayed; a driver moves with it and a countervailing group against it.
+    const dir = direction(headline, 0, 1);
+    const [top, second] = drivingOrder(q.items, dir);
+    const largest = (d: typeof dir) => (d === "down" ? "largest downward contribution" : "largest contribution");
+    const ofSign = (sign: Sign) => q.items.filter((i) => signOf(i.points, 2) === sign).sort((x, y) => Math.abs(y.points) - Math.abs(x.points));
     const yearBlock = data.contributions.find((b) => b.horizon === "annual");
-    const yearTop = yearBlock?.available ? [...yearBlock.items].sort((x, y) => y.points - x.points)[0] : undefined;
+    const yearHeadline = yearBlock?.headline_pct ?? null;
+    const yearTop = yearBlock?.available && yearHeadline != null ? drivingOrder(yearBlock.items, direction(yearHeadline, 0, 1))[0] : undefined;
     const describe = (i: { group: string; points: number }) => `${i.group} (${ppShort(i.points)})`;
+    let opposing: string;
+    if (dir === "flat") {
+      const [up, down] = [ofSign("positive")[0], ofSign("negative")[0]];
+      opposing = `The headline change rounds to ${rate(headline)}, so no group is treated as driving prices up or down.${
+        up && down ? ` Contributions pointed both ways: ${describe(up)} against ${describe(down)}.` : ""}`;
+    } else {
+      const against = ofSign(dir === "up" ? "negative" : "positive");
+      opposing = against.length
+        ? `${against.length === 1 ? "One group" : `${against.length} groups`} pulled the other way: ${against.map(describe).join(", ")}.`
+        : `No group made a ${dir === "up" ? "negative" : "positive"} contribution this quarter.`;
+    }
     stories.push({
       ...base, id: `inflation-drivers-${period}`, template: "inflation-drivers", priority: 1,
-      headline: `${top.group} made the largest contribution to quarterly inflation of ${rate(headline)}`,
+      headline: `${top.group} made the ${largest(dir)} to quarterly inflation of ${rate(headline)}`,
       dek: `${describe(top)}${second ? ` and ${describe(second)}` : ""} contributed most to the ${rate(headline)} change in consumer prices in the ${quarterName(period)}.`,
       stat: { value: ppShort(top.points), unit: "percentage points", label: `${top.group}, contribution to the quarterly change`, sign: signOf(top.points, 2) },
       explanation: [
@@ -102,18 +127,22 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
         q.note,
       ],
       context: [
-        negative.length
-          ? `${negative.length === 1 ? "One group" : `${negative.length} groups`} pulled the other way: ${negative.map(describe).join(", ")}.`
-          : "No group made a negative contribution this quarter.",
-        ...(yearTop && yearBlock?.headline_pct != null
-          ? [`Over the year, ${describe(yearTop)} made the largest contribution to annual inflation of ${rate(yearBlock.headline_pct)}.`]
+        opposing,
+        ...(yearTop && yearHeadline != null
+          ? [`Over the year, ${describe(yearTop)} made the ${largest(direction(yearHeadline, 0, 1))} to annual inflation of ${rate(yearHeadline)}.`]
           : []),
       ],
       caveats: [...releaseCaveats(a), "Each bar is a contribution in percentage points, not the group's own price change."],
-      evidence: q.items.map((i) => ({
-        label: `${i.group}, quarterly contribution`, seriesKey: `cpi.contribution.quarterly.${i.slug}`, period, value: i.points,
-        unit: "percentage points", status: "final", releaseKey,
-      })),
+      evidence: [
+        ...q.items.map((i) => ({
+          label: `${i.group}, quarterly contribution`, seriesKey: contributionKey("quarterly", i.slug), period, value: i.points,
+          unit: "percentage points", status: "final", releaseKey,
+        })),
+        ...(yearTop ? [{
+          label: `${yearTop.group}, annual contribution`, seriesKey: contributionKey("annual", yearTop.slug), period: yearBlock?.reference_period ?? period,
+          value: yearTop.points, unit: "percentage points", status: "final", releaseKey,
+        }] : []),
+      ],
       thumb: { kind: "bars", items: [...q.items].sort((x, y) => y.points - x.points).map((i) => ({ label: i.group, value: i.points })) },
       figure: { kind: "cpi-contributions", blocks: data.contributions },
     });

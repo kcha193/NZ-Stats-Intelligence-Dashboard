@@ -10,7 +10,7 @@ import { buildMigrationStories, type MigrationInput } from "./migration";
 const input: MigrationInput = {
   net: net as SeriesData, arrivals: arrivals as SeriesData, departures: departures as SeriesData,
   nz: nz as SeriesData, nonNz: nonNz as SeriesData,
-  releases: [{ id: 2, release_key: "international-migration:july 2026", page_url: "https://www.stats.govt.nz/information-releases/international-migration-july-2026/" }],
+  releases: [{ id: 2, release_key: "international-migration:july 2026", status: "published", page_url: "https://www.stats.govt.nz/information-releases/international-migration-july-2026/" }],
 };
 const byTemplate = (i: MigrationInput) => new Map(buildMigrationStories(i).map((s) => [s.template, s]));
 
@@ -63,3 +63,33 @@ describe("migration stories", () => {
     expect(buildMigrationStories({ ...input, net: undefined, nz: undefined }).map((s) => s.template)).toEqual(["migration-flows"]);
   });
 });
+
+describe("migration release status", () => {
+  const corrected: MigrationInput = { ...input, releases: [{ ...input.releases[0], status: "corrected" }] };
+
+  it("carries the matching release summary's status into every story's provenance", () => {
+    expect(buildMigrationStories(input).map((s) => s.provenance.status)).toEqual(["published", "published", "published"]);
+    const stories = buildMigrationStories(corrected);
+    expect(stories).toHaveLength(3);
+    expect(stories.map((s) => s.provenance.status)).toEqual(["corrected", "corrected", "corrected"]);
+  });
+
+  it("puts the correction first among the caveats, as the CPI and card spending stories do", () => {
+    for (const s of buildMigrationStories(corrected)) {
+      expect(s.caveats[0]).toBe("Corrected release: Stats NZ corrected this release after first publishing it.");
+      expect(s.caveats.join(" ")).toMatch(/provisional/i);
+    }
+    for (const s of buildMigrationStories(input)) expect(s.caveats.join(" ")).not.toMatch(/Corrected release/);
+  });
+
+  it("uses the status of the release that matches the series vintage, not another release's", () => {
+    const other = { id: 9, release_key: "international-migration:june 2026", status: "corrected", page_url: null };
+    const stories = buildMigrationStories({ ...input, releases: [other, input.releases[0]] });
+    expect(stories.map((s) => s.provenance.status)).toEqual(["published", "published", "published"]);
+  });
+
+  it("falls back to published, the status of any ingested release, when no summary matches", () => {
+    expect(buildMigrationStories({ ...input, releases: [] }).map((s) => s.provenance.status)).toEqual(["published", "published", "published"]);
+  });
+});
+

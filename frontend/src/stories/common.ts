@@ -9,11 +9,11 @@ export function provenanceOf(a: ReleaseAnalysis): Provenance {
   };
 }
 
-/** Provenance for a story read from per-series endpoints, which carry the vintage but not the release id. */
-export function provenanceOfSeries(d: SeriesData, seriesSlug: string, releaseId: number | null = null): Provenance {
+/** Provenance for a story read from per-series endpoints, which carry the vintage but neither the release id nor its status. */
+export function provenanceOfSeries(d: SeriesData, seriesSlug: string, releaseId: number | null, status: string): Provenance {
   return {
     releaseId, releaseKey: d.vintage.release_key, title: d.vintage.title, publishedAt: d.vintage.published_at,
-    capturedAt: d.vintage.captured_at, pageUrl: null, status: "published", seriesSlug,
+    capturedAt: d.vintage.captured_at, pageUrl: null, status, seriesSlug,
   };
 }
 
@@ -21,6 +21,10 @@ export function provenanceOfSeries(d: SeriesData, seriesSlug: string, releaseId:
 export function releaseCaveats(a: ReleaseAnalysis): string[] {
   return a.release.status === "corrected" ? [`Corrected release: ${a.corrections.note}`] : [];
 }
+
+/** For a release known only by its summary, which carries the status but not the correction note. */
+export const statusCaveats = (status: string): string[] =>
+  status === "corrected" ? ["Corrected release: Stats NZ corrected this release after first publishing it."] : [];
 
 /** Two series from per-series endpoints may be combined only when one ingested bundle produced both. */
 export const sameBundle = (a: SeriesData, b: SeriesData) =>

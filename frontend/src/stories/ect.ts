@@ -95,30 +95,39 @@ export function buildEctStories(data: EctDashboard): Story[] {
   if (moves.length >= 2 && moves.every((m) => m.period === period)) {
     const sorted = [...moves].sort((x, y) => y.percent - x.percent);
     const top = sorted[0];
-    const bottom = sorted.at(-1)!;
-    const up = moves.filter((m) => signOf(m.percent, 1) === "positive").length;
-    const down = moves.filter((m) => signOf(m.percent, 1) === "negative").length;
+    // Direction comes from the sign at the displayed precision, so a clause never names an industry that did not move that way.
+    const risers = sorted.filter((m) => signOf(m.percent, 1) === "positive");
+    const fallers = sorted.filter((m) => signOf(m.percent, 1) === "negative").reverse();
+    const [up, down] = [risers.length, fallers.length];
     const month = monthName(period);
-    const headline = up && down
-      ? `Spending on ${top.inText} rose ${unsigned(top.percent)} in ${month}; ${bottom.inText} fell ${unsigned(bottom.percent)}`
-      : !down
-        ? `Card spending rose or held in every industry in ${month}, led by ${top.inText} (${signedRate(top.percent)})`
-        : `Card spending fell or held in every industry in ${month}, led by ${bottom.inText} (${signedRate(bottom.percent)})`;
-    const lead = up ? top : bottom;
+    const previous = monthName(top.previousPeriod);
     const name = (m: { inText: string; percent: number }) => `${m.inText} (${signedRate(m.percent)})`;
+    const clause = (group: IndustryMove[], verb: "rise" | "fall", past: string) =>
+      group.length >= 2 ? `${name(group[0])} and ${name(group[1])} ${past} most` : group.length === 1 ? `${name(group[0])} was the only industry to ${verb}` : null;
+    const clauses = [clause(risers, "rise", "rose"), clause(fallers, "fall", "fell")].filter((c): c is string => c !== null).join("; ");
+    const headline = up && down
+      ? `Spending on ${risers[0].inText} rose ${unsigned(risers[0].percent)} in ${month}; ${fallers[0].inText} fell ${unsigned(fallers[0].percent)}`
+      : up
+        ? `Card spending rose or held in every industry in ${month}, led by ${risers[0].inText} (${signedRate(risers[0].percent)})`
+        : down
+          ? `Card spending fell or held in every industry in ${month}, led by ${fallers[0].inText} (${signedRate(fallers[0].percent)})`
+          : `Card spending was unchanged in every industry in ${month}`;
+    const lead = up ? risers[0] : down ? fallers[0] : top;
     stories.push({
       ...base, id: `spending-industries-${period}`, template: "spending-industries", priority: 1,
       referencePeriod: period, referenceLabel: month, dataStatus: "final",
       headline,
-      dek: `${name(sorted[0]).replace(/^./, (c) => c.toUpperCase())} and ${name(sorted[1])} rose most; ${name(bottom)} and ${name(sorted.at(-2)!)} fell most, compared with ${monthName(top.previousPeriod)}.`,
+      dek: clauses
+        ? `${clauses.replace(/^./, (c) => c.toUpperCase())}, compared with ${previous}.`
+        : `Seasonally adjusted spending was unchanged in every industry compared with ${previous}, at one decimal place.`,
       stat: {
         value: signedRate(lead.percent), unit: `monthly change in ${lead.inText} spending, seasonally adjusted`,
-        label: `${up ? "Largest rise" : "Largest fall"} of ${moves.length} industries`, sign: signOf(lead.percent, 1),
+        label: `${up ? "Largest rise" : down ? "Largest fall" : "Largest movement"} of ${moves.length} industries`, sign: signOf(lead.percent, 1),
       },
       explanation: [
-        `Each bar compares an industry's seasonally adjusted card spending in ${month} with ${monthName(top.previousPeriod)}, both taken from the same release. Bars right of zero rose; bars left of zero fell.`,
+        `Each bar compares an industry's seasonally adjusted card spending in ${month} with ${previous}, both taken from the same release. Bars right of zero rose; bars left of zero fell.`,
       ],
-      context: [`${up} of ${moves.length} industries recorded higher seasonally adjusted spending than in ${monthName(top.previousPeriod)}.`],
+      context: [`${up} of ${moves.length} industries recorded higher seasonally adjusted spending than in ${previous}.`],
       caveats: [...releaseCaveats(a), NOMINAL, "Industry series are seasonally adjusted separately, so they need not add up to the retail total."],
       evidence: moves.flatMap((m) => [
         { label: `${m.name}, ${monthName(m.period)}`, seriesKey: m.seriesKey, period: m.period, value: m.current, unit: "NZD million", status: "final", releaseKey },

@@ -6,7 +6,7 @@ import {
 import { ectChangeOption, ectHistoryOption, ectIndustryOption } from "@/charts/ect";
 import { lineOption, sliceYears, type ChartPoint } from "@/charts/options";
 import type { ChartTheme } from "@/charts/theme";
-import type { SeriesData } from "@/api/types";
+import type { CpiContributionBlock, SeriesData } from "@/api/types";
 import { formatNumber, monthLabel } from "@/lib/format";
 import { rate } from "./text";
 import type { Story } from "./types";
@@ -31,8 +31,10 @@ export function variantsOf(story: Story): Variants | null {
   switch (story.figure.kind) {
     case "cpi-annual":
       return RANGE;
-    case "cpi-contributions":
-      return { label: "Contribution horizon", options: [{ value: "quarterly", label: "Quarterly" }, { value: "annual", label: "Annual" }], initial: "quarterly" };
+    case "cpi-contributions": {
+      const options = contributionBlocks(story.figure.blocks).map((b) => ({ value: b.horizon, label: b.horizon === "annual" ? "Annual" : "Quarterly" }));
+      return options.length ? { label: "Contribution horizon", options, initial: options[0].value } : null;
+    }
     case "cpi-tradables":
       return { label: "Rate", options: [{ value: "annual", label: "Annual" }, { value: "quarterly", label: "Quarterly" }], initial: "annual" };
     case "ect-retail":
@@ -44,6 +46,11 @@ export function variantsOf(story: Story): Variants | null {
     default:
       return null;
   }
+}
+
+/** The horizons a release can chart, quarterly first. The two are published independently, so either may be missing. */
+function contributionBlocks(blocks: CpiContributionBlock[]): CpiContributionBlock[] {
+  return (["quarterly", "annual"] as const).flatMap((h) => blocks.filter((b) => b.horizon === h && b.available && b.items.length > 0).slice(0, 1));
 }
 
 type SeriesOpt = { series: Record<string, unknown>[] };
@@ -90,9 +97,18 @@ export function figureView(story: Story, variant: string, theme: ChartTheme): Fi
       };
     }
     case "cpi-contributions": {
-      const horizon = variant === "annual" ? "annual" : "quarterly";
-      const block = f.blocks.find((b) => b.horizon === horizon);
-      if (!block?.available) throw new Error(`${horizon} contributions unavailable`);
+      const blocks = contributionBlocks(f.blocks);
+      // A variant the release cannot chart (a stale selection, say) falls back to the first horizon it can.
+      const block = blocks.find((b) => b.horizon === variant) ?? blocks[0];
+      if (!block) {
+        return {
+          title: "Contribution to CPI change, by group", question: `${quarter}: which groups added to or subtracted from the change?`,
+          unit: "percentage points", caveat: "Contributions by group are not available for this release.",
+          option: {}, ariaLabel: "Contributions to the CPI change, by group: not available", height: 120,
+          csvFilename: "story-cpi-contributions.csv", csvRows: [],
+        };
+      }
+      const horizon = block.horizon;
       return {
         title: `Contribution to ${horizon} CPI change, by group`,
         question: `${quarter}: which groups added to or subtracted from the ${horizon} change${block.headline_pct == null ? "" : ` of ${rate(block.headline_pct)}`}?`,

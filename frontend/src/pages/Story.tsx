@@ -44,7 +44,7 @@ function StoryFigure({ story, view, variant, setVariant }: { story: Story; view:
       source={{ label: `Stats NZ, ${p.title}`, url: p.pageUrl, updated: p.publishedAt, captured: p.capturedAt }}
       option={view.option} ariaLabel={view.ariaLabel} height={view.height}
       csvFilename={view.csvFilename} csvRows={view.csvRows}
-      controls={variants && <Segmented label={variants.label} value={variant} onChange={setVariant} options={variants.options} />}
+      controls={variants && variants.options.length > 1 && <Segmented label={variants.label} value={variant} onChange={setVariant} options={variants.options} />}
     />
   );
 }

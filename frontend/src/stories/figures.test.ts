@@ -12,6 +12,7 @@ import { buildEctStories } from "./ect";
 import { buildMigrationStories } from "./migration";
 import { buildCpiStories } from "./cpi";
 import { figureView, variantsOf } from "./figures";
+import type { Story } from "./types";
 
 const stories = new Map([
   ...buildCpiStories(cpiFixture as unknown as CpiDashboard),
@@ -87,4 +88,53 @@ describe("story figures", () => {
     expect(cit.series.map((x) => x.name)).toEqual(["Non-New Zealand citizens", "New Zealand citizens"]);
     expect(cit.series[0].markLine).toBeDefined();
   });
+describe("contribution horizon controls", () => {
+  const drivers = stories.get("inflation-drivers")!;
+  const blocksOf = (story: Story) => (story.figure.kind === "cpi-contributions" ? story.figure.blocks : []);
+  const withBlocks = (blocks: ReturnType<typeof blocksOf>): Story => ({ ...drivers, figure: { kind: "cpi-contributions", blocks } });
+  const quarterly = blocksOf(drivers).find((b) => b.horizon === "quarterly")!;
+  const annual = blocksOf(drivers).find((b) => b.horizon === "annual")!;
+  const options = (story: Story) => variantsOf(story)?.options.map((o) => o.value);
+
+  it("offers only the quarterly horizon when the release has no annual contributions", () => {
+    const story = withBlocks([quarterly, { ...annual, available: false, items: [] }]);
+    expect(options(story)).toEqual(["quarterly"]);
+    expect(variantsOf(story)?.initial).toBe("quarterly");
+    expect(figureView(story, "annual", TEST_THEME).csvRows[0]).toMatchObject({ horizon: "quarterly" });
+  });
+
+  it("offers only the quarterly horizon when the annual block is missing", () => {
+    expect(options(withBlocks([quarterly]))).toEqual(["quarterly"]);
+  });
+
+  it("starts on the annual horizon when only annual contributions exist", () => {
+    const story = withBlocks([{ ...quarterly, available: false, items: [] }, annual]);
+    expect(options(story)).toEqual(["annual"]);
+    expect(variantsOf(story)?.initial).toBe("annual");
+    const view = figureView(story, variantsOf(story)!.initial, TEST_THEME);
+    expect(view.csvRows[0]).toMatchObject({ horizon: "annual" });
+    expect(figureView(story, "quarterly", TEST_THEME).csvRows[0]).toMatchObject({ horizon: "annual" });
+  });
+
+  it("treats an available block with no items as unavailable", () => {
+    expect(options(withBlocks([quarterly, { ...annual, items: [] }]))).toEqual(["quarterly"]);
+  });
+
+  it("offers both horizons, quarterly first, and switches between them", () => {
+    const story = withBlocks([annual, quarterly]);
+    expect(options(story)).toEqual(["quarterly", "annual"]);
+    expect(variantsOf(story)?.initial).toBe("quarterly");
+    expect(figureView(story, "annual", TEST_THEME).csvRows[0]).toMatchObject({ horizon: "annual" });
+    expect(figureView(story, "quarterly", TEST_THEME).csvRows[0]).toMatchObject({ horizon: "quarterly" });
+  });
+
+  it("renders an empty, labelled figure rather than throwing when neither horizon is available", () => {
+    const story = withBlocks([{ ...quarterly, available: false, items: [] }, { ...annual, available: false, items: [] }]);
+    expect(variantsOf(story)).toBeNull();
+    const view = figureView(story, "", TEST_THEME);
+    expect(view.csvRows).toEqual([]);
+    expect(view.caveat).toMatch(/not available/i);
+    expect(() => figureView(withBlocks([]), "annual", TEST_THEME)).not.toThrow();
+  });
+});
 });

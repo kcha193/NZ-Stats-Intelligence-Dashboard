@@ -48,3 +48,67 @@ describe("card spending stories", () => {
     expect(buildEctStories({ ...ect, series: [] })).toEqual([]);
   });
 });
+
+describe("card spending industry direction wording", () => {
+  const KEYS = ["consumables", "durables", "hospitality", "apparel", "motor_vehicles", "fuel", "services", "non_retail"];
+  /** Sets each industry's latest month to `percent` above (or below) the month before; unlisted industries are unchanged. */
+  const withMoves = (moves: Partial<Record<string, number>>): EctDashboard => ({
+    ...ect,
+    series: ect.series.map((s) => {
+      const key = KEYS.find((k) => s.series.key === `ect.m.sa.${k}.value`);
+      if (!key) return s;
+      const points = s.points.map((p) => ({ ...p }));
+      points[points.length - 1].value = points[points.length - 2].value * (1 + (moves[key] ?? 0) / 100);
+      return { ...s, points };
+    }),
+  });
+  const industries = (moves: Partial<Record<string, number>>) => byTemplate(withMoves(moves)).get("spending-industries")!;
+  const all = (v: number) => Object.fromEntries(KEYS.map((k) => [k, v]));
+
+  it("describes only rises when every industry rose", () => {
+    const s = industries({ ...all(1), fuel: 3, services: 2 });
+    expect(s.dek).toBe("Fuel (+3.0%) and services (+2.0%) rose most, compared with August 2026.");
+    expect(s.headline).toBe("Card spending rose or held in every industry in September 2026, led by fuel (+3.0%)");
+    expect(s.stat).toMatchObject({ value: "+3.0%", label: "Largest rise of 8 industries", sign: "positive" });
+  });
+
+  it("describes only falls when every industry fell", () => {
+    const s = industries({ ...all(-1), fuel: -3, services: -2 });
+    expect(s.dek).toBe("Fuel (−3.0%) and services (−2.0%) fell most, compared with August 2026.");
+    expect(s.dek).not.toMatch(/rose/);
+    expect(s.headline).toBe("Card spending fell or held in every industry in September 2026, led by fuel (−3.0%)");
+    expect(s.stat).toMatchObject({ value: "−3.0%", label: "Largest fall of 8 industries", sign: "negative" });
+  });
+
+  it("names two risers and two fallers from their signs in a mixed month", () => {
+    const s = industries({ fuel: 3, services: 2, durables: 0.5, hospitality: -2, apparel: -1, consumables: -0.5 });
+    expect(s.dek).toBe("Fuel (+3.0%) and services (+2.0%) rose most; hospitality (−2.0%) and apparel (−1.0%) fell most, compared with August 2026.");
+  });
+
+  it("does not call a second industry a riser when only one rose", () => {
+    const s = industries({ fuel: 3, hospitality: -2, apparel: -1, durables: 0.04 });
+    expect(s.dek).toBe("Fuel (+3.0%) was the only industry to rise; hospitality (−2.0%) and apparel (−1.0%) fell most, compared with August 2026.");
+    expect(s.dek).not.toContain("durables");
+  });
+
+  it("does not call a second industry a faller when only one fell", () => {
+    const s = industries({ fuel: 3, services: 2, hospitality: -2, durables: -0.04 });
+    expect(s.dek).toBe("Fuel (+3.0%) and services (+2.0%) rose most; hospitality (−2.0%) was the only industry to fall, compared with August 2026.");
+    expect(s.dek).not.toContain("durables");
+  });
+
+  it("states that nothing moved when every industry is unchanged", () => {
+    const s = industries({});
+    expect(s.dek).toBe("Seasonally adjusted spending was unchanged in every industry compared with August 2026, at one decimal place.");
+    expect(s.headline).toBe("Card spending was unchanged in every industry in September 2026");
+    expect(s.stat).toMatchObject({ label: "Largest movement of 8 industries", sign: "neutral" });
+    expect(s.context).toContain("0 of 8 industries recorded higher seasonally adjusted spending than in August 2026.");
+  });
+
+  it("treats movements that round to zero at the displayed precision as unchanged", () => {
+    const s = industries({ consumables: 0.04, durables: -0.04, fuel: 0.049 });
+    expect(s.headline).toBe("Card spending was unchanged in every industry in September 2026");
+    expect(s.dek).not.toMatch(/rose|fell/);
+  });
+});
+

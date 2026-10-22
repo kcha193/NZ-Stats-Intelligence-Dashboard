@@ -176,3 +176,27 @@ describe("stories across categories", () => {
     expect(screen.getByRole("link", { name: "Explore the migration dashboard" })).toHaveAttribute("href", "/migration");
   });
 });
+
+describe("a corrected migration release", () => {
+  const correctedOverview = {
+    ...overview,
+    latest_releases: overview.latest_releases.map((r) => (r.id === 2 ? { ...r, status: "corrected" } : r)),
+    featured: overview.featured && { ...overview.featured, release: { ...overview.featured.release, status: "corrected" } },
+  };
+
+  it("is flagged on the feed card and on the story page's source", async () => {
+    mockApi({ ...ALL, "/api/overview": correctedOverview });
+    renderWithProviders(routes, { route: "/stories?category=migration" });
+    const cards = within(await screen.findByRole("list", { name: "International migration stories" })).getAllByRole("article");
+    expect(cards).toHaveLength(3);
+    for (const card of cards) expect(card).toHaveTextContent(/corrected/i);
+  });
+
+  it("states the correction in the story's source and caveats", async () => {
+    mockApi({ ...ALL, "/api/overview": correctedOverview });
+    renderWithProviders(routes, { route: "/stories/migration-net-2026-07" });
+    const source = await screen.findByRole("region", { name: "Source" });
+    expect(source).toHaveTextContent("Corrected by Stats NZ");
+    expect(screen.getByText(/Corrected release: Stats NZ corrected this release/)).toBeInTheDocument();
+  });
+});

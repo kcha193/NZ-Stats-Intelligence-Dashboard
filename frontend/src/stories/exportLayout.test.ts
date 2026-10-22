@@ -64,3 +64,15 @@ it("shrinks a long headline rather than cutting it, and only ever truncates the 
   expect(caveat.at(-1)!.text.endsWith("…")).toBe(true);
   expect(l.truncated).toEqual(["caveat"]);
 });
+
+describe("export of a corrected migration release", () => {
+  it("prints the correction in the reference line and the caveat", () => {
+    const [story] = buildMigrationStories({
+      net: net as SeriesData,
+      releases: [{ id: 2, release_key: "international-migration:july 2026", status: "corrected", page_url: null }],
+    });
+    const text = exportText(story, figure, "https://example.test/stories/" + story.id);
+    expect(text.context).toContain("(provisional, corrected release)");
+    expect(text.caveat).toMatch(/^Corrected release: Stats NZ corrected this release/);
+  });
+});
