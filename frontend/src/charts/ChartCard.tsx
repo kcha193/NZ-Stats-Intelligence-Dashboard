@@ -3,6 +3,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { Download, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toCsv } from "@/lib/csv";
+import { saveFile as save } from "@/lib/download";
 import { formatAklDate, formatAklDateTime } from "@/lib/format";
 import { EChart, type ChartInstance } from "./EChart";
 import { useChartTheme } from "./theme";
@@ -21,13 +22,6 @@ type Props = {
   height?: number;
   controls?: ReactNode;
 };
-
-function save(href: string, filename: string) {
-  const a = document.createElement("a");
-  a.href = href;
-  a.download = filename;
-  a.click();
-}
 
 export function ChartCard({
   title, question, unit, source, caveat, option, ariaLabel, csvFilename, csvRows, height, controls,

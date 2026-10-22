@@ -1,7 +1,95 @@
 # Progress and verification record
 
-Last updated 2026-10-21. Phase 2B CPI is implemented on `feat/phase-2b-cpi` (not merged or deployed; see [phase-2b-cpi.md](phase-2b-cpi.md)). Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
-coverage review remediation is locally verified, with CI and fresh automated review required after push. Not merged or deployed. Earlier entries below are historical.
+Last updated 2026-10-23. Visual storytelling layer implemented on `feat/visual-stories` (local commits, not pushed; see below).
+PR #5 (CPI) and PR #6 (September CPI header fix) are merged to `main`. Earlier entries below are historical.
+
+## Visual storytelling layer, 23 October 2026
+
+Frontend only: no change to ingestion, adapters, validation, scheduling, schema, revision semantics or API contracts.
+Design and decisions: [visual-storytelling-redesign.md](superpowers/specs/visual-storytelling-redesign.md).
+
+- Editorial homepage: masthead, featured story (newest verified release) with its chart, latest stories, then every
+  existing panel (KPIs, featured release, trend, upcoming and latest releases, freshness).
+- `/stories` feed (category filter in the URL) and `/stories/:id` story pages. Identifiers are `<template>-<period>`;
+  an older period resolves to a "superseded" notice, never to newer numbers. A release Stats NZ has published but this
+  site has not verified (for example the September 2026 CPI) is called out on the story page.
+- Eight deterministic stories from existing payloads: CPI annual inflation, contributions (pp), tradables; ECT retail
+  monthly change, industry movements; migration year-ended net, arrivals versus departures, citizenship. Migration
+  series are combined only within one release bundle. Builders omit a story when inputs are missing.
+- Presentation PNG export at exactly 1200 × 675 and 1200 × 1500 (chart re-rendered off-screen from the on-page option),
+  plus share link. Layout is unit-tested for bounds, overlap and never cutting the headline, statistic or source.
+- One accent ink token (chart navy; 5.9:1 light, 9.5:1 dark). Chart colours are the previously validated set; none added.
+- `formatNumber` no longer signs a value that rounds to zero ("+0.00" beside "0.00" on the contribution chart).
+- Fixture drift found, not changed: regenerating fixtures adds the CPI workbook URL to `cpi.json` `sources`
+  (backend change from PR #5 round 3). Only the two new citizenship fixtures were committed.
+
+| Command | Outcome |
+|---|---|
+| Baseline before changes | 163 frontend tests, typecheck, lint (3 vendor warnings), build; backend pytest, ruff, format passed |
+| `cd frontend && npm test` | 226 passed |
+| `npm run typecheck` / `npm run lint` / `npm run build` | Passed; lint shows the 3 existing vendor Fast Refresh warnings; existing bundle-size warning |
+| `npx playwright test` (offline seeded DB) | 81 passed (desktop, tablet, mobile), including PNG dimension and drawn-text checks |
+| Backend `pytest`, `ruff check`, `ruff format --check` | 999 passed; ruff and format passed (backend code unchanged) |
+
+### PR #7 review round 1 (Codex, head 6377324)
+
+Five findings, all frontend story builders; each fixed test-first (watched failing, then passing).
+
+- `figures.ts`: contribution horizons are derived from blocks that are available and non-empty, quarterly first; the
+  initial selection is always one of them, a stale selection falls back to the first, and a release with neither renders
+  an empty labelled figure instead of throwing. The control is hidden when only one horizon exists.
+- `cpi.ts`: evidence keys use the persisted `cpi.contrib.q.<slug>` / `cpi.contrib.a.<slug>` (`contributionKey`, checked
+  against the keys the API's own analysis cites). The annual contribution the story mentions now has an evidence row.
+- `cpi.ts`: direction comes from the displayed headline. Groups with the opposite sign pull against it (positives when
+  prices fall); a headline that rounds to zero attributes no direction; contributions that round to zero at two decimals
+  are neither. The headline and the annual sentence say "downward" when the change is negative.
+- `ect.ts`: rise and fall clauses are built from positively and negatively signed industries only ("was the only
+  industry to rise", nothing invented when a group is empty); an all-unchanged month says so.
+- `migration.ts`, `common.ts`: release status comes from the matching release summary, with a "Corrected release"
+  caveat first so the card badge, source panel and PNG export all carry it. Known limit: with no matching summary (for
+  example the overview payload does not list that release) status falls back to `published`.
+
+### PR #7 review round 2 (Codex, head ae84207)
+
+- `ect.ts`: industry evidence rows carry each source point's own status (the August comparison points are `unknown`
+  in the real file, not `final`); the story is `provisional` when a latest industry value is.
+- `Story.tsx`: the "newer release" notice considers only `published` and `corrected` releases (`lib/releaseStatus.ts`,
+  shared with the Calendar), so a past-due `scheduled`, `delayed` or `unavailable` row is never presented as published.
+- `useStories.ts`, `Stories.tsx`, `Story.tsx`: a category's stories appear once its own sources settle, and the feed and
+  story pages wait only for the category they need. Ready categories render while others load ("Still loading: ..."),
+  a deep link to a still-loading category waits instead of saying "not found", and migration stories are held back until
+  the release summaries that carry their status have loaded. The homepage still waits for all sources so its featured
+  story does not change under the reader.
+
+### PR #7 review round 3 (Codex, head 9eff876)
+
+- `cpi.ts`: contribution evidence rows are `unknown`, as the adapter stores them (`ObsStatus.UNKNOWN`), not `final`.
+  Known limit: the index-based evidence rows (annual, tradables) still say `final`; the API exposes a status only for
+  the reference period, so earlier periods cannot be checked from the payload.
+- `cpi.ts`: the annual and tradables deks follow the sign of each displayed rate ("0.5% lower", "fell 1.1%",
+  "were unchanged") instead of assuming a rise.
+- `migration.ts`: a zero net year reads "Arrivals and departures were balanced", and a zero year earlier reads
+  "no net change", not "a no net change".
+- `StoryExport.tsx`, `exportLayout.ts`: the PNG attributes the dashboard at the story address (it printed the Stats NZ
+  page there) and cites the release page in the source line.
+- Not changed, deliberately: the homepage lead (`Overview.tsx`) still waits for every story source. Its featured story
+  is "the newest verified release", so showing it before a slower category settles could present an older release as
+  the newest and then swap it. The rest of the homepage does not wait.
+
+### PR #7 review round 4 (Codex, head c63c739)
+
+- `migration.ts`: each story takes its provenance, release status and bundle from its own series. A citizenship pair
+  that comes from an earlier release (the latest omitted the chart) is built and labelled with that release instead of
+  being dropped; arrivals and departures, and net with citizenship, are still combined only within one bundle.
+- `Story.tsx`, `useStories.ts`: a story page whose category failed to load shows an error with a retry (failed requests
+  only), not "Story not found". The newer-release notice also ignores releases already ingested here (`has_analysis`),
+  so it never says "not verified" about data the site holds.
+
+Round 1 verified locally: `npm test` 256 passed (30 new), `typecheck`, `lint` (same 3 vendor warnings), `build`, Playwright 81
+passed; backend `pytest` 999 passed, `ruff check` and `ruff format --check` clean (backend unchanged).
+Round 2: `npm test` 269 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
+Round 3: `npm test` 279 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
+Round 4: `npm test` 286 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
 
 ## CPI September 2026 release-day failure, 22 October 2026
 

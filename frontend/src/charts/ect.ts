@@ -53,3 +53,28 @@ export function ectIndustryOption(items:{name:string;value:number}[],theme:Chart
       data:sorted.map(i=>({name:i.name,value:i.value,itemStyle:{color:unit==='NZD million'?theme.series[0]:i.value<0?theme.negative:theme.positive}}))}],
   };
 }
+
+/** Published monthly percentage changes as signed bars on a zero baseline; a missing month stays a gap. */
+export function ectChangeOption(input:{name:string;points:ChartPoint[]},theme:ChartTheme): EChartsCoreOption {
+  const periods=monthAxis(input.points.map(p=>p.period));
+  const byPeriod=new Map(input.points.map(p=>[p.period,p]));
+  const latest=input.points.at(-1);
+  const pct=(v:number)=>`${formatNumber(v,{signed:true,decimals:1})}%`;
+  return {aria:{enabled:true},animation:false,textStyle:{color:theme.text},
+    grid:{left:48,right:24,top:28,bottom:28},
+    tooltip:{trigger:'axis',formatter:(params:{axisValue:string}[])=>{
+      const p=String(params[0]?.axisValue ?? '');const point=byPeriod.get(p);
+      return `${monthLabel(p)}<br/>${escapeHtml(input.name)}: <b>${point?pct(point.value):'Missing'}</b> on the previous month${point?.status==='unknown'?' (revised / status unknown)':point?.status==='provisional'?' (provisional)':''}`;
+    }},
+    xAxis:{type:'category',data:periods,axisLabel:{interval:0,hideOverlap:true,color:theme.muted,formatter:(p:string)=>p.endsWith('-01')?p.slice(0,4):''},
+      axisTick:{interval:(_:number,v:string)=>v.endsWith('-01')},axisLine:{lineStyle:{color:theme.muted}}},
+    yAxis:{type:'value',axisLabel:{color:theme.muted,formatter:(v:number)=>`${formatNumber(v,{decimals:Number.isInteger(v)?0:1})}%`},splitLine:{lineStyle:{color:theme.grid}}},
+    series:[{name:input.name,type:'bar',barMaxWidth:14,
+      markLine:{silent:true,symbol:'none',label:{show:false},lineStyle:{color:theme.muted,width:1},data:[{yAxis:0}]},
+      ...(latest?{markPoint:{symbol:'circle',symbolSize:1,itemStyle:{color:'transparent'},
+        label:{show:true,position:latest.value<0?'bottom':'top',color:theme.text,formatter:()=>pct(latest.value)},
+        data:[{coord:[latest.period,latest.value]}]}}:{}),
+      data:periods.map(p=>{const point=byPeriod.get(p);
+        return point?{value:point.value,itemStyle:{color:point.value<0?theme.negative:theme.positive}}:null;})}],
+  };
+}

@@ -9,7 +9,10 @@ import { Freshness } from "@/components/Freshness";
 import { KpiCard } from "@/components/KpiCard";
 import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { ReleaseRow } from "@/components/ReleaseRow";
+import { StoryGrid } from "@/components/story/StoryCard";
+import { StoryHero } from "@/components/story/StoryHero";
 import { formatAklDateTime, formatNet, periodLabel } from "@/lib/format";
+import { useStories } from "@/stories/useStories";
 
 function TrendOverview() {
   const q = useSeries("mig.ry.net");
@@ -48,6 +51,27 @@ function TrendOverview() {
   );
 }
 
+/** The editorial lead: the newest verified story, then the next few. Absent until a category has data. */
+function LeadStories() {
+  const { stories, isLoading } = useStories();
+  if (isLoading || stories.length === 0) return null;
+  const [lead, ...rest] = stories;
+  return (
+    <>
+      <StoryHero story={lead} />
+      {rest.length > 0 && (
+        <section aria-labelledby="latest-stories" className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="latest-stories" className="text-lg font-semibold tracking-tight">Latest stories</h2>
+            <Link className="text-sm font-medium text-accent-ink underline underline-offset-4" to="/stories">All {stories.length} stories</Link>
+          </div>
+          <StoryGrid stories={rest.slice(0, 3)} label="Latest stories" />
+        </section>
+      )}
+    </>
+  );
+}
+
 export default function Overview() {
   const q = useOverview();
   return (
@@ -57,18 +81,23 @@ export default function Overview() {
       empty={<EmptyState title="No data has been ingested yet" body="Run `nzstats discover` then `nzstats backfill`, or wait for the next scheduled check. The Data health page shows what has been attempted." />}
     >
       {(d) => (
-        <div className="space-y-5">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Economic overview</h1>
+        <div className="space-y-8">
+          <div className="space-y-1">
+            <p className="kicker">Official statistics, explained</p>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">New Zealand economic overview</h1>
             <p className="text-sm text-muted-foreground">
               Latest official Stats NZ statistics. {d.data_updated_at
                 ? `${d.kpis.some(k => k.metric.series_key.startsWith('ect.') || k.metric.series_key.startsWith('cpi.')) ? 'Data' : 'Migration data'} ingested ${formatAklDateTime(d.data_updated_at)}.`
                 : "No migration data has been ingested yet."}
             </p>
           </div>
+          <LeadStories />
           {d.kpis.length > 0 && (
-            <section aria-label="Key indicators" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {d.kpis.map((k) => <div key={k.metric.series_key}><KpiCard kpi={k} />{k.metric.series_key.startsWith('ect.') && <Link className="mt-1 inline-block text-xs underline underline-offset-2" to="/electronic-card-transactions">Explore card spending</Link>}{k.metric.series_key.startsWith('cpi.') && <Link className="mt-1 inline-block text-xs underline underline-offset-2" to="/inflation">Explore inflation</Link>}</div>)}
+            <section aria-labelledby="key-indicators" className="space-y-3">
+              <h2 id="key-indicators" className="text-lg font-semibold tracking-tight">Key indicators</h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {d.kpis.map((k) => <div key={k.metric.series_key}><KpiCard kpi={k} />{k.metric.series_key.startsWith('ect.') && <Link className="mt-1 inline-block text-xs underline underline-offset-2" to="/electronic-card-transactions">Explore card spending</Link>}{k.metric.series_key.startsWith('cpi.') && <Link className="mt-1 inline-block text-xs underline underline-offset-2" to="/inflation">Explore inflation</Link>}</div>)}
+              </div>
             </section>
           )}
           <div className="grid gap-5 xl:grid-cols-12">

@@ -163,6 +163,33 @@
   }
 }
 
+/* Editorial layer: one accent ink (the primary chart navy) for kickers, rules and story frames. */
+:root {
+  --accent-ink: #2b66a8; /* 5.9:1 on white */
+  --accent-wash: rgba(43, 102, 168, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent-ink: #8db8e3; /* 9.5:1 on the dark background, 8.4:1 on the chart surface */
+    --accent-wash: rgba(141, 184, 227, 0.07);
+  }
+}
+
+@theme inline {
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+}
+
+@utility kicker {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
 body {
   font-variant-numeric: tabular-nums;
 }
