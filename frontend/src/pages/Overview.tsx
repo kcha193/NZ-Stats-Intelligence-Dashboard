@@ -62,13 +62,13 @@ export default function Overview() {
             <h1 className="text-xl font-semibold tracking-tight">Economic overview</h1>
             <p className="text-sm text-muted-foreground">
               Latest official Stats NZ statistics. {d.data_updated_at
-                ? `${d.kpis.some(k => k.metric.series_key.startsWith('ect.')) ? 'Data' : 'Migration data'} ingested ${formatAklDateTime(d.data_updated_at)}.`
+                ? `${d.kpis.some(k => k.metric.series_key.startsWith('ect.') || k.metric.series_key.startsWith('cpi.')) ? 'Data' : 'Migration data'} ingested ${formatAklDateTime(d.data_updated_at)}.`
                 : "No migration data has been ingested yet."}
             </p>
           </div>
           {d.kpis.length > 0 && (
             <section aria-label="Key indicators" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {d.kpis.map((k) => <div key={k.metric.series_key}><KpiCard kpi={k} />{k.metric.series_key.startsWith('ect.') && <Link className="mt-1 inline-block text-xs underline underline-offset-2" to="/electronic-card-transactions">Explore card spending</Link>}</div>)}
+              {d.kpis.map((k) => <div key={k.metric.series_key}><KpiCard kpi={k} />{k.metric.series_key.startsWith('ect.') && <Link className="mt-1 inline-block text-xs underline underline-offset-2" to="/electronic-card-transactions">Explore card spending</Link>}{k.metric.series_key.startsWith('cpi.') && <Link className="mt-1 inline-block text-xs underline underline-offset-2" to="/inflation">Explore inflation</Link>}</div>)}
             </section>
           )}
           <div className="grid gap-5 xl:grid-cols-12">

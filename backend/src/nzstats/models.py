@@ -232,6 +232,65 @@ class EctDashboardOut(BaseModel):
     series: list[SeriesDataOut]
 
 
+class CpiPoint(BaseModel):
+    period: str
+    index: float
+    quarterly_pct: float | None  # percent change from the preceding quarter, None if not computable
+    annual_pct: float | None  # percent change from the same quarter a year earlier
+
+
+class CpiSeriesOut(BaseModel):
+    key: str
+    slug: str
+    name: str
+    unit: str  # always "index"
+    adjustment: str
+    classification: str
+    source_reference: str | None
+    status: str
+    points: list[CpiPoint]
+    source_url: str | None
+
+
+class CpiContributionItem(BaseModel):
+    slug: str
+    group: str
+    points: float  # percentage points, exactly as Stats NZ published
+    rank: int
+
+
+class CpiContributionBlock(BaseModel):
+    horizon: Literal["quarterly", "annual"]
+    available: bool
+    reference_period: str | None
+    unit: str  # "percentage points"
+    items: list[CpiContributionItem]
+    sum_points: float | None
+    headline_pct: float | None  # all-groups percentage change, computed from the published index
+    gap_points: float | None  # headline_pct - sum_points: shown, never absorbed
+    note: str
+
+
+class CpiUnderlyingOut(BaseModel):
+    key: str
+    name: str
+    unit: str  # "percent": quarterly change as published
+    points: list[PointOut]
+
+
+class CpiDashboardOut(BaseModel):
+    analysis: ReleaseAnalysis
+    reference_period: str
+    published_at: str
+    captured_at: str
+    base: str
+    series: list[CpiSeriesOut]
+    contributions: list[CpiContributionBlock]
+    underlying: list[CpiUnderlyingOut]
+    sources: list[str]
+    caveats: list[str]
+
+
 class RevisionHistoryRow(BaseModel):
     release_key: str
     title: str

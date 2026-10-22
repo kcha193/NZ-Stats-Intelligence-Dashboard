@@ -6,6 +6,7 @@ import html
 import json
 import logging
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -82,6 +83,8 @@ def classify_download(url: str) -> str | None:
     name = url.rsplit("/", 1)[-1].lower()
     if name.startswith("electronic-card-transactions-") and name.endswith(".zip"):
         return "ect_zip"
+    if name.startswith("consumers-price-index-"):
+        return _classify_cpi(name)
     if name.endswith(".xlsx"):
         return "workbook"
     if not name.endswith(".csv"):
@@ -91,3 +94,31 @@ def classify_download(url: str) -> str | None:
     if re.search(r"citizenship.*visa.*country", name):
         return "citizenship_visa_country"
     return None
+
+
+def pick_downloads(urls: Iterable[str], kinds: Iterable[str]) -> dict[str, str]:
+    """The first listed URL of each wanted kind, except that a `-corrected` republication wins."""
+    wanted, chosen = set(kinds), {}
+    for url in urls:
+        kind = classify_download(url)
+        if kind not in wanted:
+            continue
+        if kind not in chosen or (
+            "-corrected" in url.rsplit("/", 1)[-1]
+            and "-corrected" not in chosen[kind].rsplit("/", 1)[-1]
+        ):
+            chosen[kind] = url
+    return chosen
+
+
+_CPI_CSV = (
+    ("cpi_index_numbers", re.compile(r"-index-numbers(?:-corrected)?\.csv$")),
+    ("cpi_seasonally_adjusted", re.compile(r"-seasonally-adjusted(?:-corrected)?\.csv$")),
+    ("cpi_tradables", re.compile(r"-trad(?:e)?ables-and-non-trad(?:e)?ables(?:-corrected)?\.csv$")),
+)
+
+
+def _classify_cpi(name: str) -> str | None:
+    if name.endswith(".xlsx"):
+        return None if "central-and-local-government-charges" in name else "cpi_workbook"
+    return next((kind for kind, pattern in _CPI_CSV if pattern.search(name)), None)

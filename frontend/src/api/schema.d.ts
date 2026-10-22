@@ -174,6 +174,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cpi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cpi Dashboard */
+        get: operations["cpi_dashboard_api_cpi_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ect": {
         parameters: {
             query?: never;
@@ -336,6 +353,108 @@ export interface components {
             earliest_release: string | null;
             /** Note */
             note: string;
+        };
+        /** CpiContributionBlock */
+        CpiContributionBlock: {
+            /**
+             * Horizon
+             * @enum {string}
+             */
+            horizon: "quarterly" | "annual";
+            /** Available */
+            available: boolean;
+            /** Reference Period */
+            reference_period: string | null;
+            /** Unit */
+            unit: string;
+            /** Items */
+            items: components["schemas"]["CpiContributionItem"][];
+            /** Sum Points */
+            sum_points: number | null;
+            /** Headline Pct */
+            headline_pct: number | null;
+            /** Gap Points */
+            gap_points: number | null;
+            /** Note */
+            note: string;
+        };
+        /** CpiContributionItem */
+        CpiContributionItem: {
+            /** Slug */
+            slug: string;
+            /** Group */
+            group: string;
+            /** Points */
+            points: number;
+            /** Rank */
+            rank: number;
+        };
+        /** CpiDashboardOut */
+        CpiDashboardOut: {
+            analysis: components["schemas"]["ReleaseAnalysis"];
+            /** Reference Period */
+            reference_period: string;
+            /** Published At */
+            published_at: string;
+            /** Captured At */
+            captured_at: string;
+            /** Base */
+            base: string;
+            /** Series */
+            series: components["schemas"]["CpiSeriesOut"][];
+            /** Contributions */
+            contributions: components["schemas"]["CpiContributionBlock"][];
+            /** Underlying */
+            underlying: components["schemas"]["CpiUnderlyingOut"][];
+            /** Sources */
+            sources: string[];
+            /** Caveats */
+            caveats: string[];
+        };
+        /** CpiPoint */
+        CpiPoint: {
+            /** Period */
+            period: string;
+            /** Index */
+            index: number;
+            /** Quarterly Pct */
+            quarterly_pct: number | null;
+            /** Annual Pct */
+            annual_pct: number | null;
+        };
+        /** CpiSeriesOut */
+        CpiSeriesOut: {
+            /** Key */
+            key: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Adjustment */
+            adjustment: string;
+            /** Classification */
+            classification: string;
+            /** Source Reference */
+            source_reference: string | null;
+            /** Status */
+            status: string;
+            /** Points */
+            points: components["schemas"]["CpiPoint"][];
+            /** Source Url */
+            source_url: string | null;
+        };
+        /** CpiUnderlyingOut */
+        CpiUnderlyingOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Points */
+            points: components["schemas"]["PointOut"][];
         };
         /** Decomposition */
         Decomposition: {
@@ -1041,6 +1160,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cpi_dashboard_api_cpi_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CpiDashboardOut"];
                 };
             };
         };

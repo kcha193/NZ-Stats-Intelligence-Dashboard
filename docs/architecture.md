@@ -94,3 +94,9 @@ navigation and append link URLs.
 - Release-page JSON and official CSVs are the data source; the ADE API is unused (needs a key, no vintages).
 - Backfill window starts at 2024-06 because that is the oldest contiguous run of complete migration files.
 - The Data Explorer, Revision Explorer, preferences and other categories are Phase 2 and 3.
+
+## CPI (Phase 2B)
+
+`adapters/cpi/` ingests three official CPI CSVs plus the release page's contribution and percentage charts (and, optionally, the release workbook
+for official trimmed means). Percent changes are derived on read from published index numbers (`stats/cpi.py`); Stats NZ's chart percentages
+are a reconciliation check. `insights/cpi.py` builds the `/api/cpi` bundle and the rule-based release analysis. See [phase-2b-cpi.md](phase-2b-cpi.md).

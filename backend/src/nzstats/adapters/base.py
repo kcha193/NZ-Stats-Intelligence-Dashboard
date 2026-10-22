@@ -25,6 +25,7 @@ class ParsedSeries:
 class ParsedBundle:
     layout_version: str
     series: tuple[ParsedSeries, ...]
+    warnings: tuple[str, ...] = ()  # recorded with the ingest run; never block ingestion
 
 
 class Adapter(Protocol):

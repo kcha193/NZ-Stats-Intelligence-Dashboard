@@ -1,7 +1,46 @@
 # Progress and verification record
 
-Last updated 2026-10-18. Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
+Last updated 2026-10-21. Phase 2B CPI is implemented on `feat/phase-2b-cpi` (not merged or deployed; see [phase-2b-cpi.md](phase-2b-cpi.md)). Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
 coverage review remediation is locally verified, with CI and fresh automated review required after push. Not merged or deployed. Earlier entries below are historical.
+
+## Phase 2B — CPI and inflation, 19 October 2026
+
+Implemented the CPI adapter, validation, API, release analysis and `/inflation` dashboard on `feat/phase-2b-cpi`, with Overview, Latest Releases,
+Calendar and Data health integration. Verified against real December 2025, March 2026 and June 2026 releases (benchmarks 1.5/4.1, 2.7/4.9,
+0.6/3.4 reconcile). Offline release-day rehearsal passes. **The September 2026 quarter release (22 October 2026) has not been ingested.**
+Verification: 965 backend tests, 163 frontend tests and 48 Playwright checks passed; Ruff, TypeScript, lint and build passed
+(re-run after the PR #5 review round below).
+Details, decisions, limitations: [phase-2b-cpi.md](phase-2b-cpi.md); operation and fallback: [cpi-release-runbook.md](cpi-release-runbook.md).
+
+### PR #5 review round 1, 21 October 2026
+
+- #4312128553 (P2): `_underlying()` let NaN/infinity from the optional workbook through (`abs(nan - x) > tol` is False, so the
+  reconciliation did not reject it) and the general validator then failed the whole bundle. The optional boundary now validates the
+  returned tables (series set, quarter-end periods, finite numeric values, history, reconciliation that fails closed on NaN) and
+  drops the optional series with a warning. Malformed tables that used to raise (empty series, missing series) are covered too.
+- #4312128556 (P2): a workbook arriving after the first ingestion changed the bundle digest, so every series got new vintages and
+  the release became `corrected`. Required series are now compared independently of optional ones, in both directions.
+  Enrichment adds only the optional vintages under the stored bundle identity and leaves status alone.
+- Round 2 findings on `8be4ce5` (automatic review, so no manual trigger): #4334244713 (P2) the digest fast path returned a bare
+  `unchanged`, hiding an optional failure after enrichment (an enriched bundle keeps its required-only digest); it now returns the
+  optional warnings, which the ingest run records. #4334244723 (P2) series `source_url` came from the first listed download while
+  ingestion fetches the `-corrected` one; `pick_downloads` moved to `sources/release_page.py` and the adapter uses it, so the
+  cited file is the one the values came from. Neither changes a statistic or a bundle digest (source URLs are not part of identity).
+- Round 3 finding on `6a4cba8`: #4334350633 (P2) underlying series had no `source_url`, so the workbook (or a corrected workbook)
+  never appeared in the dashboard sources. The adapter now resolves the workbook with the same corrected-file precedence and
+  stores it on those definitions. As with the CSVs, a source URL change alone (identical values) is not a new bundle.
+- Round 4 findings on `f8f3985` (both in earlier branch code, found by the whole-PR review): #4334468788 (P2) a published-percentage
+  row that was narrower than its header, or blank at the reference quarter, was silently accepted because `zip(strict=False)` dropped
+  the cell while the row still counted as present, so the newest index value went unreconciled. Rows must now match the header width
+  and carry a value for the reference quarter, otherwise the release is rejected as a layout change. #4334468798 (P2) correction
+  rows formatted every value with zero decimals, so 1359.64 -> 1359.92 read 1,360 -> 1,360; CPI corrections now use index 2 dp,
+  percentage points 3 dp, percent 1 dp (other categories are unchanged).
+- Round 5 finding on `9b9e190`: #4334565185 (P2) CPI's annual and quarterly all-groups headline metrics share one `series_key`, which
+  `ReleaseAnalysis.tsx` used as the React key for the KPI cards and metric rows (duplicate sibling keys). Both sites now use a
+  composite series-key and label key. This is the fifth and last automatic fix cycle allowed in this session.
+- Tests (failed first): workbook NaN/inf/-inf/1e999 (including a real rewritten xlsx cell) and structural cases; recovery, loss, true
+  correction, reverted correction, enrichment after a correction, a revised optional measure, a simulated concurrent enrichment, and a
+  dashboard API check. The September 2026 release (22 October 2026, 10:45 NZDT) remains un-ingested.
 
 ## PR #3 — ECT publication coverage remediation, 18 October 2026
 

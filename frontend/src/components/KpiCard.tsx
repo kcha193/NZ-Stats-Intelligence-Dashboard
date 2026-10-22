@@ -1,9 +1,18 @@
 import type { ChangeOut, Kpi } from "@/api/types";
 import { formatAklDate, formatNumber, formatPercent } from "@/lib/format";
+import { formatMetricValue, isRate } from "@/lib/metric";
 import { StatusBadge } from "./StatusBadge";
 
 function Delta({ change, unit }: { change: ChangeOut | null | undefined; unit: string }) {
   if (!change) return null;
+  if (isRate(unit)) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{formatNumber(change.absolute, { signed: true, decimals: 1 })}</span>{" "}
+        percentage points {change.label}
+      </p>
+    );
+  }
   return (
     <p className="text-xs text-muted-foreground">
       <span className="font-medium text-foreground">{formatNumber(change.absolute, { signed: true })}</span>{" "}
@@ -18,8 +27,8 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
     <article className="rounded-md border bg-card p-3" aria-label={m.label}>
       <p className="text-xs font-medium text-muted-foreground">{m.label}</p>
       <p className="mt-1 flex items-baseline gap-2">
-        <span className="text-3xl font-semibold leading-none tracking-tight">{formatNumber(m.value)}</span>
-        <span className="text-xs text-muted-foreground">{m.unit}</span>
+        <span className="text-3xl font-semibold leading-none tracking-tight">{isRate(m.unit) ? formatMetricValue(m.value, m.unit) : formatNumber(m.value)}</span>
+        {!isRate(m.unit) && <span className="text-xs text-muted-foreground">{m.unit}</span>}
       </p>
       <p className="mt-1 flex items-center gap-2 text-xs">
         <span>{m.period_label}</span>

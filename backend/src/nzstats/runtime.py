@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from nzstats.adapters.base import Adapter
+from nzstats.adapters.cpi.adapter import CpiAdapter
 from nzstats.adapters.ect.adapter import EctAdapter
 from nzstats.adapters.migration.adapter import MigrationAdapter
 from nzstats.config import Settings
@@ -19,7 +20,8 @@ from nzstats.store.db import connect, migrate
 def build_adapters(settings: Settings) -> dict[str, Adapter]:
     migration = MigrationAdapter(settings.country_window_months)
     ect = EctAdapter()
-    return {migration.series_slug: migration, ect.series_slug: ect}
+    cpi = CpiAdapter()
+    return {migration.series_slug: migration, ect.series_slug: ect, cpi.series_slug: cpi}
 
 
 @dataclass

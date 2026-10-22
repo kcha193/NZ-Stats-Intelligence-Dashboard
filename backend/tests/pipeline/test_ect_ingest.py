@@ -354,3 +354,13 @@ def test_ect_bundle_stored_under_the_earlier_digest_is_not_reminted(rt, site):
     count = rt.conn.execute("SELECT COUNT(*) FROM vintage").fetchone()[0]
     assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "unchanged"
     assert rt.conn.execute("SELECT COUNT(*) FROM vintage").fetchone()[0] == count
+
+
+def test_ect_unchanged_repeat_stays_quiet_even_when_the_first_ingest_warned(rt, site):
+    _, old, _ = seed_ect(rt, site, "2026-08")
+    assert ingest_release(rt, old, now_fn=lambda: NOW).outcome == "ingested"
+    _, new, _ = seed_ect(rt, site)
+    first = ingest_release(rt, new, now_fn=lambda: NOW)
+    assert first.outcome == "ingested" and any("revisions" in w for w in first.warnings)
+    repeat = ingest_release(rt, new, now_fn=lambda: NOW)
+    assert repeat.outcome == "unchanged" and repeat.warnings == ()
