@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CpiDashboard } from "@/api/types";
 import cpiFixture from "@/test/fixtures/cpi.json";
 import { buildCpiStories } from "./cpi";
-import { orderStories, resolveStory, splitTemplate } from "./engine";
+import { categoryOfId, orderStories, resolveStory, splitTemplate } from "./engine";
 import type { Story } from "./types";
 
 const cpi = buildCpiStories(cpiFixture as unknown as CpiDashboard);
@@ -29,5 +29,13 @@ describe("story engine", () => {
     expect(resolveStory(cpi, "inflation-drivers-2026-03")).toEqual({ kind: "superseded", requested: "2026-03", current: cpi[1] });
     expect(resolveStory(cpi, "inflation-drivers-2027-03")).toEqual({ kind: "missing" });
     expect(resolveStory(cpi, "spending-retail-2026-09")).toEqual({ kind: "missing" });
+  });
+
+  it("names the category whose data an identifier needs, so only that source has to load", () => {
+    expect(categoryOfId("inflation-annual-2026-06")).toBe("inflation");
+    expect(categoryOfId("spending-retail-2026-09")).toBe("spending");
+    expect(categoryOfId("migration-net-2026-07")).toBe("migration");
+    expect(categoryOfId("nonsense")).toBeNull();
+    expect(categoryOfId("weather-annual-2026-06")).toBeNull();
   });
 });

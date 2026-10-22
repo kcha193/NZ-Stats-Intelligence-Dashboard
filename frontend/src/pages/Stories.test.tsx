@@ -107,7 +107,7 @@ describe("Story page", () => {
     mockApi({ ...ALL, "/api/releases": [{
       id: 41, release_key: "international-migration:august 2026", title: "International migration: August 2026",
       series_slug: "international-migration", category: "Migration", importance: "high", period_label: "August 2026",
-      published_at: "2026-10-14T10:45:00+13:00", status: "scheduled", headline: null, page_url: null, has_analysis: false,
+      published_at: "2026-10-14T10:45:00+13:00", status: "published", headline: null, page_url: null, has_analysis: false,
     }] });
     renderWithProviders(routes, { route: "/stories/migration-net-2026-07" });
     expect(await screen.findByRole("note")).toHaveTextContent("so this story still shows the year ended July 2026.");
@@ -198,5 +198,77 @@ describe("a corrected migration release", () => {
     const source = await screen.findByRole("region", { name: "Source" });
     expect(source).toHaveTextContent("Corrected by Stats NZ");
     expect(screen.getByText(/Corrected release: Stats NZ corrected this release/)).toBeInTheDocument();
+  });
+});
+
+describe("newer-release notice", () => {
+  const release = (status: string) => ({
+    id: 40, release_key: "consumers-price-index:september 2026 quarter", title: "Consumers price index: September 2026 quarter",
+    series_slug: "consumers-price-index", category: "Prices and inflation", importance: "high", period_label: "September 2026 quarter",
+    published_at: "2026-10-22T10:45:00+13:00", status, headline: null, page_url: null, has_analysis: false,
+  });
+
+  it.each(["published", "corrected"])("is shown for a %s release", async (status) => {
+    mockApi({ "/api/cpi": cpi, "/api/releases": [release(status)] });
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
+    expect(await screen.findByRole("note")).toHaveTextContent("Stats NZ published Consumers price index: September 2026 quarter");
+  });
+
+  it.each(["scheduled", "delayed", "unavailable"])("ignores a newer %s release whose date has passed and reports the published one", async (status) => {
+    const notYetPublished = { ...release(status), id: 41, title: "Consumers price index: December 2026 quarter", published_at: "2026-10-23T08:00:00+13:00" };
+    mockApi({ "/api/cpi": cpi, "/api/releases": [notYetPublished, release("published")] });
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("Stats NZ published Consumers price index: September 2026 quarter on 22 Oct 2026");
+    expect(note).not.toHaveTextContent("December 2026 quarter");
+  });
+});
+
+/** Answers every request except those for `held`, which never settle: a source that is still loading. */
+function holdBack(...held: string[]) {
+  const fn = mockApi(ALL);
+  const real = fn.getMockImplementation() as (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  fn.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) =>
+    held.includes(new URL(String(input), "http://localhost").pathname) ? new Promise<Response>(() => undefined) : real(input, init));
+}
+
+describe("categories that are ready do not wait for the others", () => {
+  it("lists ready stories while another category is still loading, and says which", async () => {
+    holdBack("/api/ect");
+    renderWithProviders(routes, { route: "/stories" });
+    const list = await screen.findByRole("list", { name: "All stories" });
+    const headlines = within(list).getAllByRole("article").map((a) => a.textContent ?? "");
+    expect(headlines).toHaveLength(6);
+    expect(headlines.some((h) => h.includes("Annual inflation rises to 4.1%"))).toBe(true);
+    expect(screen.getByRole("status")).toHaveTextContent("Still loading: Consumer spending.");
+  });
+
+  it("opens a deep-linked story as soon as its own category is ready", async () => {
+    holdBack("/api/ect");
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Annual inflation rises to 4.1%" })).toBeInTheDocument();
+  });
+
+  it("keeps waiting, rather than reporting 'not found', for a story whose category is still loading", async () => {
+    holdBack("/api/ect");
+    renderWithProviders(routes, { route: "/stories/spending-retail-2026-09" });
+    expect(await screen.findByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Story not found" })).not.toBeInTheDocument();
+  });
+
+  it("does not show migration stories before the release summaries that carry their status have loaded", async () => {
+    holdBack("/api/overview");
+    renderWithProviders(routes, { route: "/stories" });
+    const list = await screen.findByRole("list", { name: "All stories" });
+    expect(within(list).getAllByRole("article")).toHaveLength(5);
+    expect(list).not.toHaveTextContent("Annual net migration");
+    expect(screen.getByRole("status")).toHaveTextContent("Still loading: International migration.");
+  });
+
+  it("filters the feed by a category that is still loading without calling it empty", async () => {
+    holdBack("/api/ect");
+    renderWithProviders(routes, { route: "/stories?category=spending" });
+    expect(await screen.findByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByText(/No consumer spending stories are available/)).not.toBeInTheDocument();
   });
 });

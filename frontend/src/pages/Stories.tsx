@@ -15,7 +15,10 @@ export default function Stories() {
   const [params, setParams] = useSearchParams();
   const requested = params.get("category");
   const category = CATEGORIES.includes(requested as StoryCategory) ? (requested as StoryCategory) : "all";
-  const { stories, sources, isLoading } = useStories();
+  const { stories, sources, isLoading: anyLoading } = useStories();
+  const pending = CATEGORIES.filter((c) => sources[c] === "loading");
+  // Nothing to show yet: the requested category is still loading, or (for all) no category has produced a story.
+  const isLoading = category === "all" ? anyLoading && stories.length === 0 : sources[category] === "loading";
   const shown = category === "all" ? stories : stories.filter((s) => s.category === category);
   const missing = CATEGORIES.filter((c) => sources[c] === "not_ingested" || sources[c] === "error");
   const options = [
@@ -43,6 +46,9 @@ export default function Stories() {
               {category === "all" ? "No stories are available yet." : `No ${CATEGORY_LABEL[category].toLowerCase()} stories are available.`}
             </p>}
       </QueryBoundary>
+      {!isLoading && pending.length > 0 && (
+        <p role="status" className="text-xs text-muted-foreground">Still loading: {pending.map((c) => CATEGORY_LABEL[c]).join(", ")}.</p>
+      )}
       {!isLoading && missing.length > 0 && (
         <ul className="space-y-1 text-xs text-muted-foreground">
           {missing.map((c) => (

@@ -46,6 +46,8 @@ export type Figure =
 
 export type IndustryMove = {
   name: string; inText: string; seriesKey: string; period: string; previousPeriod: string; current: number; previous: number; percent: number;
+  /** Publication status of the two points compared, as the source reports them. */
+  status: string; previousStatus: string;
 };
 
 export type Story = {

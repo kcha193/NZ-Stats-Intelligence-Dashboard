@@ -1,4 +1,4 @@
-import type { Story } from "./types";
+import { CATEGORY_LABEL, type Story, type StoryCategory } from "./types";
 
 /** Newest publication first; within one release, the editorial order of its templates. Ids are unique. */
 export function orderStories(stories: Story[]): Story[] {
@@ -12,6 +12,12 @@ export function orderStories(stories: Story[]): Story[] {
 export function splitTemplate(id: string): { template: string; period: string } | null {
   const m = /^([a-z]+(?:-[a-z]+)*)-(\d{4}-\d{2})$/.exec(id);
   return m ? { template: m[1], period: m[2] } : null;
+}
+
+/** Ids are `<template>-<period>` and every template is named for its category, so the id says which source must load. */
+export function categoryOfId(id: string): StoryCategory | null {
+  const category = splitTemplate(id)?.template.split("-")[0] ?? "";
+  return category in CATEGORY_LABEL ? (category as StoryCategory) : null;
 }
 
 export type Resolution =

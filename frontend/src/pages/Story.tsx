@@ -11,7 +11,8 @@ import { SourceAttribution } from "@/components/story/SourceAttribution";
 import { StoryMeta } from "@/components/story/StoryCard";
 import { StoryExport } from "@/components/story/StoryExport";
 import { formatAklDate } from "@/lib/format";
-import { resolveStory } from "@/stories/engine";
+import { isPublished } from "@/lib/releaseStatus";
+import { categoryOfId, resolveStory } from "@/stories/engine";
 import { figureView, variantsOf, type FigureView } from "@/stories/figures";
 import { inSentence, monthName } from "@/stories/text";
 import { CATEGORY_LABEL, type Story } from "@/stories/types";
@@ -23,7 +24,7 @@ function NewerRelease({ story }: { story: Story }) {
   const [now] = useState(() => Date.now());
   const used = Date.parse(story.provenance.publishedAt);
   const newer = (q.data ?? [])
-    .filter((r) => r.series_slug === story.provenance.seriesSlug && r.release_key !== story.provenance.releaseKey)
+    .filter((r) => isPublished(r.status) && r.series_slug === story.provenance.seriesSlug && r.release_key !== story.provenance.releaseKey)
     .filter((r) => Date.parse(r.published_at) > used && Date.parse(r.published_at) <= now)
     .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0];
   if (!newer) return null;
@@ -108,7 +109,11 @@ function StoryBody({ story }: { story: Story }) {
 
 export default function StoryPage() {
   const { id = "" } = useParams();
-  const { stories, isLoading } = useStories();
+  const { stories, sources } = useStories();
+  // Only the story's own category has to settle before "not found" or "superseded" can be said; others load on.
+  const category = categoryOfId(id);
+  const found = stories.some((s) => s.id === id);
+  const isLoading = !found && category !== null && sources[category] === "loading";
   return (
     <QueryBoundary query={{ data: isLoading ? undefined : stories, error: null, isLoading, isError: false, refetch: () => undefined }}>
       {(all) => {

@@ -112,3 +112,25 @@ describe("card spending industry direction wording", () => {
   });
 });
 
+describe("card spending industry evidence status", () => {
+  const industries = (data: EctDashboard) => byTemplate(data).get("spending-industries")!;
+
+  it("carries each point's own status instead of calling every value final", () => {
+    const s = industries(ect);
+    const fuel = s.evidence.filter((e) => e.seriesKey === "ect.m.sa.fuel.value");
+    const source = ect.series.find((x) => x.series.key === "ect.m.sa.fuel.value")!.points;
+    expect(fuel.map((e) => [e.period, e.status])).toEqual([
+      ["2026-09", source.at(-1)!.status], ["2026-08", source.at(-2)!.status],
+    ]);
+    expect(s.evidence.some((e) => e.status === "unknown")).toBe(true);
+  });
+
+  it("flags the story provisional when a latest industry value is provisional", () => {
+    const series = ect.series.map((x) => x.series.key === "ect.m.sa.fuel.value"
+      ? { ...x, points: x.points.map((p, i, all) => (i === all.length - 1 ? { ...p, status: "provisional" } : p)) } : x);
+    const s = industries({ ...ect, series });
+    expect(s.dataStatus).toBe("provisional");
+    expect(s.evidence.find((e) => e.seriesKey === "ect.m.sa.fuel.value" && e.period === "2026-09")!.status).toBe("provisional");
+    expect(industries(ect).dataStatus).toBe("final");
+  });
+});

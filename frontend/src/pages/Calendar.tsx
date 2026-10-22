@@ -10,13 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Segmented } from "@/components/Segmented";
 import { Button } from "@/components/ui/button";
 import { aklMonth, formatAklDate, formatAklDateTime, monthLabel } from "@/lib/format";
+import { isPublished } from "@/lib/releaseStatus";
 
 const ALL = "all";
 const dayKey = (iso: string) => iso.slice(0, 10);
 /** A delayed release is a scheduled one whose date moved later, so both are still to come. */
 const isUpcoming = (status: string) => status === "scheduled" || status === "delayed";
-/** A corrected release has been published and then re-ingested from corrected files. */
-const isPublished = (status: string) => status === "published" || status === "corrected";
 const matchesStatus = (filter: string, status: string) =>
   filter === ALL || (filter === "scheduled" ? isUpcoming(status) : filter === "published" ? isPublished(status) : status === filter);
 /** The whole month as calendar-day bounds (the API treats `to` as inclusive). */

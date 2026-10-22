@@ -89,7 +89,7 @@ export function buildEctStories(data: EctDashboard): Story[] {
     const cur = s?.points.at(-1);
     const prev = cur && s?.points.find((p) => p.period === addMonths(cur.period, -1));
     if (!s || !cur || !prev || prev.value <= 0) return [];
-    return [{ name, inText, seriesKey: s.series.key, period: cur.period, previousPeriod: prev.period, current: cur.value, previous: prev.value, percent: (cur.value / prev.value - 1) * 100 }];
+    return [{ name, inText, seriesKey: s.series.key, period: cur.period, previousPeriod: prev.period, current: cur.value, previous: prev.value, percent: (cur.value / prev.value - 1) * 100, status: cur.status, previousStatus: prev.status }];
   });
   const period = moves[0]?.period;
   if (moves.length >= 2 && moves.every((m) => m.period === period)) {
@@ -115,7 +115,7 @@ export function buildEctStories(data: EctDashboard): Story[] {
     const lead = up ? risers[0] : down ? fallers[0] : top;
     stories.push({
       ...base, id: `spending-industries-${period}`, template: "spending-industries", priority: 1,
-      referencePeriod: period, referenceLabel: month, dataStatus: "final",
+      referencePeriod: period, referenceLabel: month, dataStatus: moves.some((m) => m.status === "provisional") ? "provisional" : "final",
       headline,
       dek: clauses
         ? `${clauses.replace(/^./, (c) => c.toUpperCase())}, compared with ${previous}.`
@@ -130,8 +130,8 @@ export function buildEctStories(data: EctDashboard): Story[] {
       context: [`${up} of ${moves.length} industries recorded higher seasonally adjusted spending than in ${previous}.`],
       caveats: [...releaseCaveats(a), NOMINAL, "Industry series are seasonally adjusted separately, so they need not add up to the retail total."],
       evidence: moves.flatMap((m) => [
-        { label: `${m.name}, ${monthName(m.period)}`, seriesKey: m.seriesKey, period: m.period, value: m.current, unit: "NZD million", status: "final", releaseKey },
-        { label: `${m.name}, ${monthName(m.previousPeriod)}`, seriesKey: m.seriesKey, period: m.previousPeriod, value: m.previous, unit: "NZD million", status: "final", releaseKey },
+        { label: `${m.name}, ${monthName(m.period)}`, seriesKey: m.seriesKey, period: m.period, value: m.current, unit: "NZD million", status: m.status, releaseKey },
+        { label: `${m.name}, ${monthName(m.previousPeriod)}`, seriesKey: m.seriesKey, period: m.previousPeriod, value: m.previous, unit: "NZD million", status: m.previousStatus, releaseKey },
       ]),
       thumb: { kind: "bars", items: sorted.map((m) => ({ label: m.name, value: m.percent })) },
       figure: { kind: "ect-industries", items: moves, period },

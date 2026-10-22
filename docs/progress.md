@@ -49,8 +49,21 @@ Five findings, all frontend story builders; each fixed test-first (watched faili
   caveat first so the card badge, source panel and PNG export all carry it. Known limit: with no matching summary (for
   example the overview payload does not list that release) status falls back to `published`.
 
-Verified locally: `npm test` 256 passed (30 new), `typecheck`, `lint` (same 3 vendor warnings), `build`, Playwright 81
+### PR #7 review round 2 (Codex, head ae84207)
+
+- `ect.ts`: industry evidence rows carry each source point's own status (the August comparison points are `unknown`
+  in the real file, not `final`); the story is `provisional` when a latest industry value is.
+- `Story.tsx`: the "newer release" notice considers only `published` and `corrected` releases (`lib/releaseStatus.ts`,
+  shared with the Calendar), so a past-due `scheduled`, `delayed` or `unavailable` row is never presented as published.
+- `useStories.ts`, `Stories.tsx`, `Story.tsx`: a category's stories appear once its own sources settle, and the feed and
+  story pages wait only for the category they need. Ready categories render while others load ("Still loading: ..."),
+  a deep link to a still-loading category waits instead of saying "not found", and migration stories are held back until
+  the release summaries that carry their status have loaded. The homepage still waits for all sources so its featured
+  story does not change under the reader.
+
+Round 1 verified locally: `npm test` 256 passed (30 new), `typecheck`, `lint` (same 3 vendor warnings), `build`, Playwright 81
 passed; backend `pytest` 999 passed, `ruff check` and `ruff format --check` clean (backend unchanged).
+Round 2: `npm test` 269 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
 
 ## CPI September 2026 release-day failure, 22 October 2026
 
