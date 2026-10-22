@@ -205,9 +205,21 @@ def _ingest(
     # Optional data coming or going is not something Stats NZ published or corrected, but a failed
     # optional input is still reported, including on the fast path: an enriched bundle keeps its
     # required-only digest, so a later optional failure parses to exactly that digest.
-    optional_warnings = (*optional_notes, *bundle.warnings) if optional_prefixes else ()
+    # Validation warnings (for example a release that publishes no contribution charts) describe the
+    # stored data just as much as an ingest that wrote it, so every unchanged repeat reports them
+    # too instead of recording a clean success. Adapters without optional inputs keep quiet repeats.
+    all_warnings = tuple(
+        dict.fromkeys(
+            (
+                *optional_notes,
+                *bundle.warnings,
+                *(f.message for f in findings if f.severity == "warning"),
+            )
+        )
+    )
+    unchanged_warnings = all_warnings if optional_prefixes else ()
     if repo.release_bundle(rt.conn, release_id) == bundle_sha:
-        return IngestOutcome(key, "unchanged", warnings=optional_warnings)
+        return IngestOutcome(key, "unchanged", warnings=unchanged_warnings)
     now = now_fn()
     created = 0
     official = True  # False when only optional series were added to an already stored bundle
@@ -221,7 +233,7 @@ def _ingest(
         if matching is None and optional_prefixes:
             matching, enrich = _optional_match(rt.conn, release_id, bundle, optional_prefixes)
         if matching is not None and matching == active and not enrich:
-            return IngestOutcome(key, "unchanged", warnings=optional_warnings)
+            return IngestOutcome(key, "unchanged", warnings=unchanged_warnings)
         if matching is not None:
             # Content the release already has (it reverted to earlier content, or only optional
             # data differs by availability): its vintages exist, so core series are never copied.
@@ -244,16 +256,8 @@ def _ingest(
                 now,
             )
     if not created:
-        return IngestOutcome(key, "unchanged", warnings=optional_warnings)
-    return IngestOutcome(
-        key,
-        "ingested",
-        warnings=(
-            *optional_notes,
-            *bundle.warnings,
-            *(f.message for f in findings if f.severity == "warning"),
-        ),
-    )
+        return IngestOutcome(key, "unchanged", warnings=unchanged_warnings)
+    return IngestOutcome(key, "ingested", warnings=all_warnings)
 
 
 def _required_digest(

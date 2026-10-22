@@ -2,7 +2,7 @@ import pytest
 
 from nzstats.pipeline.ingest import ingest_release
 from nzstats.store import repo
-from tests.cpi_support import NOW, XLSX, seed_cpi, workbook_with_cell
+from tests.cpi_support import NOW, XLSX, ingest_cpi, seed_cpi, workbook_with_cell
 
 CORE = "cpi.index.nsa.all_groups"
 MEDIAN = 0.4  # official weighted median, quarter ended June 2026
@@ -403,3 +403,84 @@ def test_a_release_that_never_had_the_workbook_keeps_reporting_it_is_missing(rt,
     assert ingest(rt, june).outcome == "ingested"
     repeat = ingest(rt, june)
     assert repeat.outcome == "unchanged" and any("underlying" in w for w in repeat.warnings)
+
+
+# --- validation warnings survive unchanged repeats (review #4334641065) --------------------------
+
+
+def _without_contribution_charts(site, page_url):
+    status, body, ctype = site.routes[page_url]
+    assert b"percentage point contribution" in body
+    site.routes[page_url] = (status, body.replace(b"percentage point contribution", b"pp x"), ctype)
+
+
+def _last_detail(rt, key):
+    return rt.conn.execute(
+        "SELECT detail FROM ingest_run WHERE release_key=? ORDER BY id DESC LIMIT 1", (key,)
+    ).fetchone()[0]
+
+
+def test_absent_contribution_charts_keep_warning_on_unchanged_repeats(rt, site):
+    rid, june, page_url, _ = seed_cpi(rt, site)
+    _without_contribution_charts(site, page_url)
+    first = ingest(rt, june)
+    assert first.outcome == "ingested", first.detail
+    note = "quarterly contributions were not published in this release"
+    assert any(note in w for w in first.warnings)
+    before, bundle = counts(rt), repo.release_bundle(rt.conn, rid)
+
+    for _ in range(2):  # every repeat, not just the first
+        repeat = ingest(rt, june)
+        assert repeat.outcome == "unchanged"
+        assert any(note in w for w in repeat.warnings)
+        assert note in _last_detail(rt, june)
+    assert counts(rt) == before and repo.release_bundle(rt.conn, rid) == bundle
+    assert repo.get_release(rt.conn, june)["status"] == "published"
+
+
+@pytest.mark.parametrize("month", ["2025-12", "2026-03", "2026-06"])
+def test_an_unchanged_repeat_reports_the_warnings_of_the_ingest_that_stored_it(rt, site, month):
+    ingest_cpi(rt, site, *(["2026-03"] if month == "2026-06" else []))
+    _, key, _, _ = seed_cpi(rt, site, month)
+    first = ingest(rt, key)
+    assert first.outcome == "ingested" and first.warnings
+    repeat = ingest(rt, key)
+    assert repeat.outcome == "unchanged"
+    # Same findings, same order, nothing hidden or doubled. "Historical revisions" is the one
+    # event-like warning: a repeat compares the release with its own stored vintages, so it is
+    # reported by the ingest that captured the revision and not again.
+    persistent = tuple(w for w in first.warnings if "Historical revisions" not in w)
+    assert repeat.warnings == persistent
+    assert len(set(repeat.warnings)) == len(repeat.warnings)
+
+
+def test_simultaneous_warnings_are_all_kept_and_not_duplicated_on_repeat(rt, site):
+    _, june, page_url, downloads = seed_cpi(rt, site)
+    _without_contribution_charts(site, page_url)
+    site.routes[downloads["cpi_workbook"]] = BROKEN["http_503"]()  # optional input also missing
+    first = ingest(rt, june)
+    repeat = ingest(rt, june)
+    assert repeat.outcome == "unchanged"
+    text = " | ".join(repeat.warnings)
+    assert "contributions were not published" in text  # validation warning
+    assert "underlying" in text  # optional workbook warning
+    assert "stale or discontinued" in text  # a second validation warning
+    assert repeat.warnings == first.warnings
+    assert len(set(repeat.warnings)) == len(repeat.warnings)
+
+
+def test_validation_errors_still_block_an_unchanged_looking_release(rt, site):
+    rid, june, _, downloads = seed_cpi(rt, site)
+    assert ingest(rt, june).outcome == "ingested"
+    before = counts(rt)
+    index_url = downloads["cpi_index_numbers"]
+    text = site.routes[index_url][1].decode()
+    row = '"CPIQ.SE9A","2026.06","1359"'
+    site.override(
+        index_url,
+        body="\n".join(ln for ln in text.splitlines() if not ln.startswith(row)).encode(),
+        ctype="text/csv",
+    )
+    outcome = ingest(rt, june)
+    assert outcome.outcome == "failed" and outcome.error_class.value == "validation_failed"
+    assert counts(rt) == before
