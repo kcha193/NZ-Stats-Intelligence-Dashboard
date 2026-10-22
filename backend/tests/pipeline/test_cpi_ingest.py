@@ -1,5 +1,9 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
+from nzstats.clock import to_akl_iso
+from nzstats.insights.cpi import build_cpi_dashboard
 from nzstats.pipeline.ingest import ingest_release
 from nzstats.store import repo
 from tests.cpi_support import NOW, XLSX, ingest_cpi, seed_cpi, workbook_with_cell
@@ -484,3 +488,224 @@ def test_validation_errors_still_block_an_unchanged_looking_release(rt, site):
     outcome = ingest(rt, june)
     assert outcome.outcome == "failed" and outcome.error_class.value == "validation_failed"
     assert counts(rt) == before
+
+
+# --- active optional revisions survive a missing workbook (review #4343298257) -------------------
+#
+# Lineage under test: A required-only -> B workbook enriches A in place (A keeps its required-only
+# digest) -> C workbook measures revised, a new full bundle -> D workbook gone -> E workbook back.
+# D parses to exactly A's digest, so an exact-digest lookup would reactivate A and silently restore
+# the pre-revision measures as a false correction.
+
+T0 = datetime(2026, 10, 20, 9, tzinfo=UTC)
+REVISED = 1.1
+REVISED_AGAIN = 1.2
+
+
+def at(rt, key, hours):
+    return ingest_release(rt, key, now_fn=lambda: T0 + timedelta(hours=hours))
+
+
+def ledger(rt):
+    """Everything an ingest can write: every vintage's identity, capture time and activation."""
+    return rt.conn.execute(
+        "SELECT id, series_id, captured_at, bundle_sha256, activation FROM vintage ORDER BY id"
+    ).fetchall()
+
+
+def release_row(rt, key):
+    return dict(repo.get_release(rt.conn, key))
+
+
+def dashboard_median(rt):
+    dash = build_cpi_dashboard(rt.conn)
+    median = next(u for u in dash.underlying if u.key == "cpi.underlying.median")
+    return {p.period: p.value for p in median.points}["2026-06"], dash.captured_at
+
+
+def revised_workbook(value=REVISED):
+    return (200, workbook_with_cell(str(value)), XLSX)
+
+
+def lineage_to_c(rt, site):
+    """A -> B -> C. Returns the release id/key, the workbook url and the original workbook route."""
+    rid, june, _, downloads = seed_cpi(rt, site)
+    url = downloads["cpi_workbook"]
+    good = site.routes[url]
+    site.routes[url] = BROKEN["http_503"]()
+    assert at(rt, june, 0).outcome == "ingested"  # A: required-only
+    bundle_a = repo.release_bundle(rt.conn, rid)
+    site.routes[url] = good
+    assert at(rt, june, 1).outcome == "ingested"  # B: workbook enriches A in place
+    assert repo.release_bundle(rt.conn, rid) == bundle_a
+    assert repo.get_release(rt.conn, june)["status"] == "published"
+    site.routes[url] = revised_workbook()
+    assert at(rt, june, 2).outcome == "ingested"  # C: revised measures, a new full bundle
+    bundle_c = repo.release_bundle(rt.conn, rid)
+    assert bundle_c != bundle_a and repo.get_release(rt.conn, june)["status"] == "corrected"
+    return rid, june, url, good, bundle_a, bundle_c
+
+
+def test_a_missing_workbook_keeps_the_active_revised_bundle(rt, site):
+    rid, june, url, good, bundle_a, bundle_c = lineage_to_c(rt, site)
+    revised = site.routes[url]
+    snapshot_ledger, snapshot_row, snapshot_counts = ledger(rt), release_row(rt, june), counts(rt)
+    assert dashboard_median(rt)[0] == REVISED
+
+    site.routes[url] = BROKEN["http_503"]()  # D: the workbook is unavailable
+    d = at(rt, june, 3)
+    assert d.outcome == "unchanged", d.detail
+    assert any("underlying" in w for w in d.warnings)  # the missing workbook is still reported
+    assert "underlying" in _last_detail(rt, june)
+    assert repo.release_bundle(rt.conn, rid) == bundle_c  # A was not reactivated
+    assert ledger(rt) == snapshot_ledger  # no vintage, activation or capture time moved
+    assert counts(rt) == snapshot_counts  # and no new core vintages
+    assert release_row(rt, june) == snapshot_row  # status, headline and timestamps untouched
+    assert repo.get_release(rt.conn, june)["status"] == "corrected"
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == REVISED
+    value, captured_at = dashboard_median(rt)
+    assert value == REVISED  # last-known-good dashboard values
+    assert captured_at == to_akl_iso(T0 + timedelta(hours=2))  # freshness is C's capture, not B's
+
+    for hours in (4, 5):  # repeated failed ingests are idempotent
+        again = at(rt, june, hours)
+        assert again.outcome == "unchanged" and any("underlying" in w for w in again.warnings)
+        assert ledger(rt) == snapshot_ledger
+
+    site.routes[url] = revised  # E: the same revised workbook comes back
+    assert at(rt, june, 6).outcome == "unchanged"
+    assert ledger(rt) == snapshot_ledger and release_row(rt, june) == snapshot_row
+    assert at(rt, june, 7).outcome == "unchanged"
+    assert dashboard_median(rt)[0] == REVISED
+    assert repo.release_bundle(rt.conn, rid) == bundle_c
+
+
+@pytest.mark.parametrize("broken", BROKEN)
+def test_every_kind_of_missing_or_invalid_workbook_keeps_the_revised_bundle(rt, site, broken):
+    rid, june, url, _, _, bundle_c = lineage_to_c(rt, site)
+    snapshot = ledger(rt)
+    site.routes[url] = BROKEN[broken]()
+    outcome = at(rt, june, 3)
+    assert outcome.outcome == "unchanged" and any("underlying" in w for w in outcome.warnings)
+    assert repo.release_bundle(rt.conn, rid) == bundle_c and ledger(rt) == snapshot
+    assert repo.get_release(rt.conn, june)["status"] == "corrected"
+    assert dashboard_median(rt)[0] == REVISED
+
+
+def test_a_workbook_that_has_gone_missing_keeps_the_revised_bundle(rt, site):
+    rid, june, url, _, _, bundle_c = lineage_to_c(rt, site)
+    snapshot = ledger(rt)
+    del site.routes[url]  # the link is still on the page but the file is gone: a 404
+    outcome = at(rt, june, 3)
+    assert outcome.outcome == "unchanged" and any("underlying" in w for w in outcome.warnings)
+    assert repo.release_bundle(rt.conn, rid) == bundle_c and ledger(rt) == snapshot
+
+
+def test_a_required_correction_while_the_workbook_is_missing_is_a_new_bundle(rt, site):
+    rid, june, url, _, bundle_a, bundle_c = lineage_to_c(rt, site)
+    revised = site.routes[url]
+    site.routes[url] = BROKEN["http_503"]()
+    index_url = downloads_of(site, "cpi_index_numbers")
+    site.routes[index_url] = corrected_index(site, {"cpi_index_numbers": index_url})
+    outcome = at(rt, june, 3)
+    assert outcome.outcome == "ingested", outcome.detail
+    assert repo.get_release(rt.conn, june)["status"] == "corrected"
+    corrected = repo.release_bundle(rt.conn, rid)
+    assert corrected not in (bundle_a, bundle_c)
+    assert core_values(rt, rid)["cpi.index.nsa.all_groups"]  # the corrected statistics are active
+    # Optional measures were reconciled against the earlier required statistics, so they are not
+    # carried onto a bundle with different ones: the workbook must re-validate them when it
+    # returns. What was published stays in the history.
+    active = {d.key for d, _ in repo.bundle_series(rt.conn, rid, corrected)}
+    assert not {k for k in active if k.startswith(UNDERLYING)}
+    assert len(repo.list_vintages(rt.conn, "cpi.underlying.median")) == 2
+    assert at(rt, june, 4).outcome == "unchanged"
+
+    site.routes[url] = revised  # the workbook returns: it enriches the corrected bundle in place
+    assert at(rt, june, 5).outcome == "ingested"
+    assert repo.release_bundle(rt.conn, rid) == corrected
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == REVISED
+    assert at(rt, june, 6).outcome == "unchanged"
+
+
+def downloads_of(site, kind):
+    from nzstats.sources.release_page import classify_download
+
+    return next(u for u in site.routes if classify_download(u) == kind)
+
+
+def test_official_reversion_with_complete_data_restores_the_earlier_bundle(rt, site):
+    rid, june, url, good, bundle_a, bundle_c = lineage_to_c(rt, site)
+    site.routes[url] = good  # Stats NZ restores the original measures: complete evidence
+    outcome = at(rt, june, 3)
+    assert outcome.outcome == "ingested", outcome.detail
+    assert repo.release_bundle(rt.conn, rid) == bundle_a
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == MEDIAN
+    assert dashboard_median(rt)[0] == MEDIAN
+    assert at(rt, june, 4).outcome == "unchanged"
+    assert set(underlying(vintage_counts(rt, rid)).values()) == {2}  # nothing duplicated
+
+
+def test_required_reversion_without_a_workbook_restores_the_earlier_bundle(rt, site):
+    rid, june, url, good, bundle_a, bundle_c = lineage_to_c(rt, site)
+    index_url = downloads_of(site, "cpi_index_numbers")
+    original = site.routes[index_url]
+    site.routes[url] = BROKEN["http_503"]()
+    site.routes[index_url] = corrected_index(site, {"cpi_index_numbers": index_url})
+    assert at(rt, june, 3).outcome == "ingested"  # a required correction, workbook missing
+    corrected = repo.release_bundle(rt.conn, rid)
+    assert corrected not in (bundle_a, bundle_c)
+
+    site.routes[index_url] = original  # the required statistics revert; workbook still missing
+    outcome = at(rt, june, 4)
+    assert outcome.outcome == "ingested", outcome.detail
+    # The newest earlier bundle holding exactly these required statistics wins: C, which is the
+    # latest validated optional state for them, not the older A.
+    assert repo.release_bundle(rt.conn, rid) == bundle_c
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == REVISED
+    assert at(rt, june, 5).outcome == "unchanged"
+
+
+def test_legacy_digest_labels_do_not_resurrect_an_older_bundle(rt, site):
+    rid, june, url, _, bundle_a, bundle_c = lineage_to_c(rt, site)
+    rt.conn.execute(
+        "UPDATE vintage SET bundle_sha256='legacy-a' WHERE bundle_sha256=?", (bundle_a,)
+    )
+    rt.conn.execute(
+        "UPDATE vintage SET bundle_sha256='legacy-c' WHERE bundle_sha256=?", (bundle_c,)
+    )
+    rt.conn.commit()
+    snapshot = ledger(rt)
+    site.routes[url] = BROKEN["http_503"]()
+    outcome = at(rt, june, 3)
+    assert outcome.outcome == "unchanged" and any("underlying" in w for w in outcome.warnings)
+    assert repo.release_bundle(rt.conn, rid) == "legacy-c" and ledger(rt) == snapshot
+    assert dashboard_median(rt)[0] == REVISED
+
+
+def test_a_workbook_revised_by_a_rival_before_we_lock_is_not_rolled_back(rt, site, monkeypatch):
+    import contextlib
+
+    import nzstats.pipeline.ingest as ingest_module
+
+    rid, june, url, _, bundle_a, bundle_c = lineage_to_c(rt, site)
+    site.routes[url] = BROKEN["http_503"]()  # this process saw no workbook ...
+    real, raced = ingest_module.transaction, []
+
+    @contextlib.contextmanager
+    def rival_publishes_first(conn):
+        if not raced:
+            raced.append(None)
+            site.routes[url] = revised_workbook(REVISED_AGAIN)  # ... a rival saw a newer one
+            raced[0] = at(rt, june, 3)
+            site.routes[url] = BROKEN["http_503"]()
+        with real(conn) as c:
+            yield c
+
+    monkeypatch.setattr(ingest_module, "transaction", rival_publishes_first)
+    outcome = at(rt, june, 4)
+    assert raced[0].outcome == "ingested" and outcome.outcome == "unchanged"
+    newest = repo.release_bundle(rt.conn, rid)
+    assert newest not in (bundle_a, bundle_c)  # the rival's bundle stays active
+    assert repo.latest_points(rt.conn, "cpi.underlying.median")["2026-06"].value == REVISED_AGAIN
+    assert dashboard_median(rt)[0] == REVISED_AGAIN

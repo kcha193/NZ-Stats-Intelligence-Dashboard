@@ -228,10 +228,9 @@ def _ingest(
         # release between the pre-check above and here.
         had_vintages = repo.has_any_vintage(rt.conn, release_id)
         active = repo.release_bundle(rt.conn, release_id)
-        matching = _matching_bundle(rt.conn, release_id, bundle_sha)
-        enrich = False
-        if matching is None and optional_prefixes:
-            matching, enrich = _optional_match(rt.conn, release_id, bundle, optional_prefixes)
+        matching, enrich = _select_bundle(
+            rt.conn, release_id, bundle_sha, bundle, optional_prefixes
+        )
         if matching is not None and matching == active and not enrich:
             return IngestOutcome(key, "unchanged", warnings=unchanged_warnings)
         if matching is not None:
@@ -266,6 +265,34 @@ def _required_digest(
 ) -> str:
     """Statistical identity of the required series alone: optional series never change it."""
     return _bundle_digest((d, o) for d, o in series if not d.key.startswith(optional_prefixes))
+
+
+def _select_bundle(
+    conn: sqlite3.Connection,
+    release_id: int,
+    digest: str,
+    bundle: ParsedBundle,
+    optional_prefixes: tuple[str, ...],
+) -> tuple[str | None, bool]:
+    """The stored bundle this ingest is a repeat or a reversion of, as `(bundle, enrich)`.
+
+    A bundle parsed without any optional series has the digest of its required statistics alone,
+    which is also the label of any bundle that was first stored without them and enriched later,
+    however far its optional series were revised since. That digest says nothing about which of
+    those bundles is current, so an exact lookup would reactivate an older one and restore its
+    superseded optional values as a false correction. Absent optional input therefore matches on
+    required identity, newest activation first: the active bundle, with every validated optional
+    series it holds, stands whenever the required statistics agree. Only a bundle with different
+    required statistics (a genuine correction, or a reversion to earlier content) changes that.
+    """
+    if optional_prefixes and not any(
+        ps.definition.key.startswith(optional_prefixes) for ps in bundle.series
+    ):
+        return _optional_match(conn, release_id, bundle, optional_prefixes)
+    matching = _matching_bundle(conn, release_id, digest)
+    if matching is None and optional_prefixes:
+        return _optional_match(conn, release_id, bundle, optional_prefixes)
+    return matching, False
 
 
 def _optional_match(
