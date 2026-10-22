@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 test("homepage leads with a featured story that opens a complete story page", async ({ page }) => {
@@ -58,5 +59,44 @@ for (const route of [
     await page.waitForLoadState("networkidle");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
+  });
+}
+
+type Drawn = { width: number; height: number; text: string[] };
+
+for (const [format, width, height] of [["Landscape", 1200, 675], ["Portrait", 1200, 1500]] as const) {
+  test(`${format.toLowerCase()} story PNG is ${width}×${height} and carries the finding and its source`, async ({ page }) => {
+    await page.goto("/stories/inflation-drivers-2026-06");
+    await page.getByRole("radio", { name: "Annual" }).check({ force: true });
+    await page.evaluate(() => {
+      const drawn = new WeakMap<HTMLCanvasElement, string[]>();
+      const fill = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, max) {
+        drawn.set(this.canvas, [...(drawn.get(this.canvas) ?? []), String(text)]);
+        fill.call(this, text, x, y, max);
+      };
+      const toUrl = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function (...args) {
+        const url = toUrl.apply(this, args);
+        if (this.width === 1200) (window as unknown as { story: Drawn }).story = { width: this.width, height: this.height, text: drawn.get(this) ?? [] };
+        return url;
+      };
+    });
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: new RegExp(`${format} PNG`) }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(`inflation-drivers-2026-06-${format.toLowerCase()}.png`);
+    const png = readFileSync(await download.path());
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([width, height]);
+    const drawn = await page.evaluate(() => (window as unknown as { story: Drawn }).story);
+    const all = drawn.text.join(" ");
+    expect(all).toContain("Transport made the largest contribution");
+    expect(all).toContain("+0.82 pp");
+    expect(all).toContain("Contribution to annual CPI change, by group"); // the variant shown on the page
+    expect(all).toContain("Source: Stats NZ, Consumers price index: June 2026 quarter, published 21 Jul 2026");
+    expect(all).toContain("Reference period: June 2026 quarter");
+    expect(all).toContain("NZ Stats Intelligence");
+    await expect(page.getByRole("status").filter({ hasText: "exported with source" })).toBeVisible();
   });
 }

@@ -13,6 +13,9 @@ describe("formatNumber", () => {
     expect(formatNumber(12, { signed: true })).toBe("+12");
     expect(formatNumber(-12, { signed: true })).toBe("−12");
     expect(formatNumber(0, { signed: true })).toBe("0");
+    // A value that rounds to zero carries no sign either way, so +0.00 and 0.00 never sit side by side.
+    expect(formatNumber(0.001, { signed: true, decimals: 2 })).toBe("0.00");
+    expect(formatNumber(-0.004, { signed: true, decimals: 2 })).toBe("0.00");
     expect(formatNumber(1.234, { decimals: 1 })).toBe("1.2");
   });
 });

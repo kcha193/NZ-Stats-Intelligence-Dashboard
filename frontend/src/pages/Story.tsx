@@ -9,9 +9,10 @@ import { DataEvidencePanel } from "@/components/story/DataEvidencePanel";
 import { KeyStatistic } from "@/components/story/KeyStatistic";
 import { SourceAttribution } from "@/components/story/SourceAttribution";
 import { StoryMeta } from "@/components/story/StoryCard";
+import { StoryExport } from "@/components/story/StoryExport";
 import { formatAklDate } from "@/lib/format";
 import { resolveStory } from "@/stories/engine";
-import { figureView, variantsOf } from "@/stories/figures";
+import { figureView, variantsOf, type FigureView } from "@/stories/figures";
 import { inSentence, monthName } from "@/stories/text";
 import { CATEGORY_LABEL, type Story } from "@/stories/types";
 import { useStories } from "@/stories/useStories";
@@ -34,11 +35,8 @@ function NewerRelease({ story }: { story: Story }) {
   );
 }
 
-function StoryFigure({ story }: { story: Story }) {
-  const theme = useChartTheme();
+function StoryFigure({ story, view, variant, setVariant }: { story: Story; view: FigureView; variant: string; setVariant: (v: string) => void }) {
   const variants = variantsOf(story);
-  const [variant, setVariant] = useState(variants?.initial ?? "");
-  const view = figureView(story, variant, theme);
   const p = story.provenance;
   return (
     <ChartCard
@@ -52,6 +50,10 @@ function StoryFigure({ story }: { story: Story }) {
 }
 
 function StoryBody({ story }: { story: Story }) {
+  const theme = useChartTheme();
+  // One variant drives the chart, its CSV and the presentation export, so all three show the same values.
+  const [variant, setVariant] = useState(variantsOf(story)?.initial ?? "");
+  const view = figureView(story, variant, theme);
   return (
     <article className="space-y-8" aria-labelledby="story-headline">
       <header className="max-w-[72ch] space-y-3">
@@ -61,6 +63,7 @@ function StoryBody({ story }: { story: Story }) {
         </h1>
         <p className="text-lg leading-relaxed text-muted-foreground">{story.dek}</p>
         <StoryMeta story={story} />
+        <StoryExport story={story} view={view} theme={theme} />
       </header>
       <NewerRelease story={story} />
       <div className="grid gap-6 lg:grid-cols-12">
@@ -75,7 +78,7 @@ function StoryBody({ story }: { story: Story }) {
             </section>
           )}
         </aside>
-        <div className="min-w-0 lg:col-span-8"><StoryFigure story={story} /></div>
+        <div className="min-w-0 lg:col-span-8"><StoryFigure story={story} view={view} variant={variant} setVariant={setVariant} /></div>
       </div>
       <section aria-labelledby="story-explain" className="max-w-[72ch] space-y-3">
         <h2 id="story-explain" className="text-lg font-semibold">What the data shows</h2>

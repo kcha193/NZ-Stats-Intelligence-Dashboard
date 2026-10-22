@@ -5,7 +5,7 @@ import { CATEGORY_LABEL, type Story } from "@/stories/types";
 import { MiniChart } from "./MiniChart";
 
 /** Status worth flagging on a card; "final" and "published" are the unremarkable default. */
-export const flagged = (s: Story) =>
+const flagged = (s: Story) =>
   [s.provenance.status === "corrected" ? "corrected" : null, s.dataStatus === "provisional" ? "provisional" : null]
     .filter((x): x is string => x !== null);
 

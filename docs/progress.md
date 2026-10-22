@@ -1,7 +1,35 @@
 # Progress and verification record
 
-Last updated 2026-10-21. Phase 2B CPI is implemented on `feat/phase-2b-cpi` (not merged or deployed; see [phase-2b-cpi.md](phase-2b-cpi.md)). Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
-coverage review remediation is locally verified, with CI and fresh automated review required after push. Not merged or deployed. Earlier entries below are historical.
+Last updated 2026-10-23. Visual storytelling layer implemented on `feat/visual-stories` (local commits, not pushed; see below).
+PR #5 (CPI) and PR #6 (September CPI header fix) are merged to `main`. Earlier entries below are historical.
+
+## Visual storytelling layer, 23 October 2026
+
+Frontend only: no change to ingestion, adapters, validation, scheduling, schema, revision semantics or API contracts.
+Design and decisions: [visual-storytelling-redesign.md](superpowers/specs/visual-storytelling-redesign.md).
+
+- Editorial homepage: masthead, featured story (newest verified release) with its chart, latest stories, then every
+  existing panel (KPIs, featured release, trend, upcoming and latest releases, freshness).
+- `/stories` feed (category filter in the URL) and `/stories/:id` story pages. Identifiers are `<template>-<period>`;
+  an older period resolves to a "superseded" notice, never to newer numbers. A release Stats NZ has published but this
+  site has not verified (for example the September 2026 CPI) is called out on the story page.
+- Eight deterministic stories from existing payloads: CPI annual inflation, contributions (pp), tradables; ECT retail
+  monthly change, industry movements; migration year-ended net, arrivals versus departures, citizenship. Migration
+  series are combined only within one release bundle. Builders omit a story when inputs are missing.
+- Presentation PNG export at exactly 1200 × 675 and 1200 × 1500 (chart re-rendered off-screen from the on-page option),
+  plus share link. Layout is unit-tested for bounds, overlap and never cutting the headline, statistic or source.
+- One accent ink token (chart navy; 5.9:1 light, 9.5:1 dark). Chart colours are the previously validated set; none added.
+- `formatNumber` no longer signs a value that rounds to zero ("+0.00" beside "0.00" on the contribution chart).
+- Fixture drift found, not changed: regenerating fixtures adds the CPI workbook URL to `cpi.json` `sources`
+  (backend change from PR #5 round 3). Only the two new citizenship fixtures were committed.
+
+| Command | Outcome |
+|---|---|
+| Baseline before changes | 163 frontend tests, typecheck, lint (3 vendor warnings), build; backend pytest, ruff, format passed |
+| `cd frontend && npm test` | 226 passed |
+| `npm run typecheck` / `npm run lint` / `npm run build` | Passed; lint shows the 3 existing vendor Fast Refresh warnings; existing bundle-size warning |
+| `npx playwright test` (offline seeded DB) | 81 passed (desktop, tablet, mobile), including PNG dimension and drawn-text checks |
+| Backend `pytest`, `ruff check`, `ruff format --check` | 999 passed; ruff and format passed (backend code unchanged) |
 
 ## CPI September 2026 release-day failure, 22 October 2026
 

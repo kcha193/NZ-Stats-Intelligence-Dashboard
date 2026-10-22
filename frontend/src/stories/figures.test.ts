@@ -21,7 +21,7 @@ const stories = new Map([
   }),
 ].map((s) => [s.template, s]));
 type Opt = {
-  series: { name?: string; type?: string; markPoint?: { data: { label?: { formatter?: string } }[] }; markLine?: unknown; markArea?: unknown; data: unknown[] }[];
+  series: { name?: string; type?: string; markPoint?: { data: { label?: { formatter?: string; position?: string } }[] }; markLine?: unknown; markArea?: unknown; data: unknown[] }[];
   yAxis: { data?: string[]; min?: number }; title?: { text: string };
 };
 
@@ -31,6 +31,7 @@ describe("story figures", () => {
     const opt = view.option as unknown as Opt;
     const labels = opt.series[0].markPoint!.data.map((d) => d.label?.formatter).filter(Boolean);
     expect(labels).toContain("Peak 7.3% (Jun 2022)");
+    expect(opt.series[0].markPoint!.data.find((d) => d.label?.formatter?.startsWith("Peak"))?.label?.position).toBe("top");
     expect(opt.series[0].markArea).toBeDefined();
     expect(opt.series[0].data).toHaveLength(40);
     expect(view.unit).toBe("percent change from the same quarter a year earlier");
@@ -76,7 +77,9 @@ describe("story figures", () => {
     const netView = figureView(stories.get("migration-net")!, "10y", TEST_THEME);
     const opt = netView.option as unknown as Opt;
     expect(opt.series[0].markArea).toBeDefined();
-    expect(opt.series[0].markPoint!.data.map((d) => d.label?.formatter)).toContain("Peak 133,738 (Oct 2023)");
+    const peak = opt.series[0].markPoint!.data.find((d) => d.label?.formatter === "Peak 133,738 (Oct 2023)");
+    // The peak sits in the right half, near the provisional band and its label, so its label reads leftwards.
+    expect(peak?.label?.position).toBe("left");
     expect(netView.csvRows.every((r) => String(r.series).startsWith("mig.ry."))).toBe(true);
     const flows = figureView(stories.get("migration-flows")!, "10y", TEST_THEME).option as unknown as Opt;
     expect(flows.series.map((x) => x.name)).toEqual(["Migrant arrivals", "Migrant departures"]);

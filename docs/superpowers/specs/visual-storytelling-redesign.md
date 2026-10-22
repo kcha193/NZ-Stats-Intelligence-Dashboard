@@ -149,3 +149,14 @@ Gaps documented rather than invented:
 | Mixed vintages in one graphic | Bundle identity check before combining migration series. |
 | Export truncation | Fixed-size off-screen chart and layout tests. |
 | Bundle size | No new dependencies; story pages lazy-loaded. |
+
+## 12. Remaining backlog
+
+- Flag "newer release published but not verified" on homepage cards and the hero, not only on the story page.
+- Migration country story (derived ranking, labelled as derived) and a revision (vintage) story once the API can
+  serve a named earlier vintage for CPI and ECT.
+- Quarterly ECT story (published quarterly series exist; not yet used).
+- Optional 2× export for high-density screens (formats are currently exact 1200-pixel widths).
+- Mobile primary navigation scrolls horizontally; a compact menu would expose all destinations at 390 px.
+- Homepage still shows all ten KPI cards; consider a compact indicator table with the cards behind a disclosure.
+- Code-split ECharts (existing bundle-size warning).

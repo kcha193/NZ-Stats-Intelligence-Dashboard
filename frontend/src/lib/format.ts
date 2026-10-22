@@ -10,7 +10,8 @@ export function formatNumber(
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
-  if (value < 0 && Number(abs.replace(/,/g, "")) !== 0) return `${MINUS}${abs}`;
+  if (Number(abs.replace(/,/g, "")) === 0) return abs;
+  if (value < 0) return `${MINUS}${abs}`;
   return signed && value > 0 ? `+${abs}` : abs;
 }
 

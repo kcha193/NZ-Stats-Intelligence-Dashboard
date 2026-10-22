@@ -49,7 +49,9 @@ export function variantsOf(story: Story): Variants | null {
 type SeriesOpt = { series: Record<string, unknown>[] };
 
 /** Adds a labelled point to the first series' annotations; the existing latest-value label is kept. */
-export function annotate(option: EChartsCoreOption, coord: [string, number], text: string, color: string): EChartsCoreOption {
+export function annotate(
+  option: EChartsCoreOption, coord: [string, number], text: string, color: string, position: "top" | "left" = "top",
+): EChartsCoreOption {
   const series = [...(option as SeriesOpt).series];
   const first = series[0];
   const markPoint: { data?: unknown[] } = (first.markPoint as { data?: unknown[] } | undefined) ?? { symbol: "circle", symbolSize: 7 } as { data?: unknown[] };
@@ -59,7 +61,7 @@ export function annotate(option: EChartsCoreOption, coord: [string, number], tex
       ...markPoint,
       data: [
         ...(markPoint.data ?? []),
-        { coord, symbolSize: 7, itemStyle: { color }, label: { show: true, position: "top", color, formatter: text } },
+        { coord, symbolSize: 7, itemStyle: { color }, label: { show: true, position, color, formatter: text } },
       ],
     },
   };
@@ -157,7 +159,8 @@ export function figureView(story: Story, variant: string, theme: ChartTheme): Fi
       const peak = points.reduce((m, p) => (p.value > m.value ? p : m), points[0]);
       let option = lineOption({ series: [{ name: "Year-ended net migration", points, color: theme.series[0] }], unit: "people", frequency: "rolling_annual" }, theme);
       if (peak && peak.period !== points.at(-1)?.period) {
-        option = annotate(option, [peak.period, peak.value], `Peak ${formatNumber(peak.value)} (${monthLabel(peak.period)})`, theme.muted);
+        // Left of the point, clear of the provisional band's label at the recent end.
+        option = annotate(option, [peak.period, peak.value], `Peak ${formatNumber(peak.value)} (${monthLabel(peak.period)})`, theme.muted, "left");
       }
       return {
         title: "Year-ended net migration", question: `${story.referenceLabel}: how does ${story.stat.value} compare with the last decade?`,

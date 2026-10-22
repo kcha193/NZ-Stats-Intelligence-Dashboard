@@ -1,18 +1,6 @@
 import { useEffect, useRef } from "react";
-import * as echarts from "echarts/core";
 import type { EChartsCoreOption } from "echarts/core";
-import { BarChart, LineChart } from "echarts/charts";
-import {
-  AriaComponent, AxisPointerComponent, GridComponent, LegendComponent, MarkAreaComponent,
-  MarkLineComponent, MarkPointComponent, TitleComponent, TooltipComponent,
-} from "echarts/components";
-import { CanvasRenderer } from "echarts/renderers";
-
-echarts.use([
-  LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, MarkPointComponent,
-  MarkAreaComponent, MarkLineComponent, TitleComponent, AriaComponent, AxisPointerComponent,
-  CanvasRenderer,
-]);
+import { echarts } from "./echarts";
 
 export type ChartInstance = echarts.ECharts;
 

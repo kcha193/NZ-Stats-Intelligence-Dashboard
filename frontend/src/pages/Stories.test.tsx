@@ -71,6 +71,19 @@ describe("Story page", () => {
     expect(screen.getByRole("link", { name: "Explore the inflation dashboard" })).toHaveAttribute("href", "/inflation");
   });
 
+  it("offers both presentation formats and copies the story link when the share sheet is unavailable", async () => {
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal("navigator", { ...navigator, share: undefined, clipboard: { writeText } });
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
+    const group = await screen.findByRole("group", { name: "Export and share" });
+    expect(within(group).getByRole("button", { name: /Landscape PNG \(1200 × 675\)/ })).toBeEnabled();
+    expect(within(group).getByRole("button", { name: /Portrait PNG \(1200 × 1500\)/ })).toBeEnabled();
+    within(group).getByRole("button", { name: /Share link/ }).click();
+    expect(await screen.findByText("Link copied.")).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/stories/inflation-annual-2026-06`);
+    vi.unstubAllGlobals();
+  });
+
   it("switches the drivers chart between quarterly and annual contributions", async () => {
     renderWithProviders(routes, { route: "/stories/inflation-drivers-2026-06" });
     expect(await screen.findByRole("img", { name: /quarterly CPI change/ })).toBeInTheDocument();
