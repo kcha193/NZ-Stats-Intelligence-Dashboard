@@ -1,8 +1,8 @@
 # Consumers price index: source verification
 
 Verified 19 October 2026 through the application's paced fetcher (10 s between requests, sequential, descriptive
-User-Agent). Only official Stats NZ sources were used. The September 2026 quarter release (22 October 2026, 10:45 NZDT)
-was not yet published, so nothing in this file describes it; the adapter was built and validated on three real releases.
+User-Agent). Only official Stats NZ sources were used. The adapter was built and validated on three real releases; the
+September 2026 quarter release (22 October 2026) was then captured and is described in "September 2026 quarter release" below.
 
 Releases captured as fixtures (`backend/tests/fixtures/cpi_<YYYY-MM>_*`, regenerate with `scripts/capture_cpi_fixtures.py`):
 
@@ -11,6 +11,7 @@ Releases captured as fixtures (`backend/tests/fixtures/cpi_<YYYY-MM>_*`, regener
 | [December 2025 quarter](https://www.stats.govt.nz/information-releases/consumers-price-index-december-2025-quarter/) | `cpi_2025-12_page.html` | 2026-01-23 10:45 NZDT |
 | [March 2026 quarter](https://www.stats.govt.nz/information-releases/consumers-price-index-march-2026-quarter/) | `cpi_2026-03_page.html` | 2026-04-21 10:45 NZST |
 | [June 2026 quarter](https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/) | `cpi_2026-06_page.html` | 2026-07-21 10:45 NZST |
+| [September 2026 quarter](https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/) | `cpi_2026-09_page.html` | 2026-10-22 10:45 NZDT |
 
 ## Downloads (June 2026 names; `Download-data/` under the release's asset folder)
 
@@ -82,6 +83,22 @@ the trimmed-mean, percentile or selected-grouping series; those are workbook-onl
 | SA index revisions between consecutive releases | Large and genuine: SA all groups, March→June, 71 of 403 common quarters differ, 17 by more than 0.05 index points, maximum 1.14; the rest differ at 1e-8 (floating-point noise) | `SA_REVISION_MATERIALITY = 0.05` index points: smaller differences are not reported as revisions (raw values are stored unchanged) |
 
 Coverage: the three required files kept every previously published quarter of every core series between releases (nothing lost).
+
+## September 2026 quarter release (captured 22 October 2026)
+
+Page, three required CSVs and the workbook were served at the expected URLs (HTTP 200, same file names as June, same CSV schema).
+One layout difference, found from the stored page: the **quarterly** percentage chart's CSV opens with `Category,Sept-22,…` where
+December 2025 to June 2026 opened with `Quarter,…` (chart title `Column`, like December and March; the annual `Line` chart still
+opens with `Quarter`). The adapter used to select percentage charts by that first header cell, so it found no quarterly row and
+rejected the release as `layout_changed: CPI percentage chart rows are missing or renamed`. It now reads rows by label only
+(`CPI all groups (quarterly)`, `CPI all groups (annual)`, `Tradeables (annual)`, `Non-tradeables (annual)`), which is how this file
+already described the charts, and still checks the row width, the quarter labels and every value against the index files.
+
+Reconciliation (all groups index 1368 at 2026-09, 1359 at 2026-06, 1319 at 2025-09): quarterly 0.66 -> 0.7 and annual 3.71 -> 3.7,
+matching the page text "increased 0.7 percent in the September 2026 quarter and 3.7 percent in the 12 months to September 2026";
+tradables annual 4.3 and non-tradables annual 3.3 match the page chart. All 68 chart points per release and the contribution sums
+pass the existing tolerances; no tolerance changed. The release is kept as the `cpi_2026-09_*` fixtures (CSVs are excerpts as for
+the other releases; the page and workbook are whole files).
 
 ## September 2026 methodology update (published 8 October 2026)
 

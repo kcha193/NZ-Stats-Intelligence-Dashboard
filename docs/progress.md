@@ -3,6 +3,25 @@
 Last updated 2026-10-21. Phase 2B CPI is implemented on `feat/phase-2b-cpi` (not merged or deployed; see [phase-2b-cpi.md](phase-2b-cpi.md)). Phase 2A ECT is open as PR #3 on `feat/phase-2a-ect`;
 coverage review remediation is locally verified, with CI and fresh automated review required after push. Not merged or deployed. Earlier entries below are historical.
 
+## CPI September 2026 release-day failure, 22 October 2026
+
+PR #5 merged at 14:46 NZDT; the September quarter release (10:45 NZDT) had already failed ingestion on every attempt since 11:24 NZDT
+(runs 4 to 14, `layout_changed`, "CPI percentage chart rows are missing or renamed"; release `published`, no CPI vintages stored).
+**Root cause (confirmed by offline reproduction on the stored September artifacts):** the quarterly percentage chart's CSV header
+starts with `Category` instead of `Quarter`, and `CpiAdapter._reconcile` skipped every chart not starting with `Quarter,`, so the
+quarterly row was never found. Not a scheduling, deployment, access or upstream-data problem: calendar discovery, polling, fetching
+(HTTP 200 for the page, three CSVs and the workbook) and the CSV parser all worked, and with only that header cell patched the whole
+bundle parses and reconciles (74 series). A running `nzstats serve` (started 18:46 NZDT from this checkout, scheduler on) retried the
+release at startup and failed identically.
+
+Fix (branch `fix/cpi-september-chart-header`): percentage rows are matched by row label only; row width, quarter labels and values are
+still checked. Regression tests failed first (7 failures against the unfixed adapter, all passing after): `tests/adapters/test_cpi_parse.py`
+(real September page and files; official 0.7 / 3.7 reconciliation; renamed header on the June page; a wrong rate under the new header
+still fails as `validation_failed`) and `tests/pipeline/test_cpi_september_2026.py` (June then September through ingestion, API and
+health; idempotent re-ingest; a failed September leaves June served; a missing workbook never blocks the headline). New fixtures
+`cpi_2026-09_*` come from the artifacts already stored locally (no new Stats NZ request). **Live September ingestion into the running
+database has not been performed**; see the recovery steps in [cpi-release-runbook.md](cpi-release-runbook.md).
+
 ## Phase 2B — CPI and inflation, 19 October 2026
 
 Implemented the CPI adapter, validation, API, release analysis and `/inflation` dashboard on `feat/phase-2b-cpi`, with Overview, Latest Releases,

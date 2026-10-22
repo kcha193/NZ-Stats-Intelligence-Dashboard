@@ -504,8 +504,9 @@ class CpiAdapter:
         findings: list[Finding] = []
         found: set[tuple[str, int]] = set()
         for chart in page.charts:
-            if not chart.csv.startswith("Quarter,"):
-                continue
+            # Found by row label, not by the first header cell: it read "Quarter" until the June 2026
+            # release and "Category" on the quarterly chart of September 2026. Only rows named in
+            # PERCENT_ROWS are read, and their quarter labels and width are checked below.
             rows = list(csv.reader(io.StringIO(chart.csv)))
             for row in rows[1:]:
                 target = PERCENT_ROWS.get(row[0].strip().lower()) if row else None

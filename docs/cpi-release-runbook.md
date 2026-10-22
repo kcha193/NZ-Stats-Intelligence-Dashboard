@@ -32,16 +32,20 @@ cover the `consumers-price-index` series. Never hand-edit the database and never
 | `layout_changed` | A required file, header, series or chart changed shape | Last-known-good (June) stays on screen. Save the page and files (raw artifacts are kept under the data directory), compare with `docs/data-sources/cpi.md`, add the new real file as a fixture with a failing test, then change the adapter. |
 | `validation_failed` | The data failed a check (base quarter, chart percentage reconciliation, contribution sum, ordering, missing core series) | Read the message in the run detail. Do not widen a tolerance without measuring the real file and recording it in `docs/data-sources/cpi.md`. |
 
-Manual run (one paced attempt, safe to repeat):
+Manual run (one paced attempt, safe to repeat). Run from the repository root so the commands act on the deployed `data/`
+directory. Docker Compose deployment:
 
 ```sh
-cd backend && . .venv/bin/activate
-nzstats discover
-nzstats ingest --release-key "consumers-price-index:september 2026 quarter"
+docker compose exec nzstats nzstats discover
+docker compose exec nzstats nzstats ingest --release-key "consumers-price-index:september 2026 quarter"
 # or, for a stored published release:
-nzstats backfill --series-slug consumers-price-index --since 2026-09 --until 2026-09
-nzstats health
+docker compose exec nzstats nzstats backfill --series-slug consumers-price-index --since 2026-09 --until 2026-09
+docker compose exec nzstats nzstats health
 ```
+
+Without Docker, use `scripts/run.sh` in place of `docker compose exec nzstats nzstats` (for example
+`scripts/run.sh ingest --release-key "..."`). It runs from the repository root with `NZSTATS_DATA_DIR` defaulting to `./data`;
+a bare `nzstats` run from `backend/` would resolve `./data` to `backend/data` instead.
 
 ## Fallback behaviour to expect
 
@@ -53,9 +57,57 @@ nzstats health
 - Group contributions that are missing from the page produce a warning and a "not published" message on the page;
   contributions that are present but wrong fail the bundle.
 
+## What happened on 22 October 2026
+
+The September release was discovered and polled correctly, but every ingestion failed with `layout_changed` ("CPI percentage chart
+rows are missing or renamed") because the quarterly chart's first header cell changed from `Quarter` to `Category`. That is a code
+defect, not a scheduling or deployment problem; it is fixed on `fix/cpi-september-chart-header` (see `docs/progress.md`). Until that
+fix runs, a database that never ingested an earlier CPI quarter shows "CPI data has not been ingested yet" at `/api/cpi`; the June
+figures are only "last known good" where June was ingested before.
+
+Recovery (one paced attempt; the release is already `published`, so the daily catch-up also retries it). **None of these
+steps has been run yet.** Step 2 restarts the service: a running process keeps the old adapter in memory, and
+`docker compose exec` uses the image the container started from. Run everything from the repository root.
+
+1. **Back up first, while the service is still running.** Never copy `data/nzstats.db` by hand: the database is in WAL mode,
+   so committed transactions can still be in `data/nzstats.db-wal` and a copy of the main file alone omits them.
+   `scripts/backup.sh` uses SQLite's online backup API through the running container:
+
+   ```sh
+   ./scripts/backup.sh
+   ls -l data/backups/
+   ```
+
+   Success is exit status 0, a `backup written to data/backups/nzstats-<date>-<HHMM>.db` line, and a non-empty file of that
+   name. Otherwise stop and fix the backup before changing anything. Without Docker, run
+   `scripts/run.sh backup "data/backups/nzstats-$(date +%F-%H%M).db"`. A direct CLI backup always needs a destination
+   argument; `nzstats backup` on its own is rejected.
+
+2. **Deploy the fixed code** (check out the branch or merged `main` that contains it; this is the restart; wait for the
+   container to report healthy):
+
+   ```sh
+   git pull && docker compose up -d --build
+   docker compose ps
+   ```
+
+   Without Docker, stop the running `scripts/run.sh` and start it again.
+
+3. **One paced ingestion** of the September release (three requests, 10 s apart; do not repeat in a loop):
+
+   ```sh
+   docker compose exec nzstats nzstats ingest --release-key "consumers-price-index:september 2026 quarter"
+   ```
+
+4. **Check health**, then the dashboard (see "How to confirm it worked"):
+
+   ```sh
+   docker compose exec nzstats nzstats health
+   ```
+
 ## Not yet proven
 
-The September 2026 publication has not been ingested at the time of writing (19 October 2026). The offline rehearsal
-(`backend/tests/scheduler/test_cpi_release_day.py`) replays the real June release through discovery, polling,
-ingestion, API and dashboard; it is not evidence about the live September files. After 10:45 NZDT on 22 October, verify
-the real release as described above and record the outcome in `docs/progress.md`.
+The offline rehearsal (`backend/tests/scheduler/test_cpi_release_day.py`) replays the real June release; the September regression
+tests (`backend/tests/pipeline/test_cpi_september_2026.py`) replay the captured September files. Neither is a live ingestion of
+the September quarter into the running database. After the recovery above, check Data health and `/inflation`, and record the
+outcome in `docs/progress.md`.
