@@ -1,0 +1,176 @@
+import type { CpiDashboard, CpiPoint, CpiSeries } from "@/api/types";
+import { addQuarters } from "@/charts/cpi";
+import { formatNumber } from "@/lib/format";
+import { provenanceOf, releaseCaveats } from "./common";
+import { direction, lastAtLeast, lastAtMost, ppShort, quarterName, rate, signOf } from "./text";
+import type { EvidenceRow, Story } from "./types";
+
+const DASHBOARD = { to: "/inflation", label: "Explore the inflation dashboard" };
+const BAND_CAVEAT = "The 1% to 3% band is drawn for reference only and is not a forecast.";
+
+type Rate = { period: string; value: number };
+const annualRates = (s: CpiSeries): Rate[] =>
+  s.points.filter((p): p is CpiPoint & { annual_pct: number } => p.annual_pct != null).map((p) => ({ period: p.period, value: p.annual_pct }));
+const at = (rates: Rate[], period: string) => rates.find((r) => r.period === period);
+
+function yearAgoText(latest: number, yearAgo: Rate): string {
+  const gap = Number(latest.toFixed(1)) - Number(yearAgo.value.toFixed(1));
+  const where = direction(latest, yearAgo.value, 1);
+  const tail = where === "flat" ? "the same rate as now" : `${formatNumber(Math.abs(gap), { decimals: 1 })} percentage points ${where === "up" ? "lower" : "higher"} than now`;
+  return `A year earlier, in the ${quarterName(yearAgo.period)}, annual inflation was ${rate(yearAgo.value)}, ${tail}.`;
+}
+
+export function buildCpiStories(data: CpiDashboard): Story[] {
+  const nsa = (slug: string) => data.series.find((s) => s.slug === slug && s.adjustment === "none");
+  const all = nsa("all_groups");
+  if (!all) return [];
+  const a = data.analysis;
+  const period = data.reference_period;
+  const base = {
+    category: "inflation" as const,
+    referencePeriod: period,
+    referenceLabel: quarterName(period),
+    dataStatus: "final",
+    provenance: provenanceOf(a),
+    dashboard: DASHBOARD,
+    methodology: [...a.methodology.definitions, ...a.methodology.notes],
+    insights: [...a.executive_summary, ...a.context],
+  };
+  const releaseKey = a.release.release_key;
+  const evidence = (label: string, s: CpiSeries, r: Rate): EvidenceRow => ({
+    label, seriesKey: s.key, period: r.period, value: r.value, unit: "percent (annual change, from index numbers)",
+    status: "final", releaseKey,
+  });
+  const stories: Story[] = [];
+
+  // 1. Annual inflation.
+  const annual = annualRates(all);
+  const latest = annual.at(-1);
+  const prior = latest && at(annual, addQuarters(latest.period, -1));
+  if (latest && latest.period === period && prior) {
+    const yearAgo = at(annual, addQuarters(period, -4));
+    const dir = direction(latest.value, prior.value, 1);
+    const verb = { up: "rises to", down: "eases to", flat: "holds at" }[dir];
+    const was = { up: "up from", down: "down from", flat: "the same as" }[dir];
+    const high = latest.value >= prior.value ? lastAtLeast(annual) : lastAtMost(annual);
+    const quarterly = all.points.at(-1)?.quarterly_pct;
+    const tenYears = annual.filter((r) => r.period > addQuarters(period, -40));
+    const peak = tenYears.reduce((m, r) => (r.value > m.value ? r : m), tenYears[0]);
+    stories.push({
+      ...base, id: `inflation-annual-${period}`, template: "inflation-annual", priority: 0,
+      headline: `Annual inflation ${verb} ${rate(latest.value)}`,
+      dek: `Consumer prices were ${rate(latest.value)} higher in the ${quarterName(period)} than a year earlier, ${was} ${rate(prior.value)} in the ${quarterName(prior.period)}.`,
+      stat: { value: rate(latest.value), unit: "annual change in the CPI", label: "All groups, not seasonally adjusted", sign: signOf(latest.value, 1) },
+      explanation: [
+        a.executive_summary[0]?.text ?? (quarterly == null ? "" : `Prices changed ${rate(quarterly)} within the quarter.`),
+        "Annual inflation compares the price level in a quarter with the same quarter a year earlier, so seasonal patterns largely cancel out. The quarterly change compares adjacent quarters; the two are different measures and are not added together.",
+      ].filter(Boolean),
+      context: [
+        ...(high ? [`Annual inflation was last this ${latest.value >= prior.value ? "high" : "low"} in the ${quarterName(high.period)} (${rate(high.value)}).`] : []),
+        ...(yearAgo ? [yearAgoText(latest.value, yearAgo)] : []),
+        ...(peak && peak.period !== latest.period ? [`The highest rate in the last ten years was ${rate(peak.value)}, in the ${quarterName(peak.period)}.`] : []),
+      ],
+      caveats: [...releaseCaveats(a), BAND_CAVEAT, "Official changes are calculated from the rounded published index numbers."],
+      evidence: [
+        evidence("Annual change, latest quarter", all, latest),
+        evidence("Annual change, previous quarter", all, prior),
+        ...(yearAgo ? [evidence("Annual change, a year earlier", all, yearAgo)] : []),
+        ...(high ? [evidence(`Last ${latest.value >= prior.value ? "at or above" : "at or below"} the latest rate`, all, high)] : []),
+      ],
+      thumb: { kind: "line", values: tenYears.map((r) => r.value), zero: true },
+      figure: { kind: "cpi-annual", series: all },
+    });
+  }
+
+  // 2. Contributions to the quarterly change.
+  const q = data.contributions.find((b) => b.horizon === "quarterly");
+  if (q?.available && q.items.length && q.headline_pct != null) {
+    const headline = q.headline_pct;
+    const sorted = [...q.items].sort((x, y) => (headline >= 0 ? y.points - x.points : x.points - y.points));
+    const [top, second] = sorted;
+    const negative = q.items.filter((i) => signOf(i.points, 2) === "negative");
+    const yearBlock = data.contributions.find((b) => b.horizon === "annual");
+    const yearTop = yearBlock?.available ? [...yearBlock.items].sort((x, y) => y.points - x.points)[0] : undefined;
+    const describe = (i: { group: string; points: number }) => `${i.group} (${ppShort(i.points)})`;
+    stories.push({
+      ...base, id: `inflation-drivers-${period}`, template: "inflation-drivers", priority: 1,
+      headline: `${top.group} made the largest contribution to quarterly inflation of ${rate(headline)}`,
+      dek: `${describe(top)}${second ? ` and ${describe(second)}` : ""} contributed most to the ${rate(headline)} change in consumer prices in the ${quarterName(period)}.`,
+      stat: { value: ppShort(top.points), unit: "percentage points", label: `${top.group}, contribution to the quarterly change`, sign: signOf(top.points, 2) },
+      explanation: [
+        "A contribution is the part of the headline change that comes from one group: its own price change weighted by its share of household spending. It is measured in percentage points of the headline change.",
+        q.note,
+      ],
+      context: [
+        negative.length
+          ? `${negative.length === 1 ? "One group" : `${negative.length} groups`} pulled the other way: ${negative.map(describe).join(", ")}.`
+          : "No group made a negative contribution this quarter.",
+        ...(yearTop && yearBlock?.headline_pct != null
+          ? [`Over the year, ${describe(yearTop)} made the largest contribution to annual inflation of ${rate(yearBlock.headline_pct)}.`]
+          : []),
+      ],
+      caveats: [...releaseCaveats(a), "Each bar is a contribution in percentage points, not the group's own price change."],
+      evidence: q.items.map((i) => ({
+        label: `${i.group}, quarterly contribution`, seriesKey: `cpi.contribution.quarterly.${i.slug}`, period, value: i.points,
+        unit: "percentage points", status: "final", releaseKey,
+      })),
+      thumb: { kind: "bars", items: [...q.items].sort((x, y) => y.points - x.points).map((i) => ({ label: i.group, value: i.points })) },
+      figure: { kind: "cpi-contributions", blocks: data.contributions },
+    });
+  }
+
+  // 3. Tradables versus non-tradables (annual).
+  const trad = nsa("tradables");
+  const non = nsa("non_tradables");
+  if (trad && non) {
+    const t = annualRates(trad);
+    const n = annualRates(non);
+    const tl = at(t, period);
+    const nl = at(n, period);
+    if (tl && nl) {
+      const gap = Number(tl.value.toFixed(1)) - Number(nl.value.toFixed(1));
+      const dir = direction(tl.value, nl.value, 1);
+      const headline = dir === "up"
+        ? `Tradables inflation (${rate(tl.value)}) runs ahead of non-tradables (${rate(nl.value)})`
+        : dir === "down"
+          ? `Non-tradables inflation (${rate(nl.value)}) runs ahead of tradables (${rate(tl.value)})`
+          : `Tradables and non-tradables inflation are level at ${rate(tl.value)}`;
+      // How long the current ordering has lasted, counted on displayed values.
+      const order = (p: string) => {
+        const x = at(t, p);
+        const y = at(n, p);
+        return x && y ? direction(x.value, y.value, 1) : null;
+      };
+      let run = 0;
+      for (let p = period; order(p) === dir; p = addQuarters(p, -1)) run++;
+      const tq = trad.points.at(-1)?.quarterly_pct;
+      const nq = non.points.at(-1)?.quarterly_pct;
+      stories.push({
+        ...base, id: `inflation-tradables-${period}`, template: "inflation-tradables", priority: 2,
+        headline,
+        dek: `Prices of goods and services exposed to foreign competition rose ${rate(tl.value)} over the year to the ${quarterName(period)}; domestically driven prices rose ${rate(nl.value)}.`,
+        stat: {
+          value: ppShort(gap, 1), unit: "gap in annual inflation, tradables minus non-tradables",
+          label: `Tradables ${rate(tl.value)} · non-tradables ${rate(nl.value)}`, sign: signOf(gap, 1),
+        },
+        explanation: [
+          "Tradable goods and services are exposed to foreign competition, such as fuel and imported goods. Non-tradables face no foreign competition, such as rents, rates and many services.",
+          ...(tq != null && nq != null ? [`In the quarter alone, tradables changed ${rate(tq)} and non-tradables ${rate(nq)}.`] : []),
+        ],
+        context: [
+          dir === "flat"
+            ? "The two rates are equal at the published precision."
+            : `${dir === "up" ? "Tradables" : "Non-tradables"} inflation has been the higher of the two for ${run} quarter${run === 1 ? "" : "s"} in a row.`,
+        ],
+        caveats: [...releaseCaveats(a), "Non-tradables inflation is not core inflation. The gap is in percentage points."],
+        evidence: [
+          { label: "Tradables, annual change", seriesKey: trad.key, period, value: tl.value, unit: "percent", status: "final", releaseKey },
+          { label: "Non-tradables, annual change", seriesKey: non.key, period, value: nl.value, unit: "percent", status: "final", releaseKey },
+        ],
+        thumb: { kind: "line", values: t.slice(-40).map((r) => r.value), zero: true },
+        figure: { kind: "cpi-tradables", tradables: trad, nonTradables: non },
+      });
+    }
+  }
+  return stories;
+}

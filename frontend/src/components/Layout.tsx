@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 
 const LINKS = [
   { to: "/", label: "Overview", end: true },
+  { to: "/stories", label: "Stories" },
   { to: "/migration", label: "Migration" },
   { to: "/inflation", label: "Inflation" },
   { to: "/electronic-card-transactions", label: "Card spending" },
@@ -29,7 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 to={l.to}
                 end={l.end}
                 className={({ isActive }) =>
-                  `rounded px-2 py-1 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                  `whitespace-nowrap rounded px-2 py-1 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                     isActive ? "bg-muted font-medium" : "text-muted-foreground hover:text-foreground"
                   }`
                 }

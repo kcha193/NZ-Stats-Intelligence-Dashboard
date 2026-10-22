@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import overview from "@/test/fixtures/overview.json";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import series from "@/test/fixtures/series_net_ry.json";
+import cpi from "@/test/fixtures/cpi.json";
 import Overview from "./Overview";
 
 vi.mock("@/charts/EChart", () => ({
@@ -29,6 +30,17 @@ describe("Overview", () => {
     renderWithProviders(<Overview />);
     const heading = await screen.findByRole("heading", { level: 3, name: /^Year-ended net migration:/ });
     expect(heading).toHaveTextContent("year ended Jul 2026, provisional");
+  });
+
+  it("leads with the newest verified story, its number and a link to read it", async () => {
+    mockApi({ "/api/overview": overview, "/api/series/mig.ry.net": series, "/api/cpi": cpi });
+    renderWithProviders(<Overview />);
+    const hero = await screen.findByRole("region", { name: "Annual inflation rises to 4.1%" });
+    expect(within(hero).getByRole("group", { name: "Key statistic" })).toHaveTextContent("4.1%");
+    expect(within(hero).getByRole("link", { name: "Read the story" })).toHaveAttribute("href", "/stories/inflation-annual-2026-06");
+    expect(within(hero).getByText(/Published 21 Jul 2026/)).toBeInTheDocument();
+    const latest = screen.getByRole("list", { name: "Latest stories" });
+    expect(within(latest).getAllByRole("article")).toHaveLength(2);
   });
 
   it("names the inactive categories rather than faking indicators", async () => {
