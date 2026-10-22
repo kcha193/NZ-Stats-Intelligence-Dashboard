@@ -217,6 +217,15 @@ describe("newer-release notice", () => {
     expect(await screen.findByRole("note")).toHaveTextContent("Stats NZ published Consumers price index: September 2026 quarter");
   });
 
+  it("is not shown for a newer release this site has already ingested", async () => {
+    const ingested = { ...release("published"), id: 41, title: "Consumers price index: December 2026 quarter", published_at: "2026-10-23T08:00:00+13:00", has_analysis: true };
+    mockApi({ "/api/cpi": cpi, "/api/releases": [ingested, release("published")] });
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("September 2026 quarter");
+    expect(note).not.toHaveTextContent("December 2026 quarter");
+  });
+
   it.each(["scheduled", "delayed", "unavailable"])("ignores a newer %s release whose date has passed and reports the published one", async (status) => {
     const notYetPublished = { ...release(status), id: 41, title: "Consumers price index: December 2026 quarter", published_at: "2026-10-23T08:00:00+13:00" };
     mockApi({ "/api/cpi": cpi, "/api/releases": [notYetPublished, release("published")] });
@@ -287,5 +296,39 @@ describe("story PNG export", () => {
     expect(text.attribution).toContain(`${window.location.origin}/stories/inflation-annual-2026-06`);
     expect(text.attribution).not.toContain("stats.govt.nz");
     expect(text.source).toContain("https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/");
+  });
+});
+
+describe("a story whose category failed to load", () => {
+  /** Answers every request except those for `path`, which fail with a server error. */
+  function failWith(path: string) {
+    const fn = mockApi(ALL);
+    const real = fn.getMockImplementation() as (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    fn.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) =>
+      new URL(String(input), "http://localhost").pathname === path
+        ? new Response(JSON.stringify({ detail: "boom" }), { status: 500 }) : real(input, init));
+    return fn;
+  }
+
+  it("shows an error with a retry, not 'Story not found'", async () => {
+    const fn = failWith("/api/ect");
+    renderWithProviders(routes, { route: "/stories/spending-retail-2026-09" });
+    expect(await screen.findByRole("alert")).toHaveTextContent("This could not be loaded.");
+    expect(screen.queryByRole("heading", { name: "Story not found" })).not.toBeInTheDocument();
+    const before = fn.mock.calls.filter(([u]) => String(u).includes("/api/ect")).length;
+    screen.getByRole("button", { name: "Try again" }).click();
+    await waitFor(() => expect(fn.mock.calls.filter(([u]) => String(u).includes("/api/ect")).length).toBeGreaterThan(before));
+  });
+
+  it("still opens the stories of categories that did load", async () => {
+    failWith("/api/ect");
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Annual inflation rises to 4.1%" })).toBeInTheDocument();
+  });
+
+  it("keeps 'Story not found' for an address in a category that loaded but has no such story", async () => {
+    failWith("/api/ect");
+    renderWithProviders(routes, { route: "/stories/inflation-annual-2031-06" });
+    expect(await screen.findByRole("heading", { name: "Story not found" })).toBeInTheDocument();
   });
 });

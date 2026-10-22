@@ -76,10 +76,20 @@ Five findings, all frontend story builders; each fixed test-first (watched faili
   is "the newest verified release", so showing it before a slower category settles could present an older release as
   the newest and then swap it. The rest of the homepage does not wait.
 
+### PR #7 review round 4 (Codex, head c63c739)
+
+- `migration.ts`: each story takes its provenance, release status and bundle from its own series. A citizenship pair
+  that comes from an earlier release (the latest omitted the chart) is built and labelled with that release instead of
+  being dropped; arrivals and departures, and net with citizenship, are still combined only within one bundle.
+- `Story.tsx`, `useStories.ts`: a story page whose category failed to load shows an error with a retry (failed requests
+  only), not "Story not found". The newer-release notice also ignores releases already ingested here (`has_analysis`),
+  so it never says "not verified" about data the site holds.
+
 Round 1 verified locally: `npm test` 256 passed (30 new), `typecheck`, `lint` (same 3 vendor warnings), `build`, Playwright 81
 passed; backend `pytest` 999 passed, `ruff check` and `ruff format --check` clean (backend unchanged).
 Round 2: `npm test` 269 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
 Round 3: `npm test` 279 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
+Round 4: `npm test` 286 passed, `typecheck`, `lint`, `build`, Playwright 81 passed.
 
 ## CPI September 2026 release-day failure, 22 October 2026
 

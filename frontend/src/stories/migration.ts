@@ -21,25 +21,26 @@ const atPeriod = (d: SeriesData, p: string) => d.points.find((x) => x.period ===
 const tenYears = (d: SeriesData, period: string) => d.points.filter((p) => p.period > addMonths(period, -120));
 
 export function buildMigrationStories(input: MigrationInput): Story[] {
-  const anchor = input.net ?? input.arrivals ?? input.nz;
-  if (!anchor) return [];
-  const release = input.releases.find((r) => r.release_key === anchor.vintage.release_key);
-  // A series that was ingested belongs to a published release; without its summary that is all that can be said.
-  const status = release?.status ?? "published";
-  const provenance = {
-    ...provenanceOfSeries(anchor, "international-migration", release?.id ?? null, status),
-    pageUrl: release?.page_url ?? anchor.source_url ?? null,
-  };
-  const inBundle = (d: SeriesData | undefined): d is SeriesData => d !== undefined && sameBundle(d, anchor);
+  // Each story takes its provenance from its own series: the latest vintage of one series can be an earlier release
+  // than another's (a release may omit a chart), and a story is only as current as the bundle it was built from.
+  const release = (d: SeriesData) => input.releases.find((r) => r.release_key === d.vintage.release_key);
+  const provenanceOf = (d: SeriesData) => ({
+    // A series that was ingested belongs to a published release; without its summary that is all that can be said.
+    ...provenanceOfSeries(d, "international-migration", release(d)?.id ?? null, release(d)?.status ?? "published"),
+    pageUrl: release(d)?.page_url ?? d.source_url ?? null,
+  });
   const evidence = (label: string, d: SeriesData, p: PointOut): EvidenceRow => ({
     label, seriesKey: d.series.key, period: p.period, value: p.value, unit: d.series.unit, status: p.status, releaseKey: d.vintage.release_key,
   });
-  const common = (d: SeriesData, p: PointOut) => ({
-    category: "migration" as const, referencePeriod: p.period, referenceLabel: `Year ended ${monthName(p.period)}`,
-    dataStatus: p.status, provenance, dashboard: DASHBOARD, insights: [],
-    methodology: [d.series.definition, "Net migration is long-term migrant arrivals minus long-term migrant departures."],
-    caveats: [...statusCaveats(status), ...(p.status === "provisional" ? [PROVISIONAL] : []), d.caveat],
-  });
+  const common = (d: SeriesData, p: PointOut) => {
+    const provenance = provenanceOf(d);
+    return {
+      category: "migration" as const, referencePeriod: p.period, referenceLabel: `Year ended ${monthName(p.period)}`,
+      dataStatus: p.status, provenance, dashboard: DASHBOARD, insights: [],
+      methodology: [d.series.definition, "Net migration is long-term migrant arrivals minus long-term migrant departures."],
+      caveats: [...statusCaveats(provenance.status), ...(p.status === "provisional" ? [PROVISIONAL] : []), d.caveat],
+    };
+  };
   const stories: Story[] = [];
 
   // 1. Year-ended net migration against the same measure a year earlier.
@@ -80,7 +81,7 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
 
   // 2. Arrivals against departures, each with its own year-earlier comparison.
   const { arrivals, departures } = input;
-  if (inBundle(arrivals) && inBundle(departures)) {
+  if (arrivals && departures && sameBundle(arrivals, departures)) {
     const a = latestOf(arrivals);
     const d = latestOf(departures);
     const a0 = a && atPeriod(arrivals, addMonths(a.period, -12));
@@ -118,7 +119,7 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
 
   // 3. New Zealand citizens against citizens of other countries.
   const { nz, nonNz } = input;
-  if (inBundle(nz) && inBundle(nonNz)) {
+  if (nz && nonNz && sameBundle(nz, nonNz)) {
     const z = latestOf(nz);
     const o = latestOf(nonNz);
     if (z && o && z.period === o.period) {
@@ -131,7 +132,7 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
       // How long New Zealand citizens' year-ended net has kept its current sign.
       let first = z;
       for (let i = nz.points.length - 2; i >= 0 && Math.sign(nz.points[i].value) === Math.sign(z.value); i--) first = nz.points[i];
-      const net = input.net && inBundle(input.net) ? atPeriod(input.net, z.period) : undefined;
+      const net = input.net && sameBundle(input.net, nz) ? atPeriod(input.net, z.period) : undefined;
       const z0 = atPeriod(nz, addMonths(z.period, -12));
       const o0 = atPeriod(nonNz, addMonths(o.period, -12));
       stories.push({

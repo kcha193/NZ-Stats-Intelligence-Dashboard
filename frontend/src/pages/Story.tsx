@@ -18,13 +18,13 @@ import { inSentence, monthName } from "@/stories/text";
 import { CATEGORY_LABEL, type Story } from "@/stories/types";
 import { useStories } from "@/stories/useStories";
 
-/** A release Stats NZ has already published for the same series, newer than the one this story uses. */
+/** A release Stats NZ has published for the same series, newer than the one this story uses and not yet ingested here. */
 function NewerRelease({ story }: { story: Story }) {
   const q = useReleases({ limit: 200 });
   const [now] = useState(() => Date.now());
   const used = Date.parse(story.provenance.publishedAt);
   const newer = (q.data ?? [])
-    .filter((r) => isPublished(r.status) && r.series_slug === story.provenance.seriesSlug && r.release_key !== story.provenance.releaseKey)
+    .filter((r) => isPublished(r.status) && !r.has_analysis && r.series_slug === story.provenance.seriesSlug && r.release_key !== story.provenance.releaseKey)
     .filter((r) => Date.parse(r.published_at) > used && Date.parse(r.published_at) <= now)
     .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))[0];
   if (!newer) return null;
@@ -109,13 +109,16 @@ function StoryBody({ story }: { story: Story }) {
 
 export default function StoryPage() {
   const { id = "" } = useParams();
-  const { stories, sources } = useStories();
+  const { stories, sources, refetch } = useStories();
   // Only the story's own category has to settle before "not found" or "superseded" can be said; others load on.
   const category = categoryOfId(id);
   const found = stories.some((s) => s.id === id);
   const isLoading = !found && category !== null && sources[category] === "loading";
+  // A failed request is not a missing story: say so and offer a retry. The message is generic; the request's own error is not shown.
+  const isError = !found && category !== null && sources[category] === "error";
+  const error = isError ? new Error("The data for this story could not be loaded.") : null;
   return (
-    <QueryBoundary query={{ data: isLoading ? undefined : stories, error: null, isLoading, isError: false, refetch: () => undefined }}>
+    <QueryBoundary query={{ data: isLoading ? undefined : stories, error, isLoading, isError, refetch }}>
       {(all) => {
         const r = resolveStory(all, id);
         if (r.kind === "found") return <StoryBody story={r.story} />;

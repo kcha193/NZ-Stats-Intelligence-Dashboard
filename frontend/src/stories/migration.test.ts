@@ -113,3 +113,38 @@ describe("migration net headline and dek at zero", () => {
     expect(s.dek).toBe("New Zealand gained 20,350 more migrants than it lost in the year ended July 2026, compared with no net change a year earlier. The latest estimate is provisional.");
   });
 });
+
+describe("migration stories from different release bundles", () => {
+  const older = { release_key: "international-migration:june 2026", title: "International migration: June 2026", published_at: "2026-08-14T10:45:00+12:00", captured_at: "2026-08-14T11:00:00+12:00" };
+  /** A citizenship pair from an earlier release: the latest one did not include the citizenship chart. */
+  const citizenshipFromJune = (d: SeriesData): SeriesData => ({ ...d, vintage: { ...d.vintage, ...older }, points: d.points.slice(0, -1) });
+  const mixed: MigrationInput = {
+    ...input,
+    nz: citizenshipFromJune(nz as SeriesData), nonNz: citizenshipFromJune(nonNz as SeriesData),
+    releases: [
+      input.releases[0],
+      { id: 1, release_key: older.release_key, status: "corrected", page_url: "https://www.stats.govt.nz/information-releases/international-migration-june-2026/" },
+    ],
+  };
+
+  it("builds the citizenship story from the pair's own bundle, with that release's provenance and status", () => {
+    const stories = buildMigrationStories(mixed);
+    expect(stories.map((s) => s.id)).toEqual(["migration-net-2026-07", "migration-flows-2026-07", "migration-citizenship-2026-06"]);
+    const [netStory, , cit] = stories;
+    expect(cit.referenceLabel).toBe("Year ended June 2026");
+    expect(cit.provenance).toMatchObject({ releaseId: 1, releaseKey: older.release_key, status: "corrected", publishedAt: older.published_at });
+    expect(cit.caveats[0]).toMatch(/^Corrected release/);
+    expect(cit.evidence.every((e) => e.releaseKey === older.release_key)).toBe(true);
+    expect(netStory.provenance).toMatchObject({ releaseId: 2, status: "published" });
+  });
+
+  it("does not add the net total from a different bundle to the citizenship story", () => {
+    const cit = byTemplate(mixed).get("migration-citizenship")!;
+    expect(cit.context.join(" ")).not.toMatch(/Together they make up/);
+  });
+
+  it("still withholds a pair whose two series come from different bundles", () => {
+    const split = { ...mixed, nonNz: nonNz as SeriesData };
+    expect(byTemplate(split).has("migration-citizenship")).toBe(false);
+  });
+});

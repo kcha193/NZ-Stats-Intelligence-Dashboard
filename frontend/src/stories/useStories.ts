@@ -20,7 +20,7 @@ const stateOf = (qs: Q<unknown>[]): SourceState => {
 };
 
 /** Every story the ingested data supports, plus why a category has none. Categories load independently; `isLoading` is true while any is still loading. */
-export function useStories(): { stories: Story[]; sources: Record<StoryCategory, SourceState>; isLoading: boolean } {
+export function useStories(): { stories: Story[]; sources: Record<StoryCategory, SourceState>; isLoading: boolean; refetch: () => void } {
   const cpi = useCpi();
   const ect = useEct();
   const net = useSeries("mig.ry.net");
@@ -30,7 +30,11 @@ export function useStories(): { stories: Story[]; sources: Record<StoryCategory,
   const nonNz = useSeries("mig.ry.net.nonnz");
   // Only used to attach a release id and page to migration vintages; its failure never hides a story.
   const overview = useOverview();
-  return useMemo(() => {
+  /** Retries only the requests that failed. */
+  const refetch = () => {
+    for (const q of [cpi, ect, net, arrivals, departures, nz, nonNz, overview]) if (q.error) void q.refetch();
+  };
+  const result = useMemo(() => {
     const migration = [net, arrivals, departures, nz, nonNz];
     const sources: Record<StoryCategory, SourceState> = {
       inflation: stateOf([cpi]),
@@ -49,4 +53,5 @@ export function useStories(): { stories: Story[]; sources: Record<StoryCategory,
     ]).filter((s) => sources[s.category] !== "loading");
     return { stories, sources, isLoading: Object.values(sources).includes("loading") };
   }, [cpi, ect, overview, net, arrivals, departures, nz, nonNz]);
+  return { ...result, refetch };
 }
