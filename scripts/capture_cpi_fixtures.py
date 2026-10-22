@@ -21,6 +21,7 @@ from nzstats.sources.release_page import parse_release_page
 
 OUT = Path(__file__).resolve().parents[1] / "backend" / "tests" / "fixtures"
 RELEASES = {
+    "2026-09": "consumers-price-index-september-2026-quarter",
     "2026-06": "consumers-price-index-june-2026-quarter",
     "2026-03": "consumers-price-index-march-2026-quarter",
     "2025-12": "consumers-price-index-december-2025-quarter",

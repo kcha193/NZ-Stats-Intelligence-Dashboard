@@ -53,9 +53,28 @@ nzstats health
 - Group contributions that are missing from the page produce a warning and a "not published" message on the page;
   contributions that are present but wrong fail the bundle.
 
+## What happened on 22 October 2026
+
+The September release was discovered and polled correctly, but every ingestion failed with `layout_changed` ("CPI percentage chart
+rows are missing or renamed") because the quarterly chart's first header cell changed from `Quarter` to `Category`. That is a code
+defect, not a scheduling or deployment problem; it is fixed on `fix/cpi-september-chart-header` (see `docs/progress.md`). Until that
+fix runs, a database that never ingested an earlier CPI quarter shows "CPI data has not been ingested yet" at `/api/cpi`; the June
+figures are only "last known good" where June was ingested before.
+
+Recovery once the fixed code is running (one paced attempt; the release is already `published`, so the daily catch-up also retries it):
+
+```sh
+cp data/nzstats.db data/nzstats.db.bak-$(date +%Y%m%d)   # or: nzstats backup, with the server running
+cd backend && . .venv/bin/activate
+nzstats ingest --release-key "consumers-price-index:september 2026 quarter"
+nzstats health
+```
+
+Restart `nzstats serve` after pulling the fix; a running process keeps the old adapter in memory.
+
 ## Not yet proven
 
-The September 2026 publication has not been ingested at the time of writing (19 October 2026). The offline rehearsal
-(`backend/tests/scheduler/test_cpi_release_day.py`) replays the real June release through discovery, polling,
-ingestion, API and dashboard; it is not evidence about the live September files. After 10:45 NZDT on 22 October, verify
-the real release as described above and record the outcome in `docs/progress.md`.
+The offline rehearsal (`backend/tests/scheduler/test_cpi_release_day.py`) replays the real June release; the September regression
+tests (`backend/tests/pipeline/test_cpi_september_2026.py`) replay the captured September files. Neither is a live ingestion of
+the September quarter into the running database. After the recovery above, check Data health and `/inflation`, and record the
+outcome in `docs/progress.md`.

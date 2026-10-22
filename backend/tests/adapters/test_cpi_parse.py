@@ -288,3 +288,51 @@ def test_a_malformed_published_percentage_row_rejects_the_release(label, edit):
 @pytest.mark.parametrize("label", PERCENT_ROW_LABELS)
 def test_complete_published_percentage_rows_still_reconcile(label):
     assert parse(pg=_percent_row_edit(label, lambda cells: cells))
+
+
+def _september_quarterly_header():
+    """The September 2026 page, whose quarterly chart opens with `Category` instead of `Quarter`."""
+    pg = page("2026-09")
+    quarterly = next(c for c in pg.charts if "CPI all groups (quarterly)" in c.csv)
+    assert quarterly.csv.startswith("Category,"), "fixture no longer shows the September layout"
+    return pg
+
+
+def test_september_2026_release_parses_and_reconciles_with_the_official_headline():
+    # Stats NZ: "CPI increased 0.7 percent in the September 2026 quarter and 3.7 percent in the 12
+    # months to September 2026." The index files give 1368 vs 1359 (June) and 1319 (September 2025).
+    pg = _september_quarterly_header()
+    assert "0.7 percent in the September 2026 quarter and 3.7 percent" in (pg.headline or "")
+    bundle = by_key(parse(files("2026-09"), pg))
+    all_groups = bundle["cpi.index.nsa.all_groups"].observations
+    assert (all_groups[-1].period, all_groups[-1].value) == ("2026-09", 1368.0)
+    assert round((1368 / 1359 - 1) * 100, 1) == 0.7
+    assert round((1368 / 1319 - 1) * 100, 1) == 3.7
+
+
+def test_percentage_charts_are_found_by_row_labels_whatever_the_first_header_cell_says():
+    # Stats NZ renamed the first header cell of the quarterly chart (Quarter -> Category).
+    pg = page()
+    charts = tuple(
+        Chart(c.title, c.csv.replace("Quarter,", "Category,", 1))
+        if "CPI all groups (quarterly)" in c.csv
+        else c
+        for c in pg.charts
+    )
+    assert parse(pg=replace(pg, charts=charts)).series
+
+
+def test_a_wrong_percentage_under_a_renamed_header_still_fails_reconciliation():
+    pg = _september_quarterly_header()
+
+    def wrong(csv_text):
+        assert csv_text.endswith(",0.7\r\n")
+        return csv_text.removesuffix("0.7\r\n") + "0.9\r\n"
+
+    charts = tuple(
+        Chart(c.title, wrong(c.csv)) if "CPI all groups (quarterly)" in c.csv else c
+        for c in pg.charts
+    )
+    with pytest.raises(IngestError) as caught:
+        parse(files("2026-09"), replace(pg, charts=charts))
+    assert caught.value.error_class is ErrorClass.VALIDATION_FAILED
