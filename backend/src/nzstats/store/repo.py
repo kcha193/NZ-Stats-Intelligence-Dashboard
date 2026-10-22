@@ -524,6 +524,19 @@ def bundle_vintage(
     return VintageInfo(*tuple(row)) if row else None
 
 
+def bundle_captured_at(conn: sqlite3.Connection, release_id: int, bundle_sha256: str) -> str | None:
+    """When the newest data in one stored bundle was captured.
+
+    Optional series can join a bundle after it was first ingested, so this can be later than any
+    single series' vintage, without the bundle (or the release) having been corrected.
+    """
+    row = conn.execute(
+        "SELECT MAX(captured_at) FROM vintage WHERE release_id = ? AND bundle_sha256 = ?",
+        (release_id, bundle_sha256),
+    ).fetchone()
+    return row[0]
+
+
 def vintage_superseded(conn: sqlite3.Connection, vintage_id: int) -> bool:
     """True if the vintage's release was re-ingested into a newer bundle that does not include this
     series, so its values were withdrawn. A series that the newer bundle revised is not superseded:

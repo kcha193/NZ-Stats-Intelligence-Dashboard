@@ -122,7 +122,11 @@ def _load(conn: sqlite3.Connection, release_id: int | None):
     if not set(CORE_KEYS) <= stored.keys() or not all(stored[k][1] for k in CORE_KEYS):
         return None
     vintage = repo.bundle_vintage(conn, ALL, row["id"], bundle)
-    return (row, bundle, stored, vintage) if vintage else None
+    # Freshness is when the newest data in the active bundle was captured: workbook enrichment adds
+    # series to the bundle later without being a correction. The all-groups vintage stays the
+    # reference for correction history, which compares publications, not availability of extras.
+    captured = repo.bundle_captured_at(conn, row["id"], bundle)
+    return (row, bundle, stored, vintage, captured) if vintage and captured else None
 
 
 def _levels(stored, key: str) -> dict[str, float]:
@@ -178,7 +182,7 @@ def build_cpi_overview_kpi(conn: sqlite3.Connection) -> tuple[Kpi, str] | None:
     loaded = _load(conn, None)
     if loaded is None:
         return None
-    row, _, stored, vintage = loaded
+    row, _, stored, _, captured = loaded
     return (
         Kpi(
             metric=_headline_metrics(stored)[0],
@@ -186,7 +190,7 @@ def build_cpi_overview_kpi(conn: sqlite3.Connection) -> tuple[Kpi, str] | None:
             published_at=to_akl_iso(row["published_at"]),
             source_url=row["page_url"],
         ),
-        to_akl_iso(vintage.captured_at),
+        to_akl_iso(captured),
     )
 
 
@@ -397,7 +401,7 @@ def _build(
     loaded = _load(conn, release_id)
     if loaded is None:
         return None
-    row, bundle, stored, vintage = loaded
+    row, bundle, stored, vintage, captured = loaded
     levels = _levels(stored, ALL)
     ref = max(levels)
     q, a = quarterly_changes(levels), annual_changes(levels)
@@ -565,14 +569,14 @@ def _build(
         methodology=Methodology(
             definitions=CAVEATS[:3], notes=CAVEATS[3:], source_url=row["page_url"]
         ),
-        vintage_captured_at=to_akl_iso(vintage.captured_at),
+        vintage_captured_at=to_akl_iso(captured),
     )
     series = _series_out(stored) if full else []
     return CpiDashboardOut(
         analysis=analysis,
         reference_period=ref,
         published_at=to_akl_iso(row["published_at"]),
-        captured_at=to_akl_iso(vintage.captured_at),
+        captured_at=to_akl_iso(captured),
         base=BASE_TEXT,
         series=series,
         contributions=blocks if full else [],
