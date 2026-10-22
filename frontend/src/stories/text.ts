@@ -27,6 +27,8 @@ export const signedPeople = (v: number) => formatNumber(Math.round(v), { signed:
 export const quarterName = (period: string) => `${fullMonth(period)} quarter`;
 export const yearEndedName = (period: string) => `year ended ${fullMonth(period)}`;
 export const monthName = fullMonth;
+/** A reference label placed mid-sentence: "Year ended July 2026" becomes "year ended July 2026"; months keep capitals. */
+export const inSentence = (label: string) => label.replace(/^Year ended/, "year ended");
 
 type Pt = { period: string; value: number };
 
@@ -44,4 +46,11 @@ export function lastAtMost(points: Pt[]): Pt | null {
   if (!last) return null;
   for (let i = points.length - 2; i >= 0; i--) if (points[i].value <= last.value) return points[i];
   return null;
+}
+
+/** `YYYY-MM` shifted by whole months. */
+export function addMonths(period: string, n: number): string {
+  const [y, m] = period.split("-").map(Number);
+  const idx = y * 12 + (m - 1) + n;
+  return `${String(Math.floor(idx / 12)).padStart(4, "0")}-${String((idx % 12) + 1).padStart(2, "0")}`;
 }

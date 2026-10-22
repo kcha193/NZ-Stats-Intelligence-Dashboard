@@ -1,0 +1,65 @@
+import { describe, expect, it } from "vitest";
+import type { SeriesData } from "@/api/types";
+import arrivals from "@/test/fixtures/series_arrivals_ry.json";
+import departures from "@/test/fixtures/series_departures_ry.json";
+import net from "@/test/fixtures/series_net_ry.json";
+import nonNz from "@/test/fixtures/series_net_nonnz_ry.json";
+import nz from "@/test/fixtures/series_net_nz_ry.json";
+import { buildMigrationStories, type MigrationInput } from "./migration";
+
+const input: MigrationInput = {
+  net: net as SeriesData, arrivals: arrivals as SeriesData, departures: departures as SeriesData,
+  nz: nz as SeriesData, nonNz: nonNz as SeriesData,
+  releases: [{ id: 2, release_key: "international-migration:july 2026", page_url: "https://www.stats.govt.nz/information-releases/international-migration-july-2026/" }],
+};
+const byTemplate = (i: MigrationInput) => new Map(buildMigrationStories(i).map((s) => [s.template, s]));
+
+describe("migration stories", () => {
+  it("builds three year-ended stories with release provenance and provisional status", () => {
+    const stories = buildMigrationStories(input);
+    expect(stories.map((s) => s.id)).toEqual(["migration-net-2026-07", "migration-flows-2026-07", "migration-citizenship-2026-07"]);
+    for (const s of stories) {
+      expect(s.category).toBe("migration");
+      expect(s.dataStatus).toBe("provisional");
+      expect(s.referenceLabel).toBe("Year ended July 2026");
+      expect(s.provenance).toMatchObject({ releaseId: 2, pageUrl: input.releases[0].page_url, publishedAt: "2026-09-14T10:45:00+12:00" });
+      expect(s.caveats.join(" ")).toMatch(/provisional/i);
+      expect(s.caveats.join(" ")).toMatch(/not comparable with monthly/i);
+      expect(s.evidence.every((e) => e.seriesKey.startsWith("mig.ry."))).toBe(true);
+    }
+  });
+
+  it("compares the year-ended net gain with the same measure a year earlier", () => {
+    const s = byTemplate(input).get("migration-net")!;
+    expect(s.headline).toBe("Annual net migration gain rises to 20,350");
+    expect(s.stat).toMatchObject({ value: "+20,350", unit: "people, net migration in the year ended July 2026", sign: "positive" });
+    expect(s.dek).toBe("New Zealand gained 20,350 more migrants than it lost in the year ended July 2026, up from a net gain of 9,592 a year earlier. The latest estimate is provisional.");
+    expect(s.context).toContain("The largest annual net gain in the last ten years was 133,738, in the year ended October 2023.");
+  });
+
+  it("sets arrivals against departures, each against its own year-earlier value", () => {
+    const s = byTemplate(input).get("migration-flows")!;
+    expect(s.headline).toBe("Migrant arrivals rise 5.2% while departures fall 3.5%");
+    expect(s.dek).toBe("In the year ended July 2026, 134,434 migrants arrived and 114,084 departed, so arrivals exceeded departures by 20,350.");
+  });
+
+  it("separates New Zealand citizens from other citizens", () => {
+    const s = byTemplate(input).get("migration-citizenship")!;
+    expect(s.headline).toBe("Net loss of New Zealand citizens is offset by a larger gain of other citizens");
+    expect(s.dek).toBe("In the year ended July 2026, New Zealand citizens recorded a net loss of 38,335 and non-New Zealand citizens a net gain of 58,685.");
+    expect(s.stat).toMatchObject({ value: "−38,335", sign: "negative" });
+    expect(s.context).toContain("Year-ended net migration of New Zealand citizens has been a loss in every month since January 2022.");
+    expect(s.context).toContain("Together they make up the total net gain of 20,350.");
+  });
+
+  it("never combines series from different release bundles", () => {
+    const stale = { ...(departures as SeriesData), vintage: { ...(departures as SeriesData).vintage, captured_at: "2026-09-15T10:00:00+12:00" } };
+    const t = byTemplate({ ...input, departures: stale });
+    expect(t.has("migration-flows")).toBe(false);
+    expect(t.has("migration-net")).toBe(true);
+  });
+
+  it("builds only what the loaded series support", () => {
+    expect(buildMigrationStories({ ...input, net: undefined, nz: undefined }).map((s) => s.template)).toEqual(["migration-flows"]);
+  });
+});

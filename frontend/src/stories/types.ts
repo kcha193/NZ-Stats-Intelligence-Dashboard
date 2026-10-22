@@ -31,7 +31,7 @@ export type EvidenceRow = {
 
 /** Inline SVG thumbnail data. `line` is a time series; `bars` is a signed or level ranking. */
 export type Thumb =
-  | { kind: "line"; values: (number | null)[]; zero: boolean }
+  | { kind: "line"; values: (number | null)[]; zero: boolean; compare?: (number | null)[] }
   | { kind: "bars"; items: { label: string; value: number }[] };
 
 export type Figure =
@@ -45,7 +45,7 @@ export type Figure =
   | { kind: "mig-citizenship"; nonNz: SeriesData; nz: SeriesData };
 
 export type IndustryMove = {
-  name: string; seriesKey: string; period: string; previousPeriod: string; current: number; previous: number; percent: number;
+  name: string; inText: string; seriesKey: string; period: string; previousPeriod: string; current: number; previous: number; percent: number;
 };
 
 export type Story = {

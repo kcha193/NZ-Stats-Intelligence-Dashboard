@@ -12,7 +12,7 @@ import { StoryMeta } from "@/components/story/StoryCard";
 import { formatAklDate } from "@/lib/format";
 import { resolveStory } from "@/stories/engine";
 import { figureView, variantsOf } from "@/stories/figures";
-import { monthName } from "@/stories/text";
+import { inSentence, monthName } from "@/stories/text";
 import { CATEGORY_LABEL, type Story } from "@/stories/types";
 import { useStories } from "@/stories/useStories";
 
@@ -29,7 +29,7 @@ function NewerRelease({ story }: { story: Story }) {
   return (
     <p role="note" className="rounded-md border border-amber-600/50 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
       Stats NZ published {newer.title} on {formatAklDate(newer.published_at)}. It has not been verified here yet, so this
-      story still shows the {story.referenceLabel}.
+      story still shows the {inSentence(story.referenceLabel)}.
     </p>
   );
 }

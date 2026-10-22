@@ -33,14 +33,16 @@ describe("Overview", () => {
   });
 
   it("leads with the newest verified story, its number and a link to read it", async () => {
+    // Migration (published 14 Sep) is newer than CPI (21 Jul), so it leads; CPI follows in the collection.
     mockApi({ "/api/overview": overview, "/api/series/mig.ry.net": series, "/api/cpi": cpi });
     renderWithProviders(<Overview />);
-    const hero = await screen.findByRole("region", { name: "Annual inflation rises to 4.1%" });
-    expect(within(hero).getByRole("group", { name: "Key statistic" })).toHaveTextContent("4.1%");
-    expect(within(hero).getByRole("link", { name: "Read the story" })).toHaveAttribute("href", "/stories/inflation-annual-2026-06");
-    expect(within(hero).getByText(/Published 21 Jul 2026/)).toBeInTheDocument();
+    const hero = await screen.findByRole("region", { name: "Annual net migration gain rises to 20,350" });
+    expect(within(hero).getByRole("group", { name: "Key statistic" })).toHaveTextContent("+20,350");
+    expect(within(hero).getByRole("link", { name: "Read the story" })).toHaveAttribute("href", "/stories/migration-net-2026-07");
+    expect(within(hero).getByText(/Published 14 Sep 2026/)).toBeInTheDocument();
+    expect(within(hero).getByText("Provisional")).toBeInTheDocument();
     const latest = screen.getByRole("list", { name: "Latest stories" });
-    expect(within(latest).getAllByRole("article")).toHaveLength(2);
+    expect(within(latest).getAllByRole("article")[0]).toHaveTextContent("Annual inflation rises to 4.1%");
   });
 
   it("names the inactive categories rather than faking indicators", async () => {

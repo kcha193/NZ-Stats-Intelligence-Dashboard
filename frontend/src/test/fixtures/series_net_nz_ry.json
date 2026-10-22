@@ -1,0 +1,2099 @@
+{
+ "series": {
+  "key": "mig.ry.net.nz",
+  "name": "Net migration, NZ citizens (year ended)",
+  "unit": "people",
+  "frequency": "rolling_annual",
+  "adjustment": "none",
+  "category": "migration",
+  "definition": "Long-term migrant movements under Stats NZ's outcomes-based measure (a traveller is counted as a migrant if they spend 12 of the following 16 months in, or out of, New Zealand). Mean estimates, in people. Estimates for the most recent months are provisional and are revised as travel outcomes become known. Rolling twelve-month total, as published by Stats NZ.",
+  "definition_id": "migration.outcomes_based_long_term",
+  "latest_period": "2026-07",
+  "n_vintages": 2
+ },
+ "vintage": {
+  "release_key": "international-migration:july 2026",
+  "title": "International migration: July 2026",
+  "published_at": "2026-09-14T10:45:00+12:00",
+  "captured_at": "2026-10-11T16:00:00+13:00",
+  "source_kind": "release_files",
+  "layout_version": "migration-csv-v1",
+  "superseded": false
+ },
+ "points": [
+  {
+   "period": "2001-12",
+   "value": -28089.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-01",
+   "value": -25214.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-02",
+   "value": -21806.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-03",
+   "value": -20378.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-04",
+   "value": -19627.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-05",
+   "value": -17625.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-06",
+   "value": -17228.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-07",
+   "value": -16734.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-08",
+   "value": -16176.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-09",
+   "value": -15741.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-10",
+   "value": -15744.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-11",
+   "value": -15109.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2002-12",
+   "value": -14425.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-01",
+   "value": -13650.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-02",
+   "value": -12785.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-03",
+   "value": -12217.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-04",
+   "value": -11269.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-05",
+   "value": -10826.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-06",
+   "value": -10364.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-07",
+   "value": -10255.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-08",
+   "value": -10277.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-09",
+   "value": -10113.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-10",
+   "value": -10048.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-11",
+   "value": -10641.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2003-12",
+   "value": -11223.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-01",
+   "value": -11567.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-02",
+   "value": -12620.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-03",
+   "value": -13367.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-04",
+   "value": -14265.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-05",
+   "value": -15170.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-06",
+   "value": -15972.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-07",
+   "value": -16355.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-08",
+   "value": -16859.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-09",
+   "value": -17696.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-10",
+   "value": -18356.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-11",
+   "value": -18976.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2004-12",
+   "value": -19825.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-01",
+   "value": -20565.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-02",
+   "value": -20929.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-03",
+   "value": -21538.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-04",
+   "value": -22196.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-05",
+   "value": -22529.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-06",
+   "value": -22706.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-07",
+   "value": -23476.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-08",
+   "value": -23685.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-09",
+   "value": -23812.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-10",
+   "value": -24182.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-11",
+   "value": -24331.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2005-12",
+   "value": -24525.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-01",
+   "value": -24680.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-02",
+   "value": -24618.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-03",
+   "value": -24255.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-04",
+   "value": -24359.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-05",
+   "value": -24498.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-06",
+   "value": -25034.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-07",
+   "value": -24924.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-08",
+   "value": -25467.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-09",
+   "value": -25948.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-10",
+   "value": -26427.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-11",
+   "value": -26558.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2006-12",
+   "value": -27403.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-01",
+   "value": -28101.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-02",
+   "value": -29025.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-03",
+   "value": -29966.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-04",
+   "value": -30753.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-05",
+   "value": -31744.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-06",
+   "value": -32465.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-07",
+   "value": -33320.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-08",
+   "value": -33909.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-09",
+   "value": -34507.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-10",
+   "value": -34629.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-11",
+   "value": -35292.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2007-12",
+   "value": -36294.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-01",
+   "value": -36951.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-02",
+   "value": -37672.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-03",
+   "value": -37937.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-04",
+   "value": -38106.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-05",
+   "value": -38199.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-06",
+   "value": -38550.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-07",
+   "value": -38615.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-08",
+   "value": -39099.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-09",
+   "value": -39014.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-10",
+   "value": -39318.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-11",
+   "value": -39463.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2008-12",
+   "value": -38372.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-01",
+   "value": -37597.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-02",
+   "value": -35829.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-03",
+   "value": -34387.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-04",
+   "value": -32429.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-05",
+   "value": -30143.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-06",
+   "value": -27699.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-07",
+   "value": -25661.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-08",
+   "value": -23233.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-09",
+   "value": -21482.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-10",
+   "value": -19547.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-11",
+   "value": -17937.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2009-12",
+   "value": -16508.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-01",
+   "value": -15283.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-02",
+   "value": -15374.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-03",
+   "value": -15544.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-04",
+   "value": -15836.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-05",
+   "value": -16818.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-06",
+   "value": -18008.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-07",
+   "value": -19041.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-08",
+   "value": -20439.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-09",
+   "value": -21507.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-10",
+   "value": -23192.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-11",
+   "value": -24461.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2010-12",
+   "value": -26380.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-01",
+   "value": -28151.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-02",
+   "value": -29347.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-03",
+   "value": -31600.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-04",
+   "value": -33476.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-05",
+   "value": -34802.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-06",
+   "value": -36134.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-07",
+   "value": -37710.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-08",
+   "value": -38428.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-09",
+   "value": -39370.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-10",
+   "value": -40273.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-11",
+   "value": -41224.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2011-12",
+   "value": -42772.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-01",
+   "value": -43519.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-02",
+   "value": -44385.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-03",
+   "value": -43924.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-04",
+   "value": -43910.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-05",
+   "value": -43962.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-06",
+   "value": -43877.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-07",
+   "value": -43447.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-08",
+   "value": -43416.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-09",
+   "value": -43119.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-10",
+   "value": -42478.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-11",
+   "value": -41684.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2012-12",
+   "value": -40676.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-01",
+   "value": -39524.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-02",
+   "value": -38122.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-03",
+   "value": -36751.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-04",
+   "value": -35193.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-05",
+   "value": -33658.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-06",
+   "value": -31944.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-07",
+   "value": -30120.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-08",
+   "value": -28347.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-09",
+   "value": -26514.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-10",
+   "value": -24821.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-11",
+   "value": -23283.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2013-12",
+   "value": -20810.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-01",
+   "value": -19152.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-02",
+   "value": -17309.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-03",
+   "value": -15749.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-04",
+   "value": -14252.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-05",
+   "value": -13201.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-06",
+   "value": -12224.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-07",
+   "value": -11176.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-08",
+   "value": -10453.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-09",
+   "value": -9858.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-10",
+   "value": -9043.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-11",
+   "value": -8448.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2014-12",
+   "value": -7556.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-01",
+   "value": -6584.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-02",
+   "value": -6450.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-03",
+   "value": -6005.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-04",
+   "value": -5992.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-05",
+   "value": -5499.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-06",
+   "value": -5210.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-07",
+   "value": -5176.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-08",
+   "value": -4865.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-09",
+   "value": -4801.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-10",
+   "value": -4782.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-11",
+   "value": -4623.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2015-12",
+   "value": -4727.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-01",
+   "value": -4427.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-02",
+   "value": -4046.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-03",
+   "value": -3567.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-04",
+   "value": -3568.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-05",
+   "value": -3455.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-06",
+   "value": -3163.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-07",
+   "value": -3016.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-08",
+   "value": -2733.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-09",
+   "value": -2405.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-10",
+   "value": -2348.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-11",
+   "value": -2280.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2016-12",
+   "value": -2226.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-01",
+   "value": -2432.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-02",
+   "value": -2575.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-03",
+   "value": -2659.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-04",
+   "value": -2680.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-05",
+   "value": -2808.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-06",
+   "value": -2915.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-07",
+   "value": -3125.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-08",
+   "value": -3558.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-09",
+   "value": -3970.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-10",
+   "value": -4219.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-11",
+   "value": -4499.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2017-12",
+   "value": -4846.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-01",
+   "value": -5130.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-02",
+   "value": -5276.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-03",
+   "value": -5836.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-04",
+   "value": -6040.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-05",
+   "value": -6227.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-06",
+   "value": -6791.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-07",
+   "value": -7154.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-08",
+   "value": -7252.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-09",
+   "value": -7283.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-10",
+   "value": -7557.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-11",
+   "value": -7571.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2018-12",
+   "value": -7612.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-01",
+   "value": -7541.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-02",
+   "value": -7398.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-03",
+   "value": -7091.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-04",
+   "value": -6521.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-05",
+   "value": -6064.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-06",
+   "value": -5604.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-07",
+   "value": -4610.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-08",
+   "value": -3521.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-09",
+   "value": -2715.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-10",
+   "value": -1555.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-11",
+   "value": -38.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2019-12",
+   "value": 2902.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-01",
+   "value": 4461.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-02",
+   "value": 6585.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-03",
+   "value": 11327.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-04",
+   "value": 13067.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-05",
+   "value": 14977.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-06",
+   "value": 17127.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-07",
+   "value": 19394.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-08",
+   "value": 21458.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-09",
+   "value": 23620.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-10",
+   "value": 24572.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-11",
+   "value": 24504.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2020-12",
+   "value": 21608.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-01",
+   "value": 20774.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-02",
+   "value": 19581.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-03",
+   "value": 15931.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-04",
+   "value": 15722.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-05",
+   "value": 15191.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-06",
+   "value": 13642.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-07",
+   "value": 12024.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-08",
+   "value": 8969.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-09",
+   "value": 6221.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-10",
+   "value": 5123.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-11",
+   "value": 3331.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2021-12",
+   "value": 927.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-01",
+   "value": -1715.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-02",
+   "value": -4461.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-03",
+   "value": -4828.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-04",
+   "value": -7398.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-05",
+   "value": -10406.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-06",
+   "value": -12582.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-07",
+   "value": -15659.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-08",
+   "value": -17451.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-09",
+   "value": -19699.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-10",
+   "value": -22453.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-11",
+   "value": -24347.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2022-12",
+   "value": -25172.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-01",
+   "value": -25832.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-02",
+   "value": -26835.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-03",
+   "value": -30355.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-04",
+   "value": -32404.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-05",
+   "value": -34163.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-06",
+   "value": -36016.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-07",
+   "value": -37639.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-08",
+   "value": -38523.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-09",
+   "value": -39585.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-10",
+   "value": -40811.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-11",
+   "value": -41933.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2023-12",
+   "value": -43392.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-01",
+   "value": -44866.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-02",
+   "value": -44933.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-03",
+   "value": -45413.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-04",
+   "value": -45913.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-05",
+   "value": -45756.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-06",
+   "value": -45468.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-07",
+   "value": -44979.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-08",
+   "value": -45032.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-09",
+   "value": -44762.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-10",
+   "value": -44542.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-11",
+   "value": -44039.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2024-12",
+   "value": -43770.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-01",
+   "value": -43737.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-02",
+   "value": -43606.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-03",
+   "value": -43110.0,
+   "status": "final",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-04",
+   "value": -42229.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-05",
+   "value": -41901.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-06",
+   "value": -41063.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-07",
+   "value": -40372.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-08",
+   "value": -39910.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-09",
+   "value": -39429.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-10",
+   "value": -38777.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-11",
+   "value": -38527.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2025-12",
+   "value": -38228.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2026-01",
+   "value": -38435.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2026-02",
+   "value": -38524.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2026-03",
+   "value": -38351.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2026-04",
+   "value": -38244.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2026-05",
+   "value": -37931.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2026-06",
+   "value": -37955.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  },
+  {
+   "period": "2026-07",
+   "value": -38335.0,
+   "status": "provisional",
+   "std_error": null,
+   "released_in": null
+  }
+ ],
+ "source_url": "https://www.stats.govt.nz/information-releases/international-migration-july-2026/",
+ "caveat": "Rolling twelve-month total published by Stats NZ. Not comparable with monthly figures. Its status is derived here from the monthly files: a total is provisional while any of its twelve months is."
+}

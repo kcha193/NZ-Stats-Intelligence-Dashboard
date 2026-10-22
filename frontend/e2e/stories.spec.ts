@@ -4,15 +4,16 @@ test("homepage leads with a featured story that opens a complete story page", as
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   await page.goto("/");
-  const hero = page.getByRole("region", { name: /Annual inflation/ });
-  await expect(hero.getByRole("group", { name: "Key statistic" })).toContainText("4.1%");
+  // The newest verified release in the seeded data is card spending (16 Oct 2026), so it leads.
+  const hero = page.getByRole("region", { name: "Retail card spending fell 0.4% in September 2026" });
+  await expect(hero.getByRole("group", { name: "Key statistic" })).toContainText("\u22120.4%");
   await expect(hero.locator("canvas")).toBeVisible();
   await hero.getByRole("link", { name: "Read the story" }).click();
-  await expect(page).toHaveURL(/\/stories\/inflation-annual-2026-06$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Annual inflation rises to 4.1%");
+  await expect(page).toHaveURL(/\/stories\/spending-retail-2026-09$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Retail card spending fell 0.4% in September 2026");
   await expect(page.getByRole("figure").locator("canvas")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Source" })).toContainText("21 Jul 2026");
-  await expect(page.getByRole("link", { name: "Explore the inflation dashboard" })).toHaveAttribute("href", "/inflation");
+  await expect(page.getByRole("region", { name: "Source" })).toContainText("16 Oct 2026");
+  await expect(page.getByRole("link", { name: "Explore the card spending dashboard" })).toHaveAttribute("href", "/electronic-card-transactions");
   expect(errors).toEqual([]);
 });
 
@@ -35,7 +36,23 @@ test("a story address survives a reload and an old period is marked superseded",
   await expect(page.getByRole("heading", { name: "This story has been superseded" })).toBeVisible();
 });
 
-for (const route of ["/stories", "/stories/inflation-annual-2026-06", "/stories/inflation-drivers-2026-06"]) {
+test("each category has a complete story page", async ({ page }) => {
+  for (const [route, heading] of [
+    ["/stories/spending-retail-2026-09", "Retail card spending fell 0.4% in September 2026"],
+    ["/stories/migration-net-2026-07", "Annual net migration gain rises to 20,350"],
+    ["/stories/inflation-tradables-2026-06", "Tradables inflation (4.9%) runs ahead of non-tradables (3.4%)"],
+  ]) {
+    await page.goto(route);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading);
+    await expect(page.getByRole("figure").locator("canvas")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Values used in this story" })).toBeVisible();
+  }
+});
+
+for (const route of [
+  "/stories", "/stories/inflation-annual-2026-06", "/stories/inflation-drivers-2026-06", "/stories/spending-industries-2026-09",
+  "/stories/migration-citizenship-2026-07",
+]) {
   test(`no horizontal scroll on ${route}`, async ({ page }) => {
     await page.goto(route);
     await page.waitForLoadState("networkidle");

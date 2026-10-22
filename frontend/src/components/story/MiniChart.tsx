@@ -22,7 +22,7 @@ function linePath(values: (number | null)[], y: (v: number) => number): string {
 /** A decorative thumbnail: the card's text states the finding, so the graphic is hidden from assistive tech. */
 export function MiniChart({ thumb }: { thumb: Thumb }) {
   if (thumb.kind === "line") {
-    const vals = thumb.values.filter((v): v is number => v !== null);
+    const vals = [...thumb.values, ...(thumb.compare ?? [])].filter((v): v is number => v !== null);
     if (vals.length < 2) return null;
     const lo = Math.min(...vals, ...(thumb.zero ? [0] : []));
     const hi = Math.max(...vals, ...(thumb.zero ? [0] : []));
@@ -36,6 +36,9 @@ export function MiniChart({ thumb }: { thumb: Thumb }) {
         {lo < 0 && hi > 0 || thumb.zero ? (
           <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="var(--chart-muted)" strokeWidth={1} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
         ) : null}
+        {thumb.compare && (
+          <path d={linePath(thumb.compare, y)} fill="none" stroke="var(--chart-2)" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        )}
         <path d={linePath(thumb.values, y)} fill="none" stroke="var(--chart-1)" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
         {last !== null && <circle cx={PAD + lastIndex * step} cy={y(last)} r={3} fill="var(--chart-1)" />}
       </svg>

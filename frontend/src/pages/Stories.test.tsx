@@ -2,6 +2,13 @@ import { screen, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import cpi from "@/test/fixtures/cpi.json";
+import ect from "@/test/fixtures/ect.json";
+import overview from "@/test/fixtures/overview.json";
+import arrivals from "@/test/fixtures/series_arrivals_ry.json";
+import departures from "@/test/fixtures/series_departures_ry.json";
+import net from "@/test/fixtures/series_net_ry.json";
+import nonNz from "@/test/fixtures/series_net_nonnz_ry.json";
+import nz from "@/test/fixtures/series_net_nz_ry.json";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import Stories from "./Stories";
 import StoryPage from "./Story";
@@ -83,6 +90,16 @@ describe("Story page", () => {
     expect(await screen.findByRole("heading", { name: "Story not found" })).toBeInTheDocument();
   });
 
+  it("names a year-ended period in lower case mid-sentence", async () => {
+    mockApi({ ...ALL, "/api/releases": [{
+      id: 41, release_key: "international-migration:august 2026", title: "International migration: August 2026",
+      series_slug: "international-migration", category: "Migration", importance: "high", period_label: "August 2026",
+      published_at: "2026-10-14T10:45:00+13:00", status: "scheduled", headline: null, page_url: null, has_analysis: false,
+    }] });
+    renderWithProviders(routes, { route: "/stories/migration-net-2026-07" });
+    expect(await screen.findByRole("note")).toHaveTextContent("so this story still shows the year ended July 2026.");
+  });
+
   it("warns when Stats NZ has published a newer release that is not verified here yet", async () => {
     mockApi({
       "/api/cpi": cpi,
@@ -95,5 +112,54 @@ describe("Story page", () => {
     renderWithProviders(routes, { route: "/stories/inflation-annual-2026-06" });
     expect(await screen.findByRole("note")).toHaveTextContent(
       "Stats NZ published Consumers price index: September 2026 quarter on 22 Oct 2026. It has not been verified here yet, so this story still shows the June 2026 quarter.");
+  });
+});
+
+const ALL = {
+  "/api/cpi": cpi, "/api/ect": ect, "/api/overview": overview, "/api/releases": [],
+  "/api/series/mig.ry.net": net, "/api/series/mig.ry.arrivals": arrivals, "/api/series/mig.ry.departures": departures,
+  "/api/series/mig.ry.net.nz": nz, "/api/series/mig.ry.net.nonnz": nonNz,
+};
+
+describe("stories across categories", () => {
+  it("orders all eight stories newest release first", async () => {
+    mockApi(ALL);
+    renderWithProviders(routes, { route: "/stories" });
+    const list = await screen.findByRole("list", { name: "All stories" });
+    const heads = within(list).getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(heads).toEqual([
+      "Retail card spending fell 0.4% in September 2026",
+      "Spending on fuel rose 2.9% in September 2026; hospitality fell 2.3%",
+      "Annual net migration gain rises to 20,350",
+      "Migrant arrivals rise 5.2% while departures fall 3.5%",
+      "Net loss of New Zealand citizens is offset by a larger gain of other citizens",
+      "Annual inflation rises to 4.1%",
+      "Transport made the largest contribution to quarterly inflation of 1.5%",
+      "Tradables inflation (4.9%) runs ahead of non-tradables (3.4%)",
+    ]);
+    expect(screen.queryByText(/no data has been ingested yet/)).not.toBeInTheDocument();
+  });
+
+  it("renders a card spending story with its release analysis link and a switch to the spending level", async () => {
+    mockApi(ALL);
+    renderWithProviders(routes, { route: "/stories/spending-retail-2026-09" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Retail card spending fell 0.4% in September 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Key statistic" })).toHaveTextContent("\u22120.4%monthly change, seasonally adjusted");
+    expect(screen.getByRole("img", { name: /monthly percentage change, last 24 months/ })).toBeInTheDocument();
+    screen.getByRole("radio", { name: "Spending level" }).click();
+    expect(await screen.findByText(/does not start at zero/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Full release analysis" })).toHaveAttribute("href", "/releases/2");
+  });
+
+  it("renders a provisional migration story and attaches the release from the overview", async () => {
+    mockApi(ALL);
+    renderWithProviders(routes, { route: "/stories/migration-citizenship-2026-07" });
+    expect(await screen.findByRole("heading", { level: 1, name: /offset by a larger gain of other citizens/ })).toBeInTheDocument();
+    expect(screen.getAllByText("Provisional").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    const source = screen.getByRole("region", { name: "Source" });
+    expect(within(source).getByRole("link", { name: /International migration: July 2026/ })).toHaveAttribute(
+      "href", "https://www.stats.govt.nz/information-releases/international-migration-july-2026/");
+    expect(screen.getByRole("link", { name: "Explore the migration dashboard" })).toHaveAttribute("href", "/migration");
   });
 });

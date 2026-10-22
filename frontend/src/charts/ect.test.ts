@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { ectHistoryOption, ectIndustryOption, zoomedRange } from './ect';
+import { ectChangeOption, ectHistoryOption, ectIndustryOption, zoomedRange } from './ect';
 import { TEST_THEME } from './theme';
 
 it('formats money with NZD units, adjustment and quarterly periods in tooltips', () => {
@@ -57,4 +57,17 @@ it('industry charts size to their labels and use whole-number negative ticks on 
   expect(opt.xAxis.min).toBeLessThanOrEqual(-2.26);
   expect(opt.xAxis.splitNumber).toBeLessThanOrEqual(4);
   expect(opt.xAxis.axisLabel.hideOverlap).toBe(true);
+});
+
+it('draws published monthly changes as signed bars around zero, keeping gaps and revised status', () => {
+  const opt=ectChangeOption({name:'Retail, seasonally adjusted',points:[
+    {period:'2026-06',value:-1.4,status:'unknown'},{period:'2026-08',value:-0.9,status:'unknown'},{period:'2026-09',value:-0.4,status:'final'}]},TEST_THEME) as any;
+  expect(opt.xAxis.data).toEqual(['2026-06','2026-07','2026-08','2026-09']);
+  expect(opt.series[0].data[1]).toBeNull();
+  expect(opt.series[0].data[3].itemStyle.color).toBe(TEST_THEME.negative);
+  expect(opt.series[0].markLine.data).toEqual([{yAxis:0}]);
+  expect(opt.yAxis.axisLabel.formatter(-1)).toBe('\u22121%');
+  const tip=opt.tooltip.formatter([{axisValue:'2026-08'}]);
+  expect(tip).toContain('Aug 2026');expect(tip).toContain('\u22120.9%');expect(tip).toContain('revised');
+  expect(opt.series[0].markPoint.data[0].coord).toEqual(['2026-09',-0.4]);
 });

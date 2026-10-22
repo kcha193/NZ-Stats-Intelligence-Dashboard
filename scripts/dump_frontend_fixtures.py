@@ -80,6 +80,8 @@ def main() -> None:
                 "series_net_ry": "/api/series/mig.ry.net",
                 "series_arrivals_ry": "/api/series/mig.ry.arrivals",
                 "series_departures_ry": "/api/series/mig.ry.departures",
+                "series_net_nz_ry": "/api/series/mig.ry.net.nz",
+                "series_net_nonnz_ry": "/api/series/mig.ry.net.nonnz",
                 "countries": "/api/migration/countries",
                 "revisions": "/api/revisions/mig.m.net",
                 "health": "/api/health",
