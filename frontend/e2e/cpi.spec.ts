@@ -42,7 +42,8 @@ test('inflation dashboard: KPIs, ranges, contributions, explorer, exports and no
 
 test('overview shows the CPI indicator and links the inflation dashboard', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('article', { name: 'CPI annual inflation, all groups' })).toContainText('4.1%');
-  await page.getByRole('link', { name: 'Explore inflation' }).click();
+  const indicators = page.getByRole('region', { name: 'Key indicators' });
+  await expect(indicators.getByRole('article', { name: 'CPI annual inflation, all groups' })).toContainText('4.1%');
+  await indicators.getByRole('link', { name: 'Explore inflation' }).click();
   await expect(page).toHaveURL(/\/inflation$/);
 });

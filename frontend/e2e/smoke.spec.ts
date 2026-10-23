@@ -4,7 +4,8 @@ test("overview shows KPIs, panels and no console errors", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Economic overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "New Zealand’s economy, explained." })).toBeVisible();
+  await expect(page.getByRole("region", { name: "The economy at a glance" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Key indicators" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Upcoming releases" })).toBeVisible();
   expect(errors).toEqual([]);

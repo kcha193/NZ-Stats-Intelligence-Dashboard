@@ -13,7 +13,7 @@ test("homepage leads with a featured story that opens a complete story page", as
   await expect(page).toHaveURL(/\/stories\/spending-retail-2026-09$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Retail card spending fell 0.4% in September 2026");
   await expect(page.getByRole("figure").locator("canvas")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Source" })).toContainText("16 Oct 2026");
+  await expect(page.getByRole("region", { name: "Source", exact: true })).toContainText("16 Oct 2026");
   await expect(page.getByRole("link", { name: "Explore the card spending dashboard" })).toHaveAttribute("href", "/electronic-card-transactions");
   expect(errors).toEqual([]);
 });
@@ -97,7 +97,7 @@ for (const [format, width, height] of [["Landscape", 1200, 675], ["Portrait", 12
     expect(all).toContain("Source: Stats NZ, Consumers price index: June 2026 quarter, published 21 Jul 2026");
     expect(all).toContain("Reference period: June 2026 quarter");
     expect(all).toContain("(https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/)");
-    expect(all).toContain("NZ Stats Intelligence (independent, not endorsed by Stats NZ) · http://127.0.0.1:8765/stories/inflation-drivers-2026-06");
+    expect(all).toContain(`NZ Stats Intelligence (independent, not endorsed by Stats NZ) · ${new URL(page.url()).origin}/stories/inflation-drivers-2026-06`);
     await expect(page.getByRole("status").filter({ hasText: "exported with source" })).toBeVisible();
   });
 }
