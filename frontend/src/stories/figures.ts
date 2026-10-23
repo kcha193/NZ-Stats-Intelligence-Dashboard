@@ -75,6 +75,31 @@ export function annotate(
   return { ...option, series };
 }
 
+/** Story figures emphasise the reference period: earlier bars recede so the latest one reads first. */
+export function emphasiseLatest(option: EChartsCoreOption): EChartsCoreOption {
+  const series = [...(option as SeriesOpt).series];
+  const data = (series[0].data as ({ value: number; itemStyle?: object } | null)[]) ?? [];
+  const last = data.map((d, i) => (d ? i : -1)).filter((i) => i >= 0).at(-1);
+  series[0] = {
+    ...series[0],
+    data: data.map((d, i) => (d && i !== last ? { ...d, itemStyle: { ...d.itemStyle, opacity: 0.45 } } : d)),
+  };
+  return { ...option, series };
+}
+
+/** End labels that carry each line's latest value as well as its name, so the comparison is readable at a glance. */
+function valueEndLabels(option: EChartsCoreOption): EChartsCoreOption {
+  const series = (option as SeriesOpt).series.map((x) => ({
+    ...x,
+    endLabel: {
+      ...(x.endLabel as object), show: true, fontWeight: 600,
+      formatter: (p: { seriesName: string; value: number | null }) => (p.value == null ? p.seriesName : `${p.seriesName} ${rate(p.value)}`),
+    },
+  }));
+  const grid = (option as { grid?: object }).grid;
+  return { ...option, series, grid: { ...grid, right: 150 } };
+}
+
 export function figureView(story: Story, variant: string, theme: ChartTheme): FigureView {
   const f = story.figure;
   const meta = { releaseKey: story.provenance.releaseKey, sourceUrl: story.provenance.pageUrl };
@@ -126,7 +151,7 @@ export function figureView(story: Story, variant: string, theme: ChartTheme): Fi
         question: `${quarter}: which is rising faster, prices set abroad or at home?`,
         unit: horizon === "annual" ? "percent change from the same quarter a year earlier" : "percent change from the previous quarter",
         caveat: "Both series are on one percentage axis, so the gap between them is in percentage points. Non-tradables is not core inflation.",
-        option: tradablesOption(t, n, horizon, theme), ariaLabel: `Tradables and non-tradables ${horizon} inflation, last ten years`, height: 340,
+        option: valueEndLabels(tradablesOption(t, n, horizon, theme)), ariaLabel: `Tradables and non-tradables ${horizon} inflation, last ten years`, height: 340,
         csvFilename: `story-cpi-tradables-${horizon}.csv`,
         csvRows: [...historyCsvRows(f.tradables, t, meta), ...historyCsvRows(f.nonTradables, n, meta)],
       };
@@ -149,7 +174,7 @@ export function figureView(story: Story, variant: string, theme: ChartTheme): Fi
         title: "Retail card spending · monthly change", question: `${story.referenceLabel}: how does ${story.stat.value} compare with the last two years?`,
         unit: "percent change from the previous month, seasonally adjusted",
         caveat: "Monthly changes as published by Stats NZ (one decimal place). Seasonally adjusted values are revised as new months arrive.",
-        option: ectChangeOption({ name: "Retail, seasonally adjusted", points }, theme),
+        option: emphasiseLatest(ectChangeOption({ name: "Retail, seasonally adjusted", points }, theme)),
         ariaLabel: "Retail card spending, monthly percentage change, last 24 months", height: 320,
         csvFilename: "story-ect-retail-change.csv", csvRows: seriesCsv(f.change, points, meta),
       };
@@ -176,7 +201,7 @@ export function figureView(story: Story, variant: string, theme: ChartTheme): Fi
       let option = lineOption({ series: [{ name: "Year-ended net migration", points, color: theme.series[0] }], unit: "people", frequency: "rolling_annual" }, theme);
       if (peak && peak.period !== points.at(-1)?.period) {
         // Left of the point, clear of the provisional band's label at the recent end.
-        option = annotate(option, [peak.period, peak.value], `Peak ${formatNumber(peak.value)} (${monthLabel(peak.period)})`, theme.muted, "left");
+        option = annotate(option, [peak.period, peak.value], `Peak ${formatNumber(peak.value)} (YE ${monthLabel(peak.period)})`, theme.muted, "left");
       }
       return {
         title: "Year-ended net migration", question: `${story.referenceLabel}: how does ${story.stat.value} compare with the last decade?`,

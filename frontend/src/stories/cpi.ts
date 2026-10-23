@@ -3,7 +3,7 @@ import { addQuarters } from "@/charts/cpi";
 import { formatNumber } from "@/lib/format";
 import { provenanceOf, releaseCaveats } from "./common";
 import { direction, lastAtLeast, lastAtMost, ppShort, quarterName, rate, signOf } from "./text";
-import type { EvidenceRow, Sign, Story } from "./types";
+import type { EvidenceRow, Glance, Sign, Story } from "./types";
 
 const DASHBOARD = { to: "/inflation", label: "Explore the inflation dashboard" };
 /** The adapter stores every contribution with unknown status (the release does not label them), so none is called final. */
@@ -45,6 +45,25 @@ function yearOnYear(annual: number, quarter: string): string {
 function moved(annual: number): string {
   const dir = direction(annual, 0, 1);
   return dir === "flat" ? "were unchanged" : `${dir === "up" ? "rose" : "fell"} ${rate(Math.abs(annual))}`;
+}
+
+/** The glance for annual inflation: the rate against last quarter's rate (in percentage points), and the price level
+ * against a year earlier, which is what the annual rate itself measures. Never "prices fell" for a lower positive rate. */
+function inflationGlance(latest: Rate, prior: Rate): Glance {
+  const dir = direction(latest.value, prior.value, 1);
+  const gap = Math.abs(Number(latest.value.toFixed(1)) - Number(prior.value.toFixed(1)));
+  const since = `${rate(prior.value)} in the ${quarterName(prior.period)}`;
+  const level = direction(latest.value, 0, 1);
+  return {
+    metric: "Inflation", value: rate(latest.value), measure: "annual change in consumer prices",
+    comparison: dir === "flat"
+      ? `Unchanged from ${since}`
+      : `${dir === "up" ? "Up" : "Down"} ${formatNumber(gap, { decimals: 1 })} percentage points from ${since}`,
+    plain: level === "flat"
+      ? "Consumer prices were unchanged from a year earlier."
+      : `Consumer prices were ${rate(Math.abs(latest.value))} ${level === "up" ? "higher" : "lower"} than a year earlier.`,
+    direction: dir,
+  };
 }
 
 export function buildCpiStories(data: CpiDashboard): Story[] {
@@ -104,8 +123,9 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
         ...(yearAgo ? [evidence("Annual change, a year earlier", all, yearAgo)] : []),
         ...(high ? [evidence(`Last ${latest.value >= prior.value ? "at or above" : "at or below"} the latest rate`, all, high)] : []),
       ],
-      thumb: { kind: "line", values: tenYears.map((r) => r.value), zero: true },
+      thumb: { kind: "line", name: "Annual CPI inflation", points: tenYears, zero: true, format: "pct", period: "quarter" },
       figure: { kind: "cpi-annual", series: all },
+      glance: inflationGlance(latest, prior),
     });
   }
 
@@ -159,7 +179,10 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
           value: yearTop.points, unit: "percentage points", status: CONTRIBUTION_STATUS, releaseKey,
         }] : []),
       ],
-      thumb: { kind: "bars", items: [...q.items].sort((x, y) => y.points - x.points).map((i) => ({ label: i.group, value: i.points })) },
+      thumb: {
+        kind: "bars", name: "Contribution to quarterly inflation, by group", format: "pp",
+        items: [...q.items].sort((x, y) => y.points - x.points).map((i) => ({ label: i.group, value: i.points })),
+      },
       figure: { kind: "cpi-contributions", blocks: data.contributions },
     });
   }
@@ -212,7 +235,11 @@ export function buildCpiStories(data: CpiDashboard): Story[] {
           { label: "Tradables, annual change", seriesKey: trad.key, period, value: tl.value, unit: "percent", status: "final", releaseKey },
           { label: "Non-tradables, annual change", seriesKey: non.key, period, value: nl.value, unit: "percent", status: "final", releaseKey },
         ],
-        thumb: { kind: "line", values: t.slice(-40).map((r) => r.value), zero: true },
+        thumb: {
+          kind: "pair", name: "Annual inflation, tradables and non-tradables", format: "pct",
+          items: [{ label: "Tradables", value: tl.value }, { label: "Non-tradables", value: nl.value }],
+          gap: { label: "Gap", value: ppShort(gap, 1) },
+        },
         figure: { kind: "cpi-tradables", tradables: trad, nonTradables: non },
       });
     }

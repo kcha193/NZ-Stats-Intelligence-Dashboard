@@ -19,6 +19,8 @@ const netPhrase = (v: number) => (Math.round(v) === 0 ? "no net change" : `a ${f
 const latestOf = (d: SeriesData) => d.points.at(-1);
 const atPeriod = (d: SeriesData, p: string) => d.points.find((x) => x.period === p);
 const tenYears = (d: SeriesData, period: string) => d.points.filter((p) => p.period > addMonths(period, -120));
+const thumbPoints = (d: SeriesData, period: string) =>
+  tenYears(d, period).map((p) => ({ period: p.period, value: p.value, provisional: p.status === "provisional" }));
 
 export function buildMigrationStories(input: MigrationInput): Story[] {
   // Each story takes its provenance from its own series: the latest vintage of one series can be an earlier release
@@ -74,8 +76,18 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
         ? [`The largest annual net gain in the last ten years was ${people(peak.value)}, in the ${yearEndedName(peak.period)}.`]
         : [],
       evidence: [evidence("Net migration, latest year", net, n), evidence("Net migration, a year earlier", net, n0), ...(peak.period !== n.period ? [evidence("Ten-year high", net, peak)] : [])],
-      thumb: { kind: "line", values: tenYears(net, n.period).map((p) => p.value), zero: true },
+      thumb: { kind: "line", name: "Year-ended net migration", points: thumbPoints(net, n.period), zero: true, format: "people", period: "year-ended" },
       figure: { kind: "mig-net", series: net },
+      glance: {
+        metric: "Net migration", value: signedPeople(n.value), measure: "people, year-ended total",
+        // A loss that grows is "larger", not "up": the words follow the arrow, which follows the signed value.
+        comparison: `${!same ? "Compared with" : n.value > 0 ? (dir === "down" ? "Down from" : dir === "up" ? "Up from" : "The same as")
+          : (dir === "down" ? "Larger than" : dir === "up" ? "Smaller than" : "The same as")} ${netPhrase(n0.value)} a year earlier`,
+        plain: Math.round(n.value) === 0
+          ? "Over the year, arrivals and departures were balanced."
+          : `Over the year, ${v} more migrants ${n.value > 0 ? "arrived than left" : "left than arrived"}.`,
+        direction: dir,
+      },
     });
   }
 
@@ -111,7 +123,11 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
           evidence("Arrivals, latest year", arrivals, a), evidence("Arrivals, a year earlier", arrivals, a0),
           evidence("Departures, latest year", departures, d), evidence("Departures, a year earlier", departures, d0),
         ],
-        thumb: { kind: "line", values: tenYears(arrivals, a.period).map((p) => p.value), compare: tenYears(departures, d.period).map((p) => p.value), zero: false },
+        thumb: {
+          kind: "pair", name: "Year-ended migrant arrivals and departures", format: "people",
+          items: [{ label: "Arrivals", value: a.value }, { label: "Departures", value: d.value }],
+          gap: { label: "Arrivals minus departures", value: signedPeople(gap) },
+        },
         figure: { kind: "mig-flows", arrivals, departures },
       });
     }
@@ -158,7 +174,10 @@ export function buildMigrationStories(input: MigrationInput): Story[] {
           evidence("New Zealand citizens, latest year", nz, z), evidence("Non-New Zealand citizens, latest year", nonNz, o),
           ...(z0 ? [evidence("New Zealand citizens, a year earlier", nz, z0)] : []), ...(o0 ? [evidence("Non-New Zealand citizens, a year earlier", nonNz, o0)] : []),
         ],
-        thumb: { kind: "line", values: tenYears(nonNz, o.period).map((p) => p.value), compare: tenYears(nz, z.period).map((p) => p.value), zero: true },
+        thumb: {
+          kind: "bars", name: "Year-ended net migration by citizenship", format: "people",
+          items: [{ label: "Non-NZ citizens", value: o.value }, { label: "NZ citizens", value: z.value }],
+        },
         figure: { kind: "mig-citizenship", nonNz, nz },
       });
     }

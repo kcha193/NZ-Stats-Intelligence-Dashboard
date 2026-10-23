@@ -49,6 +49,7 @@ export function buildEctStories(data: EctDashboard): Story[] {
       : null;
     const year = metric.change_year_ago;
     const rev = a.revisions;
+    const before = change.points.at(-2);
     const at = (d: SeriesData, p: string) => d.points.find((x) => x.period === p);
     const levelRow = (label: string, p: string) => {
       const x = at(level, p);
@@ -78,8 +79,21 @@ export function buildEctStories(data: EctDashboard): Story[] {
         ...(diff ? levelRow("Retail spending, previous month", diff.comparison_period) : []),
         ...(year ? levelRow("Retail spending, a year earlier", year.comparison_period) : []),
       ],
-      thumb: { kind: "line", values: change.points.slice(-24).map((p) => p.value), zero: true },
+      thumb: {
+        kind: "columns", name: "Retail card spending, monthly change", format: "pct", period: "month",
+        points: change.points.slice(-24).map((p) => ({ period: p.period, value: p.value, provisional: p.status === "provisional" })),
+      },
       figure: { kind: "ect-retail", change, level },
+      glance: {
+        metric: "Retail card spending", value: signedRate(latest.value), measure: "monthly change, seasonally adjusted",
+        comparison: before && before.period === addMonths(period, -1)
+          ? `Previous month: ${signedRate(before.value)} (${monthName(before.period)})`
+          : `Compared with ${monthName(addMonths(period, -1))}`,
+        plain: dir === "flat"
+          ? `Retail card spending was unchanged from ${monthName(addMonths(period, -1))}, after seasonal adjustment.`
+          : `Retail card spending was ${unsigned(latest.value)} ${dir === "up" ? "higher" : "lower"} than in ${monthName(addMonths(period, -1))}, after seasonal adjustment.`,
+        direction: dir,
+      },
     });
   }
 
@@ -133,7 +147,7 @@ export function buildEctStories(data: EctDashboard): Story[] {
         { label: `${m.name}, ${monthName(m.period)}`, seriesKey: m.seriesKey, period: m.period, value: m.current, unit: "NZD million", status: m.status, releaseKey },
         { label: `${m.name}, ${monthName(m.previousPeriod)}`, seriesKey: m.seriesKey, period: m.previousPeriod, value: m.previous, unit: "NZD million", status: m.previousStatus, releaseKey },
       ]),
-      thumb: { kind: "bars", items: sorted.map((m) => ({ label: m.name, value: m.percent })) },
+      thumb: { kind: "bars", name: "Card spending by industry, monthly change", format: "pct", items: sorted.map((m) => ({ label: m.name, value: m.percent })) },
       figure: { kind: "ect-industries", items: moves, period },
     });
   }
