@@ -45,7 +45,7 @@ def _publish_command(args: argparse.Namespace, settings) -> int:
             netlify_auth_token=os.environ.get("NETLIFY_AUTH_TOKEN", ""),
             min_interval_hours=args.min_interval_hours,
             draft=args.draft,
-            dry_run=args.dry_run,
+            dry_run=args.dry_run or not (args.enable or os.environ.get("PUBLISH_ENABLED") == "1"),
             force=args.force,
         )
     )
@@ -161,7 +161,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="shortest gap between deploys that carry no new verified data",
     )
     p_pub.add_argument("--draft", action="store_true", help="deploy to a draft URL, not production")
-    p_pub.add_argument("--dry-run", action="store_true", help="build but do not deploy")
+    p_pub.add_argument(
+        "--enable",
+        action="store_true",
+        help="allow a deploy (also PUBLISH_ENABLED=1); without it a run builds and validates only",
+    )
+    p_pub.add_argument(
+        "--dry-run", action="store_true", help="build but do not deploy, even if enabled"
+    )
     p_pub.add_argument("--force", action="store_true", help="ignore the minimum interval")
     p_sid = sub.add_parser("snapshot-id", help="print a snapshot's content id")
     p_sid.add_argument("path")

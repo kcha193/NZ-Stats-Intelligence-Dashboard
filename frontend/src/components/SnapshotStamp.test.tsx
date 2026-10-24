@@ -44,7 +44,7 @@ describe("SnapshotStamp", () => {
   it("renders nothing while the manifest is unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("offline"); }));
     const { container } = renderWithProviders(<SnapshotStamp />);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(container).toBeEmptyDOMElement();
+    expect(container.querySelector("[data-snapshot-stamp]")).not.toBeNull(); // space is held while loading
+    await vi.waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 });

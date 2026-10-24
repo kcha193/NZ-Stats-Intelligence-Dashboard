@@ -1,6 +1,7 @@
 """A seeded data directory shared by the publication tests (real fixture files, never production data)."""
 
 import shutil
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -71,4 +72,7 @@ def production_dir(full_dir, tmp_path) -> Path:
     dest = tmp_path / "production"
     shutil.copytree(full_dir, dest)
     (dest / FIXTURE_MARKER).unlink()
+    db = sqlite3.connect(dest / "nzstats.db")
+    db.execute("PRAGMA user_version = 0")  # the database's own fixture flag, cleared too
+    db.close()
     return dest

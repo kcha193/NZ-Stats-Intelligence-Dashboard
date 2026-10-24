@@ -39,7 +39,7 @@ def build_runtime(settings: Settings, *, fetcher: Fetcher | None = None) -> Runt
     conn = connect(settings.db_path)
     migrate(conn)
     if fetcher is not None:  # only tests and fixture seeding inject one; see publish.provenance
-        mark_fixture_data(settings.data_dir)
+        mark_fixture_data(settings.data_dir, conn)
     fetcher = fetcher or Fetcher(
         build_client(settings.user_agent),
         min_interval=settings.min_interval_seconds,

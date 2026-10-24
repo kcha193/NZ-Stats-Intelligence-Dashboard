@@ -64,7 +64,7 @@ class Outcome:
 
     @property
     def ok(self) -> bool:
-        return self.status != "failed"
+        return self.status not in ("failed", "deployed_unverified")
 
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
@@ -74,9 +74,11 @@ ManifestFetcher = Callable[[str], "Mapping[str, Any] | None"]
 def run_command(
     cmd: Sequence[str], *, env: Mapping[str, str] | None = None, cwd: Path | None = None
 ) -> subprocess.CompletedProcess[str]:
+    # The Netlify credential reaches only the process that is handed it explicitly, never the build tooling.
+    inherited = {k: v for k, v in os.environ.items() if not k.startswith("NETLIFY_")}
     return subprocess.run(  # noqa: S603 - fixed argument lists, no shell
         list(cmd),
-        env={**os.environ, **(env or {})},
+        env={**inherited, **(env or {})},
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -160,6 +162,9 @@ def _publish_locked(
         manifest = export_snapshot(cfg.data_dir, snapshot, now=now)
     except SnapshotError as exc:
         return fail(f"export refused: {exc}")
+    except Exception as exc:  # never a traceback: an unexpected failure is still "do not deploy"
+        log.exception("unexpected error during export")
+        return fail(f"export failed unexpectedly ({type(exc).__name__}); see the log")
     sid = manifest["snapshot_id"]
     report = validate_snapshot(snapshot, for_publish=True, now=now)
     for warning in report.warnings:
@@ -174,7 +179,10 @@ def _publish_locked(
 
     # New verified data is published at once. Anything else (a calendar refresh, say) waits out the minimum interval,
     # because each production deploy costs hosting credits.
-    material = manifest["data_updated_at"] != state.get("last_data_updated_at")
+    # A snapshot already deployed but never seen live is not "new" again: it is retried at the throttled pace.
+    material = manifest["data_updated_at"] != state.get(
+        "last_data_updated_at"
+    ) and sid != state.get("unverified_snapshot_id")
     if not material and not cfg.force and not cfg.draft and state.get("last_deployed_at"):
         due = datetime.fromisoformat(state["last_deployed_at"]) + timedelta(
             hours=cfg.min_interval_hours
@@ -219,33 +227,47 @@ def _publish_locked(
         log.info("draft deployed: %s", url)
         return Outcome("draft_deployed", sid, f"draft deploy {url}".strip())
 
-    _write_state(
-        state_path,
-        {
-            "last_snapshot_id": sid,
-            "last_data_updated_at": manifest["data_updated_at"],
-            "last_deployed_at": now.isoformat(),
-            "last_deploy_id": detail.get("deploy_id"),
-            "previous_snapshot_id": state.get("last_snapshot_id"),
-            "previous_deploy_id": state.get("last_deploy_id"),
-        },
-    )
     history = cfg.work_dir / "history"
     history.mkdir(exist_ok=True)
     (history / f"{now:%Y%m%dT%H%M%SZ}-{sid[:12]}.json").write_text(
         (snapshot / MANIFEST).read_text(encoding="utf-8"), encoding="utf-8"
     )
 
+    verified = False
     for attempt in range(VERIFY_ATTEMPTS):
         seen = fetch_manifest(cfg.site_url)
         if seen and seen.get("snapshot_id") == sid:
-            log.info("published snapshot %s and confirmed it is live", sid[:12])
-            return Outcome("deployed", sid, "deployed and confirmed live", verified=True)
+            verified = True
+            break
         if attempt < VERIFY_ATTEMPTS - 1:
             sleep(VERIFY_WAIT_SECONDS)
+
+    # Only a deploy confirmed live advances what counts as published. An unconfirmed one is remembered, so it is not
+    # redeployed every hour, but newer verified data still goes out at once.
+    base = {
+        "last_deployed_at": now.isoformat(),
+        "last_deploy_id": detail.get("deploy_id"),
+    }
+    if verified:
+        _write_state(
+            state_path,
+            {
+                **base,
+                "last_snapshot_id": sid,
+                "last_data_updated_at": manifest["data_updated_at"],
+                "previous_snapshot_id": state.get("last_snapshot_id"),
+                "previous_deploy_id": state.get("last_deploy_id"),
+            },
+        )
+        log.info("published snapshot %s and confirmed it is live", sid[:12])
+        return Outcome("deployed", sid, "deployed and confirmed live", verified=True)
+    kept = {
+        k: v for k, v in state.items() if k.startswith(("last_snapshot", "last_data", "previous_"))
+    }
+    _write_state(state_path, {**kept, **base, "unverified_snapshot_id": sid})
     log.warning("deployed snapshot %s but the live manifest does not show it yet", sid[:12])
     return Outcome(
         "deployed_unverified",
         sid,
-        "deployed, but the live site does not show it yet; check the Netlify deploy log",
+        "deployed, but the live site does not show it yet; check the Netlify deploy log and PUBLISH_SITE_URL",
     )

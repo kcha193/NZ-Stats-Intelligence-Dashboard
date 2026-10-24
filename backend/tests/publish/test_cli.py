@@ -31,3 +31,25 @@ def test_export_reports_missing_data_without_a_traceback(
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(migration_only_dir))
     assert main(["export-snapshot", str(tmp_path / "o"), "--allow-fixtures"]) == 2
     assert "expected data is missing" in capsys.readouterr().err
+
+
+def test_publish_site_is_a_dry_run_unless_deliberately_enabled(monkeypatch, tmp_path):
+    import nzstats.publish.publisher as publisher
+
+    seen = {}
+
+    def fake(cfg, **kw):
+        seen["dry_run"] = cfg.dry_run
+        return publisher.Outcome("dry_run", "a" * 64, "x")
+
+    monkeypatch.setattr(publisher, "publish", fake)
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("PUBLISH_ENABLED", raising=False)
+    base = ["publish-site", "--work-dir", str(tmp_path / "w"), "--site-url", "https://x.example"]
+    assert main(base) == 0 and seen["dry_run"] is True
+    assert main([*base, "--enable"]) == 0 and seen["dry_run"] is False
+    assert main([*base, "--enable", "--dry-run"]) == 0 and seen["dry_run"] is True
+    monkeypatch.setenv("PUBLISH_ENABLED", "1")
+    assert main(base) == 0 and seen["dry_run"] is False
+    monkeypatch.setenv("PUBLISH_ENABLED", "0")
+    assert main(base) == 0 and seen["dry_run"] is True

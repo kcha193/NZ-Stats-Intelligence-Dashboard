@@ -112,3 +112,42 @@ def test_leak_scanner_findings():
     assert scan_for_leaks("contact a.b@example.com")
     assert scan_for_leaks("NETLIFY_AUTH_TOKEN=abc")
     assert scan_for_leaks("clean", extra=("clean",))
+
+
+def test_an_unvetted_unavailable_reason_is_rejected(snapshot):
+    def change(p):
+        p["unavailable_reason"] = (
+            "Last ingestion attempt failed: validation_failed: row 12 has a bad header"
+        )
+        p["analysis"] = None
+        p["release"]["has_analysis"] = False
+
+    listing = json.loads((snapshot / "releases.json").read_text())
+    target = next(r for r in listing["payload"] if r["has_analysis"])
+    mutate(snapshot, f"releases/{target['id']}.json", change)
+    assert any("unavailable_reason" in e for e in validate_snapshot(snapshot).errors)
+
+
+def test_source_links_must_be_https_stats_nz_addresses(snapshot):
+    def change(p):
+        p["release"]["page_url"] = "https://evil.example/stats"
+
+    listing = json.loads((snapshot / "releases.json").read_text())["payload"]
+    target = next(r for r in listing if r["page_url"])
+    mutate(
+        snapshot,
+        f"releases/{target['id']}.json",
+        lambda p: p["release"].update(page_url="https://evil.example/x"),
+    )
+    assert any(
+        "not an https stats.govt.nz address" in e for e in validate_snapshot(snapshot).errors
+    )
+
+
+def test_a_data_url_as_a_source_link_is_rejected(snapshot):
+    mutate(
+        snapshot, "series/mig.m.net.json", lambda p: p.update(source_url="data:text/html,<b>x</b>")
+    )
+    assert any(
+        "not an https stats.govt.nz address" in e for e in validate_snapshot(snapshot).errors
+    )

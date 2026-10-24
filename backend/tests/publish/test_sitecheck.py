@@ -28,6 +28,12 @@ def site(snapshot, tmp_path) -> Path:
     (dist / "assets" / "app.js").write_text("console.log('app')")
     (dist / "index.html").write_text(page("/"))
     (dist / "404.html").write_text(page("/404"))
+    shell = page("/app-shell", '<meta name="robots" content="noindex,follow" />')
+    (dist / "_pages" / "app-shell.html").write_text(
+        shell.replace(f'<link rel="canonical" href="{SITE}/app-shell" />', "").replace(
+            f'<meta property="og:url" content="{SITE}/app-shell" />', ""
+        )
+    )
     (dist / "_pages" / "stories.html").write_text(page("/stories"))
     (dist / "_pages" / "stories" / "a-2026-06.html").write_text(page("/stories/a-2026-06"))
     (dist / "favicon.svg").write_text("<svg/>")
@@ -200,3 +206,8 @@ def test_robots_must_point_at_the_sitemap_and_a_published_page_must_not_be_noind
     )
     out = errors(production_site, for_publish=True)
     assert "does not point at the sitemap" in out and "marked noindex" in out
+
+
+def test_the_fallback_shell_must_not_claim_a_canonical_address_or_be_indexable(site):
+    (site / "_pages" / "app-shell.html").write_text(page("/app-shell"))
+    assert "fallback shell must be noindex" in errors(site)

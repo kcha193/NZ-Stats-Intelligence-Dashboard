@@ -179,4 +179,51 @@ describe("static snapshot adapter", () => {
     serve({ "cpi.json": env("ect", {}) });
     await expect(staticGetJson("/api/cpi")).rejects.toBeInstanceOf(SnapshotUnavailableError);
   });
+
+  it("keeps the shared manifest alive when the request that started it is cancelled", async () => {
+    serve({ "cpi.json": env("cpi", { ok: 1 }), "ect.json": env("ect", { ok: 2 }) });
+    const first = new AbortController();
+    const cancelled = staticGetJson("/api/cpi", first.signal).catch((e: unknown) => e);
+    first.abort();
+    expect(((await cancelled) as Error).name).toBe("AbortError");
+    expect(await staticGetJson("/api/ect")).toEqual({ ok: 2 }); // a later caller is unaffected
+  });
+
+  it("reloads the manifest once when several files arrive from a newer deploy at the same time", async () => {
+    const stale = "b".repeat(64);
+    let manifestCalls = 0;
+    const f = vi.fn(async (input: RequestInfo | URL) => {
+      const name = String(input).replace("/data/v1/", "");
+      const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { "content-type": "application/json" } });
+      if (name === "manifest.json") {
+        manifestCalls += 1;
+        return json({ schema_version: 1, origin: "production", snapshot_id: manifestCalls === 1 ? stale : SID });
+      }
+      return json(env(name.replace(".json", ""), { ok: name }));
+    });
+    vi.stubGlobal("fetch", f);
+    await Promise.all([staticGetJson("/api/cpi"), staticGetJson("/api/ect"), staticGetJson("/api/overview")]);
+    expect(manifestCalls).toBe(2); // the first (stale) and one shared reload, not one per file
+  });
+
+  it("drops releases from the overview's upcoming list once their time has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-24T08:00:00Z"));
+    try {
+      serve({
+        "overview.json": env("overview", {
+          upcoming: [
+            summary(1, { published_at: "2026-10-20T10:45:00+13:00", status: "scheduled" }),
+            summary(2, { published_at: "2026-10-28T10:45:00+13:00", status: "scheduled" }),
+          ],
+          latest_releases: [summary(9)],
+        }),
+      });
+      const o = await staticGetJson<{ upcoming: { id: number }[]; latest_releases: unknown[] }>("/api/overview");
+      expect(o.upcoming.map((r) => r.id)).toEqual([2]);
+      expect(o.latest_releases).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

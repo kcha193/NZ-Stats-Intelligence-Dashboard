@@ -107,3 +107,35 @@ def content_hash(payload: Any) -> str:
 def snapshot_id(content_hashes: dict[str, str]) -> str:
     lines = "\n".join(f"{path} {digest}" for path, digest in sorted(content_hashes.items()))
     return hashlib.sha256(lines.encode("utf-8")).hexdigest()
+
+
+# `ReleaseDetail.unavailable_reason` is built by the API from the ingestion log, which includes raw error text. The
+# public snapshot keeps only reasons that are fixed wording; anything else becomes the generic sentence below.
+SAFE_REASON_PREFIXES = (
+    "Detailed analysis is not yet available for this category",
+    "Scheduled for ",
+    "Delayed; now scheduled for ",
+    "Stats NZ files were not available during the polling window",
+    "Published, awaiting ingestion.",
+    "The release was ingested, but the analysis could not be built",
+)
+GENERIC_REASON = "This release has not been verified here yet. The last verified data is unchanged and is shown as published."
+
+
+def public_reason(reason: str | None) -> str | None:
+    if reason is None or reason.startswith(SAFE_REASON_PREFIXES):
+        return reason
+    return GENERIC_REASON
+
+
+SOURCE_HOSTS = ("stats.govt.nz", "www.stats.govt.nz")
+
+
+def is_stats_nz_url(value: object) -> bool:
+    """Every source link on the public site must be an https address on Stats NZ's own domain."""
+    from urllib.parse import urlsplit
+
+    if not isinstance(value, str):
+        return False
+    parts = urlsplit(value)
+    return parts.scheme == "https" and parts.hostname in SOURCE_HOSTS and not parts.username

@@ -25,38 +25,40 @@
   to = "/data-not-found.json"
   status = 404
 
-# Client-side routes: serve the app so refreshes and shared links work. Anything else is a genuine 404 (404.html).
+# Client-side routes: serve the app (a neutral shell, so no page claims another page's canonical address) so refreshes
+# and shared links work. Prerendered pages are matched earlier by the build's _redirects file. Anything else is a
+# genuine 404 (404.html).
 [[redirects]]
   from = "/stories"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
   from = "/stories/*"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
   from = "/inflation"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
   from = "/electronic-card-transactions"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
   from = "/migration"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
   from = "/calendar"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
   from = "/health"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
   from = "/releases/*"
-  to = "/index.html"
+  to = "/_pages/app-shell.html"
   status = 200
 
 # --- Headers -----------------------------------------------------------------------------------------------------

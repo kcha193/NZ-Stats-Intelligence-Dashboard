@@ -6,7 +6,9 @@ import { formatAklDateTime } from "@/lib/format";
  * live feed, and (for a fixture build only) that it is test data.
  */
 export function SnapshotStamp() {
-  const { data } = useSnapshot();
+  const { data, isLoading } = useSnapshot();
+  // Reserve the strip's height while the manifest loads so the page below does not jump when it appears.
+  if (isLoading) return <div aria-hidden data-snapshot-stamp className="min-h-12 border-b bg-surface-sunken lg:min-h-[1.9rem] print:hidden" />;
   if (!data) return null;
   if (data.origin === "fixture") {
     return (
@@ -22,7 +24,7 @@ export function SnapshotStamp() {
           {data.data_updated_at ? `Data last updated ${formatAklDateTime(data.data_updated_at)}` : "No data published yet"}
         </span>
         {" · "}A published snapshot of Stats NZ releases, not a live feed
-        {" · "}Site refreshed {formatAklDateTime(data.generated_at)}
+        <span className="hidden sm:inline">{" · "}Site refreshed {formatAklDateTime(data.generated_at)}</span>
       </p>
     </div>
   );

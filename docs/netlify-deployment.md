@@ -30,8 +30,10 @@ flowchart LR
 
 What is published: series values with their provisional/final status and `released_in`, release titles, publication and
 reference dates, source URLs, bundle hashes, analysis text and caveats, and per-source last-checked/last-success times.
-What is not: the database, the ingestion log (`ingest_run`), per-source error text, file paths, the contact address in
-the User-Agent, any credential. The exporter fails if any of those appear.
+What is not: the database, the ingestion log (`ingest_run`), per-source or per-release error text (the "why is there no
+analysis" sentence is reduced to a fixed list of wordings), file paths, the contact address in the User-Agent, any
+credential. The exporter and validator fail if any of those appear, and every source link must be an https
+`stats.govt.nz` address.
 
 ## Manual export (do this first)
 
@@ -46,8 +48,9 @@ nzstats validate-snapshot ./snapshot --for-publish
 `export-snapshot` opens the database read-only (SQLite backup API into a temporary copy), so it is safe while the app
 runs. It refuses to run if:
 
-- the data directory carries the `FIXTURE_DATA` marker (written by any runtime built with an injected fetcher: tests,
-  `scripts/seed_e2e_db.py`, fixture dumps);
+- the data is marked as fixtures. Any runtime built with an injected fetcher (tests, `scripts/seed_e2e_db.py`, fixture
+  dumps) writes a `FIXTURE_DATA` file and sets a flag inside `nzstats.db` itself (SQLite's `user_version`), so a copy or
+  backup of the database alone is still refused;
 - CPI, card transactions or the migration series are missing;
 - any exported point differs from the database, any payload does not match the API's response model, or any file
   contains a path, e-mail address, credential word, stack trace or database name.
@@ -111,7 +114,9 @@ The publisher container runs `nzstats publish-site` every `PUBLISH_INTERVAL_MINU
 3. deploys **immediately** if the verified data changed (`data_updated_at` moved), otherwise waits until
    `PUBLISH_MIN_INTERVAL_HOURS` (default 24) after the last deploy, so calendar-only changes cannot burn credits;
 4. builds the site and deploys with the Netlify CLI (token passed in the environment, never on a command line);
-5. fetches the live manifest and confirms it shows the new snapshot, reporting `deployed_unverified` if not.
+5. fetches the live manifest and confirms it shows the new snapshot. Only a confirmed deploy counts as published; an
+   unconfirmed one (`deployed_unverified`, exit status 1) is retried at the throttled pace, not every hour, while newer
+   data still goes out at once.
 
 A failure at any step before the deploy leaves the live site exactly as it was. Nothing in ingestion changes: the
 publisher only reads the database, so a failed publish never affects data collection.
@@ -119,9 +124,11 @@ publisher only reads the database, so a failed publish never affects data collec
 Typical cadence: ECT monthly, migration monthly, CPI quarterly, so roughly 6 to 12 data deploys a month.
 
 Run once by hand: `docker compose -f docker-compose.publisher.yml run --rm publisher once`. Without Docker, the same
-thing is `nzstats publish-site --work-dir ./publisher-state --site-url https://… [--dry-run|--draft|--force]` from a
+thing is `nzstats publish-site --work-dir ./publisher-state --site-url https://… [--enable] [--draft] [--force]` from a
 checkout with Node 22 and `netlify-cli`, with `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` in the environment; schedule
-it with cron or the Synology Task Scheduler.
+it with cron or the Synology Task Scheduler. **`publish-site` is a dry run unless you pass `--enable` or set
+`PUBLISH_ENABLED=1`**, whichever way it is started. The Netlify credential is given only to the deploy command, not to
+the build.
 
 Status and logs: `docker compose -f docker-compose.publisher.yml logs -f publisher`; state in
 `publisher-state/state.json` (last snapshot id, deploy time, deploy id) and one manifest per deploy in
@@ -171,7 +178,12 @@ correction has landed.
 - **Mixed data on one page during a deploy.** The client checks every file against the manifest and retries once; if a
   deploy lands mid-visit the page may show an "unavailable, try again" state for a moment instead of mixed numbers.
 - **Search and social previews** are metadata only; the page content itself is client-rendered. Per-story images are not
-  generated (one site card is used).
+  generated (one site card is used). Release analysis pages (`/releases/N`) and story addresses that have moved on are
+  served from a neutral, `noindex` app shell, so they are reachable by link but not indexed; stories, dashboards and the
+  home page carry their own canonical metadata.
+- **"Upcoming" is as of the last deploy.** The browser drops releases whose time has passed from the home page's
+  upcoming list, but a status change (for example a release now published but not yet ingested) shows only on the next
+  deploy, at most `PUBLISH_MIN_INTERVAL_HOURS` later unless new data arrives.
 - **Netlify is the authority on routing.** `scripts/serve_static.py` reproduces the documented rules and was checked
   against Netlify's own local server, but the draft deploy is the real test.
 - **A stale site is possible** if the publisher stops (host down, token expired). The footer states when the data was

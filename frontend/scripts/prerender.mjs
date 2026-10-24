@@ -23,7 +23,7 @@ const fail = (msg) => {
 if (!values.snapshot) fail("--snapshot <dir> is required");
 
 const siteUrl = (values["site-url"] ?? "").replace(/\/+$/, "");
-if (!/^https?:\/\/[^\s/]+$/.test(siteUrl)) fail("--site-url (or SITE_URL) must be an absolute origin such as https://example.com");
+if (!/^https:\/\/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?$/i.test(siteUrl)) fail("--site-url (or SITE_URL) must be an https origin such as https://example.com");
 
 const read = async (name) => JSON.parse(await readFile(path.join(values.snapshot, name), "utf8"));
 const payload = async (name) => (await read(name)).payload;
@@ -36,7 +36,7 @@ for (const [field, key] of Object.entries(seriesKeys)) sources[field] = await pa
 
 const vite = await createServer({ server: { middlewareMode: true }, appType: "custom", logLevel: "error" });
 try {
-  const { buildPages, renderHtml, sitemapXml, robotsTxt, redirectsFile } = await vite.ssrLoadModule("/src/seo/prerender.ts");
+  const { appShell, buildPages, renderHtml, sitemapXml, robotsTxt, redirectsFile } = await vite.ssrLoadModule("/src/seo/prerender.ts");
   const pages = buildPages(sources, { origin: manifest.origin, dataUpdatedAt: manifest.data_updated_at });
   const template = await readFile(path.join(values.dist, "index.html"), "utf8");
   const write = async (rel, text) => {
@@ -52,6 +52,8 @@ try {
   // Unknown addresses get a real 404 status; the page is the app shell, which shows its own "not found" message.
   const notFound = { path: "/404", title: "Page not found", description: "That page does not exist on this site.", kind: "website", indexable: false, noscript: "<h1>Page not found</h1>" };
   await write("404.html", renderHtml(template, notFound, { siteUrl, indexable: false }));
+  // Dynamic and unknown addresses (/releases/:id, a story period that has moved on) get a shell with no canonical.
+  await write("_pages/app-shell.html", renderHtml(template, appShell(), { siteUrl, indexable }));
   await write("data-not-found.json", `${JSON.stringify({ detail: "not found" })}\n`);
   await write("_redirects", redirectsFile(pages));
   await write("robots.txt", robotsTxt(siteUrl, indexable));

@@ -17,7 +17,9 @@ from nzstats.publish.contract import (
     REQUIRED_REVISIONS,
     REQUIRED_SERIES,
     SCHEMA_VERSION,
+    is_stats_nz_url,
     kind_of,
+    public_reason,
     validate_payload,
 )
 from nzstats.publish.leaks import scan_for_leaks
@@ -121,6 +123,9 @@ def validate_snapshot(
             # Round trip: a field the response model does not know is an internal field leaking out.
             if model.model_dump(mode="json") != env["payload"]:
                 err(f"{path} carries fields outside the public response model")
+        for where, url in _source_urls(env["payload"]):
+            if url is not None and not is_stats_nz_url(url):
+                err(f"{path}: {where} is not an https stats.govt.nz address")
         payloads[path] = env["payload"]
     if total > MAX_TOTAL_BYTES:
         err(f"snapshot is {total / 1e6:.1f} MB, over the {MAX_TOTAL_BYTES // 2**20} MB limit")
@@ -145,6 +150,8 @@ def _consistency(payloads: dict[str, Any], report: Report) -> None:
             continue
         if detail["release"] != r:
             err(f"release {r['id']}: detail disagrees with the listing")
+        if public_reason(detail["unavailable_reason"]) != detail["unavailable_reason"]:
+            err(f"release {r['id']}: unavailable_reason is not one of the vetted public sentences")
         if r["has_analysis"] != (detail["analysis"] is not None):
             err(f"release {r['id']}: has_analysis disagrees with its detail")
         if r["status"] not in PUBLISHED and r["has_analysis"]:
@@ -201,3 +208,27 @@ def _freshness(
             report.warnings.append(
                 f"source {s['source']} is degraded; the snapshot shows last-known-good data"
             )
+
+
+_URL_KEYS = ("page_url", "source_url")
+
+
+def _source_urls(node: Any, trail: str = "") -> list[tuple[str, Any]]:
+    """Every source-link field in a payload: `page_url`, `source_url`, and CPI's `sources` list."""
+    found: list[tuple[str, Any]] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in _URL_KEYS:
+                found.append((f"{trail}{key}", value))
+            elif (
+                key == "sources"
+                and isinstance(value, list)
+                and all(isinstance(v, str) for v in value)
+            ):
+                found += [(f"{trail}sources[{i}]", v) for i, v in enumerate(value)]
+            else:
+                found += _source_urls(value, f"{trail}{key}.")
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            found += _source_urls(item, f"{trail}{i}.")
+    return found

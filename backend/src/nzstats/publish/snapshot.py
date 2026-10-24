@@ -33,6 +33,7 @@ from nzstats.publish.contract import (
     content_hash,
     dumps,
     kind_of,
+    public_reason,
     snapshot_id,
     validate_payload,
 )
@@ -142,6 +143,9 @@ def _collect(api: TestClient, conn: sqlite3.Connection) -> _Collector:
         if revisions.get(k) is None:
             missing.append(f"revisions {k}")
     details = {r["id"]: get(f"/api/releases/{r['id']}") for r in listing}
+    for detail in details.values():
+        if detail:
+            detail["unavailable_reason"] = public_reason(detail["unavailable_reason"])
     if missing:
         names = {"/api/cpi": "CPI (cpi)", "/api/ect": "card transactions (ect)"}
         raise MissingDataError(

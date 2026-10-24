@@ -35,10 +35,12 @@ export type Manifest = {
 };
 
 let manifestPromise: Promise<Manifest> | null = null;
+let reloading: Promise<Manifest> | null = null;
 const listeners = new Set<() => void>();
 
 export const resetSnapshotCache = () => {
   manifestPromise = null;
+  reloading = null;
   listeners.clear();
 };
 
@@ -50,6 +52,7 @@ export const onSnapshotChange = (fn: () => void) => {
 
 const url = (name: string) => `${snapshotBase()}/${name}`;
 const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includes("json");
+const aborted = () => new DOMException("The operation was aborted.", "AbortError");
 
 async function fetchEnvelope(name: string, signal: AbortSignal | undefined, reload: boolean): Promise<Response> {
   try {
@@ -60,8 +63,9 @@ async function fetchEnvelope(name: string, signal: AbortSignal | undefined, relo
   }
 }
 
-async function loadManifest(signal: AbortSignal | undefined, reload: boolean): Promise<Manifest> {
-  const res = await fetchEnvelope("manifest.json", signal, reload);
+/** The manifest is tiny and shared by every request, so it is fetched without any one caller's AbortSignal. */
+async function loadManifest(reload: boolean): Promise<Manifest> {
+  const res = await fetchEnvelope("manifest.json", undefined, reload);
   if (!res.ok || !isJson(res)) throw new SnapshotUnavailableError(`manifest HTTP ${res.status}`);
   const m = (await res.json()) as Partial<Manifest>;
   if (m.schema_version !== SCHEMA_VERSION || typeof m.snapshot_id !== "string") {
@@ -70,21 +74,48 @@ async function loadManifest(signal: AbortSignal | undefined, reload: boolean): P
   return m as Manifest;
 }
 
+/** A caller still stops waiting when its own signal aborts, without cancelling the shared request. */
+function untilAborted<T>(p: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return p;
+  if (signal.aborted) return Promise.reject(aborted());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(aborted());
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
 export function getManifest(signal?: AbortSignal, reload = false): Promise<Manifest> {
-  if (reload || !manifestPromise) {
-    const previous = manifestPromise;
-    const next = loadManifest(signal, reload);
-    manifestPromise = next;
-    next.then(
-      async (m) => {
-        if (previous && (await previous.catch(() => null))?.snapshot_id !== m.snapshot_id) for (const fn of listeners) fn();
-      },
-      () => {
-        if (manifestPromise === next) manifestPromise = null; // a failure is not cached
-      },
-    );
+  if (reload) {
+    if (!reloading) {
+      const previous = manifestPromise;
+      const next = loadManifest(true);
+      reloading = next;
+      manifestPromise = next;
+      const done = () => {
+        if (reloading === next) reloading = null;
+      };
+      next.then(
+        async (m) => {
+          done();
+          if (previous && (await previous.catch(() => null))?.snapshot_id !== m.snapshot_id) for (const fn of listeners) fn();
+        },
+        () => {
+          done();
+          if (manifestPromise === next) manifestPromise = null; // a failure is not cached
+        },
+      );
+    }
+    return untilAborted(reloading ?? manifestPromise!, signal);
   }
-  return manifestPromise!;
+  if (!manifestPromise) {
+    const next = loadManifest(false);
+    manifestPromise = next;
+    next.catch(() => {
+      if (manifestPromise === next) manifestPromise = null;
+    });
+  }
+  return untilAborted(manifestPromise, signal);
 }
 
 type Resolved = { file: string; kind: string; shape: "list" | "object" };
@@ -164,6 +195,12 @@ function calendarWindow(all: Summary[], q: URLSearchParams, now: Date): Summary[
     .sort((a, b) => (a.published_at === b.published_at ? a.id - b.id : a.published_at < b.published_at ? -1 : 1));
 }
 
+/** The snapshot lists what was upcoming when it was exported; a release whose time has passed is not "next" any more. */
+function stillUpcoming<O extends { upcoming?: Summary[] }>(overview: O, now: Date): O {
+  if (!Array.isArray(overview.upcoming)) return overview;
+  return { ...overview, upcoming: overview.upcoming.filter((r) => Date.parse(r.published_at) >= now.getTime()) };
+}
+
 export async function staticGetJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const { pathname, searchParams } = new URL(path, "https://snapshot.invalid");
   if (pathname === "/api/calendar") {
@@ -177,5 +214,7 @@ export async function staticGetJson<T>(path: string, signal?: AbortSignal): Prom
   const resolved = route(pathname, searchParams);
   if (!resolved) throw notFound("not published in the static site");
   const payload = await readFile<T>(resolved, signal);
-  return resolved.file === "releases.json" ? (listReleases(payload as Summary[], searchParams) as T) : payload;
+  if (resolved.file === "releases.json") return listReleases(payload as Summary[], searchParams) as T;
+  if (resolved.file === "overview.json") return stillUpcoming(payload as { upcoming?: Summary[] }, new Date()) as T;
+  return payload;
 }

@@ -23,9 +23,29 @@ export type PageSpec = {
   published?: string;
   modified?: string;
   sourceUrl?: string | null;
+  /** The neutral app shell served for dynamic and unknown addresses: no canonical, never indexed. */
+  shell?: boolean;
 };
 
 const OG_IMAGE = "/og-card.png";
+const PAGE_PATH = /^\/(?:[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*)?$/;
+const SITE_ORIGIN = /^https:\/\/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?$/i;
+const SOURCE_HOSTS = new Set(["stats.govt.nz", "www.stats.govt.nz"]);
+
+function checkPath(path: string): string {
+  if (!PAGE_PATH.test(path)) throw new Error(`page path is not a plain lowercase address: ${JSON.stringify(path)}`);
+  return path;
+}
+
+/** Source links are only ever Stats NZ's own https addresses. */
+function statsNzUrl(value: string | null | undefined): string | undefined {
+  try {
+    const u = new URL(value ?? "");
+    return u.protocol === "https:" && SOURCE_HOSTS.has(u.hostname) && !u.username ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
 const MAX_DESCRIPTION = 200;
 const NOT_INDEXED = new Set(["/health"]);
 
@@ -81,6 +101,18 @@ function storyPage(s: Story, modified: string | undefined): PageSpec {
   };
 }
 
+export function appShell(): PageSpec {
+  return {
+    path: "/app-shell",
+    title: SITE_NAME,
+    description: "Prices, card spending and migration explained from official Stats NZ releases.",
+    kind: "website",
+    indexable: false,
+    shell: true,
+    noscript: `<h1>${SITE_NAME}</h1><p>This site needs JavaScript to draw its charts. Data: Stats NZ, licensed CC BY 4.0.</p>`,
+  };
+}
+
 export function buildPages(sources: StorySources, meta: SnapshotMeta): PageSpec[] {
   const stories = composeStories(sources);
   const modified = meta.dataUpdatedAt ?? undefined;
@@ -104,7 +136,7 @@ function jsonLd(page: PageSpec, url: string, siteUrl: string): unknown {
       mainEntityOfPage: url,
       datePublished: page.published,
       dateModified: page.modified,
-      isBasedOn: page.sourceUrl ?? undefined,
+      isBasedOn: statsNzUrl(page.sourceUrl),
       publisher: { "@type": "Organization", name: SITE_NAME, url: siteUrl },
     };
   }
@@ -116,21 +148,23 @@ function jsonLd(page: PageSpec, url: string, siteUrl: string): unknown {
 
 export function renderHtml(template: Template, page: PageSpec, opts: { siteUrl: string; indexable: boolean }): string {
   const { siteUrl } = opts;
+  if (!SITE_ORIGIN.test(siteUrl)) throw new Error(`site URL must be a plain https origin, got ${JSON.stringify(siteUrl)}`);
+  checkPath(page.path);
   const url = `${siteUrl}${page.path === "/" ? "/" : page.path}`;
   const title = escapeHtml(withSiteName(page.title));
   const description = escapeHtml(page.description);
   const robots = !opts.indexable ? "noindex,nofollow" : page.indexable ? null : "noindex,follow";
-  const ld = jsonLd(page, url, siteUrl);
+  const ld = page.shell ? undefined : jsonLd(page, url, siteUrl);
   const head = [
     `<meta name="description" content="${description}" />`,
     robots && `<meta name="robots" content="${robots}" />`,
-    `<link rel="canonical" href="${escapeHtml(url)}" />`,
+    !page.shell && `<link rel="canonical" href="${escapeHtml(url)}" />`,
     `<meta property="og:site_name" content="${SITE_NAME}" />`,
     `<meta property="og:locale" content="en_NZ" />`,
     `<meta property="og:type" content="${page.kind}" />`,
     `<meta property="og:title" content="${title}" />`,
     `<meta property="og:description" content="${description}" />`,
-    `<meta property="og:url" content="${escapeHtml(url)}" />`,
+    !page.shell && `<meta property="og:url" content="${escapeHtml(url)}" />`,
     `<meta property="og:image" content="${siteUrl}${OG_IMAGE}" />`,
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
@@ -145,11 +179,12 @@ export function renderHtml(template: Template, page: PageSpec, opts: { siteUrl: 
   ]
     .filter(Boolean)
     .join("\n    ");
+  // Function replacers: upstream text may contain "$&" or "$'", which a replacement string would expand.
   return template
-    .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
-    .replace(/\s*<meta name="description"[^>]*>/, "")
-    .replace("</head>", `    ${head}\n  </head>`)
-    .replace('<div id="root"></div>', `<div id="root"></div>\n    <noscript>${page.noscript}</noscript>`);
+    .replace(/<title>[\s\S]*?<\/title>/, () => `<title>${title}</title>`)
+    .replace(/\s*<meta name="description"[^>]*>/, () => "")
+    .replace("</head>", () => `    ${head}\n  </head>`)
+    .replace('<div id="root"></div>', () => `<div id="root"></div>\n    <noscript>${page.noscript}</noscript>`);
 }
 
 const xml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -170,6 +205,6 @@ export function robotsTxt(siteUrl: string, indexable: boolean): string {
 
 /** Each prerendered address is served from its own file; the rest of the routing lives in netlify.toml. */
 export function redirectsFile(pages: PageSpec[]): string {
-  const rules = pages.filter((p) => p.path !== "/").map((p) => `${p.path} /_pages${p.path}.html 200`);
+  const rules = pages.filter((p) => p.path !== "/").map((p) => `${checkPath(p.path)} /_pages${p.path}.html 200`);
   return `# Generated by the static build. Prerendered pages first; netlify.toml holds the fallbacks.\n${rules.join("\n")}\n`;
 }

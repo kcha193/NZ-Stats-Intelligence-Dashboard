@@ -1,7 +1,44 @@
 # Progress and verification record
 
-Last updated 2026-10-24. Visual stories 2.0 (editorial redesign) on `feat/visual-stories-v2`, local commits, not pushed.
+Last updated 2026-10-24. Public static site on Netlify is on `feat/netlify-static-publication` (not deployed). Visual stories 2.0 is merged.
 PR #7 (visual stories) is merged to `main`. Earlier entries below are historical.
+
+## Public static site on Netlify, 24 October 2026
+
+Adds a second, optional delivery path; the Docker app, ingestion, adapters, validation, scheduling, schema, revision
+semantics and every calculation are unchanged. Design and audit:
+[2026-10-24-netlify-static-publication.md](superpowers/specs/2026-10-24-netlify-static-publication.md). Operator guide:
+[netlify-deployment.md](netlify-deployment.md). **Nothing is deployed; the publisher is disabled until `PUBLISH_ENABLED=1`.**
+
+- Backend `nzstats.publish`: `export-snapshot` (runs this API in process over a read-only database copy, so every number is
+  the API's own), `validate-snapshot`, `snapshot-id`, `check-site`, `publish-site`. Reconciles each point with the
+  database, vets `unavailable_reason`, restricts source links to https stats.govt.nz, scans for leaks, refuses fixtures.
+- Fixture provenance is a `FIXTURE_DATA` file plus SQLite `user_version` set by any runtime with an injected fetcher
+  (content cannot tell: the ECT and CPI fixtures are byte-identical to real downloads, found by checking the real DB).
+- Frontend: `vite build --mode static` reads the snapshot through an adapter answering the same URLs (calendar windowing
+  and release filters in the browser, manifest/snapshot consistency, unavailable state). Last-updated strip, canonical
+  share links, per-route titles, build-time page metadata (title, description, canonical, Open Graph, JSON-LD, sitemap,
+  robots), neutral noindex shell for dynamic addresses, snapshot-aware Health and empty-state copy.
+- `netlify.toml`: explicit client routes (real 404 elsewhere), CSP and security headers, cache rules. Checked against
+  Netlify's own local dev server (netlify-cli 24.11.3) as well as `scripts/serve_static.py`.
+- Real local database exported read-only: 216 files, 3.1 MB, 43 published releases, valid with `--for-publish`; site built
+  from it passes `check-site` in production mode; Lighthouse (mobile) accessibility 99, best practices 100, SEO 100.
+- Found and fixed from review: ingestion error text reachable through `unavailable_reason`; fixture flag only in a file;
+  `PUBLISH_ENABLED` only in the shell script; token visible to the build; `$` replacement patterns in page metadata;
+  publisher state advanced before the live check; shared manifest request carrying one caller's abort signal.
+- Decisions: favicon replaced (it was the Vite scaffold logo); one share card, no per-story images; release analysis
+  pages are not indexed.
+
+| Command | Outcome |
+|---|---|
+| `cd backend && pytest` | 1073 passed (999 before; 74 new in `tests/publish`) |
+| `ruff check .` / `ruff format --check .` | Passed |
+| `cd frontend && npm test` | 383 passed (38 files; 332 before) |
+| `npm run typecheck` / `npm run lint` / `npm run build` / `npm audit` | Passed; lint shows only the existing vendor warnings; 0 vulnerabilities |
+| `npx playwright test` (live app, existing suite) | 93 passed; one mobile timing flake seen once in a heavily loaded run, 12/12 on repeat |
+| `scripts/e2e_static.sh` (static site: all existing specs plus routing, network, security/CSP, export, stamp and live-versus-static parity at 3 viewports) | 233 passed first run; parity then tightened to 0.05% and 24/24 passed |
+| Docker image builds (`Dockerfile`, `Dockerfile.publisher`) | **Not run here: no container runtime on this machine.** `Dockerfile` is unchanged; CI builds both |
+| Real Netlify deploy | **Not run, by design.** First deploy is a draft deploy per the runbook |
 
 ## Visual stories 2.0, 24 October 2026
 

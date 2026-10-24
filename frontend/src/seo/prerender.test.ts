@@ -8,7 +8,7 @@ import departures from "@/test/fixtures/series_departures_ry.json";
 import net from "@/test/fixtures/series_net_ry.json";
 import nonNz from "@/test/fixtures/series_net_nonnz_ry.json";
 import nz from "@/test/fixtures/series_net_nz_ry.json";
-import { buildPages, redirectsFile, renderHtml, robotsTxt, sitemapXml, type Template } from "./prerender";
+import { appShell, buildPages, redirectsFile, renderHtml, robotsTxt, sitemapXml, type PageSpec, type Template } from "./prerender";
 import { ROUTE_META } from "./routes";
 
 const SITE = "https://nzstats.example";
@@ -114,5 +114,45 @@ describe("site files", () => {
     expect(rules).toContain("/stories/inflation-annual-2026-06 /_pages/stories/inflation-annual-2026-06.html 200");
     expect(rules).toContain("/inflation /_pages/inflation.html 200");
     expect(rules).not.toMatch(/^\/ /m);
+  });
+});
+
+
+describe("hardening", () => {
+  const page = buildPages(sources, meta).find((p) => p.path.startsWith("/stories/inflation"))!;
+
+  it("treats replacement patterns in upstream text literally", () => {
+    const tricky: PageSpec = { ...page, title: "Costs $& $' $` $$ $1", description: "Prices rose $$ and $& fell" };
+    const out = renderHtml(template, tricky, { siteUrl: SITE, indexable: true });
+    expect(out).toContain("<title>Costs $&amp; $&#39; $` $$ $1 | NZ Stats Intelligence</title>");
+    expect(out).toContain('content="Prices rose $$ and $&amp; fell"');
+    expect(out.match(/<\/head>/g)).toHaveLength(1);
+    expect(out.match(/<title>/g)).toHaveLength(1);
+  });
+
+  it("refuses a page path that could inject a rewrite rule or leave the output directory", () => {
+    for (const path of ["/stories/a b", "/stories/../../x", "/stories/x\n/evil /y 200", "/Stories/X"]) {
+      expect(() => redirectsFile([{ ...page, path }])).toThrow(/page path/);
+      expect(() => renderHtml(template, { ...page, path }, { siteUrl: SITE, indexable: true })).toThrow(/page path/);
+    }
+  });
+
+  it("refuses a site URL that is not a plain https origin", () => {
+    for (const bad of ["http://nzstats.example", 'https://x.example"><script>', "https://x.example/path", "javascript:alert(1)"]) {
+      expect(() => renderHtml(template, page, { siteUrl: bad, indexable: true })).toThrow(/site URL/);
+    }
+  });
+
+  it("only links to Stats NZ as the source in structured data", () => {
+    const html = renderHtml(template, { ...page, sourceUrl: "https://evil.example/x" }, { siteUrl: SITE, indexable: true });
+    expect(html).not.toContain("evil.example");
+  });
+
+  it("serves unknown and dynamic addresses from a neutral, unindexed shell with no canonical", () => {
+    const html = renderHtml(template, appShell(), { siteUrl: SITE, indexable: true });
+    expect(html).toContain('name="robots" content="noindex,follow"');
+    expect(html).not.toContain('rel="canonical"');
+    expect(html).not.toContain('property="og:url"');
+    expect(html).toContain("<noscript>");
   });
 });

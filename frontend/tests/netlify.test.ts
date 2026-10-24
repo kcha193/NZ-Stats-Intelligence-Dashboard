@@ -12,7 +12,7 @@ const app = readFileSync(path.join(import.meta.dirname, "../src/App.tsx"), "utf8
 const rewrites = [...toml.matchAll(/\[\[redirects\]\]\s+from = "([^"]+)"\s+to = "([^"]+)"\s+status = (\d+)/g)].map(
   (m) => ({ from: m[1], to: m[2], status: Number(m[3]) }),
 );
-const spaFrom = new Set(rewrites.filter((r) => r.status === 200 && r.to === "/index.html").map((r) => r.from));
+const spaFrom = new Set(rewrites.filter((r) => r.status === 200 && r.to === "/_pages/app-shell.html").map((r) => r.from));
 const routes = [...app.matchAll(/<Route path="([^"]+)"/g)].map((m) => m[1]).filter((p) => p !== "*" && p !== "/"); // "/" is index.html itself
 
 describe("netlify.toml routing", () => {
@@ -20,7 +20,7 @@ describe("netlify.toml routing", () => {
     expect(routes.length).toBeGreaterThanOrEqual(8);
     for (const route of routes) {
       const wanted = route.includes("/:") ? route.replace(/\/:[^/]+$/, "/*") : route;
-      expect(spaFrom, `${route} needs a rewrite to /index.html`).toContain(wanted);
+      expect(spaFrom, `${route} needs a rewrite to the app shell`).toContain(wanted);
     }
   });
 

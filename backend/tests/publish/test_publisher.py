@@ -204,16 +204,17 @@ def test_fixture_data_is_never_published(full_dir, tmp_path):
 
 
 def test_a_failed_export_leaves_the_live_site_alone(migration_only_dir, tmp_path):
+    """Only migration data, with the fixture flags cleared: CPI and card transactions are missing."""
+    import sqlite3
+
+    data = tmp_path / "partial"
+    shutil.copytree(migration_only_dir, data)
+    (data / FIXTURE_MARKER).unlink()
+    db = sqlite3.connect(data / "nzstats.db")
+    db.execute("PRAGMA user_version = 0")
+    db.close()
     run = Recorder()
-    marker = migration_only_dir / FIXTURE_MARKER
-    shutil.copy(marker, tmp_path / "marker")
-    marker.unlink()
-    try:
-        out = publish(
-            cfg(tmp_path, migration_only_dir), runner=run, fetch_manifest=live(None), now=EXPORT_NOW
-        )
-    finally:
-        shutil.copy(tmp_path / "marker", marker)
+    out = publish(cfg(tmp_path, data), runner=run, fetch_manifest=live(None), now=EXPORT_NOW)
     assert out.status == "failed" and "missing" in out.message and run.calls == []
 
 
@@ -292,3 +293,95 @@ def test_the_token_never_appears_in_the_outcome_or_log(production_dir, tmp_path,
         sleep=lambda s: None,
     )
     assert "tok-secret-value" not in out.message and "tok-secret-value" not in caplog.text
+
+
+def test_a_deploy_that_is_not_confirmed_live_does_not_advance_the_published_state(
+    production_dir, tmp_path
+):
+    run = Recorder()
+    out = publish(
+        cfg(tmp_path, production_dir),
+        runner=run,
+        fetch_manifest=live("something-else"),
+        now=EXPORT_NOW,
+        sleep=lambda s: None,
+    )
+    assert out.status == "deployed_unverified" and not out.ok
+    state = json.loads((tmp_path / "state" / "state.json").read_text())
+    assert "last_snapshot_id" not in state and state["unverified_snapshot_id"] == out.snapshot_id
+
+
+def test_an_unconfirmed_snapshot_is_retried_only_after_the_interval_but_newer_data_goes_at_once(
+    production_dir, tmp_path
+):
+    first = publish(
+        cfg(tmp_path, production_dir),
+        runner=Recorder(),
+        fetch_manifest=live("elsewhere"),
+        now=EXPORT_NOW,
+        sleep=lambda s: None,
+    )
+    assert first.status == "deployed_unverified"
+    run = Recorder()
+    again = publish(
+        cfg(tmp_path, production_dir),
+        runner=run,
+        fetch_manifest=live("elsewhere"),
+        now=EXPORT_NOW + timedelta(hours=1),
+        sleep=lambda s: None,
+    )
+    assert again.status == "too_soon" and not run.ran("deploy")
+    later = publish(
+        cfg(tmp_path, production_dir),
+        runner=Recorder(),
+        fetch_manifest=live("elsewhere"),
+        now=EXPORT_NOW + timedelta(hours=25),
+        sleep=lambda s: None,
+    )
+    assert later.status == "deployed_unverified"
+
+
+def test_the_token_is_not_given_to_the_build_only_to_the_deploy(production_dir, tmp_path):
+    run = Recorder()
+    site = LiveSite()
+    publish(
+        cfg(tmp_path, production_dir),
+        runner=site.wrap(run),
+        fetch_manifest=site.fetch,
+        now=EXPORT_NOW,
+        sleep=lambda s: None,
+    )
+    build_env = next(kw["env"] for c, kw in run.calls if key_of(c) == "build_static_site.sh")
+    assert not any(k.startswith("NETLIFY_") for k in build_env)
+
+
+def test_run_command_strips_netlify_credentials_unless_given_explicitly(monkeypatch):
+    from nzstats.publish.publisher import run_command
+
+    monkeypatch.setenv("NETLIFY_AUTH_TOKEN", "from-the-shell")
+    code = "import os;print(os.environ.get('NETLIFY_AUTH_TOKEN'))"
+    import sys
+
+    assert run_command([sys.executable, "-c", code]).stdout.strip() == "None"
+    assert (
+        run_command(
+            [sys.executable, "-c", code], env={"NETLIFY_AUTH_TOKEN": "explicit"}
+        ).stdout.strip()
+        == "explicit"
+    )
+
+
+def test_an_unexpected_exception_becomes_a_failed_outcome_not_a_traceback(
+    production_dir, tmp_path, monkeypatch
+):
+    import nzstats.publish.publisher as module
+
+    def boom(*a, **k):
+        raise RuntimeError("database exploded")
+
+    monkeypatch.setattr(module, "export_snapshot", boom)
+    run = Recorder()
+    out = publish(
+        cfg(tmp_path, production_dir), runner=run, fetch_manifest=live(None), now=EXPORT_NOW
+    )
+    assert out.status == "failed" and "RuntimeError" in out.message and run.calls == []

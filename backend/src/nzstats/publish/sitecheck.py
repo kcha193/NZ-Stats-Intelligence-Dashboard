@@ -10,7 +10,7 @@ from pathlib import Path
 from nzstats.publish.validate import Report, validate_snapshot
 
 REQUIRED = (
-    "index.html", "404.html", "robots.txt", "_redirects", "data-not-found.json", "favicon.svg",
+    "index.html", "404.html", "_pages/app-shell.html", "robots.txt", "_redirects", "data-not-found.json", "favicon.svg",
     "og-card.png", "data/v1/manifest.json",
 )  # fmt: skip
 FORBIDDEN_NAMES = re.compile(
@@ -112,7 +112,10 @@ def check_site(
                 and not (dist / ref.lstrip("/").split("?")[0]).exists()
             ):
                 err(f"{rel}: references {ref}, which is not in the build")
-        if file.name != "404.html":
+        if file.name == "app-shell.html":
+            if "canonical" in head.links or "noindex" not in head.meta.get("robots", ""):
+                err(f"{rel}: the fallback shell must be noindex and carry no canonical address")
+        elif file.name != "404.html":
             expected = f"{site_url}{_page_path(dist, file)}"
             if head.links.get("canonical") != expected:
                 err(f"{rel}: canonical is {head.links.get('canonical')!r}, expected {expected!r}")
@@ -126,7 +129,7 @@ def check_site(
             and "robots" in head.meta
             and "noindex" in head.meta["robots"]
             and "/health" not in rel
-            and rel != "404.html"
+            and file.name not in ("404.html", "app-shell.html")
         ):
             err(f"{rel}: is marked noindex in a publishable build")
 
