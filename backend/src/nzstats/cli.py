@@ -31,6 +31,52 @@ def _health_payload(conn: sqlite3.Connection) -> dict:
     return {"sources": sources, "recent_runs": runs}
 
 
+def _snapshot_command(args: argparse.Namespace, settings) -> int:
+    from datetime import UTC, datetime
+
+    from nzstats.publish.snapshot import SnapshotError, export_snapshot
+    from nzstats.publish.validate import validate_snapshot
+
+    if args.command == "export-snapshot":
+        now = datetime.fromisoformat(args.now).astimezone(UTC) if args.now else None
+        try:
+            manifest = export_snapshot(
+                settings.data_dir, Path(args.out), now=now, allow_fixtures=args.allow_fixtures
+            )
+        except SnapshotError as exc:
+            print(f"export failed: {exc}", file=sys.stderr)
+            return 2
+        c = manifest["counts"]
+        print(
+            f"snapshot {manifest['snapshot_id'][:12]} origin {manifest['origin']}: {c['files']} files, "
+            f"{c['bytes'] / 1e6:.2f} MB, {c['published_releases']} published releases -> {args.out}"
+        )
+        return 0
+    if args.command == "check-site":
+        from nzstats.publish.sitecheck import check_site
+
+        report = check_site(
+            Path(args.path),
+            site_url=args.site_url,
+            netlify_toml=Path(args.netlify_toml) if args.netlify_toml else None,
+            for_publish=args.for_publish,
+        )
+    else:
+        report = validate_snapshot(Path(args.path), for_publish=getattr(args, "for_publish", False))
+    for warning in report.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    for error in report.errors:
+        print(f"error: {error}", file=sys.stderr)
+    if args.command == "snapshot-id":
+        if not report.ok:
+            return 1
+        print(report.manifest["snapshot_id"])
+        return 0
+    if report.ok:
+        print("site is ready" if args.command == "check-site" else "snapshot is valid")
+    return 0 if report.ok else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     parser = argparse.ArgumentParser(prog="nzstats")
@@ -55,6 +101,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_backup = sub.add_parser("backup", help="write a consistent copy of the database")
     p_backup.add_argument("dest")
     sub.add_parser("openapi", help="print the OpenAPI document")
+    p_export = sub.add_parser(
+        "export-snapshot", help="write a validated public JSON snapshot of the database"
+    )
+    p_export.add_argument("out", help="output directory (replaced if it is an earlier snapshot)")
+    p_export.add_argument(
+        "--allow-fixtures",
+        action="store_true",
+        help="tests only: export fixture data, labelled origin=fixture and never publishable",
+    )
+    p_export.add_argument(
+        "--now", help="override the export time (ISO-8601, UTC); for reproducible tests"
+    )
+    p_validate = sub.add_parser("validate-snapshot", help="validate a snapshot directory")
+    p_validate.add_argument("path")
+    p_validate.add_argument(
+        "--for-publish", action="store_true", help="also require production origin"
+    )
+    p_site = sub.add_parser("check-site", help="check a built static site before deploying it")
+    p_site.add_argument("path")
+    p_site.add_argument("--site-url", required=True)
+    p_site.add_argument("--netlify-toml")
+    p_site.add_argument("--for-publish", action="store_true")
+    p_sid = sub.add_parser("snapshot-id", help="print a snapshot's content id")
+    p_sid.add_argument("path")
     args = parser.parse_args(argv)
 
     settings = load_settings()
@@ -81,6 +151,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         print(json.dumps(create_app(settings, start_scheduler=False).openapi(), indent=2))
         return 0
+    if args.command in ("export-snapshot", "validate-snapshot", "snapshot-id", "check-site"):
+        return _snapshot_command(args, settings)
     if args.command == "serve":
         import uvicorn
 

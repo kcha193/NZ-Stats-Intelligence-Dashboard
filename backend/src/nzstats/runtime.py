@@ -12,6 +12,7 @@ from nzstats.adapters.cpi.adapter import CpiAdapter
 from nzstats.adapters.ect.adapter import EctAdapter
 from nzstats.adapters.migration.adapter import MigrationAdapter
 from nzstats.config import Settings
+from nzstats.publish.provenance import mark_fixture_data
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.sources.fetcher import Fetcher, FilePacer, build_client
 from nzstats.store.db import connect, migrate
@@ -37,6 +38,8 @@ class Runtime:
 def build_runtime(settings: Settings, *, fetcher: Fetcher | None = None) -> Runtime:
     conn = connect(settings.db_path)
     migrate(conn)
+    if fetcher is not None:  # only tests and fixture seeding inject one; see publish.provenance
+        mark_fixture_data(settings.data_dir)
     fetcher = fetcher or Fetcher(
         build_client(settings.user_agent),
         min_interval=settings.min_interval_seconds,
