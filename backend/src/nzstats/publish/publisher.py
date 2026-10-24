@@ -52,7 +52,7 @@ class PublisherConfig:
     )
     draft: bool = False  # deploy to a draft URL, not production
     dry_run: bool = False  # export, validate and build; never deploy
-    force: bool = False  # ignore the minimum interval
+    force: bool = False  # rebuild unchanged snapshots and ignore the minimum interval
 
 
 @dataclass(frozen=True)
@@ -173,16 +173,22 @@ def _publish_locked(
         return fail("snapshot failed validation: " + "; ".join(report.errors[:5]), sid)
 
     live = fetch_manifest(cfg.site_url)
-    if sid == state.get("last_snapshot_id") or (live and live.get("snapshot_id") == sid):
+    if not cfg.force and (
+        sid == state.get("last_snapshot_id") or (live and live.get("snapshot_id") == sid)
+    ):
         log.info("snapshot %s is already published", sid[:12])
         return Outcome("unchanged", sid, "the published site already shows this data")
 
     # New verified data is published at once. Anything else (a calendar refresh, say) waits out the minimum interval,
     # because each production deploy costs hosting credits.
-    # A snapshot already deployed but never seen live is not "new" again: it is retried at the throttled pace.
-    material = manifest["data_updated_at"] != state.get(
-        "last_data_updated_at"
-    ) and sid != state.get("unverified_snapshot_id")
+    # Compare with the latest production attempt, even if it was never seen live. A calendar refresh changes its
+    # snapshot id but does not make its statistical data new again. The id check also handles older state files.
+    last_attempt_data_updated_at = state.get(
+        "unverified_data_updated_at", state.get("last_data_updated_at")
+    )
+    material = manifest["data_updated_at"] != last_attempt_data_updated_at and sid != state.get(
+        "unverified_snapshot_id"
+    )
     if not material and not cfg.force and not cfg.draft and state.get("last_deployed_at"):
         due = datetime.fromisoformat(state["last_deployed_at"]) + timedelta(
             hours=cfg.min_interval_hours
@@ -264,7 +270,15 @@ def _publish_locked(
     kept = {
         k: v for k, v in state.items() if k.startswith(("last_snapshot", "last_data", "previous_"))
     }
-    _write_state(state_path, {**kept, **base, "unverified_snapshot_id": sid})
+    _write_state(
+        state_path,
+        {
+            **kept,
+            **base,
+            "unverified_snapshot_id": sid,
+            "unverified_data_updated_at": manifest["data_updated_at"],
+        },
+    )
     log.warning("deployed snapshot %s but the live manifest does not show it yet", sid[:12])
     return Outcome(
         "deployed_unverified",

@@ -169,7 +169,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_pub.add_argument(
         "--dry-run", action="store_true", help="build but do not deploy, even if enabled"
     )
-    p_pub.add_argument("--force", action="store_true", help="ignore the minimum interval")
+    p_pub.add_argument(
+        "--force",
+        action="store_true",
+        help="rebuild unchanged snapshots and ignore the minimum interval",
+    )
     p_sid = sub.add_parser("snapshot-id", help="print a snapshot's content id")
     p_sid.add_argument("path")
     args = parser.parse_args(argv)

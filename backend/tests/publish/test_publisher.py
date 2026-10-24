@@ -1,9 +1,13 @@
 import json
 import shutil
+import sqlite3
 import subprocess
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
+
+from nzstats.clock import to_utc_iso
 from nzstats.publish.provenance import FIXTURE_MARKER
 from nzstats.publish.publisher import PublisherConfig, publish
 from nzstats.publish.snapshot import export_snapshot
@@ -148,6 +152,130 @@ def _state(tmp_path, **fields):
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
     (state / "state.json").write_text(json.dumps(fields))
+
+
+@pytest.mark.parametrize("known_by", ["state", "live", "both"])
+def test_force_rebuilds_and_redeploys_an_unchanged_snapshot_for_a_new_domain(
+    production_dir, tmp_path, known_by
+):
+    manifest = export_snapshot(production_dir, tmp_path / "probe", now=EXPORT_NOW)
+    sid = manifest["snapshot_id"]
+    if known_by in ("state", "both"):
+        _state(
+            tmp_path,
+            last_snapshot_id=sid,
+            last_data_updated_at=manifest["data_updated_at"],
+            last_deployed_at=(EXPORT_NOW - timedelta(minutes=5)).isoformat(),
+        )
+    run = Recorder()
+    site = LiveSite(sid if known_by in ("live", "both") else None)
+    domain = "https://new-domain.example"
+    out = publish(
+        cfg(tmp_path, production_dir, force=True, site_url=domain),
+        runner=site.wrap(run),
+        fetch_manifest=site.fetch,
+        now=EXPORT_NOW,
+        sleep=lambda s: None,
+    )
+    assert out.status == "deployed" and out.verified and out.snapshot_id == sid
+    build = run.ran("build_static_site.sh")[0]
+    assert build[build.index("--site-url") + 1] == domain
+    assert len(run.ran("deploy")) == 1 and "--prod" in run.ran("deploy")[0]
+
+
+@pytest.mark.parametrize("previously_verified", [False, True])
+@pytest.mark.parametrize("became_live", [False, True])
+def test_calendar_refresh_after_an_unverified_deploy_waits_for_the_interval(
+    production_dir, tmp_path, previously_verified, became_live
+):
+    if previously_verified:
+        _state(
+            tmp_path,
+            last_snapshot_id="old",
+            last_data_updated_at="2026-01-01T00:00:00+00:00",
+            last_deployed_at=(EXPORT_NOW - timedelta(days=1)).isoformat(),
+        )
+    first = publish(
+        cfg(tmp_path, production_dir),
+        runner=Recorder(),
+        fetch_manifest=live("old"),
+        now=EXPORT_NOW,
+        sleep=lambda s: None,
+    )
+    assert first.status == "deployed_unverified"
+    original = json.loads((tmp_path / "state" / "snapshot" / "manifest.json").read_text())
+
+    # A real calendar-only database change gives a different content id without newer statistical data.
+    with sqlite3.connect(production_dir / "nzstats.db") as db:
+        changed = db.execute(
+            "UPDATE release SET published_at = ? WHERE status = 'scheduled'",
+            (to_utc_iso(EXPORT_NOW + timedelta(days=30)),),
+        )
+        assert changed.rowcount > 0
+    refreshed = export_snapshot(production_dir, tmp_path / "probe", now=EXPORT_NOW)
+    assert refreshed["snapshot_id"] != first.snapshot_id
+    assert refreshed["data_updated_at"] == original["data_updated_at"]
+    state_path = tmp_path / "state" / "state.json"
+    before = state_path.read_bytes()
+    run = Recorder()
+    site = LiveSite(first.snapshot_id if became_live else "old")
+    again = publish(
+        cfg(tmp_path, production_dir),
+        runner=site.wrap(run),
+        fetch_manifest=site.fetch,
+        now=EXPORT_NOW + timedelta(hours=1),
+        sleep=lambda s: None,
+    )
+    assert again.status == "too_soon" and run.calls == []
+    assert state_path.read_bytes() == before
+    state = json.loads(before)
+    assert state["unverified_data_updated_at"] == original["data_updated_at"]
+    if previously_verified:
+        assert state["last_snapshot_id"] == "old"
+        assert state["last_data_updated_at"] == "2026-01-01T00:00:00+00:00"
+    else:
+        assert "last_snapshot_id" not in state and "last_data_updated_at" not in state
+
+    later = publish(
+        cfg(tmp_path, production_dir),
+        runner=site.wrap(run),
+        fetch_manifest=site.fetch,
+        now=EXPORT_NOW + timedelta(hours=7),
+        sleep=lambda s: None,
+    )
+    assert later.status == "deployed" and later.verified
+    state = json.loads(state_path.read_text())
+    assert state["last_snapshot_id"] == refreshed["snapshot_id"]
+    assert state["last_data_updated_at"] == original["data_updated_at"]
+    assert "unverified_snapshot_id" not in state and "unverified_data_updated_at" not in state
+
+
+def test_newer_data_after_an_unverified_deploy_still_publishes_immediately(
+    production_dir, tmp_path
+):
+    first = publish(
+        cfg(tmp_path, production_dir),
+        runner=Recorder(),
+        fetch_manifest=live("old"),
+        now=EXPORT_NOW,
+        sleep=lambda s: None,
+    )
+    assert first.status == "deployed_unverified"
+    with sqlite3.connect(production_dir / "nzstats.db") as db:
+        db.execute(
+            "UPDATE vintage SET captured_at = ?",
+            (to_utc_iso(EXPORT_NOW + timedelta(minutes=30)),),
+        )
+    run, site = Recorder(), LiveSite("old")
+    out = publish(
+        cfg(tmp_path, production_dir),
+        runner=site.wrap(run),
+        fetch_manifest=site.fetch,
+        now=EXPORT_NOW + timedelta(hours=1),
+        sleep=lambda s: None,
+    )
+    assert out.status == "deployed" and out.verified
+    assert out.snapshot_id != first.snapshot_id and len(run.ran("deploy")) == 1
 
 
 def test_changes_that_are_not_new_data_are_spaced_by_the_minimum_interval(production_dir, tmp_path):
