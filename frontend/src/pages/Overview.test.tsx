@@ -1,9 +1,11 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import overview from "@/test/fixtures/overview.json";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import series from "@/test/fixtures/series_net_ry.json";
 import cpi from "@/test/fixtures/cpi.json";
+import ect from "@/test/fixtures/ect.json";
 import Overview from "./Overview";
 
 vi.mock("@/charts/EChart", () => ({
@@ -15,21 +17,38 @@ describe("Overview", () => {
     mockApi({ "/api/overview": overview, "/api/series/mig.ry.net": series });
   });
 
-  it("answers the key question in the first screen: KPIs, featured release, panels, freshness", async () => {
+  it("answers the key question in the first screen: masthead, indicators, featured release, panels, freshness", async () => {
     renderWithProviders(<Overview />);
-    expect(await screen.findByRole("heading", { name: /economic overview/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "New Zealand’s economy, explained." })).toBeInTheDocument();
     const kpis = screen.getByRole("region", { name: /key indicators/i });
-    expect(within(kpis).getAllByRole("article").length).toBeGreaterThanOrEqual(4);
+    // One headline indicator per topic at first (this fixture has migration only); every indicator one click away.
+    expect(within(kpis).getAllByRole("article")).toHaveLength(1);
+    await userEvent.click(within(kpis).getByRole("button", { name: `Explore all ${overview.kpis.length} indicators` }));
+    expect(within(kpis).getAllByRole("article")).toHaveLength(overview.kpis.length);
+    expect(within(kpis).getByRole("button", { name: "Show headline indicators only" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("region", { name: /featured release/i })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /latest releases/i })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /upcoming releases/i })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /data freshness/i })).toBeInTheDocument();
   });
 
-  it("names the period and provisional status of the trend's latest value", async () => {
+  it("puts each headline measure at a glance with its period, comparator, plain meaning and provisional status", async () => {
     renderWithProviders(<Overview />);
-    const heading = await screen.findByRole("heading", { level: 3, name: /^Year-ended net migration:/ });
-    expect(heading).toHaveTextContent("year ended Jul 2026, provisional");
+    const glance = await screen.findByRole("region", { name: "The economy at a glance" });
+    const net = within(glance).getByRole("article", { name: "Net migration" });
+    expect(net).toHaveTextContent("+20,350");
+    expect(net).toHaveTextContent(/people, year-ended total.*, year ended July 2026/);
+    expect(net).toHaveTextContent("Up from a net gain of 9,592 a year earlier");
+    expect(net).toHaveTextContent("Over the year, 20,350 more migrants arrived than left.");
+    expect(within(net).getByText("Provisional")).toBeInTheDocument();
+    expect(within(net).getByRole("link", { name: "Net migration" })).toHaveAttribute("href", "/stories/migration-net-2026-07");
+  });
+
+  it("explains a term in place when it is selected", async () => {
+    renderWithProviders(<Overview />);
+    const glance = await screen.findByRole("region", { name: "The economy at a glance" });
+    await userEvent.click(within(glance).getByRole("button", { name: /people, year-ended total: what does this mean/ }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent(/Long-term arrivals minus long-term departures|12 of the following 16 months/);
   });
 
   it("leads with the newest verified story, its number and a link to read it", async () => {
@@ -55,7 +74,7 @@ describe("Overview", () => {
     mockApi({ "/api/overview": { ...overview, kpis: [], featured: null } });
     renderWithProviders(<Overview />);
     expect(await screen.findByRole("region", { name: /upcoming releases/i })).toBeInTheDocument();
-    expect(await screen.findByText(/trend appears once the first release has been ingested/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading stories" })).not.toBeInTheDocument());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -91,4 +110,22 @@ it("uses the ingested data time when the response is generated days later", asyn
   renderWithProviders(<Overview />);
   expect(await screen.findByText(/Migration data ingested 11 Oct 2026, 16:00 NZDT/)).toBeInTheDocument();
   expect(screen.queryByText(/Updated 16 Oct/)).not.toBeInTheDocument();
+});
+
+it("lays out all three topics: glance in reading order, the newest release as the lead, a varied collection and topic entrances", async () => {
+  mockApi({ "/api/overview": overview, "/api/series/mig.ry.net": series, "/api/cpi": cpi, "/api/ect": ect });
+  renderWithProviders(<Overview />);
+  const glance = await screen.findByRole("region", { name: "The economy at a glance" });
+  expect(within(glance).getAllByRole("article").map((a) => a.getAttribute("aria-labelledby"))).toEqual([
+    "glance-inflation-annual-2026-06", "glance-spending-retail-2026-09", "glance-migration-net-2026-07",
+  ]);
+  expect(within(glance).getByRole("article", { name: "Inflation" })).toHaveTextContent("Consumer prices were 4.1% higher than a year earlier.");
+  // Card spending (16 Oct) is the newest release, so it leads.
+  expect(screen.getByRole("region", { name: "Retail card spending fell 0.4% in September 2026" })).toBeInTheDocument();
+  const latest = screen.getByRole("list", { name: "Latest stories" });
+  const first = within(latest).getAllByRole("article")[0];
+  expect(first).not.toHaveTextContent("Consumer spending"); // the prominent slot avoids repeating the lead's topic
+  const topics = screen.getByRole("region", { name: "Explore by topic" });
+  expect(within(topics).getByRole("link", { name: "Explore inflation" })).toHaveAttribute("href", "/inflation");
+  expect(within(topics).getByRole("link", { name: "2 stories" })).toHaveAttribute("href", "/stories?category=spending");
 });

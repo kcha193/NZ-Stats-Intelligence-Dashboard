@@ -9,18 +9,22 @@ export const FORMATS = {
 export type ExportFormat = keyof typeof FORMATS;
 
 export type Measure = (text: string, font: string) => number;
-export type Role = "kicker" | "headline" | "stat" | "statUnit" | "statLabel" | "chartTitle" | "context" | "caveat" | "source" | "attribution";
+export type Role = "kicker" | "headline" | "stat" | "statUnit" | "statLabel" | "dek" | "chartTitle" | "context" | "caveat" | "source" | "attribution";
 export type Line = { role: Role; text: string; x: number; y: number; size: number; font: string; tone: "text" | "muted" | "accent" };
 export type Rect = { x: number; y: number; w: number; h: number };
 export type ExportLayout = { width: number; height: number; lines: Line[]; chart: Rect; rules: Rect[]; truncated: Role[] };
 
 export type ExportText = {
-  kicker: string; headline: string; stat: string; statUnit: string; statLabel: string;
+  kicker: string; headline: string; stat: string; statUnit: string; statLabel: string; dek: string;
   chartTitle: string; context: string; caveat: string; source: string; attribution: string;
 };
 
 const FAMILY = '"IBM Plex Sans Variable", "IBM Plex Sans", system-ui, sans-serif';
-export const font = (size: number, weight = 400) => `${weight} ${size}px ${FAMILY}`;
+/** The site's display face for the headline, the statistic and the chart title; everything else stays in Plex. */
+const DISPLAY = '"Geist Variable", "IBM Plex Sans Variable", system-ui, sans-serif';
+export const font = (size: number, weight = 400, face: "text" | "display" = "text") => `${weight} ${size}px ${face === "display" ? DISPLAY : FAMILY}`;
+const DISPLAY_ROLES: ReadonlySet<Role> = new Set(["headline", "stat", "chartTitle"]);
+const faceOf = (role: Role) => (DISPLAY_ROLES.has(role) ? "display" : "text");
 
 /** Everything printed on the image, so it can be read without visiting the dashboard. */
 export function exportText(story: Story, figure: { title: string; unit: string; caveat: string }, storyUrl: string): ExportText {
@@ -32,6 +36,7 @@ export function exportText(story: Story, figure: { title: string; unit: string; 
     stat: story.stat.value,
     statUnit: story.stat.unit,
     statLabel: story.stat.label,
+    dek: story.dek,
     chartTitle: figure.title,
     context: `Reference period: ${story.referenceLabel}${flags.length ? ` (${flags.join(", ")})` : ""}. Unit: ${figure.unit}.`,
     caveat: [p.status === "corrected" ? story.caveats[0] : null, figure.caveat].filter(Boolean).join(" "),
@@ -90,7 +95,7 @@ const LEAD = 1.25;
 /** Appends wrapped lines to `into` from `y` downwards and returns the y below them. */
 type EmitArgs = [role: Role, texts: string[], x: number, y: number, size: number, weight: number, tone: Line["tone"]];
 function emit(into: Line[], ...[role, texts, x, y, size, weight, tone]: EmitArgs): number {
-  texts.forEach((text, i) => into.push({ role, text, x, y: y + i * size * LEAD, size, font: font(size, weight), tone }));
+  texts.forEach((text, i) => into.push({ role, text, x, y: y + i * size * LEAD, size, font: font(size, weight, faceOf(role)), tone }));
   return y + texts.length * size * LEAD;
 }
 
@@ -117,11 +122,11 @@ export function layoutExport(t: ExportText, format: ExportFormat, measure: Measu
     const add = (...args: EmitArgs) => emit(target, ...args);
     let y = s.pad;
     y = add("kicker", [t.kicker], s.pad, y, s.kicker, 600, "accent") + s.kicker * 0.6;
-    const head = wrap(t.headline, font(headlineSize, 600), colW, measure);
+    const head = wrap(t.headline, font(headlineSize, 600, "display"), colW, measure);
     y = add("headline", head, s.pad, y, headlineSize, 600, "text") + headlineSize * 0.5;
     const statLine = add("stat", [t.stat], s.pad, y, statSize, 600, "text");
     let after: number;
-    const besideX = s.pad + measure(t.stat, font(statSize, 600)) + 32;
+    const besideX = s.pad + measure(t.stat, font(statSize, 600, "display")) + 32;
     if (format === "portrait" && width - s.pad - besideX >= 360) {
       // Unit and label sit beside the big number, aligned to its top.
       const w = width - s.pad - besideX;
@@ -135,20 +140,27 @@ export function layoutExport(t: ExportText, format: ExportFormat, measure: Measu
     return { bottom: after, headLines: head.length };
   };
   // Largest headline and statistic that fit: the text is never cut, the type gets smaller instead.
-  const statFits = (size: number) => measure(t.stat, font(size, 600)) <= colW;
+  const statFits = (size: number) => measure(t.stat, font(size, 600, "display")) <= colW;
   const statSize = s.stat.find(statFits) ?? s.stat.at(-1)!;
   const limit = format === "landscape" ? bodyBottom : height * 0.42;
-  const headlineSize = s.headline.find((h) => {
+  const dekSize = 16;
+  const dekLines = format === "landscape" ? wrap(t.dek, font(dekSize), colW, measure) : [];
+  const dekH = dekLines.length ? 24 + dekLines.length * dekSize * LEAD : 0;
+  const fits = (h: number, reserve: number) => {
     const r = story(h, statSize, false);
-    return r.headLines <= s.headlineMax && r.bottom <= limit;
-  }) ?? s.headline.at(-1)!;
+    return r.headLines <= s.headlineMax && r.bottom + reserve <= limit;
+  };
+  // The dek (landscape only) is printed whole or not at all, and never at the cost of a headline below 28px.
+  const withDek = dekH > 0 ? s.headline.find((h) => h >= 28 && fits(h, dekH)) : undefined;
+  const headlineSize = withDek ?? s.headline.find((h) => fits(h, 0)) ?? s.headline.at(-1)!;
   const storyBottom = story(headlineSize, statSize, true).bottom;
+  if (withDek) put("dek", dekLines, s.pad, storyBottom + 24, dekSize, 400, "text");
 
   // Chart panel: title, chart, then context and caveat beneath it.
   const panelX = format === "landscape" ? s.pad + colW + 40 : s.pad;
   const panelW = width - s.pad - panelX;
   let y = format === "landscape" ? s.pad : storyBottom + 40;
-  y = put("chartTitle", wrap(t.chartTitle, font(s.chartTitle, 600), panelW, measure), panelX, y, s.chartTitle, 600, "text") + 8;
+  y = put("chartTitle", wrap(t.chartTitle, font(s.chartTitle, 600, "display"), panelW, measure), panelX, y, s.chartTitle, 600, "text") + 8;
   const contextLines = wrap(t.context, font(s.context), panelW, measure);
   const caveat = clamp(wrap(t.caveat, font(s.caveat), panelW, measure), s.caveatMax, font(s.caveat), panelW, measure);
   if (caveat.cut) truncated.push("caveat");

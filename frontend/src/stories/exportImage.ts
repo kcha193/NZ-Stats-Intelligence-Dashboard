@@ -16,7 +16,7 @@ export async function storyPng(
   text: ExportText, format: ExportFormat, option: EChartsCoreOption, theme: ChartTheme, accent: string,
 ): Promise<string> {
   // Canvas text falls back to a system font unless the web font's weights are loaded first.
-  await Promise.all([400, 600].map((w) => document.fonts?.load(font(16, w)).catch(() => undefined)));
+  await Promise.all([400, 600].flatMap((w) => (["text", "display"] as const).map((f) => document.fonts?.load(font(16, w, f)).catch(() => undefined))));
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Image export is unavailable");

@@ -78,7 +78,7 @@ describe("story figures", () => {
     const netView = figureView(stories.get("migration-net")!, "10y", TEST_THEME);
     const opt = netView.option as unknown as Opt;
     expect(opt.series[0].markArea).toBeDefined();
-    const peak = opt.series[0].markPoint!.data.find((d) => d.label?.formatter === "Peak 133,738 (Oct 2023)");
+    const peak = opt.series[0].markPoint!.data.find((d) => d.label?.formatter === "Peak 133,738 (YE Oct 2023)");
     // The peak sits in the right half, near the provisional band and its label, so its label reads leftwards.
     expect(peak?.label?.position).toBe("left");
     expect(netView.csvRows.every((r) => String(r.series).startsWith("mig.ry."))).toBe(true);
@@ -137,4 +137,22 @@ describe("contribution horizon controls", () => {
     expect(() => figureView(withBlocks([]), "annual", TEST_THEME)).not.toThrow();
   });
 });
+});
+
+describe("story figure emphasis", () => {
+  it("lets the reference month read first on the retail chart without changing any value", () => {
+    const s = stories.get("spending-retail")!;
+    const data = (figureView(s, "change", TEST_THEME).option as unknown as Opt).series[0].data as ({ value: number; itemStyle: { opacity?: number } } | null)[];
+    const present = data.filter((d) => d !== null);
+    expect(present.at(-1)!.value).toBe(-0.4);
+    expect(present.at(-1)!.itemStyle.opacity).toBeUndefined();
+    expect(present.slice(0, -1).every((d) => d!.itemStyle.opacity === 0.45)).toBe(true);
+  });
+
+  it("labels each tradables line with its name and latest rate", () => {
+    const s = stories.get("inflation-tradables")!;
+    const series = (figureView(s, "annual", TEST_THEME).option as unknown as { series: { endLabel: { formatter: (p: object) => string } }[] }).series;
+    expect(series[0].endLabel.formatter({ seriesName: "Tradables", value: 4.92 })).toBe("Tradables 4.9%");
+    expect(series[1].endLabel.formatter({ seriesName: "Non-tradables", value: null })).toBe("Non-tradables");
+  });
 });

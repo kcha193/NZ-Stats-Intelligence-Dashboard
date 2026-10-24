@@ -1,7 +1,38 @@
 # Progress and verification record
 
-Last updated 2026-10-23. Visual storytelling layer implemented on `feat/visual-stories` (local commits, not pushed; see below).
-PR #5 (CPI) and PR #6 (September CPI header fix) are merged to `main`. Earlier entries below are historical.
+Last updated 2026-10-24. Visual stories 2.0 (editorial redesign) on `feat/visual-stories-v2`, local commits, not pushed.
+PR #7 (visual stories) is merged to `main`. Earlier entries below are historical.
+
+## Visual stories 2.0, 24 October 2026
+
+Frontend only: no change to ingestion, adapters, validation, scheduling, schema, revision semantics or API contracts.
+Audit, decisions and limitations: [visual-stories-v2.md](superpowers/specs/visual-stories-v2.md).
+
+- Display face (Geist, already installed) for headlines and key figures; Plex for reading text. Feature and sunken
+  surfaces, category rules from the validated chart colours (no new chart colours), muted text darkened to about 5.6:1
+  on tinted surfaces.
+- Homepage: masthead, economy at a glance (`Story.glance`, built by the CPI, ECT and migration builders), art-directed
+  lead, varied story collection (`arrangeCollection`), topic entrances, grouped indicators behind a disclosure, then
+  releases and data quality. The duplicate net-migration trend chart left the homepage.
+- `StoryGraphic` replaces the unlabelled thumbnails: line, signed columns, diverging bars and pair/dumbbell, labelled
+  with published values at true pixel size, with text alternatives.
+- Navigation: Home, Stories, "Explore data" disclosure (Menu on phones); footer lists every page.
+- Story pages: key-term explainers, record band, related stories, previous/next; remount per story so a chart variant
+  never carries over. Story charts: latest retail month emphasised, tradables end labels with values, migration peak
+  labelled "YE".
+- Exports: display face for headline, statistic and chart title; landscape dek when it fits whole.
+- Glance wording follows the sign of both years: a widening net loss is "Larger than a net loss of ...", never "Up from"
+  (found in final diff review, fixed test-first).
+- `playwright.config.ts` reads `E2E_PORT` (default 8765); 8765 was held by another local app during this work.
+
+| Command | Outcome |
+|---|---|
+| Baseline before changes | `npm run build` passed; before screenshots captured from that build |
+| `cd frontend && npm test` | 332 passed (31 files) |
+| `npm run typecheck` / `npm run lint` / `npm run build` | Passed; lint shows the 3 existing vendor Fast Refresh warnings; existing bundle-size warning |
+| `E2E_PORT=8775 npx playwright test` (offline seeded DB) | 93 passed (desktop, tablet, mobile): 81 existing (3 selectors updated for the new homepage) plus 12 new |
+| Visual review | Two critique passes, before/after at 390, 768, 1280, 1440 light, 390 and 1440 dark; no horizontal overflow; reduced motion renders identically |
+| Backend | Not run: no backend file changed |
 
 ## Visual storytelling layer, 23 October 2026
 

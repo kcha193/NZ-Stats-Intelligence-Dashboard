@@ -29,10 +29,43 @@ export type EvidenceRow = {
   label: string; seriesKey: string; period: string; value: number; unit: string; status: string; releaseKey: string;
 };
 
-/** Inline SVG thumbnail data. `line` is a time series; `bars` is a signed or level ranking. */
+/** How a graphic prints its numbers: rates in %, contributions and gaps in pp, migration in people. */
+export type ValueFormat = "pct" | "pp" | "people";
+/** How a graphic names a period: quarters and months by their month, year-ended totals as "YE Jul 2026". */
+export type PeriodStyle = "quarter" | "month" | "year-ended";
+export type ThumbPoint = { period: string; value: number | null; provisional?: boolean };
+
+/**
+ * The story's own small graphic: one message, one encoding, labelled directly.
+ * - `line`: a level or rate over time, with the latest value and the peak in range labelled.
+ * - `columns`: signed changes over time on a zero baseline (growth rates, never levels).
+ * - `bars`: a signed ranking, diverging from zero (contributions, industry changes, net flows).
+ * - `pair`: two measures of the same unit side by side, with their difference stated (a dumbbell for rates, bars for
+ *   counts of people, which start at zero).
+ */
 export type Thumb =
-  | { kind: "line"; values: (number | null)[]; zero: boolean; compare?: (number | null)[] }
-  | { kind: "bars"; items: { label: string; value: number }[] };
+  | { kind: "line"; name: string; points: ThumbPoint[]; zero: boolean; format: ValueFormat; period: PeriodStyle }
+  | { kind: "columns"; name: string; points: ThumbPoint[]; format: ValueFormat; period: PeriodStyle }
+  | { kind: "bars"; name: string; items: { label: string; value: number }[]; format: ValueFormat }
+  | { kind: "pair"; name: string; items: [{ label: string; value: number }, { label: string; value: number }]; format: ValueFormat;
+      gap: { label: string; value: string } };
+
+/**
+ * A headline measure in plain language, for "the economy at a glance". Every string is built from the story's own
+ * published values by the builder; nothing is added at render time.
+ */
+export type Glance = {
+  /** Short name of the measure: "Inflation". */
+  metric: string;
+  value: string;
+  /** What the number measures, with its comparator: "annual change in consumer prices". */
+  measure: string;
+  /** Movement against the appropriate comparator, with that comparator named. */
+  comparison: string;
+  /** One sentence a reader with no statistics background can repeat accurately. */
+  plain: string;
+  direction: "up" | "down" | "flat";
+};
 
 export type Figure =
   | { kind: "cpi-annual"; series: CpiSeries }
@@ -72,4 +105,6 @@ export type Story = {
   insights: Insight[];
   thumb: Thumb;
   figure: Figure;
+  /** Present only on the headline story of each category. */
+  glance?: Glance;
 };

@@ -91,3 +91,34 @@ describe("export attribution and source", () => {
     expect(exportText(story, figure, "https://example.test/x").source).not.toMatch(/https?:/);
   });
 });
+
+describe("export typography", () => {
+  it("sets the headline, statistic and chart title in the display face and keeps source and caveats in Plex", () => {
+    const l = layoutExport(exportText(stories[0], figure, "https://example.test/stories/x"), "landscape", measure);
+    const face = (role: string) => [...new Set(l.lines.filter((x) => x.role === role).map((x) => /"([^"]+)"/.exec(x.font)![1]))];
+    for (const role of ["headline", "stat", "chartTitle"]) expect(face(role)).toEqual(["Geist Variable"]);
+    for (const role of ["kicker", "source", "attribution", "caveat", "context"]) expect(face(role)).toEqual(["IBM Plex Sans Variable"]);
+  });
+});
+
+describe("landscape dek", () => {
+  it("sets the story's dek under the statistic, inside the story column and above the footer", () => {
+    for (const story of stories) {
+      const l = layoutExport(exportText(story, figure, "https://example.test/stories/x"), "landscape", measure);
+      const dek = l.lines.filter((x) => x.role === "dek");
+      expect(dek.length).toBeGreaterThan(0);
+      const statBottom = Math.max(...l.lines.filter((x) => x.role === "statLabel").map((x) => x.y + x.size));
+      const footerTop = Math.min(...l.lines.filter((x) => x.role === "source").map((x) => x.y));
+      for (const d of dek) {
+        expect(d.y).toBeGreaterThan(statBottom);
+        expect(d.y + d.size).toBeLessThan(footerTop - 16);
+        expect(d.x + measure(d.text, d.font)).toBeLessThanOrEqual(l.chart.x);
+      }
+    }
+  });
+
+  it("is left out of the portrait card, which has no spare column", () => {
+    const l = layoutExport(exportText(stories[0], figure, "https://example.test/stories/x"), "portrait", measure);
+    expect(l.lines.some((x) => x.role === "dek")).toBe(false);
+  });
+});

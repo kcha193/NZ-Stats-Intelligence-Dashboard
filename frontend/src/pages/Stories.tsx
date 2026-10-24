@@ -26,11 +26,11 @@ export default function Stories() {
     ...CATEGORIES.map((c) => ({ value: c, label: `${CATEGORY_LABEL[c]} (${stories.filter((s) => s.category === c).length})` })),
   ];
   return (
-    <div className="space-y-6">
-      <header className="max-w-[70ch]">
+    <div className="space-y-8">
+      <header className="max-w-[70ch] border-b-2 border-rule-strong pb-6">
         <p className="kicker">Visual stories</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Stories</h1>
-        <p className="mt-2 text-base text-muted-foreground">
+        <h1 className="type-masthead mt-2">Stories</h1>
+        <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
           One finding per story, drawn from the latest verified Stats NZ release. Each story names its reference period,
           publication date and source, and links to the full dashboard.
         </p>

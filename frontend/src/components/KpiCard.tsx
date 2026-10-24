@@ -3,7 +3,7 @@ import { formatAklDate, formatNumber, formatPercent } from "@/lib/format";
 import { formatMetricValue, isRate } from "@/lib/metric";
 import { StatusBadge } from "./StatusBadge";
 
-function Delta({ change, unit }: { change: ChangeOut | null | undefined; unit: string }) {
+export function Delta({ change, unit }: { change: ChangeOut | null | undefined; unit: string }) {
   if (!change) return null;
   if (isRate(unit)) {
     return (

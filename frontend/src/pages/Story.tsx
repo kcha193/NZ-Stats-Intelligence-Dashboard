@@ -8,13 +8,16 @@ import { Segmented } from "@/components/Segmented";
 import { DataEvidencePanel } from "@/components/story/DataEvidencePanel";
 import { KeyStatistic } from "@/components/story/KeyStatistic";
 import { SourceAttribution } from "@/components/story/SourceAttribution";
-import { StoryMeta } from "@/components/story/StoryCard";
+import { StoryCard, StoryMeta } from "@/components/story/StoryCard";
+import { KeyTerms } from "@/components/story/Term";
 import { StoryExport } from "@/components/story/StoryExport";
 import { formatAklDate } from "@/lib/format";
 import { isPublished } from "@/lib/releaseStatus";
-import { categoryOfId, resolveStory } from "@/stories/engine";
+import { categoryOfId, neighbours, relatedStories, resolveStory } from "@/stories/engine";
 import { figureView, variantsOf, type FigureView } from "@/stories/figures";
+import { termsFor } from "@/stories/glossary";
 import { inSentence, monthName } from "@/stories/text";
+import { TOPICS } from "@/stories/topics";
 import { CATEGORY_LABEL, type Story } from "@/stories/types";
 import { useStories } from "@/stories/useStories";
 
@@ -50,58 +53,99 @@ function StoryFigure({ story, view, variant, setVariant }: { story: Story; view:
   );
 }
 
-function StoryBody({ story }: { story: Story }) {
+function StoryBody({ story, stories }: { story: Story; stories: Story[] }) {
   const theme = useChartTheme();
   // One variant drives the chart, its CSV and the presentation export, so all three show the same values.
   const [variant, setVariant] = useState(variantsOf(story)?.initial ?? "");
   const view = figureView(story, variant, theme);
+  const related = relatedStories(stories, story, 3);
+  const { previous, next } = neighbours(stories, story.id);
   return (
-    <article className="space-y-8" aria-labelledby="story-headline">
-      <header className="max-w-[72ch] space-y-3">
-        <Link to={`/stories?category=${story.category}`} className="kicker hover:underline">{CATEGORY_LABEL[story.category]}</Link>
-        <h1 id="story-headline" className="text-3xl font-semibold leading-tight tracking-tight text-balance sm:text-4xl lg:text-[2.75rem]">
-          {story.headline}
-        </h1>
-        <p className="text-lg leading-relaxed text-muted-foreground">{story.dek}</p>
-        <StoryMeta story={story} />
-        <StoryExport story={story} view={view} theme={theme} />
+    <article className="space-y-12" aria-labelledby="story-headline">
+      <header className="grid gap-8 border-b-2 border-rule-strong pb-8 lg:grid-cols-12 lg:items-end">
+        <div className="min-w-0 lg:col-span-8">
+          <Link to={`/stories?category=${story.category}`} className="inline-flex items-center gap-2 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
+            <span aria-hidden className={`cat-rule ${TOPICS[story.category].tone}`} />
+            {CATEGORY_LABEL[story.category]}
+          </Link>
+          <h1 id="story-headline" className="type-lead mt-3 max-w-[24ch]">{story.headline}</h1>
+          <p className="mt-4 max-w-[62ch] text-lg leading-relaxed text-muted-foreground">{story.dek}</p>
+          <div className="mt-5"><StoryMeta story={story} /></div>
+        </div>
+        <div className="min-w-0 lg:col-span-4 lg:border-l lg:pl-8">
+          <KeyStatistic stat={story.stat} />
+          {story.glance && <p className="mt-4 max-w-[40ch] text-sm leading-relaxed">{story.glance.plain}</p>}
+        </div>
       </header>
       <NewerRelease story={story} />
-      <div className="grid gap-6 lg:grid-cols-12">
-        <aside className="space-y-5 lg:col-span-4" aria-label="Key figures">
-          <div className="border-t-2 border-accent-ink pt-4"><KeyStatistic stat={story.stat} /></div>
+      <div className="grid gap-8 lg:grid-cols-12">
+        <div className="min-w-0 space-y-3 lg:col-span-8">
+          <StoryFigure story={story} view={view} variant={variant} setVariant={setVariant} />
+          <StoryExport story={story} view={view} theme={theme} />
+        </div>
+        <aside className="space-y-6 lg:col-span-4" aria-label="Key figures">
           {story.context.length > 0 && (
             <section aria-labelledby="story-context">
-              <h2 id="story-context" className="text-sm font-semibold">In context</h2>
-              <ul className="mt-2 space-y-2 text-sm leading-relaxed">
-                {story.context.map((c) => <li key={c} className="border-l-2 pl-3">{c}</li>)}
+              <h2 id="story-context" className="font-display text-base font-semibold tracking-tight">In context</h2>
+              <ul className="mt-3 space-y-3 text-sm leading-relaxed">
+                {story.context.map((c) => <li key={c} className="border-l-2 border-accent-ink/60 pl-3">{c}</li>)}
               </ul>
             </section>
           )}
+          <KeyTerms keys={termsFor(story)} />
         </aside>
-        <div className="min-w-0 lg:col-span-8"><StoryFigure story={story} view={view} variant={variant} setVariant={setVariant} /></div>
       </div>
-      <section aria-labelledby="story-explain" className="max-w-[72ch] space-y-3">
-        <h2 id="story-explain" className="text-lg font-semibold">What the data shows</h2>
-        {story.explanation.map((t) => <p key={t} className="text-base leading-relaxed">{t}</p>)}
-        <h3 className="pt-2 text-sm font-semibold">Read with care</h3>
+      <section aria-labelledby="story-explain" className="max-w-[68ch] space-y-4">
+        <h2 id="story-explain" className="type-section">What the data shows</h2>
+        {story.explanation.map((t) => <p key={t} className="text-[1.0625rem] leading-relaxed">{t}</p>)}
+        <h3 className="pt-2 font-display text-base font-semibold tracking-tight">Read with care</h3>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           {story.caveats.map((c) => <li key={c}>{c}</li>)}
         </ul>
       </section>
-      <DataEvidencePanel story={story} />
-      <section aria-labelledby="story-method" className="max-w-[72ch]">
-        <details>
-          <summary className="cursor-pointer"><h2 id="story-method" className="inline text-lg font-semibold">Methodology</h2></summary>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-            {story.methodology.map((m) => <li key={m}>{m}</li>)}
-          </ul>
-        </details>
+      <section aria-labelledby="story-record" className="-mx-4 space-y-8 bg-surface-sunken px-4 py-10 lg:-mx-8 lg:px-8">
+        <div>
+          <h2 id="story-record" className="type-section">Data, definitions and sources</h2>
+          <p className="mt-1.5 max-w-[65ch] text-sm text-muted-foreground">
+            The exact published values behind this story, how they are defined, and where they come from.
+          </p>
+        </div>
+        <DataEvidencePanel story={story} />
+        <section aria-labelledby="story-method" className="max-w-[72ch]">
+          <details>
+            <summary className="cursor-pointer"><h3 id="story-method" className="inline font-display text-lg font-semibold tracking-tight">Methodology</h3></summary>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {story.methodology.map((m) => <li key={m}>{m}</li>)}
+            </ul>
+          </details>
+        </section>
+        <SourceAttribution story={story} />
       </section>
-      <SourceAttribution story={story} />
-      <nav aria-label="Related" className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
-        <Link className="text-accent-ink underline underline-offset-4" to={story.dashboard.to}>{story.dashboard.label}</Link>
-        <Link className="underline underline-offset-4" to="/stories">All stories</Link>
+      {related.length > 0 && (
+        <section aria-labelledby="story-related">
+          <h2 id="story-related" className="type-section">Related stories</h2>
+          <ul aria-label="Related stories" className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {related.map((s) => <li key={s.id} className="min-w-0"><StoryCard story={s} /></li>)}
+          </ul>
+        </section>
+      )}
+      <nav aria-label="Story navigation" className="grid gap-4 border-t pt-6 text-sm sm:grid-cols-2">
+        {previous ? (
+          <Link className="group rounded-sm" to={`/stories/${previous.id}`}>
+            <span className="block text-xs text-muted-foreground">Previous story</span>
+            <span className="font-medium group-hover:underline">{previous.headline}</span>
+          </Link>
+        ) : <span />}
+        {next && (
+          <Link className="group rounded-sm sm:text-right" to={`/stories/${next.id}`}>
+            <span className="block text-xs text-muted-foreground">Next story</span>
+            <span className="font-medium group-hover:underline">{next.headline}</span>
+          </Link>
+        )}
+        <div className="flex flex-wrap gap-x-6 gap-y-2 font-medium sm:col-span-2">
+          <Link className="text-accent-ink underline underline-offset-4" to={story.dashboard.to}>{story.dashboard.label}</Link>
+          <Link className="underline underline-offset-4" to="/stories">All stories</Link>
+        </div>
       </nav>
     </article>
   );
@@ -121,7 +165,7 @@ export default function StoryPage() {
     <QueryBoundary query={{ data: isLoading ? undefined : stories, error, isLoading, isError, refetch }}>
       {(all) => {
         const r = resolveStory(all, id);
-        if (r.kind === "found") return <StoryBody story={r.story} />;
+        if (r.kind === "found") return <StoryBody key={r.story.id} story={r.story} stories={all} />;
         if (r.kind === "superseded") {
           return (
             <section className="max-w-[65ch] space-y-3 rounded-md border p-5">
