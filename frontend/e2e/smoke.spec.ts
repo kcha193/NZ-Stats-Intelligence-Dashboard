@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { dataUrl, unwrap } from "./mode";
 
 test("overview shows KPIs, panels and no console errors", async ({ page }) => {
   const errors: string[] = [];
@@ -52,7 +53,7 @@ test("country PNG includes a readable source caption and CSV identifies the bund
   await page.goto("/migration");
   const country = page.getByRole("figure").filter({ has: page.getByRole("heading", { name: /^Migrant arrivals by country/ }) });
   await expect(country.getByRole("link", { name: /International migration: July 2026/ })).toBeVisible();
-  const data = await (await page.request.get("/api/migration/countries")).json();
+  const data = unwrap<{ provenance: unknown }>(await (await page.request.get(dataUrl({ path: "migration/countries", file: "migration/countries.json" }))).json());
   const provenance = data.provenance;
   await page.evaluate(() => {
     const captions = new WeakMap<HTMLCanvasElement, { text: string; x: number; y: number; width: number }[]>();

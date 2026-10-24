@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { dataUrl, rewrap, STATIC, unwrap } from "./mode";
 
 // Uses the same official-fixture database as smoke.spec.ts; no live source requests.
 test("response time does not masquerade as data freshness", async ({ page }) => {
@@ -35,7 +36,9 @@ test("calendar details reveal a full title and restore keyboard focus", async ({
 });
 
 test("same-publication correction is separate and missing data is not zero", async ({ page, request }) => {
-  const original = await (await request.get("/api/releases/2")).json();
+  const release = dataUrl({ path: "releases/2", file: "releases/2.json" });
+  const raw = await (await request.get(release)).json();
+  const original = unwrap<{ analysis: Record<string, unknown> }>(raw);
   // Controlled response exercises added/withdrawn observations and a standard-error-only correction.
   original.analysis.corrections = {
     available: true, note: "Changes within this publication, separate from an earlier publication.",
@@ -45,7 +48,7 @@ test("same-publication correction is separate and missing data is not zero", asy
       { period: "2026-06", original: 2331, revised: null, original_status: "provisional", revised_status: null, original_std_error: 400, revised_std_error: null, original_released_in: "2026-07", revised_released_in: null },
     ] }],
   };
-  await page.route("**/api/releases/2", (route) => route.fulfill({ json: original }));
+  await page.route(STATIC ? "**/data/v1/releases/2.json" : "**/api/releases/2", (route) => route.fulfill({ json: rewrap(raw, original) }));
   await page.goto("/releases/2");
   const section = page.locator("section", { has: page.getByRole("heading", { name: "Corrections within this publication", exact: true }) });
   await expect(section.getByText("SE 545 → SE 546", { exact: true })).toBeVisible();
