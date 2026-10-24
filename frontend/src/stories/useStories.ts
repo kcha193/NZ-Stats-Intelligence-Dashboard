@@ -1,10 +1,7 @@
 import { useMemo } from "react";
 import { ApiError } from "@/api/client";
 import { useCpi, useEct, useOverview, useSeries } from "@/api/hooks";
-import { buildCpiStories } from "./cpi";
-import { buildEctStories } from "./ect";
-import { orderStories } from "./engine";
-import { buildMigrationStories } from "./migration";
+import { composeStories } from "./compose";
 import type { Story, StoryCategory } from "./types";
 
 export type SourceState = "ready" | "loading" | "not_ingested" | "error";
@@ -41,16 +38,12 @@ export function useStories(): { stories: Story[]; sources: Record<StoryCategory,
       spending: stateOf([ect]),
       migration: overview.isLoading ? "loading" : stateOf(migration),
     };
-    const releases = overview.data ? [...overview.data.latest_releases, ...(overview.data.featured ? [overview.data.featured.release] : [])] : [];
     // A category's stories appear once its sources have settled: built from half of them (migration before the release
     // summaries that carry its status, say) they would be shown and then change.
-    const stories = orderStories([
-      ...(cpi.data ? buildCpiStories(cpi.data) : []),
-      ...(ect.data ? buildEctStories(ect.data) : []),
-      ...buildMigrationStories({
-        net: net.data, arrivals: arrivals.data, departures: departures.data, nz: nz.data, nonNz: nonNz.data, releases,
-      }),
-    ]).filter((s) => sources[s.category] !== "loading");
+    const stories = composeStories({
+      cpi: cpi.data, ect: ect.data, overview: overview.data,
+      net: net.data, arrivals: arrivals.data, departures: departures.data, nz: nz.data, nonNz: nonNz.data,
+    }).filter((s) => sources[s.category] !== "loading");
     return { stories, sources, isLoading: Object.values(sources).includes("loading") };
   }, [cpi, ect, overview, net, arrivals, departures, nz, nonNz]);
   return { ...result, refetch };

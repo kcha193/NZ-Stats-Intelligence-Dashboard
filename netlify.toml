@@ -1,0 +1,108 @@
+# Public static site. The site is built and deployed from a validated snapshot by the trusted publisher (see
+# docs/netlify-deployment.md), not from a Git checkout, which has no production data in it.
+
+[build]
+  publish = "frontend/dist-static"
+  # Refuses to run without a snapshot, so a Git-triggered build can never publish an empty or stale site.
+  command = "bash scripts/build_static_site.sh"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# --- Routing -----------------------------------------------------------------------------------------------------
+# Order matters: the first matching rule wins, and a real file always wins over a rewrite. The build also writes a
+# _redirects file in the publish directory (one rule per prerendered page); Netlify applies that file first.
+
+# A missing snapshot file must be a real 404, never index.html with status 200 (the client treats HTML as "unavailable").
+[[redirects]]
+  from = "/data/*"
+  to = "/data-not-found.json"
+  status = 404
+
+# There is no API on this site. The static build never calls one.
+[[redirects]]
+  from = "/api/*"
+  to = "/data-not-found.json"
+  status = 404
+
+# Client-side routes: serve the app (a neutral shell, so no page claims another page's canonical address) so refreshes
+# and shared links work. Prerendered pages are matched earlier by the build's _redirects file. Anything else is a
+# genuine 404 (404.html).
+[[redirects]]
+  from = "/stories"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/stories/*"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/inflation"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/electronic-card-transactions"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/migration"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/calendar"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/health"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/releases/*"
+  to = "/_pages/app-shell.html"
+  status = 200
+
+# --- Headers -----------------------------------------------------------------------------------------------------
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()"
+    Strict-Transport-Security = "max-age=31536000"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+# Hashed build output never changes under the same name.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Snapshot files are revalidated on every load (cheap 304s) and are not search results in their own right.
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Robots-Tag = "noindex"
+
+[[headers]]
+  for = "/_pages/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Robots-Tag = "noindex"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/favicon.svg"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/og-card.png"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"

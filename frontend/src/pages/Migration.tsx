@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ROUTE_META } from "@/seo/routes";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { useRelease, useReleases } from "@/api/hooks";
 import { InsightList } from "@/components/InsightList";
 import { QueryBoundary } from "@/components/QueryBoundary";
@@ -47,6 +49,7 @@ function KeyFindings() {
 }
 
 export default function Migration() {
+  useDocumentTitle(ROUTE_META["/migration"].title);
   const [range, setRange] = useState<Range>(10);
   return (
     <div className="space-y-5">

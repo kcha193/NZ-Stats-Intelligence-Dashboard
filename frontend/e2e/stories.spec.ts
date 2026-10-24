@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { exportedOrigin } from "./mode";
 
 test("homepage leads with a featured story that opens a complete story page", async ({ page }) => {
   const errors: string[] = [];
@@ -97,7 +98,7 @@ for (const [format, width, height] of [["Landscape", 1200, 675], ["Portrait", 12
     expect(all).toContain("Source: Stats NZ, Consumers price index: June 2026 quarter, published 21 Jul 2026");
     expect(all).toContain("Reference period: June 2026 quarter");
     expect(all).toContain("(https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/)");
-    expect(all).toContain(`NZ Stats Intelligence (independent, not endorsed by Stats NZ) · ${new URL(page.url()).origin}/stories/inflation-drivers-2026-06`);
+    expect(all).toContain(`NZ Stats Intelligence (independent, not endorsed by Stats NZ) · ${exportedOrigin(page.url())}/stories/inflation-drivers-2026-06`);
     await expect(page.getByRole("status").filter({ hasText: "exported with source" })).toBeVisible();
   });
 }

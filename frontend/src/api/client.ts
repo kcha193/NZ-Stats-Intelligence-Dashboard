@@ -1,14 +1,11 @@
-export class ApiError extends Error {
-  status: number;
+import { ApiError } from "./errors";
+import { isStaticMode } from "./mode";
+import { staticGetJson } from "./static";
 
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
+export { ApiError };
 
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  if (isStaticMode()) return staticGetJson<T>(path, signal);
   const res = await fetch(path, { signal, headers: { Accept: "application/json" } });
   if (!res.ok) {
     let detail = res.statusText;

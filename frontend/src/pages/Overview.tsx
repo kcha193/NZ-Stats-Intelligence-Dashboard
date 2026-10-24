@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { ROUTE_META } from "@/seo/routes";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import type { Overview as OverviewData } from "@/api/types";
 import { useOverview } from "@/api/hooks";
+import { isStaticMode } from "@/api/mode";
 import { Freshness } from "@/components/Freshness";
 import { Glance } from "@/components/home/Glance";
 import { Indicators } from "@/components/home/Indicators";
@@ -31,7 +34,7 @@ function Masthead({ d }: { d: OverviewData }) {
           <dd>
             {d.data_updated_at
               ? `${d.kpis.some((k) => k.metric.series_key.startsWith("ect.") || k.metric.series_key.startsWith("cpi.")) ? "Data" : "Migration data"} ingested ${formatAklDateTime(d.data_updated_at)}.`
-              : "No migration data has been ingested yet."}
+              : isStaticMode() ? "No data has been published yet." : "No migration data has been ingested yet."}
           </dd>
         </div>
         {next && (
@@ -157,12 +160,15 @@ function Operations({ d }: { d: OverviewData }) {
 }
 
 export default function Overview() {
+  useDocumentTitle(ROUTE_META["/"].title);
   const q = useOverview();
   return (
     <QueryBoundary
       query={q}
       isEmpty={(d) => d.kpis.length === 0 && d.latest_releases.length === 0 && d.upcoming.length === 0}
-      empty={<EmptyState title="No data has been ingested yet" body="Run `nzstats discover` then `nzstats backfill`, or wait for the next scheduled check. The Data health page shows what has been attempted." />}
+      empty={isStaticMode()
+        ? <EmptyState title="No data has been published yet" body="This site publishes verified Stats NZ releases as they are checked. Nothing has passed verification yet." />
+        : <EmptyState title="No data has been ingested yet" body="Run `nzstats discover` then `nzstats backfill`, or wait for the next scheduled check. The Data health page shows what has been attempted." />}
     >
       {(d) => (
         <div className="space-y-14 lg:space-y-16">

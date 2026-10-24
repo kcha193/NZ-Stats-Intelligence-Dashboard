@@ -6,9 +6,17 @@
 data
 .env
 frontend/dist
+frontend/dist-static
 frontend/playwright-report
 docs
 .superpowers
 .ruff_cache
 .pytest_cache
 frontend/openapi.json
+frontend/.e2e-snapshot
+frontend/test-results
+.env.*
+!.env.example
+!.env.publisher.example
+publisher-state
+snapshot

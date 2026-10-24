@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SnapshotUnavailableError } from "@/api/static";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -22,7 +23,7 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
 export function ErrorState({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
   return (
     <div role="alert" className="rounded-md border border-destructive/40 p-4 text-sm">
-      <p className="font-medium">This could not be loaded.</p>
+      <p className="font-medium">{error instanceof SnapshotUnavailableError ? "Data temporarily unavailable." : "This could not be loaded."}</p>
       <p className="mt-1 text-muted-foreground">{error?.message ?? "Unknown error"}</p>
       <Button className="mt-3" variant="outline" size="sm" onClick={onRetry}>
         Try again

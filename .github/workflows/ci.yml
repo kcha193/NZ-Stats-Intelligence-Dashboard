@@ -45,11 +45,33 @@ jobs:
           path: frontend/test-results
           if-no-files-found: ignore
 
+  static-site:
+    # The public Netlify build: fixture snapshot -> static site -> the existing browser specs plus routing, network,
+    # security, export and live-versus-static visual parity specs, served with netlify.toml's rules.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: pip install -e 'backend[dev]'
+      - run: cd frontend && npm ci && npx playwright install --with-deps chromium
+      - run: bash scripts/e2e_static.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: static-site-failures
+          path: frontend/test-results
+          if-no-files-found: ignore
+
   docker:
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, frontend, static-site]
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t nzstats:ci .
       - name: Offline container persistence and scheduler smoke
         run: bash scripts/smoke_docker.sh nzstats:ci
+      - name: The Netlify publisher image builds (nothing is deployed)
+        run: docker build -f Dockerfile.publisher -t nzstats-publisher:ci .

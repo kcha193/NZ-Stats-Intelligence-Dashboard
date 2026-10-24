@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router-dom";
+import { isStaticMode } from "@/api/mode";
+import { SnapshotStamp } from "@/components/SnapshotStamp";
 
 type Dest = { to: string; label: string; note: string; end?: boolean };
 
@@ -159,6 +161,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
+      {isStaticMode() && <SnapshotStamp />}
       <main id="main" className="mx-auto max-w-[1320px] px-4 py-6 lg:px-8 lg:py-8">
         {children}
       </main>

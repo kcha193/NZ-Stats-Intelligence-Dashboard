@@ -57,6 +57,11 @@ To restore: `docker compose stop`, replace `data/nzstats.db` with the backup (de
 `data/nzstats.db-wal` and `-shm` files), then `docker compose up -d`. Raw downloaded files in
 `data/raw/` are content-addressed and can be re-fetched, but copy them too if you want a full archive.
 
+### Public website (optional)
+
+The dashboard can also be published as a static site on Netlify from validated JSON snapshots, without exposing the
+database or the API. Nothing is published unless you enable it: see [docs/netlify-deployment.md](docs/netlify-deployment.md).
+
 ### Synology NAS
 
 1. Install **Container Manager**, clone or upload this repository to a shared folder, and use SSH (or a

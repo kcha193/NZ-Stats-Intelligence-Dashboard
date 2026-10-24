@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { resetSnapshotCache } from "@/api/static";
 import health from "@/test/fixtures/health.json";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import Health from "./Health";
@@ -25,5 +26,24 @@ describe("Health", () => {
     renderWithProviders(<Health />);
     expect(await screen.findAllByText(/validation_failed/)).not.toHaveLength(0);
     expect(screen.getByText(/last known good data is still being shown/i)).toBeInTheDocument();
+  });
+
+  describe("on the published site", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("reports the snapshot's source freshness without a database flag or an ingestion log", async () => {
+      vi.stubEnv("VITE_DATA_MODE", "static");
+      resetSnapshotCache();
+      const snapshot_id = "a".repeat(64);
+      mockApi({
+        "/data/v1/manifest.json": { schema_version: 1, origin: "production", snapshot_id, generated_at: "2026-10-24T08:00:00Z", data_updated_at: null },
+        "/data/v1/health.json": { schema_version: 1, kind: "health", snapshot_id, payload: { ...health, recent_runs: [] } },
+      });
+      renderWithProviders(<Health />);
+      expect(await screen.findByRole("table", { name: /sources/i })).toBeInTheDocument();
+      expect(screen.queryByRole("table", { name: /recent ingestion runs/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Database (OK|unavailable)/)).not.toBeInTheDocument();
+      expect(screen.getByText(/as of the last published snapshot/i)).toBeInTheDocument();
+    });
   });
 });

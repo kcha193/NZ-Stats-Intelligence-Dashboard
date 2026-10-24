@@ -13,3 +13,10 @@ frontend/playwright-report/
 frontend/test-results/
 .DS_Store
 *.egg-info/
+frontend/dist-static/
+.env.publisher
+/publisher-state/
+/snapshot/
+
+# Local Netlify folder
+.netlify

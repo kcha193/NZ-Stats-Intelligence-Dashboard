@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getJson } from "./client";
+import { pollEvery } from "./mode";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
   SeriesData, EctDashboard, CpiDashboard,
@@ -13,20 +14,20 @@ const qs = (params: Record<string, string | number | undefined>): string => {
 };
 
 export const useOverview = () =>
-  useQuery({ queryKey: ["overview"], queryFn: ({ signal }) => getJson<Overview>("/api/overview", signal), refetchInterval: 60_000 });
+  useQuery({ queryKey: ["overview"], queryFn: ({ signal }) => getJson<Overview>("/api/overview", signal), refetchInterval: pollEvery(60_000) });
 
 export const useEct = () =>
   useQuery({
     queryKey: ["ect"],
     queryFn: ({ signal }) => getJson<EctDashboard>("/api/ect", signal),
-    refetchInterval: 60_000,
+    refetchInterval: pollEvery(60_000),
   });
 
 export const useCpi = () =>
   useQuery({
     queryKey: ["cpi"],
     queryFn: ({ signal }) => getJson<CpiDashboard>("/api/cpi", signal),
-    refetchInterval: 60_000,
+    refetchInterval: pollEvery(60_000),
   });
 
 export const useReleases = (params: { status?: string; category?: string; limit?: number } = {}) =>
@@ -67,4 +68,4 @@ export const useCountries = (months = 12, top = 15) =>
   });
 
 export const useHealth = () =>
-  useQuery({ queryKey: ["health"], queryFn: ({ signal }) => getJson<Health>("/api/health", signal), refetchInterval: 30_000 });
+  useQuery({ queryKey: ["health"], queryFn: ({ signal }) => getJson<Health>("/api/health", signal), refetchInterval: pollEvery(30_000) });

@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { useRelease } from "@/api/hooks";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import type { ReleaseAnalysis as Analysis } from "@/api/types";
 import { InsightList } from "@/components/InsightList";
 import { KpiCard } from "@/components/KpiCard";
@@ -216,6 +217,7 @@ export default function ReleaseAnalysis() {
   const parsed = /^\d+$/.test(param) ? Number(param) : Number.NaN;
   const valid = Number.isSafeInteger(parsed) && parsed > 0;
   const q = useRelease(valid ? parsed : Number.NaN); // NaN keeps the query disabled
+  useDocumentTitle(q.data?.release.title ?? "Release analysis");
   if (!valid) {
     return (
       <div className="space-y-3">

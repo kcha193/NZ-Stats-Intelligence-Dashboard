@@ -100,3 +100,18 @@ navigation and append link URLs.
 `adapters/cpi/` ingests three official CPI CSVs plus the release page's contribution and percentage charts (and, optionally, the release workbook
 for official trimmed means). Percent changes are derived on read from published index numbers (`stats/cpi.py`); Stats NZ's chart percentages
 are a reconciliation check. `insights/cpi.py` builds the `/api/cpi` bundle and the rule-based release analysis. See [phase-2b-cpi.md](phase-2b-cpi.md).
+
+## Public static publication (Netlify)
+
+A second, optional delivery path. The private app is unchanged; the public site is the same React build in
+`static` data mode, reading a snapshot instead of `/api`.
+
+- `nzstats export-snapshot` (`backend/src/nzstats/publish/`) runs this API in process over a read-only copy of the database
+  and writes each response in a `{schema_version, kind, snapshot_id, payload}` envelope plus `manifest.json`.
+  It reconciles every point with the database, strips operational detail from health, scans for leaks and refuses
+  fixture data (`FIXTURE_DATA` marker, written by any runtime with an injected fetcher).
+- `frontend/src/api/static.ts` maps the API URLs to snapshot files (windowing the calendar and filtering releases in
+  the browser) and rejects files that do not belong to the manifest's snapshot.
+- `nzstats publish-site` (container `Dockerfile.publisher`) exports, validates, builds and deploys with the Netlify CLI
+  when the data changed. See [netlify-deployment.md](netlify-deployment.md).
+
