@@ -8,6 +8,7 @@ import pytest
 
 from nzstats.config import load_settings
 from nzstats.pipeline.ingest import ingest_release
+from nzstats.publish.provenance import FIXTURE_MARKER
 from nzstats.runtime import build_runtime
 from tests.cpi_support import NOW as CPI_NOW
 from tests.cpi_support import seed_cpi
@@ -62,3 +63,12 @@ def copy_of(tmp_path):
         return dest
 
     return _copy
+
+
+@pytest.fixture()
+def production_dir(full_dir, tmp_path) -> Path:
+    """The fixture data with its marker removed, standing in for a production data directory."""
+    dest = tmp_path / "production"
+    shutil.copytree(full_dir, dest)
+    (dest / FIXTURE_MARKER).unlink()
+    return dest

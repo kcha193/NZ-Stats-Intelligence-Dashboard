@@ -1,0 +1,27 @@
+# The Netlify publisher. Separate from docker-compose.yml so the dashboard deploys exactly as before.
+#
+#   cp .env.publisher.example .env.publisher     # then fill it in; never commit it
+#   docker compose -f docker-compose.publisher.yml build
+#   docker compose -f docker-compose.publisher.yml run --rm publisher once     # one dry run: builds, deploys nothing
+#   docker compose -f docker-compose.publisher.yml up -d                       # keeps checking (dry run until enabled)
+services:
+  publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile.publisher
+    image: nzstats-publisher:local
+    restart: unless-stopped
+    env_file:
+      - path: .env.publisher
+        required: true
+    environment:
+      TZ: Pacific/Auckland
+      NZSTATS_DATA_DIR: /data
+    volumes:
+      # Read by the exporter through SQLite's read-only backup API. It needs write access to the directory only so SQLite
+      # can maintain its -shm file; the publisher never writes a row.
+      - ./data:/data
+      - ./publisher-state:/work
+    user: "${NZSTATS_UID:-10001}:${NZSTATS_GID:-10001}"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]

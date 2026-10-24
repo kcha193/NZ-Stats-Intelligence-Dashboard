@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sqlite3
 import sys
 from collections.abc import Sequence
@@ -29,6 +30,28 @@ def _health_payload(conn: sqlite3.Connection) -> dict:
         )
     ]
     return {"sources": sources, "recent_runs": runs}
+
+
+def _publish_command(args: argparse.Namespace, settings) -> int:
+    from nzstats.publish.publisher import PublisherConfig, publish
+
+    outcome = publish(
+        PublisherConfig(
+            data_dir=settings.data_dir,
+            work_dir=Path(args.work_dir),
+            repo_root=Path(args.repo_root).resolve(),
+            site_url=args.site_url.rstrip("/"),
+            netlify_site_id=os.environ.get("NETLIFY_SITE_ID", ""),
+            netlify_auth_token=os.environ.get("NETLIFY_AUTH_TOKEN", ""),
+            min_interval_hours=args.min_interval_hours,
+            draft=args.draft,
+            dry_run=args.dry_run,
+            force=args.force,
+        )
+    )
+    snapshot = outcome.snapshot_id[:12] if outcome.snapshot_id else "-"
+    print(f"{outcome.status}: snapshot {snapshot}: {outcome.message}")
+    return 0 if outcome.ok else 1
 
 
 def _snapshot_command(args: argparse.Namespace, settings) -> int:
@@ -123,6 +146,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_site.add_argument("--site-url", required=True)
     p_site.add_argument("--netlify-toml")
     p_site.add_argument("--for-publish", action="store_true")
+    p_pub = sub.add_parser(
+        "publish-site", help="export, validate, build and (if the data changed) deploy to Netlify"
+    )
+    p_pub.add_argument("--work-dir", required=True, help="state, lock and staged snapshot")
+    p_pub.add_argument(
+        "--site-url", required=True, help="canonical https origin of the public site"
+    )
+    p_pub.add_argument("--repo-root", default=os.environ.get("NZSTATS_REPO_ROOT", "."))
+    p_pub.add_argument(
+        "--min-interval-hours",
+        type=float,
+        default=24.0,
+        help="shortest gap between deploys that carry no new verified data",
+    )
+    p_pub.add_argument("--draft", action="store_true", help="deploy to a draft URL, not production")
+    p_pub.add_argument("--dry-run", action="store_true", help="build but do not deploy")
+    p_pub.add_argument("--force", action="store_true", help="ignore the minimum interval")
     p_sid = sub.add_parser("snapshot-id", help="print a snapshot's content id")
     p_sid.add_argument("path")
     args = parser.parse_args(argv)
@@ -151,6 +191,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         print(json.dumps(create_app(settings, start_scheduler=False).openapi(), indent=2))
         return 0
+    if args.command == "publish-site":
+        return _publish_command(args, settings)
     if args.command in ("export-snapshot", "validate-snapshot", "snapshot-id", "check-site"):
         return _snapshot_command(args, settings)
     if args.command == "serve":

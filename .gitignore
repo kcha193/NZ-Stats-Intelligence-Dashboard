@@ -17,3 +17,6 @@ frontend/dist-static/
 .env.publisher
 /publisher-state/
 /snapshot/
+
+# Local Netlify folder
+.netlify

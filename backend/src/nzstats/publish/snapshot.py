@@ -233,7 +233,9 @@ def export_snapshot(
     from nzstats.publish.validate import validate_snapshot
 
     data_dir, out_dir = Path(data_dir), Path(out_dir)
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # one INFO line per in-process request is noise
+    logging.getLogger("httpx").setLevel(
+        logging.WARNING
+    )  # one INFO line per in-process request is noise
     now = now or utc_now()
     fixture = is_fixture_data(data_dir)
     if fixture and not allow_fixtures:

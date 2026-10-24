@@ -13,7 +13,9 @@ REQUIRED = (
     "index.html", "404.html", "robots.txt", "_redirects", "data-not-found.json", "favicon.svg",
     "og-card.png", "data/v1/manifest.json",
 )  # fmt: skip
-FORBIDDEN_NAMES = re.compile(r"(\.map|\.db|\.sqlite3?|\.db-wal|\.db-shm|\.log|\.py|\.toml|\.env.*)$|^FIXTURE_DATA$")
+FORBIDDEN_NAMES = re.compile(
+    r"(\.map|\.db|\.sqlite3?|\.db-wal|\.db-shm|\.log|\.py|\.toml|\.env.*)$|^FIXTURE_DATA$"
+)
 TEXT_SUFFIXES = {".html", ".js", ".css", ".txt", ".xml", ".svg", ".webmanifest"}
 # A bare "http://localhost" is React Router's placeholder base for parsing paths, not a network target. Real requests
 # are covered by the browser tests, which fail on any request leaving the site's own origin.
@@ -88,7 +90,9 @@ def check_site(
         if file.suffix in TEXT_SUFFIXES and not rel.startswith(LOCAL_ADDRESS_ALLOWED):
             m = LOCAL_ADDRESSES.search(file.read_text(encoding="utf-8", errors="replace"))
             if m:
-                err(f"{rel} refers to a local address ({m.group(0)}); the site must not depend on a private backend")
+                err(
+                    f"{rel} refers to a local address ({m.group(0)}); the site must not depend on a private backend"
+                )
 
     pages = [dist / "index.html", dist / "404.html", *sorted((dist / "_pages").rglob("*.html"))]
     canonicals: dict[str, bool] = {}
@@ -102,7 +106,11 @@ def check_site(
         if head.inline_scripts:
             err(f"{rel}: has an inline script, which the Content-Security-Policy blocks")
         for ref in head.refs:
-            if ref.startswith("/") and not ref.startswith("//") and not (dist / ref.lstrip("/").split("?")[0]).exists():
+            if (
+                ref.startswith("/")
+                and not ref.startswith("//")
+                and not (dist / ref.lstrip("/").split("?")[0]).exists()
+            ):
                 err(f"{rel}: references {ref}, which is not in the build")
         if file.name != "404.html":
             expected = f"{site_url}{_page_path(dist, file)}"
@@ -113,7 +121,13 @@ def check_site(
             if head.meta.get("og:image", "") != f"{site_url}/og-card.png":
                 err(f"{rel}: og:image must be the absolute site card")
             canonicals[expected] = "robots" not in head.meta
-        if for_publish and "robots" in head.meta and "noindex" in head.meta["robots"] and "/health" not in rel and rel != "404.html":
+        if (
+            for_publish
+            and "robots" in head.meta
+            and "noindex" in head.meta["robots"]
+            and "/health" not in rel
+            and rel != "404.html"
+        ):
             err(f"{rel}: is marked noindex in a publishable build")
 
     robots = (dist / "robots.txt").read_text(encoding="utf-8")
@@ -151,9 +165,13 @@ def _check_netlify(path: Path, report: Report) -> None:
         err("netlify.toml: /data/* must answer a missing file with status 404")
     spa = [i for i, r in enumerate(redirects) if r.get("status") == 200 and r["from"].endswith("*")]
     if first_data is not None and any(i < first_data for i in spa):
-        err("netlify.toml: a wildcard rewrite precedes the /data/* rule and would swallow missing data files")
+        err(
+            "netlify.toml: a wildcard rewrite precedes the /data/* rule and would swallow missing data files"
+        )
     if any(r["from"] == "/*" and r.get("status") == 200 for r in redirects):
-        err("netlify.toml: a catch-all /* rewrite makes every unknown address a 200 page; list the routes instead")
+        err(
+            "netlify.toml: a catch-all /* rewrite makes every unknown address a 200 page; list the routes instead"
+        )
     values = next((h["values"] for h in cfg.get("headers", []) if h["for"] == "/*"), {})
     csp = values.get("Content-Security-Policy", "")
     for needle in ("default-src 'self'", "frame-ancestors 'none'", "object-src 'none'"):
