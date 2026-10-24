@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b",
-    "gen:api": "cd ../backend && python -m nzstats.cli openapi > ../frontend/openapi.json && cd ../frontend && openapi-typescript openapi.json -o src/api/schema.d.ts"
+    "gen:api": "cd ../backend && python -m nzstats.cli openapi > ../frontend/openapi.json && cd ../frontend && openapi-typescript openapi.json -o src/api/schema.d.ts",
+    "build:static": "tsc -b && vite build --mode static --outDir dist-static --emptyOutDir",
+    "prerender": "node scripts/prerender.mjs",
+    "preview:static": "python3 ../scripts/serve_static.py dist-static --port 4173"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

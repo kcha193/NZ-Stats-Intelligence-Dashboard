@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { ROUTE_META } from "@/seo/routes";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { Link } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { useCpi } from "@/api/hooks";
+import { isStaticMode } from "@/api/mode";
 import type { CpiDashboard, Metric } from "@/api/types";
 import { ChartCard } from "@/charts/ChartCard";
 import {
@@ -178,7 +181,7 @@ function Dashboard({ data }: { data: CpiDashboard }) {
           {LINKS.map(([label, href]) => <a key={href} href={href} target="_blank" rel="noreferrer">{label}</a>)}
         </div>
         <p className="text-xs text-muted-foreground">
-          Latest observation {fullMonth(lastPoint.period)} · published {formatAklDate(rel.published_at)} · data captured {formatAklDateTime(a.vintage_captured_at)}. Automatic refresh follows the official release calendar. <Link className="underline" to="/health">Data health</Link>
+          Latest observation {fullMonth(lastPoint.period)} · published {formatAklDate(rel.published_at)} · data captured {formatAklDateTime(a.vintage_captured_at)}. {isStaticMode() ? "This site is updated after each verified Stats NZ release." : "Automatic refresh follows the official release calendar."} <Link className="underline" to="/health">Data health</Link>
         </p>
       </section>
     </div>
@@ -186,9 +189,12 @@ function Dashboard({ data }: { data: CpiDashboard }) {
 }
 
 export default function Inflation() {
+  useDocumentTitle(ROUTE_META["/inflation"].title);
   const q = useCpi();
   if (q.error instanceof ApiError && q.error.status === 404) {
-    return <EmptyState title="CPI data has not been ingested yet" body="The next scheduled refresh or a CPI backfill will populate this dashboard. Check Data health for ingestion status." />;
+    return isStaticMode()
+      ? <EmptyState title="CPI data has not been published yet" body="This dashboard appears once a Stats NZ consumers price index release has been verified and published here." />
+      : <EmptyState title="CPI data has not been ingested yet" body="The next scheduled refresh or a CPI backfill will populate this dashboard. Check Data health for ingestion status." />;
   }
   return <QueryBoundary query={q}>{(d) => <Dashboard data={d} />}</QueryBoundary>;
 }

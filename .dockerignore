@@ -6,6 +6,7 @@
 data
 .env
 frontend/dist
+frontend/dist-static
 frontend/playwright-report
 docs
 .superpowers

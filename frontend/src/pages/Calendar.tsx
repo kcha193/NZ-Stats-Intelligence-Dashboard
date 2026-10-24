@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ROUTE_META } from "@/seo/routes";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { Dialog } from "@base-ui/react/dialog";
 import { Link, useSearchParams } from "react-router-dom";
 import { useCalendar } from "@/api/hooks";
@@ -96,6 +98,7 @@ function MonthGrid({ items, month }: { items: ReleaseSummary[]; month: string })
 }
 
 export default function Calendar() {
+  useDocumentTitle(ROUTE_META["/calendar"].title);
   const [params, setParams] = useSearchParams();
   const category = params.get("category") ?? ALL;
   const importance = params.get("importance") ?? ALL;

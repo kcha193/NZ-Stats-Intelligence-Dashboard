@@ -1,4 +1,7 @@
 import { useSearchParams } from "react-router-dom";
+import { isStaticMode } from "@/api/mode";
+import { ROUTE_META } from "@/seo/routes";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { Segmented } from "@/components/Segmented";
 import { QueryBoundary } from "@/components/QueryBoundary";
 import { StoryGrid } from "@/components/story/StoryCard";
@@ -7,11 +10,12 @@ import { useStories, type SourceState } from "@/stories/useStories";
 
 const CATEGORIES = Object.keys(CATEGORY_LABEL) as StoryCategory[];
 const REASON: Record<Exclude<SourceState, "ready" | "loading">, string> = {
-  not_ingested: "no data has been ingested yet",
+  not_ingested: isStaticMode() ? "no data has been published yet" : "no data has been ingested yet",
   error: "the data could not be loaded",
 };
 
 export default function Stories() {
+  useDocumentTitle(ROUTE_META["/stories"].title);
   const [params, setParams] = useSearchParams();
   const requested = params.get("category");
   const category = CATEGORIES.includes(requested as StoryCategory) ? (requested as StoryCategory) : "all";
@@ -52,7 +56,7 @@ export default function Stories() {
       {!isLoading && missing.length > 0 && (
         <ul className="space-y-1 text-xs text-muted-foreground">
           {missing.map((c) => (
-            <li key={c}>{CATEGORY_LABEL[c]}: {REASON[sources[c] as "not_ingested" | "error"]}, so it has no stories. Check Data health for ingestion status.</li>
+            <li key={c}>{CATEGORY_LABEL[c]}: {REASON[sources[c] as "not_ingested" | "error"]}, so it has no stories. {isStaticMode() ? "Data health shows what this site has published." : "Check Data health for ingestion status."}</li>
           ))}
         </ul>
       )}

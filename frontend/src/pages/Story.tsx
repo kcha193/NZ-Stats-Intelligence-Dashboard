@@ -12,6 +12,7 @@ import { StoryCard, StoryMeta } from "@/components/story/StoryCard";
 import { KeyTerms } from "@/components/story/Term";
 import { StoryExport } from "@/components/story/StoryExport";
 import { formatAklDate } from "@/lib/format";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { isPublished } from "@/lib/releaseStatus";
 import { categoryOfId, neighbours, relatedStories, resolveStory } from "@/stories/engine";
 import { figureView, variantsOf, type FigureView } from "@/stories/figures";
@@ -54,6 +55,7 @@ function StoryFigure({ story, view, variant, setVariant }: { story: Story; view:
 }
 
 function StoryBody({ story, stories }: { story: Story; stories: Story[] }) {
+  useDocumentTitle(story.headline);
   const theme = useChartTheme();
   // One variant drives the chart, its CSV and the presentation export, so all three show the same values.
   const [variant, setVariant] = useState(variantsOf(story)?.initial ?? "");

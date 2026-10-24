@@ -1,7 +1,10 @@
 import { useState } from 'react';
+import { ROUTE_META } from "@/seo/routes";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { Link } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { useEct } from '@/api/hooks';
+import { isStaticMode } from '@/api/mode';
 import type { EctDashboard, SeriesData } from '@/api/types';
 import { ChartCard } from '@/charts/ChartCard';
 import { ectHistoryOption, ectIndustryOption, zoomedRange, type HistoryScale } from '@/charts/ect';
@@ -117,13 +120,16 @@ function Dashboard({data}:{data:EctDashboard}) {
         {selected?.source_url && <a href={selected.source_url} target="_blank" rel="noreferrer">Official historical CSV ZIP</a>}
         <a href="https://datainfoplus.stats.govt.nz/item/nz.govt.stats/3d0dfc89-6bf5-4677-8cef-3befc36f5b90" target="_blank" rel="noreferrer">DataInfo+ methodology</a>
       </div>
-      <p className="text-xs text-muted-foreground">Data captured {formatAklDateTime(a.vintage_captured_at)}. Automatic refresh follows the official release calendar. <Link className="underline" to="/health">Data health</Link></p>
+      <p className="text-xs text-muted-foreground">Data captured {formatAklDateTime(a.vintage_captured_at)}. {isStaticMode() ? "This site is updated after each verified Stats NZ release." : "Automatic refresh follows the official release calendar."} <Link className="underline" to="/health">Data health</Link></p>
     </section>
   </div>;
 }
 
 export default function ElectronicCardTransactions() {
+  useDocumentTitle(ROUTE_META["/electronic-card-transactions"].title);
   const q=useEct();
-  if(q.error instanceof ApiError && q.error.status===404) return <EmptyState title="ECT data has not been ingested yet" body="The next scheduled refresh or an ECT backfill will populate this dashboard. Check Data health for ingestion status." />;
+  if(q.error instanceof ApiError && q.error.status===404) return isStaticMode()
+    ? <EmptyState title="Card transactions data has not been published yet" body="This dashboard appears once a Stats NZ electronic card transactions release has been verified and published here." />
+    : <EmptyState title="ECT data has not been ingested yet" body="The next scheduled refresh or an ECT backfill will populate this dashboard. Check Data health for ingestion status." />;
   return <QueryBoundary query={q}>{d=><Dashboard data={d} />}</QueryBoundary>;
 }

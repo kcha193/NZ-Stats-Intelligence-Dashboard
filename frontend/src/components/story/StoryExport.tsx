@@ -3,6 +3,7 @@ import { ImageDown, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ChartTheme } from "@/charts/theme";
 import { saveFile } from "@/lib/download";
+import { absoluteUrl } from "@/lib/siteUrl";
 import { exportText, FORMATS, type ExportFormat } from "@/stories/exportLayout";
 import { storyPng } from "@/stories/exportImage";
 import type { FigureView } from "@/stories/figures";
@@ -15,7 +16,7 @@ const accentInk = () =>
 export function StoryExport({ story, view, theme }: { story: Story; view: FigureView; theme: ChartTheme }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const storyUrl = `${window.location.origin}/stories/${story.id}`;
+  const storyUrl = absoluteUrl(`/stories/${story.id}`);
 
   const exportPng = async (format: ExportFormat) => {
     setBusy(true);

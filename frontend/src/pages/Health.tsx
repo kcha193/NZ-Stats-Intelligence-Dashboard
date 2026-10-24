@@ -1,8 +1,13 @@
 import { useHealth } from "@/api/hooks";
+import { isStaticMode } from "@/api/mode";
+import { ROUTE_META } from "@/seo/routes";
+import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { QueryBoundary } from "@/components/QueryBoundary";
 import { formatAklDateTime } from "@/lib/format";
 
 export default function Health() {
+  const snapshot = isStaticMode();
+  useDocumentTitle(ROUTE_META["/health"].title);
   const q = useHealth();
   return (
     <QueryBoundary query={q}>
@@ -13,7 +18,9 @@ export default function Health() {
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Data health</h1>
               <p className="text-sm text-muted-foreground">
-                What the monitor has checked, and whether it worked. {d.series_count} series, {d.vintage_count} stored vintages. Database {d.database_ok ? "OK" : "unavailable"}.
+                {snapshot
+                  ? `When each Stats NZ source was last checked and last succeeded, as of the last published snapshot. ${d.series_count} series, ${d.vintage_count} stored vintages.`
+                  : `What the monitor has checked, and whether it worked. ${d.series_count} series, ${d.vintage_count} stored vintages. Database ${d.database_ok ? "OK" : "unavailable"}.`}
               </p>
             </div>
             {degraded.length > 0 && (
@@ -45,7 +52,7 @@ export default function Health() {
                 </table>
               </div>
             </section>
-            <section aria-labelledby="runs">
+            {!snapshot && <section aria-labelledby="runs">
               <h2 id="runs" className="text-lg font-semibold">Recent ingestion runs</h2>
               <div className="overflow-x-auto">
                 <table className="mt-2 w-full text-left text-sm">
@@ -66,7 +73,7 @@ export default function Health() {
                   </tbody>
                 </table>
               </div>
-            </section>
+            </section>}
             <p className="text-xs text-muted-foreground">
               Release counts: {Object.entries(d.release_counts).map(([k, v]) => `${k} ${v}`).join(" · ") || "none"}. Error classes: network, blocked, not_found (not yet published), layout_changed, validation_failed, unexpected. See docs/troubleshooting.md.
             </p>
