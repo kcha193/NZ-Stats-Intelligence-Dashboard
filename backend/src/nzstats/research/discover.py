@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from urllib.parse import urljoin
+from xml.parsers import expat
 
 from nzstats.domain import ErrorClass, IngestError
 from nzstats.research.extract import clean_text
@@ -57,10 +58,33 @@ def _title(text: str | None) -> str | None:
     return " ".join(clean_text(text).split())[:MAX_TITLE_CHARS] or None
 
 
+class _DtdRefused(Exception):
+    pass
+
+
+def _refuse(*_args: object) -> None:
+    raise _DtdRefused
+
+
 def _xml(body: bytes) -> ET.Element:
-    # The whole (size-capped) body: without a DTD there is nothing to expand or resolve.
-    if _XML_DECL.search(body):
-        raise IngestError(ErrorClass.LAYOUT_CHANGED, "xml with a DOCTYPE or entity declaration")
+    def dtd() -> IngestError:
+        return IngestError(ErrorClass.LAYOUT_CHANGED, "xml with a DOCTYPE or entity declaration")
+
+    if _XML_DECL.search(body):  # cheap first check on the raw bytes
+        raise dtd()
+    # Then a pre-scan in which expat itself (after decoding, whatever the encoding) refuses any
+    # DOCTYPE, entity declaration or external reference. Without a DTD nothing can be expanded.
+    scanner = expat.ParserCreate()
+    scanner.StartDoctypeDeclHandler = _refuse
+    scanner.EntityDeclHandler = _refuse
+    scanner.UnparsedEntityDeclHandler = _refuse
+    scanner.ExternalEntityRefHandler = _refuse
+    try:
+        scanner.Parse(body, True)
+    except _DtdRefused:
+        raise dtd() from None
+    except expat.ExpatError:
+        raise IngestError(ErrorClass.LAYOUT_CHANGED, "malformed xml") from None
     try:
         return ET.fromstring(body)
     except ET.ParseError:

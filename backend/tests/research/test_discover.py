@@ -71,6 +71,10 @@ def test_atom_entries_with_relative_links():
         b'<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;">]>'
         b"<rss><channel><item><title>&lol2;</title></item></channel></rss>",
         b'<?xml version="1.0"?><!doctype x SYSTEM "file:///etc/passwd"><rss/>',
+        # The same DTD encoded as UTF-16: a byte pattern alone would not see it.
+        '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE x [<!ENTITY a "aaaa">]><rss>&a;</rss>'.encode(
+            "utf-16"
+        ),
         b"<rss><channel><item><title>unclosed",
         b"\x00\x01 not xml",
     ],
