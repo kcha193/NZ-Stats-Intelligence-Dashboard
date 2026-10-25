@@ -68,8 +68,12 @@ def parse_published(text: str, *, now: datetime) -> PublishedDate:
             raise DateParseError("invalid publication date") from None
         if stamp.tzinfo is None:
             stamp = stamp.replace(tzinfo=AKL)
-        at = stamp.astimezone(UTC)
-        return _checked(PublishedDate(at.astimezone(AKL).date(), at, "instant"), now)
+        try:
+            at = stamp.astimezone(UTC)
+            civil = at.astimezone(AKL).date()
+        except (OverflowError, ValueError):  # year 1 or 9999 at an offset
+            raise DateParseError("invalid publication date") from None
+        return _checked(PublishedDate(civil, at, "instant"), now)
     if _ISO_DATE.match(value):
         return _checked(PublishedDate(_make(*map(int, value.split("-"))), None, "day"), now)
     if m := _DAY_MONTH_YEAR.match(value):

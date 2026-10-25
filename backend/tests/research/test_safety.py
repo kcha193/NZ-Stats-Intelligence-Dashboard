@@ -6,6 +6,7 @@ from nzstats.research.safety import (
     HostPolicy,
     RobotsRules,
     UnsafeUrl,
+    canonical_path,
     normalise_url,
 )
 
@@ -58,6 +59,27 @@ def test_rejects_unsafe_urls(url):
 
 def test_host_match_is_case_and_trailing_dot_insensitive_but_exact():
     assert policy().check("https://WWW.ANZ.CO.NZ./a") == "https://www.anz.co.nz/a"
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/nz/%70rivate/x", "/nz/Private/x", "/nz//private/x", "/nz/%50rivate/x", "//nz/private/x"],
+)
+def test_blocked_prefixes_cannot_be_bypassed_by_encoding_case_or_double_slashes(path):
+    p = policy(hosts=("www.deloitte.com",), blocked_path_prefixes=("/nz/private/",))
+    with pytest.raises(UnsafeUrl, match="path"):
+        p.check(f"https://www.deloitte.com{path}")
+
+
+def test_allowed_prefixes_see_the_canonical_path_too():
+    p = policy(hosts=("www.deloitte.com",), allowed_path_prefixes=("/nz/",))
+    assert p.check("https://www.deloitte.com/%6ez/en/x.html")  # %6e is "n"
+    with pytest.raises(UnsafeUrl, match="path"):
+        p.check("https://www.deloitte.com//au/x.html")
+
+
+def test_canonical_path_decodes_only_unreserved_characters():
+    assert canonical_path("/a/%70b//c%2fd%7e/%e2%82%ac") == "/a/pb/c%2Fd~/%E2%82%AC"
 
 
 def test_path_prefix_allowlist_and_blocklist():

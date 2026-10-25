@@ -168,3 +168,36 @@ def test_candidates_are_capped():
     inst = _inst(mechanism="html_links", url=f"{BASE}/research/", link_pattern=PATTERN)
     site = Site({ROBOTS: "", f"{BASE}/research/": f"<main>{many}</main>"})
     assert len(discover(inst, research_fetcher(inst, site)).candidates) == MAX_CANDIDATES
+
+
+def test_a_malformed_url_in_a_feed_or_listing_is_dropped_not_fatal():
+    rss = (
+        f"<rss><channel><item><link>http://[abc/x</link></item>"
+        f"<item><link>{BASE}/research/ok</link></item></channel></rss>"
+    ).encode()
+    assert [c.url for c in parse_feed(rss, BASE)] == [f"{BASE}/research/ok"]
+    atom = (
+        f'<feed xmlns="http://www.w3.org/2005/Atom"><entry><link href="//[x"/></entry>'
+        f'<entry><link href="{BASE}/research/ok"/></entry></feed>'
+    ).encode()
+    assert [c.url for c in parse_feed(atom, BASE)] == [f"{BASE}/research/ok"]
+    html = f'<a href="https://[x/a">bad</a><a href="{BASE}/research/ok">ok</a>'.encode()
+    assert [c.url for c in parse_html_links(html, BASE, "^.*$")] == [f"{BASE}/research/ok"]
+
+
+def test_an_unknown_xml_encoding_is_a_malformed_document():
+    with pytest.raises(IngestError, match="malformed xml"):
+        parse_feed(b'<?xml version="1.0" encoding="foo"?><rss/>', BASE)
+
+
+def test_an_unexpected_parser_error_is_recorded_as_a_discovery_error(monkeypatch):
+    from nzstats.research import discover as mod
+
+    def boom(*_a, **_k):
+        raise RuntimeError("secret upstream detail")
+
+    monkeypatch.setattr(mod, "parse_html_links", boom)
+    site = Site({ROBOTS: "User-agent: *\nAllow: /\n", f"{BASE}/research/": "<html></html>"})
+    result = discover(institution(), research_fetcher(institution(), site))
+    assert result.candidates == [] and result.errors == [("html_links", "unexpected")]
+    assert "secret" not in repr(result.errors)

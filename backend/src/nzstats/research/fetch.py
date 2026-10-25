@@ -28,6 +28,7 @@ from nzstats.research.safety import (
     Resolver,
     RobotsRules,
     UnsafeUrl,
+    canonical_path,
     system_resolver,
 )
 from nzstats.sources.fetcher import Fetcher, FetchResult, FilePacer
@@ -123,7 +124,7 @@ class ResearchFetcher:
         if host in self._robots_problem:
             raise Refused(self._robots_problem[host], url)
         parts = urlsplit(url)
-        target = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
+        target = canonical_path(parts.path or "/") + (f"?{parts.query}" if parts.query else "")
         if not rules.allowed(target):
             raise Refused("robots", url)
 

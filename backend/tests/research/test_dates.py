@@ -115,3 +115,12 @@ def test_url_without_a_date_gives_none_and_an_impossible_one_is_rejected():
     assert date_from_url("https://x.example.org/a.pdf", r"(\d{8})", "%Y%m%d", now=NOW) is None
     with pytest.raises(DateParseError):
         date_from_url("https://x.example.org/20261345.pdf", r"(\d{8})", "%Y%m%d", now=NOW)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["0001-01-01T00:00:00+05:00", "0001-01-01T00:00:00", "9999-12-31T23:59:59-05:00"],
+)
+def test_instants_outside_the_representable_range_are_unparseable_not_a_crash(text):
+    with pytest.raises(DateParseError):
+        parse_published(text, now=NOW)

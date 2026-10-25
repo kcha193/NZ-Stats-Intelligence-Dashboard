@@ -191,7 +191,7 @@ def _decode(body: bytes, content_type: str) -> str:
         try:
             if codecs.lookup(name)._is_text_encoding:  # never base64/rot13-style codecs
                 return body.decode(name, errors="replace")
-        except LookupError:
+        except (LookupError, UnicodeError):  # unknown, or registered but not a usable text decoder
             continue
     return body.decode("utf-8", errors="replace")
 

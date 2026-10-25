@@ -25,6 +25,17 @@ def test_robots_disallowed_path_is_never_requested():
     assert site.requests == [ROBOTS]
 
 
+@pytest.mark.parametrize(
+    "path", ["/%72esearch/outlook", "//research/outlook", "/research//outlook"]
+)
+def test_robots_rules_apply_to_the_canonical_path(path):
+    site = Site({ROBOTS: "User-agent: *\nDisallow: /research/\n", f"{BASE}{path}": "<p>x</p>"})
+    with pytest.raises(Refused) as exc:
+        research_fetcher(institution(), site).get(f"{BASE}{path}")
+    assert exc.value.reason == "robots"
+    assert site.requests == [ROBOTS]
+
+
 def test_robots_is_fetched_once_per_host_per_run():
     site = Site({ROBOTS: "User-agent: *\nAllow: /\n", DOC: "a", f"{DOC}-2": "b"})
     rf = research_fetcher(institution(), site)

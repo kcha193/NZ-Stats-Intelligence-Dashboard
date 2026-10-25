@@ -137,3 +137,11 @@ def test_text_hash_ignores_whitespace_only_changes_but_not_words():
 
 def test_clean_text_normalises_unicode_and_whitespace():
     assert clean_text("Café \t a b\r\n\n\n\nc⁦x⁩") == "Café a b\n\ncx"
+
+
+@pytest.mark.parametrize("charset", ["undefined", "idna"])
+def test_a_strange_but_registered_charset_falls_back_to_utf8(charset):
+    got = extract_html(
+        b"<p>caf\xc3\xa9 and more words</p>", f"text/html; charset={charset}", LIMITS
+    )
+    assert "café" in got.text

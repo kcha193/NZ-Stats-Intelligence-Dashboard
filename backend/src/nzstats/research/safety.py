@@ -51,6 +51,24 @@ def _split(url: str):
     return parts
 
 
+_UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+_ESCAPE = re.compile(r"%([0-9A-Fa-f]{2})")
+
+
+def canonical_path(path: str) -> str:
+    """The path as a server will most likely read it, for prefix and robots matching.
+
+    Escaped unreserved characters are decoded (`%70` is `p`), the other escapes are upper-cased, and runs
+    of slashes collapse, so `/%70rivate/` and `//private/` cannot slip past a rule written for `/private/`.
+    """
+
+    def fix(m: re.Match[str]) -> str:
+        char = chr(int(m.group(1), 16))
+        return char if char in _UNRESERVED else f"%{m.group(1).upper()}"
+
+    return re.sub(r"/{2,}", "/", _ESCAPE.sub(fix, path))
+
+
 def normalise_url(url: str) -> str:
     """Stable identity for a document: scheme/host lowercased, default port, fragment, trailing slash
     and tracking parameters removed, remaining query sorted."""
@@ -102,7 +120,7 @@ class HostPolicy:
             pass
         else:
             raise UnsafeUrl("ip address literal")
-        self._check_path(parts.path)
+        self._check_path(canonical_path(parts.path))
         self._check_addresses(host)
         return normalise_url(url)
 
@@ -112,7 +130,8 @@ class HostPolicy:
             raise UnsafeUrl("path traversal")
         if self._allowed and not any(path.startswith(p) for p in self._allowed):
             raise UnsafeUrl("path is outside the allowed prefixes")
-        if any(path.startswith(p) for p in self._blocked):
+        folded = path.lower()
+        if any(folded.startswith(p.lower()) for p in self._blocked):
             raise UnsafeUrl("path is blocked")
 
     def _check_addresses(self, host: str) -> None:

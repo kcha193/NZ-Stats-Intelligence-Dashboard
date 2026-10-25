@@ -83,11 +83,11 @@ def _xml(body: bytes) -> ET.Element:
         scanner.Parse(body, True)
     except _DtdRefused:
         raise dtd() from None
-    except expat.ExpatError:
+    except (expat.ExpatError, LookupError, ValueError):  # LookupError: an unknown declared encoding
         raise IngestError(ErrorClass.LAYOUT_CHANGED, "malformed xml") from None
     try:
         return ET.fromstring(body)
-    except ET.ParseError:
+    except (ET.ParseError, LookupError, ValueError):
         raise IngestError(ErrorClass.LAYOUT_CHANGED, "malformed xml") from None
 
 
@@ -108,6 +108,14 @@ def _rss_date(text: str | None) -> str | None:
     try:
         return parsedate_to_datetime(text).isoformat()
     except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _join(base_url: str, ref: str) -> str | None:
+    """`urljoin`, or None for a reference it cannot parse (for example an invalid IPv6 literal)."""
+    try:
+        return urljoin(base_url, ref)
+    except ValueError:
         return None
 
 
@@ -132,10 +140,8 @@ def parse_feed(body: bytes, base_url: str) -> list[Candidate]:
             hint = _child_text(node, "published") or _child_text(node, "updated")
         else:
             continue
-        if link:
-            out.append(
-                Candidate(urljoin(base_url, link.strip()), _title(_child_text(node, "title")), hint)
-            )
+        if link and (url := _join(base_url, link.strip())):
+            out.append(Candidate(url, _title(_child_text(node, "title")), hint))
     return out
 
 
@@ -183,8 +189,9 @@ def parse_html_links(body: bytes, base_url: str, link_pattern: str) -> list[Cand
     for href, text in parser.links:
         if len(href) > MAX_URL_CHARS or not href.lower().startswith(_SCHEMES) and ":" in href:
             continue  # javascript:, data:, mailto:, tel: ...
-        url = urljoin(base_url, href).split("#", 1)[0]
-        if pattern.match(url):
+        joined = _join(base_url, href)
+        url = joined.split("#", 1)[0] if joined else None
+        if url and pattern.match(url):
             out.append(Candidate(url, _title("".join(text))))
     return out
 
@@ -223,6 +230,11 @@ def discover(inst: Institution, fetcher: ResearchFetcher) -> DiscoveryResult:
             log.warning("discovery %s for %s failed: %s", source.mechanism.value, inst.key,
                         exc.error_class.value)  # fmt: skip
             result.errors.append((source.mechanism.value, exc.error_class.value))
+        except (
+            Exception
+        ):  # a parser bug on hostile input is one failed mechanism, not an aborted run
+            log.exception("discovery %s for %s crashed", source.mechanism.value, inst.key)
+            result.errors.append((source.mechanism.value, ErrorClass.UNEXPECTED.value))
     return result
 
 
