@@ -85,7 +85,7 @@ def run_institution(
     limits: ExtractionLimits | None = None,
 ) -> RunResult:
     result = RunResult(inst.key)
-    refusal = _refusal(inst, dry_run)
+    refusal = refusal_for(inst, dry_run=dry_run)
     if refusal is not None:
         result.outcome, result.refusal = "refused", refusal
         return result
@@ -116,7 +116,8 @@ def run_institution(
     return result
 
 
-def _refusal(inst: Institution, dry_run: bool) -> str | None:
+def refusal_for(inst: Institution, *, dry_run: bool) -> str | None:
+    """Why this run may not make any request (fixed wording), or None."""
     if dry_run and inst.review_status is not ReviewStatus.RESTRICTED:
         return None if inst.content_policy is not ContentPolicy.NONE else inst.refusal_reason()
     return inst.refusal_reason()
