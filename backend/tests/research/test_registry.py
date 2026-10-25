@@ -181,3 +181,11 @@ def test_url_date_pattern_must_compile_and_have_one_group(tmp_path):
 def test_missing_file_is_an_error(tmp_path):
     with pytest.raises(RegistryError, match="not found"):
         load_registry(tmp_path / "nope.toml")
+
+
+@pytest.mark.parametrize("key", ["../evil", "Ex", "ex key", "1ex", ""])
+def test_institution_keys_are_plain_identifiers(tmp_path, key):
+    # Keys name pacer files and stable document identities, so they must be safe path components.
+    body = BASE.format(extra="").replace("[institutions.ex]", f'[institutions."{key}"]')
+    with pytest.raises(RegistryError, match="key"):
+        load_registry(_write(tmp_path, body))

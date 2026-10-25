@@ -21,6 +21,7 @@ from urllib.parse import urlsplit
 MIN_RESEARCH_DELAY_SECONDS = 10.0  # the same floor as the Stats NZ crawl delay
 PRIORITY = ("rbnz", "treasury", "anz", "asb", "westpac")
 
+_KEY = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 _HOST = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 _EVIDENCE = ("direct", "direct_blocked", "search", "none")
 _KINDS = ("central_bank", "government", "bank", "consultancy")
@@ -145,7 +146,7 @@ def load_registry(path: Path | None = None) -> dict[str, Institution]:
     institutions = data.get("institutions")
     if not isinstance(institutions, dict) or not institutions:
         raise RegistryError("registry has no [institutions.*] tables")
-    return {key: _build(key, raw) for key, raw in institutions.items()}
+    return {key: build_institution(key, raw) for key, raw in institutions.items()}
 
 
 def _enum(enum: type[StrEnum], value: object, field_name: str, key: str) -> Any:
@@ -214,7 +215,10 @@ def _discovery(
                      str(raw.get("note", "")))  # fmt: skip
 
 
-def _build(key: str, raw: dict[str, Any]) -> Institution:
+def build_institution(key: str, raw: dict[str, Any]) -> Institution:
+    """Validate one `[institutions.<key>]` table. Raises `RegistryError` on anything doubtful."""
+    if not isinstance(key, str) or not _KEY.match(key):
+        raise RegistryError(f"invalid institution key {key!r} (lowercase letters, digits, '_')")
     review = _enum(ReviewStatus, raw.get("review_status"), "review_status", key)
     policy = _enum(ContentPolicy, raw.get("content_policy"), "content_policy", key)
     kind = raw.get("kind")
