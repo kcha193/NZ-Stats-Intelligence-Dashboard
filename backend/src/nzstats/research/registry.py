@@ -245,14 +245,14 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
     for name, value in evidence.items():
         if value not in _EVIDENCE:
             raise RegistryError(f"{key}: invalid {name}_evidence {value!r}")
-    delay = float(raw.get("crawl_delay_seconds", MIN_RESEARCH_DELAY_SECONDS))
+    try:
+        delay = float(raw.get("crawl_delay_seconds", MIN_RESEARCH_DELAY_SECONDS))
+    except (TypeError, ValueError, OverflowError):
+        raise RegistryError(f"{key}: crawl_delay_seconds must be a number") from None
     if not math.isfinite(delay) or delay < MIN_RESEARCH_DELAY_SECONDS:  # NaN would compare False
         raise RegistryError(f"{key}: crawl_delay_seconds must be >= {MIN_RESEARCH_DELAY_SECONDS:g}")
-    max_docs = int(raw.get("max_documents_per_run", 5))
-    min_chars = int(raw.get("min_text_chars", 500))
-    for name, number in (("max_documents_per_run", max_docs), ("min_text_chars", min_chars)):
-        if number < 1:
-            raise RegistryError(f"{key}: {name} must be at least 1")
+    max_docs = _bounded_int(raw, "max_documents_per_run", 5, 1, 100, key)
+    min_chars = _bounded_int(raw, "min_text_chars", 500, 1, 100_000, key)
     pattern, fmt = raw.get("url_date_regex"), raw.get("url_date_format")
     if pattern is not None:
         try:
@@ -281,6 +281,15 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
     if review is ReviewStatus.APPROVED:
         _check_approval(inst)
     return inst
+
+
+def _bounded_int(
+    raw: dict[str, Any], name: str, default: int, low: int, high: int, key: str
+) -> int:
+    value = raw.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise RegistryError(f"{key}: {name} must be a whole number from {low} to {high}")
+    return value
 
 
 def _check_approval(inst: Institution) -> None:

@@ -28,7 +28,7 @@ from nzstats.research.extract_html import extract_html
 from nzstats.research.extract_pdf import extract_pdf
 from nzstats.research.fetch import Refused, ResearchFetcher
 from nzstats.research.registry import ContentPolicy, Institution, ReviewStatus
-from nzstats.research.safety import normalise_url
+from nzstats.research.safety import canonical_path, normalise_url
 from nzstats.research.validate import PreviousVersion, safe_detail, validate_document
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.sources.fetcher import FetchResult
@@ -157,7 +157,7 @@ def _one(
         if exc.error_class is ErrorClass.BLOCKED:
             raise _StopRun(_failed(url, exc)) from None
         return _failed(url, exc)
-    if normalise_url(fetched.url) != normalise_url(url):
+    if not _same_document(fetched.url, url):
         # Redirected somewhere else (a withdrawn report's section index, a "moved" page): that page is
         # not this document, so it must never become its current version.
         return ItemOutcome(
@@ -184,6 +184,16 @@ def _one(
     except Exception as exc:  # the transaction rolled back; the previous version is still current
         log.exception("storing %s failed", url)
         return _failed(url, exc)
+
+
+def _same_document(a: str, b: str) -> bool:
+    """Equal after normalisation, ignoring path case and escape/slash spelling."""
+
+    def key(url: str) -> tuple[str, str, str]:
+        parts = urlsplit(normalise_url(url))
+        return parts.netloc, canonical_path(parts.path).lower(), parts.query
+
+    return key(a) == key(b)
 
 
 def _extract(fetched: FetchResult, limits: ExtractionLimits) -> Extracted:

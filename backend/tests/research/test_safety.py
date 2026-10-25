@@ -9,6 +9,7 @@ from nzstats.research.safety import (
     RobotsRules,
     UnsafeUrl,
     canonical_path,
+    canonical_target,
     normalise_url,
 )
 
@@ -283,3 +284,29 @@ def test_an_unresolvable_name_is_a_connect_error():
     with pytest.raises(httpx.ConnectError):
         client.get("https://www.anz.co.nz/a")
     assert inner.seen == []
+
+
+def test_robots_query_rules_are_matched_after_the_same_canonicalisation():
+    rules = RobotsRules.parse(
+        "User-agent: *\nDisallow: /search?q=http://x\nDisallow: /*?a=%2f\nDisallow: /*?b=%7Efoo\n",
+        AGENT,
+    )
+    assert not rules.allowed(canonical_target("/search?q=http://x"))
+    assert not rules.allowed(canonical_target("/p?a=%2F"))
+    assert not rules.allowed(canonical_target("/p?b=~foo"))
+    assert rules.allowed(canonical_target("/p?c=1"))
+
+
+def test_non_ascii_and_encoded_forms_are_one_form():
+    rules = RobotsRules.parse("User-agent: *\nDisallow: /café\n", AGENT)
+    assert not rules.allowed(canonical_target("/caf%C3%A9"))
+    assert not rules.allowed(canonical_target("/café"))
+    p = policy(hosts=("www.deloitte.com",), blocked_path_prefixes=("/nz/a/b/",))
+    with pytest.raises(UnsafeUrl, match="path"):
+        p.check("https://www.deloitte.com/nz/a%2Fb/x")
+
+
+@pytest.mark.parametrize("address", ["ff02::1", "224.0.0.1", "::ffff:0:10.0.0.1"])
+def test_multicast_and_ipv4_translated_addresses_are_not_public(address):
+    with pytest.raises(UnsafeUrl, match="non-public"):
+        policy(resolver=lambda host: [address]).check("https://www.anz.co.nz/a")

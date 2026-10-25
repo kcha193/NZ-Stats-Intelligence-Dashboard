@@ -58,6 +58,13 @@ environment. Left for later (minor, documented or latent): purge command for rev
 `duplicate_of_id` never cleared, challenge-page cooldown not persisted, `captcha` heuristic, candidate ordering,
 cross-host redirects between two allowlisted hosts, owner-password PDFs.
 
+Review round 2 (of the round-1 fixes) found two regressions and several gaps, all fixed with tests: unbounded buffering of
+bytes after the end of a compressed stream (and a silently ignored second gzip member), robots query-string rules failing
+open after canonicalisation, non-ASCII and `%2F` path forms, raw deflate, multicast and IPv4-translated addresses, raw
+exceptions from malformed registry numbers, cosmetic-redirect false positives, and error statuses hidden by odd bodies.
+Still open and minor: a redirected candidate uses a per-run slot every run, no total read deadline on a trickling body, a
+refused pin is retried before failing, and the PDF child's startup failures are reported as limit errors.
+
 Before Phase 3B: approve at least one `full_text` source (the Treasury is the likeliest; read its licence page directly and
 run `research discover treasury`), ingest real documents, decide whether any
 source's terms allow sending its text to an LLM provider. Details in the Phase 3B plan.

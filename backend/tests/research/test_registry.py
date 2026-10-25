@@ -222,3 +222,21 @@ def test_any_approval_requires_the_terms_to_have_been_read_directly(tmp_path, po
     ).replace("needs_review", "approved").replace("metadata_only", policy)  # fmt: skip
     with pytest.raises(RegistryError, match="terms"):
         load_registry(_write(tmp_path, body))
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "max_documents_per_run = 2.7",
+        "max_documents_per_run = true",
+        'max_documents_per_run = "5"',
+        "max_documents_per_run = 1000000000",
+        "min_text_chars = [1]",
+        "min_text_chars = inf",
+        "crawl_delay_seconds = 1e400",
+        'crawl_delay_seconds = "x"',
+    ],
+)
+def test_malformed_numeric_settings_are_registry_errors_not_raw_exceptions(tmp_path, extra):
+    with pytest.raises(RegistryError):
+        load_registry(_write(tmp_path, BASE.format(extra=extra)))

@@ -27,6 +27,8 @@ log = logging.getLogger(__name__)
 
 # Text Imperva/Incapsula puts in its challenge pages (often served with HTTP 200).
 BLOCK_MARKERS = (b"Request unsuccessful. Incapsula incident ID",)
+# A compressed body may legitimately be a little larger than its decoded form (headers, incompressible data).
+MAX_COMPRESSION_OVERHEAD = 1024 * 1024
 # After a block, no request of any kind for this long (the planner's per-release cooldown is the same).
 BLOCKED_COOLDOWN_SECONDS = 30 * 60
 REDIRECT_STATUSES = (301, 302, 303, 307, 308)
@@ -419,7 +421,12 @@ class Fetcher:
             declared = _finite(resp.headers.get("content-length", ""))
             if declared is not None and declared > self._max_bytes:
                 raise self._too_large(url)
-            body = self._bounded_body(url, resp)
+            try:
+                body = self._bounded_body(url, resp)
+            except IngestError:
+                if resp.status_code < 300:
+                    raise
+                body = b""  # an error status is classified from the status; its odd body does not matter
             headers = [
                 (k, v)
                 for k, v in resp.headers.multi_items()
@@ -433,7 +440,8 @@ class Fetcher:
         """Read the body without ever holding more than the cap (plus one chunk) decoded.
 
         httpx would decompress a whole network chunk at once, so a small gzip bomb could allocate far more
-        than the cap before the size check ran. Decode the raw bytes here with an output limit instead.
+        than the cap before the size check ran. Decode the raw bytes here with an output limit instead, and
+        stop at the end of the compressed stream: anything after it is refused, never buffered.
         """
         assert self._max_bytes is not None
         cap = self._max_bytes
@@ -445,33 +453,51 @@ class Fetcher:
             return resp.content
         encoding = resp.headers.get("content-encoding", "").strip().lower()
         if encoding in ("", "identity"):
-            decoder = None
+            wbits = None
         elif encoding in ("gzip", "x-gzip", "deflate"):
-            decoder = zlib.decompressobj(
-                wbits=zlib.MAX_WBITS | 32
-            )  # zlib or gzip header, auto-detected
+            wbits = zlib.MAX_WBITS | 32  # zlib or gzip header, auto-detected
         else:
             raise IngestError(
                 ErrorClass.UNEXPECTED, f"unsupported content-encoding {encoding!r}", url=url
             )
+        decoder = zlib.decompressobj(wbits) if wbits is not None else None
         out = bytearray()
+        raw_total = 0
         for raw in resp.iter_raw():
+            raw_total += len(raw)
+            if raw_total > cap + MAX_COMPRESSION_OVERHEAD:
+                raise self._too_large(url)
             data = raw
             while data:
                 if decoder is None:
                     piece, data = data, b""
                 else:
+                    if decoder.eof:
+                        raise IngestError(
+                            ErrorClass.UNEXPECTED,
+                            "data after the end of the compressed body",
+                            url=url,
+                        )
                     try:
                         piece = decoder.decompress(data, cap - len(out) + 1)
                     except zlib.error:
+                        if encoding == "deflate" and not out and raw_total == len(raw):
+                            decoder = zlib.decompressobj(-zlib.MAX_WBITS)  # raw deflate, no header
+                            continue
                         raise IngestError(
                             ErrorClass.UNEXPECTED, "undecodable response body", url=url
                         ) from None
+                    if decoder.eof and decoder.unused_data:
+                        raise IngestError(
+                            ErrorClass.UNEXPECTED,
+                            "data after the end of the compressed body",
+                            url=url,
+                        )
                     data = decoder.unconsumed_tail
                 out += piece
                 if len(out) > cap:
                     raise self._too_large(url)
-        if decoder is not None and out and not decoder.eof:
+        if decoder is not None and raw_total and not decoder.eof:
             raise IngestError(ErrorClass.NETWORK, "incomplete compressed response", url=url)
         return bytes(out)
 

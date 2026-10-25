@@ -428,3 +428,11 @@ def test_a_cosmetic_redirect_to_the_same_document_is_followed(conn):
     inst = institution()
     web = site(**{DOC_A: (301, {"location": DOC_A + "/"}, b""), DOC_A + "/": report("A")})
     assert outcomes(run(conn, inst, web)) == ["new"]
+
+
+@pytest.mark.parametrize(
+    "target", [DOC_A.replace("/research/", "/Research/"), DOC_A + "/", DOC_A.replace("-", "%2D")]
+)
+def test_cosmetic_path_differences_in_a_redirect_are_the_same_document(conn, target):
+    web = site(**{DOC_A: (301, {"location": target}, b""), target: report("A")})
+    assert outcomes(run(conn, institution(), web)) == ["new"]

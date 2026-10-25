@@ -34,6 +34,7 @@ def system_resolver(host: str) -> list[str]:
 
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 _SITE_LOCAL = ipaddress.ip_network("fec0::/10")
+_IPV4_TRANSLATED = ipaddress.ip_network("::ffff:0:0:0/96")
 
 
 def _is_public(address: str) -> bool:
@@ -46,13 +47,15 @@ def _is_public(address: str) -> bool:
         embedded = [ip.ipv4_mapped, ip.sixtofour]
         if ip in _NAT64:
             embedded.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+        if ip in _IPV4_TRANSLATED:
+            embedded.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
         if int(ip) >> 32 == 0:  # ::a.b.c.d, the deprecated IPv4-compatible form
             embedded.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
         if any(v4 is not None and not v4.is_global for v4 in embedded) or ip in _SITE_LOCAL:
             return False
         if ip.ipv4_mapped is not None:
             ip = ip.ipv4_mapped
-    return ip.is_global
+    return ip.is_global and not ip.is_multicast
 
 
 def _split(url: str):
@@ -70,18 +73,36 @@ _UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012
 _ESCAPE = re.compile(r"%([0-9A-Fa-f]{2})")
 
 
-def canonical_path(path: str) -> str:
-    """The path as a server will most likely read it, for prefix and robots matching.
-
-    Escaped unreserved characters are decoded (`%70` is `p`), the other escapes are upper-cased, and runs
-    of slashes collapse, so `/%70rivate/` and `//private/` cannot slip past a rule written for `/private/`.
-    """
+def _escapes(text: str) -> str:
+    """UTF-8 percent-encode non-ASCII, decode escaped unreserved characters, upper-case the other escapes."""
+    text = "".join(
+        c if c.isascii() else "".join(f"%{b:02X}" for b in c.encode("utf-8")) for c in text
+    )
 
     def fix(m: re.Match[str]) -> str:
         char = chr(int(m.group(1), 16))
         return char if char in _UNRESERVED else f"%{m.group(1).upper()}"
 
-    return re.sub(r"/{2,}", "/", _ESCAPE.sub(fix, path))
+    return _ESCAPE.sub(fix, text)
+
+
+def canonical_path(path: str) -> str:
+    """The path as a server will most likely read it, for prefix and robots matching.
+
+    Escaped unreserved characters are decoded (`%70` is `p`), non-ASCII becomes UTF-8 escapes, the other
+    escapes are upper-cased, and runs of slashes collapse, so `/%70rivate/` and `//private/` cannot slip
+    past a rule written for `/private/`.
+    """
+    return re.sub(r"/{2,}", "/", _escapes(path))
+
+
+def canonical_target(path_and_query: str) -> str:
+    """`canonical_path` for the path and escape normalisation only for the query (slashes there are data).
+
+    Apply it to both a robots pattern and the request target so they are compared in the same form.
+    """
+    path, sep, query = path_and_query.partition("?")
+    return canonical_path(path) + sep + _escapes(query)
 
 
 def normalise_url(url: str) -> str:
@@ -145,8 +166,10 @@ class HostPolicy:
             raise UnsafeUrl("path traversal")
         if self._allowed and not any(path.startswith(p) for p in self._allowed):
             raise UnsafeUrl("path is outside the allowed prefixes")
-        folded = path.lower()
-        if any(folded.startswith(p.lower()) for p in self._blocked):
+        folded = path.replace(
+            "%2F", "/"
+        ).lower()  # a server may read an encoded slash as a separator
+        if any(folded.startswith(p.replace("%2F", "/").lower()) for p in self._blocked):
             raise UnsafeUrl("path is blocked")
 
     def _check_addresses(self, host: str) -> None:
@@ -188,7 +211,7 @@ class RobotsRules:
             elif field in ("allow", "disallow") and current is not None:
                 last_was_rule = True
                 if value:  # an empty Disallow means "allow everything"
-                    value = canonical_path(value)  # same form as the target it is matched against
+                    value = canonical_target(value)  # same form as the target it is matched against
                     allow = field == "allow"
                     rules = current["rules"]
                     rules[value] = rules.get(value, False) or allow

@@ -187,3 +187,60 @@ def test_a_truncated_compressed_body_is_an_error_not_a_short_page():
 
     with pytest.raises(IngestError, match="incomplete"):
         _fetcher(handler, max_bytes=1_000_000).get("https://h.test/a")
+
+
+def _streaming(chunks, encoding="gzip", status=200):
+    def handler(request):
+        return httpx.Response(
+            status,
+            stream=httpx.ByteStream(b"".join(chunks)),
+            headers={"content-encoding": encoding},
+        )
+
+    return handler
+
+
+def test_bytes_after_the_end_of_a_compressed_body_are_refused_not_buffered():
+    # A valid gzip member followed by ~300 MB of padding: zlib would park all of it in unused_data.
+    class Endless(httpx.SyncByteStream):
+        def __iter__(self):
+            yield gzip.compress(b"a")
+            for _ in range(300):
+                yield b"\0" * 1_000_000
+
+    def handler(request):
+        return httpx.Response(200, stream=Endless(), headers={"content-encoding": "gzip"})
+
+    tracemalloc.start()
+    try:
+        with pytest.raises(IngestError, match="after the end"):
+            _fetcher(handler, max_bytes=10_000).get("https://h.test/a")
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 20_000_000
+
+
+def test_a_second_gzip_member_is_not_silently_ignored():
+    two = gzip.compress(b"first " * 20) + gzip.compress(b"second " * 20)
+    with pytest.raises(IngestError, match="after the end"):
+        _fetcher(_streaming([two]), max_bytes=10_000).get("https://h.test/a")
+
+
+def test_raw_deflate_is_decoded_and_an_empty_truncated_stream_is_an_error():
+    payload = b"hello " * 10
+    comp = zlib.compressobj(wbits=-15)
+    raw = comp.compress(payload) + comp.flush()
+    assert (
+        _fetcher(_streaming([raw], "deflate"), max_bytes=10_000).get("https://h.test/a").body
+        == payload
+    )
+    with pytest.raises(IngestError, match="incomplete"):
+        _fetcher(_streaming([gzip.compress(b"x")[:5]]), max_bytes=10_000).get("https://h.test/a")
+
+
+def test_a_bad_body_on_an_error_status_does_not_hide_the_status():
+    f = _fetcher(_streaming([b"xx"], "br", status=403), max_bytes=10_000)
+    with pytest.raises(IngestError) as exc:
+        f.get("https://h.test/a")
+    assert exc.value.error_class is ErrorClass.BLOCKED
