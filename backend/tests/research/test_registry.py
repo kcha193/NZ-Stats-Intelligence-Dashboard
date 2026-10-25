@@ -189,3 +189,36 @@ def test_institution_keys_are_plain_identifiers(tmp_path, key):
     body = BASE.format(extra="").replace("[institutions.ex]", f'[institutions."{key}"]')
     with pytest.raises(RegistryError, match="key"):
         load_registry(_write(tmp_path, body))
+
+
+@pytest.mark.parametrize(
+    "extra,match",
+    [
+        ("crawl_delay_seconds = nan", "crawl_delay"),
+        ("crawl_delay_seconds = inf", "crawl_delay"),
+        ("max_documents_per_run = 0", "max_documents_per_run"),
+        ("max_documents_per_run = -1", "max_documents_per_run"),
+        ("min_text_chars = 0", "min_text_chars"),
+    ],
+)
+def test_throttle_and_guard_settings_must_be_finite_and_positive(tmp_path, extra, match):
+    with pytest.raises(RegistryError, match=match):
+        load_registry(_write(tmp_path, BASE.format(extra=extra)))
+
+
+def test_an_unparseable_port_is_a_registry_error_not_a_crash(tmp_path):
+    body = BASE.format(extra="").replace(
+        "https://www.example.co.nz/research", "https://www.example.co.nz:99999/research"
+    )
+    with pytest.raises(RegistryError, match="allowed host"):
+        load_registry(_write(tmp_path, body))
+
+
+@pytest.mark.parametrize("policy", ["metadata_only", "full_text"])
+def test_any_approval_requires_the_terms_to_have_been_read_directly(tmp_path, policy):
+    body = BASE.format(
+        extra='approved_by = "K"\n approved_on = "2026-11-01"\n approval_note = "n"\n'
+        ' terms_evidence = "none"'
+    ).replace("needs_review", "approved").replace("metadata_only", policy)  # fmt: skip
+    with pytest.raises(RegistryError, match="terms"):
+        load_registry(_write(tmp_path, body))

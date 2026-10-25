@@ -96,8 +96,8 @@ class HostPolicy:
         resolver: Resolver | None = system_resolver,
     ) -> None:
         self._hosts = frozenset(h.lower() for h in allowed_hosts)
-        self._allowed = tuple(allowed_path_prefixes)
-        self._blocked = tuple(blocked_path_prefixes)
+        self._allowed = tuple(canonical_path(p) for p in allowed_path_prefixes)
+        self._blocked = tuple(canonical_path(p) for p in blocked_path_prefixes)
         self._resolver = resolver
 
     def check(self, url: str) -> str:
@@ -173,6 +173,7 @@ class RobotsRules:
             elif field in ("allow", "disallow") and current is not None:
                 last_was_rule = True
                 if value:  # an empty Disallow means "allow everything"
+                    value = canonical_path(value)  # same form as the target it is matched against
                     allow = field == "allow"
                     rules = current["rules"]
                     rules[value] = rules.get(value, False) or allow

@@ -17,6 +17,13 @@ from nzstats.sources.fetcher import build_client
 from nzstats.store.db import connect, migrate
 
 
+def _positive_int(text: str) -> int:
+    number = int(text)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return number
+
+
 def add_research_parser(sub: argparse._SubParsersAction) -> None:
     research = sub.add_parser("research", help="institutional economic research sources (Phase 3A)")
     rsub = research.add_subparsers(dest="research_command", required=True)
@@ -25,7 +32,7 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_disc.add_argument("key")
     p_ing = rsub.add_parser("ingest", help="ingest one approved institution")
     p_ing.add_argument("key")
-    p_ing.add_argument("--limit", type=int, help="at most this many documents")
+    p_ing.add_argument("--limit", type=_positive_int, help="at most this many documents")
     p_ing.add_argument("--dry-run", action="store_true", help="discover only; write nothing")
     rsub.add_parser("status", help="show research source health")
 

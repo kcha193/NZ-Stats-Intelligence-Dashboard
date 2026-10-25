@@ -175,3 +175,15 @@ def test_url_check_refusal_on_the_first_url_sends_nothing():
     with pytest.raises(IngestError):
         f.get("https://h.test/a", url_check=lambda u: (_ for _ in ()).throw(ValueError("no")))
     assert requested == []
+
+
+def test_a_truncated_compressed_body_is_an_error_not_a_short_page():
+    whole = gzip.compress(b"a long report " * 2000)
+
+    def handler(request):
+        return httpx.Response(
+            200, stream=httpx.ByteStream(whole[:-40]), headers={"content-encoding": "gzip"}
+        )
+
+    with pytest.raises(IngestError, match="incomplete"):
+        _fetcher(handler, max_bytes=1_000_000).get("https://h.test/a")

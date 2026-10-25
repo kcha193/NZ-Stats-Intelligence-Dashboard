@@ -403,3 +403,28 @@ def test_discovery_failure_marks_the_source_failing(conn):
     result = run(conn, institution(), web)
     assert result.outcome == "failed" and result.items == []
     assert conn.execute("SELECT state FROM research_source_health").fetchone()[0] == "failing"
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_a_non_positive_limit_never_lifts_the_per_run_cap(conn, limit):
+    urls = [f"{BASE}/research/r{i}" for i in range(8)]
+    pages = {u: report(f"R{i}") for i, u in enumerate(urls)}
+    web = site(**{LISTING: listing(*urls), **pages})
+    result = run(conn, institution(max_documents_per_run=3), web, limit=limit)
+    assert len(result.items) <= 3
+
+
+def test_a_redirect_to_a_different_page_never_replaces_the_document(conn):
+    inst = institution()
+    good = _store_good(conn, inst)
+    web = site(**{DOC_A: (301, {"location": DOC_B}, b""), DOC_B: report("Section index")})
+    result = run(conn, inst, web, at=NOW + timedelta(days=1))
+    assert outcomes(result) == ["failed"] and result.items[0].error_class == "unexpected"
+    assert pub_row(conn)["current_version_id"] == good
+    assert conn.execute("SELECT COUNT(*) FROM research_document_version").fetchone()[0] == 1
+
+
+def test_a_cosmetic_redirect_to_the_same_document_is_followed(conn):
+    inst = institution()
+    web = site(**{DOC_A: (301, {"location": DOC_A + "/"}, b""), DOC_A + "/": report("A")})
+    assert outcomes(run(conn, inst, web)) == ["new"]

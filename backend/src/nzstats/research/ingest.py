@@ -28,6 +28,7 @@ from nzstats.research.extract_html import extract_html
 from nzstats.research.extract_pdf import extract_pdf
 from nzstats.research.fetch import Refused, ResearchFetcher
 from nzstats.research.registry import ContentPolicy, Institution, ReviewStatus
+from nzstats.research.safety import normalise_url
 from nzstats.research.validate import PreviousVersion, safe_detail, validate_document
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.sources.fetcher import FetchResult
@@ -101,7 +102,7 @@ def run_institution(
     if dry_run:
         result.outcome = "dry_run"
         return result
-    cap = min(limit, inst.max_documents_per_run) if limit else inst.max_documents_per_run
+    cap = max(1, min(limit or inst.max_documents_per_run, inst.max_documents_per_run))
     blocked = fetcher.access_restricted
     for candidate in [] if blocked else found.candidates[:cap]:
         try:
@@ -156,6 +157,12 @@ def _one(
         if exc.error_class is ErrorClass.BLOCKED:
             raise _StopRun(_failed(url, exc)) from None
         return _failed(url, exc)
+    if normalise_url(fetched.url) != normalise_url(url):
+        # Redirected somewhere else (a withdrawn report's section index, a "moved" page): that page is
+        # not this document, so it must never become its current version.
+        return ItemOutcome(
+            url, "failed", ErrorClass.UNEXPECTED.value, "redirected to a different page"
+        )
     previous = None
     if existing is not None and (cur := store.current_version(conn, existing["id"])) is not None:
         previous = PreviousVersion(cur["char_count"], cur["text_sha256"])

@@ -8,6 +8,7 @@ this module reaches the network.
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import tomllib
@@ -189,7 +190,11 @@ def _check_url(url: str, hosts: tuple[str, ...], prefixes: tuple[str, ...], key:
     parts = urlsplit(url)
     if parts.scheme != "https":
         raise RegistryError(f"{key}: {url} must be https")
-    if parts.hostname not in hosts or parts.username or parts.port not in (None, 443):
+    try:
+        port = parts.port
+    except ValueError:  # not a number, or outside 0-65535
+        raise RegistryError(f"{key}: {url} is not on an allowed host") from None
+    if parts.hostname not in hosts or parts.username or port not in (None, 443):
         raise RegistryError(f"{key}: {url} is not on an allowed host")
     if prefixes and not any(parts.path.startswith(p) for p in prefixes):
         raise RegistryError(f"{key}: {url} is outside allowed_path_prefixes")
@@ -241,8 +246,13 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         if value not in _EVIDENCE:
             raise RegistryError(f"{key}: invalid {name}_evidence {value!r}")
     delay = float(raw.get("crawl_delay_seconds", MIN_RESEARCH_DELAY_SECONDS))
-    if delay < MIN_RESEARCH_DELAY_SECONDS:
+    if not math.isfinite(delay) or delay < MIN_RESEARCH_DELAY_SECONDS:  # NaN would compare False
         raise RegistryError(f"{key}: crawl_delay_seconds must be >= {MIN_RESEARCH_DELAY_SECONDS:g}")
+    max_docs = int(raw.get("max_documents_per_run", 5))
+    min_chars = int(raw.get("min_text_chars", 500))
+    for name, number in (("max_documents_per_run", max_docs), ("min_text_chars", min_chars)):
+        if number < 1:
+            raise RegistryError(f"{key}: {name} must be at least 1")
     pattern, fmt = raw.get("url_date_regex"), raw.get("url_date_format")
     if pattern is not None:
         try:
@@ -263,8 +273,8 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         landing_evidence=evidence["landing"], terms_evidence=evidence["terms"],
         verified_on=_date(raw.get("verified_on"), "verified_on", key),
         polling=str(raw.get("polling", "")), access_notes=str(raw.get("access_notes", "")),
-        crawl_delay_seconds=delay, max_documents_per_run=int(raw.get("max_documents_per_run", 5)),
-        min_text_chars=int(raw.get("min_text_chars", 500)), url_date_regex=pattern,
+        crawl_delay_seconds=delay, max_documents_per_run=max_docs,
+        min_text_chars=min_chars, url_date_regex=pattern,
         url_date_format=fmt, approved_by=raw.get("approved_by"), approved_on=approved_on,
         approval_note=raw.get("approval_note"),
     )  # fmt: skip
@@ -282,5 +292,5 @@ def _check_approval(inst: Institution) -> None:
         raise RegistryError(f"{key}: approved source cannot have content_policy 'none'")
     if not inst.allowed_hosts or not (inst.landing_urls or inst.discovery):
         raise RegistryError(f"{key}: approved source needs allowed hosts and a start url")
-    if inst.content_policy is ContentPolicy.FULL_TEXT and inst.terms_evidence != "direct":
-        raise RegistryError(f"{key}: approved full_text requires terms_evidence = 'direct'")
+    if inst.terms_evidence != "direct":
+        raise RegistryError(f"{key}: an approved source requires terms_evidence = 'direct'")

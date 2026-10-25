@@ -205,3 +205,13 @@ def test_oversized_robots_text_is_truncated_not_trusted_past_the_cap():
 
 def test_constants():
     assert ALLOW_ALL.allowed("/x") and not DENY_ALL.allowed("/x") and not DENY_ALL.allowed("/")
+
+
+def test_encoded_robots_patterns_and_prefixes_match_the_canonical_target():
+    rules = RobotsRules.parse("User-agent: *\nDisallow: /%72esearch/\nDisallow: /a//b\n", AGENT)
+    assert not rules.allowed(canonical_path("/research/x"))
+    assert not rules.allowed(canonical_path("/%72esearch/x"))
+    assert not rules.allowed(canonical_path("/a/b"))
+    p = policy(hosts=("www.deloitte.com",), blocked_path_prefixes=("/nz/%70rivate/",))
+    with pytest.raises(UnsafeUrl, match="path"):
+        p.check("https://www.deloitte.com/nz/private/x")

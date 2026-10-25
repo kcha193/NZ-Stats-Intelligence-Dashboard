@@ -471,6 +471,8 @@ class Fetcher:
                 out += piece
                 if len(out) > cap:
                     raise self._too_large(url)
+        if decoder is not None and out and not decoder.eof:
+            raise IngestError(ErrorClass.NETWORK, "incomplete compressed response", url=url)
         return bytes(out)
 
     def _too_large(self, url: str) -> IngestError:

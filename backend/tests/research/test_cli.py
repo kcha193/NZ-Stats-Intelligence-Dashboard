@@ -109,3 +109,10 @@ def test_failed_items_give_a_non_zero_exit(env, capsys):
     web.pages[f"{BASE}/research/a"] = "<main><p>tiny</p></main>"
     assert main(["research", "ingest", "example"]) == 1
     assert "failed" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "x"])
+def test_limit_must_be_a_positive_integer(value, capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["research", "ingest", "example", "--limit", value])
+    assert exc.value.code == 2
