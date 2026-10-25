@@ -118,6 +118,18 @@ cooldown for that institution.
 - All extracted text is untrusted data. It is never rendered as HTML and never followed as instructions; Phase 3B
   prompts frame it as quoted data.
 
+## Residual risks
+
+- **DNS rebinding window.** Host addresses are checked before each request, but the HTTP client resolves the name
+  again when it connects. Exploiting that needs control of an allowlisted institution's DNS. Closing it fully means
+  pinning the connection to the checked address (a custom transport); do that before allowlisting any host you do not
+  trust as much as a bank or a government agency.
+- **PDF parser limits.** The child process has a timeout and CPU, memory and output limits, but macOS ignores the memory
+  limit. Linux, where the container runs, enforces it.
+- **Heuristic walls.** Login, paywall and challenge detection uses a fixed list of phrases near the top of the page. A
+  teaser page with unusual wording and enough text could pass. The shrink guard and human approval limit the damage;
+  check the first ingest of every newly approved source by hand.
+
 ## Rollback
 
 The tables are additive and nothing outside `research_*` references them. To remove them (this deletes stored commentary):
