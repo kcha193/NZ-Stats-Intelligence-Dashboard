@@ -1,9 +1,11 @@
+import httpx
 import pytest
 
 from nzstats.research.safety import (
     ALLOW_ALL,
     DENY_ALL,
     HostPolicy,
+    PinnedTransport,
     RobotsRules,
     UnsafeUrl,
     canonical_path,
@@ -215,3 +217,69 @@ def test_encoded_robots_patterns_and_prefixes_match_the_canonical_target():
     p = policy(hosts=("www.deloitte.com",), blocked_path_prefixes=("/nz/%70rivate/",))
     with pytest.raises(UnsafeUrl, match="path"):
         p.check("https://www.deloitte.com/nz/private/x")
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "64:ff9b::7f00:1",
+        "::127.0.0.1",
+        "fec0::1",
+        "2002:7f00:1::1",
+        "2002:a00:1::1",
+        "::ffff:10.0.0.1",
+    ],
+)
+def test_addresses_that_embed_or_alias_private_space_are_not_public(address):
+    p = policy(resolver=lambda host: [address])
+    with pytest.raises(UnsafeUrl, match="non-public"):
+        p.check("https://www.anz.co.nz/a")
+
+
+def test_a_real_public_ipv6_address_is_still_accepted():
+    assert policy(resolver=lambda host: ["2606:4700::6810:84e5"]).check("https://www.anz.co.nz/a")
+
+
+class _Inner(httpx.BaseTransport):
+    def __init__(self):
+        self.seen: list[httpx.Request] = []
+
+    def handle_request(self, request):
+        self.seen.append(request)
+        return httpx.Response(200, content=b"ok", request=request)
+
+
+def _client(resolver):
+    inner = _Inner()
+    client = httpx.Client(transport=PinnedTransport(resolver, inner), trust_env=False)
+    return client, inner
+
+
+def test_the_connection_is_pinned_to_the_validated_address_with_the_original_name():
+    client, inner = _client(lambda host: ["93.184.216.34"])
+    assert client.get("https://www.anz.co.nz/a?x=1").content == b"ok"
+    sent = inner.seen[0]
+    assert sent.url.host == "93.184.216.34" and sent.url.path == "/a" and sent.url.query == b"x=1"
+    assert sent.headers["host"] == "www.anz.co.nz"
+    assert sent.extensions["sni_hostname"] == "www.anz.co.nz"
+
+
+def test_a_name_that_rebinds_to_a_private_address_is_refused_at_connect_time():
+    answers = iter([["93.184.216.34"], ["127.0.0.1"]])
+    client, inner = _client(lambda host: next(answers))
+    policy_check = policy(resolver=lambda host: ["93.184.216.34"]).check("https://www.anz.co.nz/a")
+    assert policy_check  # the early check saw a public address...
+    client.get("https://www.anz.co.nz/a")  # ...and so did the first connect
+    with pytest.raises(httpx.ConnectError):
+        client.get("https://www.anz.co.nz/a")  # but the second resolution is private
+    assert len(inner.seen) == 1
+
+
+def test_an_unresolvable_name_is_a_connect_error():
+    def gone(host):
+        raise OSError("no such host")
+
+    client, inner = _client(gone)
+    with pytest.raises(httpx.ConnectError):
+        client.get("https://www.anz.co.nz/a")
+    assert inner.seen == []

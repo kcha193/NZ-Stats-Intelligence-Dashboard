@@ -195,3 +195,14 @@ def test_refusal_messages_do_not_echo_upstream_text():
     with pytest.raises(Refused) as exc:
         research_fetcher(institution(), site).get(DOC)
     assert "IGNORE" not in str(exc.value)
+
+
+def test_the_real_research_client_is_pinned_and_ignores_proxy_settings(monkeypatch):
+    from nzstats.research.fetch import build_research_client
+    from nzstats.research.safety import PinnedTransport
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:3128")
+    client = build_research_client("UA/1", resolver=lambda host: ["93.184.216.34"])
+    assert isinstance(client._transport, PinnedTransport)
+    assert not client.trust_env and client.follow_redirects is False
+    client.close()

@@ -45,10 +45,21 @@ Plan: [2026-10-25-phase-3a-research-sources.md](superpowers/plans/2026-10-25-pha
 | Real database copy: `export-snapshot` then `validate-snapshot --for-publish` | 216 files, 3.14 MB, 43 published releases, origin production, **valid** |
 | Same copy exported with `main` and with this branch | Same `snapshot_id` (`13e4c7cff0e9…`); 214 of 216 files byte-identical, the other two differ only in `generated_at` |
 | Live requests to any research source | **None.** All research tests use `httpx.MockTransport`; no source is approved |
-| Docker image builds | **Not run: no container runtime here.** `Dockerfile` is unchanged and does not install the `research` extra |
+| Docker image builds | **Not run: no container runtime here.** The image now installs the `research` extra and sets `NZSTATS_RESEARCH_SOURCES_FILE`; `scripts/smoke_docker.sh` checks both. CI could not run (see below) |
+
+Review round 1 (27 findings reviewed; Codex was unavailable, so an independent Claude security reviewer and the automated
+security hook were used). Fixed with regression tests: decompression-bomb memory (peak 616 MB to under 20 MB) and
+truncated compressed bodies; DNS rebinding (connection pinned to the checked address, no proxy); NAT64, 6to4,
+IPv4-compatible and site-local addresses; percent-encoded, case and `//` bypasses of blocked prefixes and robots rules;
+redirects that replaced a document with another page; run-aborting inputs (deep JSON-LD, malformed URLs, unknown XML
+encoding or charset, out-of-range dates, extractor errors); NaN crawl delay, non-positive limits and `--limit -1`;
+approval without terms evidence; the registry file and `pypdf` missing from the Docker image; the PDF child's inherited
+environment. Left for later (minor, documented or latent): purge command for revoked sources, read-only `status`,
+`duplicate_of_id` never cleared, challenge-page cooldown not persisted, `captcha` heuristic, candidate ordering,
+cross-host redirects between two allowlisted hosts, owner-password PDFs.
 
 Before Phase 3B: approve at least one `full_text` source (the Treasury is the likeliest; read its licence page directly and
-run `research discover treasury`), ingest real documents, decide whether the image ships `pypdf`, and decide whether any
+run `research discover treasury`), ingest real documents, decide whether any
 source's terms allow sending its text to an LLM provider. Details in the Phase 3B plan.
 
 ## Public static site on Netlify, 24 October 2026

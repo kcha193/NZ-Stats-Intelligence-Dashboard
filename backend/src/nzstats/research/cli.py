@@ -9,11 +9,10 @@ from __future__ import annotations
 import argparse
 
 from nzstats.config import Settings
-from nzstats.research.fetch import ResearchFetcher, research_pacer
+from nzstats.research.fetch import ResearchFetcher, build_research_client, research_pacer
 from nzstats.research.ingest import RunResult, refusal_for, run_institution
 from nzstats.research.registry import Institution, RegistryError, load_registry
 from nzstats.sources.artifacts import ArtifactStore
-from nzstats.sources.fetcher import build_client
 from nzstats.store.db import connect, migrate
 
 
@@ -39,7 +38,9 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
 
 def build_fetcher(inst: Institution, settings: Settings) -> ResearchFetcher:
     return ResearchFetcher(
-        inst, build_client(settings.user_agent), pacer=research_pacer(settings.data_dir, inst)
+        inst,
+        build_research_client(settings.user_agent),
+        pacer=research_pacer(settings.data_dir, inst),
     )
 
 

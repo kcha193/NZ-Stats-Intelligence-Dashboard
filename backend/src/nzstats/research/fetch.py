@@ -25,6 +25,7 @@ from nzstats.research.safety import (
     ALLOW_ALL,
     DENY_ALL,
     HostPolicy,
+    PinnedTransport,
     Resolver,
     RobotsRules,
     UnsafeUrl,
@@ -54,6 +55,20 @@ class Refused(RequestRefused):
     def __init__(self, reason: str, url: str) -> None:
         super().__init__(ErrorClass.BLOCKED, _REASONS[reason], url=url)
         self.reason = reason
+
+
+def build_research_client(user_agent: str, *, resolver: Resolver = system_resolver) -> httpx.Client:
+    """The HTTP client for real research requests: pinned to checked addresses, never via a proxy.
+
+    `trust_env=False` matters: a proxy resolves names itself, which would bypass the address check.
+    """
+    return httpx.Client(
+        headers={"User-Agent": user_agent},
+        transport=PinnedTransport(resolver),
+        trust_env=False,
+        follow_redirects=False,  # `Fetcher.get` follows redirects itself, one gated request per hop
+        timeout=httpx.Timeout(120.0, connect=15.0),
+    )
 
 
 def research_pacer(

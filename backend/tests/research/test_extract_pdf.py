@@ -127,3 +127,12 @@ def test_isolated_reply_over_the_cap_is_refused(monkeypatch):
     monkeypatch.setattr("nzstats.research.extract_pdf._reply_cap", lambda limits: 10)
     with pytest.raises(IngestError, match="pdf_extraction_limit"):
         extract_pdf(text_pdf(PAGES), LIMITS, isolate=True)
+
+
+def test_the_pdf_child_does_not_inherit_secrets(monkeypatch):
+    from nzstats.research.extract_pdf import _child_env
+
+    monkeypatch.setenv("NETLIFY_AUTH_TOKEN", "secret")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    env = _child_env()
+    assert "NETLIFY_AUTH_TOKEN" not in env and env["PATH"] == "/usr/bin"

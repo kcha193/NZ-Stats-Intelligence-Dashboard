@@ -60,7 +60,9 @@ Run commands where the database lives (`scripts/run.sh …` or `docker compose e
 `nzstats` from `backend/` resolves `./data` to the empty development database.
 
 PDF documents need the optional extra: `pip install -e 'backend[research]'` (`pypdf`). Without it, PDF items fail with
-`pdf_support_not_installed` and HTML items still work. The Docker image does not include it yet.
+`pdf_support_not_installed` and HTML items still work. The Docker image installs it. The registry is baked into the
+image (`NZSTATS_RESEARCH_SOURCES_FILE`), so approving a source in `config/research_sources.toml` takes effect in the
+container only after an image rebuild.
 
 ## Commands
 
@@ -120,10 +122,11 @@ cooldown for that institution.
 
 ## Residual risks
 
-- **DNS rebinding window.** Host addresses are checked before each request, but the HTTP client resolves the name
-  again when it connects. Exploiting that needs control of an allowlisted institution's DNS. Closing it fully means
-  pinning the connection to the checked address (a custom transport); do that before allowlisting any host you do not
-  trust as much as a bank or a government agency.
+- **DNS rebinding.** Closed for real requests: the research client resolves each host once per request, refuses any
+  non-public answer (including NAT64, 6to4, IPv4-compatible and site-local forms) and connects to that exact
+  address, keeping the original name for the Host header, TLS server name and certificate check. It ignores proxy
+  environment variables, because a proxy resolves names itself. What remains is that the allowlisted hosts themselves
+  are trusted, and that this path was checked by unit tests and by reading `httpcore`, not against a live TLS server.
 - **PDF parser limits.** The child process has a timeout and CPU, memory and output limits, but macOS ignores the memory
   limit. Linux, where the container runs, enforces it.
 - **Heuristic walls.** Login, paywall and challenge detection uses a fixed list of phrases near the top of the page. A
@@ -138,3 +141,8 @@ The tables are additive and nothing outside `research_*` references them. To rem
 scripts/backup.sh                       # Docker deployment; without Docker: scripts/run.sh backup data/backups/before-rollback.db
 sqlite3 data/nzstats.db < scripts/rollback/004_research_down.sql
 ```
+
+Stop (or downgrade) every process that runs the new code first: starting it again re-applies migration 004 and recreates
+the empty tables. The script drops the tables but not the `raw_artifact` rows or the files under `data/raw`; those hold
+third-party document bytes, so delete them too if the source's terms no longer allow storing them. Changing a source to
+`restricted` or `metadata_only` likewise does not remove what was already stored.

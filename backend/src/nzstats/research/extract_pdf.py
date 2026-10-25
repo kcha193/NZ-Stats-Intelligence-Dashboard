@@ -17,6 +17,7 @@ import dataclasses
 import io
 import json
 import logging
+import os
 import subprocess
 import sys
 import tempfile
@@ -113,6 +114,12 @@ def _limit_error() -> IngestError:
     return IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (time or memory)")
 
 
+def _child_env() -> dict[str, str]:
+    """The parser handles hostile bytes, so it gets no secrets: only what a Python process needs to start."""
+    keep = ("PATH", "LANG", "LC_ALL", "SYSTEMROOT")
+    return {k: v for k in keep if (v := os.environ.get(k)) is not None}
+
+
 def _reply_cap(limits: ExtractionLimits) -> int:
     # JSON escapes a character to at most 6 bytes; headings and titles are small and capped.
     return 8 * limits.max_chars + 1024 * 1024
@@ -126,7 +133,7 @@ def _extract_isolated(body: bytes, limits: ExtractionLimits, timeout: float) -> 
         try:
             done = subprocess.run(
                 command, input=body, stdout=out, stderr=subprocess.DEVNULL, timeout=timeout,
-                check=False,
+                check=False, env=_child_env(),
             )  # fmt: skip
         except subprocess.TimeoutExpired:
             raise _limit_error() from None

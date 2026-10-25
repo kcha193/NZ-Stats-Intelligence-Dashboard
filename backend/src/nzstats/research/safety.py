@@ -13,6 +13,8 @@ import socket
 from collections.abc import Callable, Sequence
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
+import httpx
+
 Resolver = Callable[[str], Sequence[str]]
 
 _TRACKING = re.compile(r"^(utm_.*|fbclid|gclid|mc_cid|mc_eid|_hsenc|_hsmi|hsa_.*)$", re.IGNORECASE)
@@ -30,13 +32,26 @@ def system_resolver(host: str) -> list[str]:
     return sorted({info[4][0].split("%", 1)[0] for info in infos})
 
 
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_SITE_LOCAL = ipaddress.ip_network("fec0::/10")
+
+
 def _is_public(address: str) -> bool:
+    """Globally routable, and not an IPv6 form that wraps or aliases private IPv4 or site-local space."""
     try:
         ip = ipaddress.ip_address(address)
     except ValueError:
         return False
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
+    if isinstance(ip, ipaddress.IPv6Address):
+        embedded = [ip.ipv4_mapped, ip.sixtofour]
+        if ip in _NAT64:
+            embedded.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+        if int(ip) >> 32 == 0:  # ::a.b.c.d, the deprecated IPv4-compatible form
+            embedded.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+        if any(v4 is not None and not v4.is_global for v4 in embedded) or ip in _SITE_LOCAL:
+            return False
+        if ip.ipv4_mapped is not None:
+            ip = ip.ipv4_mapped
     return ip.is_global
 
 
@@ -226,3 +241,35 @@ class RobotsRules:
 
 ALLOW_ALL = RobotsRules({})
 DENY_ALL = RobotsRules({"/": False})
+
+
+class PinnedTransport(httpx.BaseTransport):
+    """Connect only to an address that was just checked, closing the DNS-rebinding window.
+
+    `HostPolicy` checks what a name resolves to, but a client that resolves it again when it connects can
+    be given a different answer. This transport resolves once per request, refuses a non-public answer
+    and sends the request to that exact address, keeping the original name for the Host header, TLS server
+    name and certificate check.
+    """
+
+    def __init__(
+        self, resolver: Resolver = system_resolver, inner: httpx.BaseTransport | None = None
+    ) -> None:
+        self._resolver = resolver
+        self._inner = inner or httpx.HTTPTransport()
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        host = request.url.host
+        try:
+            addresses = list(self._resolver(host))
+        except OSError:
+            raise httpx.ConnectError("host does not resolve", request=request) from None
+        if not addresses or not all(_is_public(a) for a in addresses):
+            raise httpx.ConnectError("host resolves to a non-public address", request=request)
+        chosen = next((a for a in addresses if ":" not in a), addresses[0])  # prefer IPv4
+        request.url = request.url.copy_with(host=chosen)
+        request.extensions = {**request.extensions, "sni_hostname": host}
+        return self._inner.handle_request(request)
+
+    def close(self) -> None:
+        self._inner.close()
