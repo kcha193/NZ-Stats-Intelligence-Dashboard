@@ -72,6 +72,21 @@ def kind_of(path: str) -> str:
     return path.removesuffix(".json")
 
 
+# Every kind the exporter writes. Anything else in a snapshot (research data, for example) is refused.
+KNOWN_KINDS = frozenset(
+    "overview cpi ect health calendar releases release series revisions countries".split()
+)
+
+
+def known_kind(path: str) -> str | None:
+    """The kind of a snapshot file, or None for a path the exporter never writes."""
+    try:
+        kind = kind_of(path)
+    except KeyError:
+        return None
+    return kind if kind in KNOWN_KINDS else None
+
+
 def validate_payload(kind: str, payload: Any) -> Any:
     """Validate a payload against the API's own response model; returns the parsed model."""
     if kind == "releases":
