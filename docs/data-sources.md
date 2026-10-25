@@ -7,6 +7,10 @@ with full historical coverage and genuine August/September publication vintages.
 Phase 2B CPI was verified on 19 October 2026: three official CSVs, embedded charts, the workbook and the September 2026 methodology update, with Dec 2025/Mar 2026/Jun 2026 fixtures.
 [CPI source details, measured tolerances and limitations](data-sources/cpi.md).
 
+Phase 3A institutional research sources (RBNZ, Treasury, banks, consultancies) were probed on 25 October 2026. They are a
+separate domain with their own registry and runbook, and none is approved for automated access yet.
+[Research source registry, approval checklist and runbook](data-sources/research.md).
+
 Verified on 2026-10-11 (probes) and 2026-10-12 (real-site integration check, see [progress.md](progress.md)).
 Rules for every source: descriptive User-Agent, at least 10 s between requests to stats.govt.nz
 (`robots.txt` crawl-delay 10; `/admin` and `/Security` are disallowed), aggressive caching, attribution

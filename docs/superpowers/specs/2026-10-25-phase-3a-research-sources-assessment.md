@@ -140,3 +140,22 @@ Rollback: nothing outside `research_*` references them, so `scripts/rollback/004
 | Stats NZ regression | Separate package and tables, import-boundary test, full existing suite, snapshot invariants re-run |
 | PDF parser attack surface | `pypdf` is pure Python, capped by size/page/char limits; residual risk (decompression bombs) documented, with subprocess isolation listed for 3B |
 | Crawl load | 10 s minimum spacing (same floor as Stats NZ), per-institution pacer file and cooldown, `max_documents_per_run` default 5, no scheduler wiring in 3A |
+
+## 5. Implementation notes (2026-10-26)
+
+Where the build differs from the plan, and why:
+
+| Plan | As built | Reason |
+|---|---|---|
+| `doc_key` = `<institution>:<host><path>` | `<institution>:<host><path>[?query]` with tracking parameters removed and the rest sorted | Two reports that differ only by `?id=` must not collide |
+| `Fetcher(url_check=...)` constructor argument | `Fetcher.get(url, url_check=...)` | The check is per request; Stats NZ calls pass nothing and are unchanged |
+| PDF sections split at heading-like lines | One section per page (`pdf-1`) | Heading detection from PDF text is unreliable; exact page references matter more for evidence. A table- and heading-aware `pdf-2` is a Phase 3B option |
+| `pypdf` in process, capped by size and pages | `pypdf>=6` in a child process (`python -I`) with a timeout, CPU, address-space and file-size limits; stderr discarded, reply size checked | Security review: per-stream decompression caps do not bound total memory or CPU, and unbounded child output could be buffered |
+| Reject `<!DOCTYPE`/`<!ENTITY` before parsing | Byte check, then an expat pre-scan whose DOCTYPE/entity handlers refuse | Security review: a UTF-16 body hid its DOCTYPE from the byte pattern |
+| Sitemap dates as a date source | Not used | `lastmod` is a modification time, not a publication date |
+| Dry run records a run | A dry run writes nothing | A probe of an unapproved source should leave no trace beyond logs |
+| Validator: report `kind_of` crash as a finding | Fixed: unknown kinds are a reported validation error | Tightens validation; nothing that was valid fails |
+
+Not done in 3A: no source approved, no real document ingested, no Docker image change for the `research` extra, no
+scheduler wiring. See the Phase 3B plan for what must precede summarisation.
+

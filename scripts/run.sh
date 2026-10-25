@@ -8,7 +8,7 @@
 #   scripts/run.sh --port 9000      any other flags are passed to `nzstats serve`
 #
 # First-time data: run `scripts/run.sh discover` then `scripts/run.sh backfill` (slow, throttled).
-# Subcommands (migrate, discover, ingest, backfill, health, backup, ...) are passed to `nzstats`.
+# Subcommands (migrate, discover, ingest, backfill, health, backup, research, ...) are passed to `nzstats`.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,7 +42,7 @@ mkdir -p "$NZSTATS_DATA_DIR"
 [[ -f "$ROOT/.env" ]] && { set -a; . "$ROOT/.env"; set +a; }
 
 case "${args[0]:-}" in
-  migrate|discover|ingest|backfill|health|backup|openapi)
+  migrate|discover|ingest|backfill|health|backup|openapi|research)
     exec "$VENV/bin/nzstats" "${args[@]}" ;;
   *)
     # Loopback only: the container image binds 0.0.0.0, a dev machine should not.

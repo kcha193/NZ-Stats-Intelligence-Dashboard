@@ -9,7 +9,8 @@ is built; Phases 2 and 3 are in the spec. Resume from [docs/progress.md](docs/pr
   `sources/` (calendar, release page, throttled fetcher) · `adapters/` (file layouts, one per category: migration, ect, cpi) ·
   `validate/` · `stats/` (pure number functions) · `insights/` (deterministic findings with evidence) ·
   `store/` (SQL migrations, repositories) · `pipeline/` (discover, ingest, backfill) · `scheduler/` ·
-  `api/` (read-only, serves the built SPA) · `cli.py`.
+  `api/` (read-only, serves the built SPA) · `cli.py` · `research/` (Phase 3A institutional commentary: a separate
+  domain that no Stats NZ package imports; see `docs/data-sources/research.md`).
 - `frontend/`: React 19, TypeScript, Vite, Tailwind 4, shadcn/ui (Base UI flavour), ECharts, TanStack Query.
   `src/charts/` holds option builders; pages in `src/pages/`; API types are generated.
 - `config/sources.toml`: Stats NZ endpoints, polling offsets, backfill window. `scripts/`: seed, fixtures, backup.

@@ -115,3 +115,32 @@ A second, optional delivery path. The private app is unchanged; the public site 
 - `nzstats publish-site` (container `Dockerfile.publisher`) exports, validates, builds and deploys with the Netlify CLI
   when the data changed. See [netlify-deployment.md](netlify-deployment.md).
 
+
+## Institutional research commentary (Phase 3A)
+
+A separate domain (`backend/src/nzstats/research/`, tables `research_*` from migration `004_research.sql`) for economic
+commentary from RBNZ, the Treasury, banks and consultancies. Commentary is not official statistics, so it never enters
+`release`, `series`, `vintage`, `observation`, `ingest_run` or `source_health`, and the API and snapshot never read it.
+No Stats NZ package imports `nzstats.research` (an AST test enforces this); research reuses only the fetcher, artifact
+store, database helpers, domain errors and clock.
+
+```
+config/research_sources.toml -> registry (fail-closed approval)
+  -> discover (rss | sitemap | html_links)        listing pages only; DTD-free XML
+  -> ResearchFetcher                               allowlist + public-DNS + robots on every hop; per-institution pacer
+  -> extract_html | extract_pdf (child process)    sections with offsets and pages; text is untrusted data
+  -> validate                                      walls, challenges, too short, truncated vs previous
+  -> store (one transaction per document)          publication -> versions -> sections; runs, items, health
+contract.py: Phase 3B output schema and deterministic evidence verifier (no LLM call in 3A)
+```
+
+| Table | Purpose |
+|---|---|
+| `research_institution` | key, name and the review status and content policy in force when last synced |
+| `research_publication` | stable `doc_key`, canonical URL, title, series, categories, `published_on` (NZ civil date), `published_at` (UTC, only when stated), precision, `reference_period` (never derived), content status, current version, duplicate link, first/last seen |
+| `research_document_version` | one per distinct extracted text: raw and text hashes, format, fetched/extracted times, extractor version, raw artifact, counts, licence snapshot, `superseded_at` |
+| `research_section` | evidence anchors: ordinal, heading, text, pages, character offsets |
+| `research_run`, `research_run_item` | every run and each URL's outcome with a fixed-vocabulary detail |
+| `research_source_health` | per institution: state, last checked/success, consecutive failures |
+
+Runbook: [data-sources/research.md](data-sources/research.md). Rollback: `scripts/rollback/004_research_down.sql`.

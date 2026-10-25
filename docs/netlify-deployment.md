@@ -169,6 +169,36 @@ plan or a lower deploy count. Levers: raise `PUBLISH_MIN_INTERVAL_HOURS`, publis
 2.6 MB of JSON (card transactions is two thirds of it). Mid-month deploys are only worth their cost when a release or
 correction has landed.
 
+## Research sources and the public site (Phase 3A)
+
+Institutional research commentary ([data-sources/research.md](data-sources/research.md)) is **not published**, and
+nothing in Phase 3A changes that:
+
+- The exporter writes only the fixed Stats NZ kinds and reads only the tables the API reads; the `research_*` tables are
+  never queried. A test inserts a full research publication and proves the export is byte-identical.
+- The validator rejects any file whose kind the exporter does not write (for example a stray `research/x.json`) as an
+  error. Before Phase 3A such a file crashed validation, which still failed closed but gave no reason.
+- `is_stats_nz_url` and `SOURCE_HOSTS` are unchanged: a bank, RBNZ or Treasury link anywhere in a payload fails validation.
+
+If research content is ever published, it must be a **separate, opt-in extension** that leaves every rule above intact:
+
+1. **Separate kinds and directory.** New kinds (for example `research/index.json`, `research/<institution>.json`) with
+   their own response models, never mixed into existing payloads. `KNOWN_KINDS` gains them only behind a flag such as
+   `PUBLISH_RESEARCH=1`. Without the flag, the snapshot is exactly today's.
+2. **A separate host allowlist.** Research links are checked by their own `is_research_url(url, institution)`, built from
+   the registry's `allowed_hosts` for **approved** institutions with `public_display != "none"`. `SOURCE_HOSTS` is not
+   widened, and Stats NZ payloads keep requiring stats.govt.nz.
+3. **Content rules per source.** `public_display` decides what may appear: `none` (nothing; the default),
+   `link_only` (title, institution, publication date, original URL) or `excerpt` (additionally a short quote under a
+   per-source character limit, only where the terms allow it). Report bodies, sections, raw files, PDF text and run
+   detail are never exported.
+4. **Reviewed AI output only.** A Phase 3B summary may be exported only when its `review_status` is `approved` by a
+   human, its `verify_summary` result is empty, and its labels (`not_official_statistic`, model provenance) are
+   exported with it. Unreviewed or failed summaries are not exported.
+5. **The same leak scan and fixture refusal** apply, plus a check that no `research_section` text longer than the
+   source's excerpt limit appears in any file.
+6. **Publication stays off** unless `PUBLISH_ENABLED=1`, and research additionally needs its own flag.
+
 ## Remaining operational risks
 
 - **The Netlify token can change or delete the site** and lives on the host in `.env.publisher` (mode 600). Use a
