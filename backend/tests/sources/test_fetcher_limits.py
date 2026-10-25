@@ -4,6 +4,8 @@ Both default to off, so the Stats NZ fetch path is unchanged (see the rest of th
 """
 
 import gzip
+import tracemalloc
+import zlib
 
 import httpx
 import pytest
@@ -56,6 +58,57 @@ def test_cap_applies_to_the_decompressed_size():
 
     with pytest.raises(IngestError, match="larger than"):
         _fetcher(handler, max_bytes=10_000).get("https://h.test/a")
+
+
+def test_a_decompression_bomb_is_never_inflated_past_the_cap_in_memory():
+    bomb = gzip.compress(b"0" * 300_000_000)
+    assert len(bomb) < 400_000
+
+    def handler(request):  # a real stream: Response(content=...) would inflate inside the mock
+        return httpx.Response(
+            200, stream=httpx.ByteStream(bomb), headers={"content-encoding": "gzip"}
+        )
+
+    tracemalloc.start()
+    try:
+        with pytest.raises(IngestError, match="larger than"):
+            _fetcher(handler, max_bytes=10_000).get("https://h.test/a")
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 20_000_000
+
+
+def test_deflate_within_the_cap_is_decoded_and_unknown_encodings_are_refused():
+    payload = b"hello " * 10
+
+    def deflate(request):
+        return httpx.Response(
+            200,
+            stream=httpx.ByteStream(zlib.compress(payload)),
+            headers={"content-encoding": "deflate"},
+        )
+
+    assert _fetcher(deflate, max_bytes=10_000).get("https://h.test/a").body == payload
+
+    def brotli(request):
+        return httpx.Response(
+            200, stream=httpx.ByteStream(b"xx"), headers={"content-encoding": "br"}
+        )
+
+    with pytest.raises(IngestError, match="content-encoding"):
+        _fetcher(brotli, max_bytes=10_000).get("https://h.test/a")
+
+
+def test_capped_requests_only_advertise_encodings_that_can_be_bounded():
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers["accept-encoding"])
+        return httpx.Response(200, content=b"ok")
+
+    _fetcher(handler, max_bytes=100).get("https://h.test/a")
+    assert seen == ["gzip, deflate"]
 
 
 def test_compressed_body_within_the_cap_is_decoded_once():

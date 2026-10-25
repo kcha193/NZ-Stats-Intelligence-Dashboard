@@ -166,6 +166,9 @@ def _one(
         if exc.error_class is ErrorClass.BLOCKED and str(exc) == "challenge_page":
             raise _StopRun(_failed(url, exc)) from None
         return _failed(url, exc)
+    except Exception as exc:  # a parser bug on hostile input fails this document, not the run
+        log.exception("extracting %s failed", url)
+        return _failed(url, exc)
     published, date_warnings = _published(inst, extracted.published_hint, candidate, now_fn())
     warnings += date_warnings
     try:

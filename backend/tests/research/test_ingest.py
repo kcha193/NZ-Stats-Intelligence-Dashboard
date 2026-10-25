@@ -291,6 +291,39 @@ def test_one_bad_document_does_not_stop_the_rest(conn):
     assert outcomes(result) == ["failed", "new"] and result.outcome == "partial"
 
 
+def test_deeply_nested_json_ld_does_not_abort_the_run(conn):
+    nested = "[" * 200_000 + "]" * 200_000
+    page = report("A").replace(
+        "</head>", f'<script type="application/ld+json">{nested}</script></head>'
+    )
+    web = site(**{LISTING: listing(DOC_A, DOC_B), DOC_A: page, DOC_B: report("B")})
+    result = run(conn, institution(), web)
+    assert outcomes(result) == ["new", "new"]
+
+
+def test_an_unexpected_extractor_error_fails_that_document_only(conn, monkeypatch):
+    from nzstats.research import ingest
+
+    real = ingest.extract_html
+
+    def flaky(body, content_type, limits):
+        if b"Report A" in body:
+            raise RuntimeError("secret upstream detail")
+        return real(body, content_type, limits)
+
+    monkeypatch.setattr(ingest, "extract_html", flaky)
+    web = site(
+        **{
+            LISTING: listing(DOC_A, DOC_B),
+            DOC_A: report("Report A"),
+            DOC_B: report("B"),
+        }
+    )
+    result = run(conn, institution(), web)
+    assert outcomes(result) == ["failed", "new"]
+    assert "secret upstream detail" not in repr(result.items[0])
+
+
 def test_robots_and_unsafe_candidates_are_skipped_not_fetched(conn):
     members = f"{BASE}/members/report"
     web = site(**{LISTING: listing(members, DOC_A), DOC_A: report("A")})

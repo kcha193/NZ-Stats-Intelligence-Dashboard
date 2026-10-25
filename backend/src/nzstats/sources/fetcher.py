@@ -9,6 +9,7 @@ import math
 import os
 import re
 import time
+import zlib
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
@@ -410,25 +411,67 @@ class Fetcher:
     def _send(self, url: str) -> httpx.Response:
         if self._max_bytes is None:
             return self._client.get(url, follow_redirects=False)
-        with self._client.stream("GET", url, follow_redirects=False) as resp:
+        # Only advertise encodings that can be decompressed with an output limit (see _bounded_body).
+        request_headers = {"Accept-Encoding": "gzip, deflate"}
+        with self._client.stream(
+            "GET", url, headers=request_headers, follow_redirects=False
+        ) as resp:
             declared = _finite(resp.headers.get("content-length", ""))
             if declared is not None and declared > self._max_bytes:
                 raise self._too_large(url)
-            chunks: list[bytes] = []
-            size = 0
-            for chunk in resp.iter_bytes():  # decoded bytes: the cap also bounds decompression
-                size += len(chunk)
-                if size > self._max_bytes:
-                    raise self._too_large(url)
-                chunks.append(chunk)
+            body = self._bounded_body(url, resp)
             headers = [
                 (k, v)
                 for k, v in resp.headers.multi_items()
                 if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
             ]
             return httpx.Response(
-                resp.status_code, headers=headers, content=b"".join(chunks), request=resp.request
+                resp.status_code, headers=headers, content=body, request=resp.request
             )
+
+    def _bounded_body(self, url: str, resp: httpx.Response) -> bytes:
+        """Read the body without ever holding more than the cap (plus one chunk) decoded.
+
+        httpx would decompress a whole network chunk at once, so a small gzip bomb could allocate far more
+        than the cap before the size check ran. Decode the raw bytes here with an output limit instead.
+        """
+        assert self._max_bytes is not None
+        cap = self._max_bytes
+        if (
+            resp.is_stream_consumed
+        ):  # already read and decoded by the transport (in-memory responses)
+            if len(resp.content) > cap:
+                raise self._too_large(url)
+            return resp.content
+        encoding = resp.headers.get("content-encoding", "").strip().lower()
+        if encoding in ("", "identity"):
+            decoder = None
+        elif encoding in ("gzip", "x-gzip", "deflate"):
+            decoder = zlib.decompressobj(
+                wbits=zlib.MAX_WBITS | 32
+            )  # zlib or gzip header, auto-detected
+        else:
+            raise IngestError(
+                ErrorClass.UNEXPECTED, f"unsupported content-encoding {encoding!r}", url=url
+            )
+        out = bytearray()
+        for raw in resp.iter_raw():
+            data = raw
+            while data:
+                if decoder is None:
+                    piece, data = data, b""
+                else:
+                    try:
+                        piece = decoder.decompress(data, cap - len(out) + 1)
+                    except zlib.error:
+                        raise IngestError(
+                            ErrorClass.UNEXPECTED, "undecodable response body", url=url
+                        ) from None
+                    data = decoder.unconsumed_tail
+                out += piece
+                if len(out) > cap:
+                    raise self._too_large(url)
+        return bytes(out)
 
     def _too_large(self, url: str) -> IngestError:
         return IngestError(

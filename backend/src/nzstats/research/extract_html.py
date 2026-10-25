@@ -266,7 +266,7 @@ def extract_html(body: bytes, content_type: str, limits: ExtractionLimits) -> Ex
     for block in parser.ld_blocks:
         try:
             ld_date = _ld_date(json.loads(block))
-        except ValueError:
+        except (ValueError, RecursionError):  # malformed or absurdly nested JSON-LD: no date hint
             continue
         if ld_date:
             break
