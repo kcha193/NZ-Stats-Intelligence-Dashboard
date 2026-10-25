@@ -310,3 +310,12 @@ def test_non_ascii_and_encoded_forms_are_one_form():
 def test_multicast_and_ipv4_translated_addresses_are_not_public(address):
     with pytest.raises(UnsafeUrl, match="non-public"):
         policy(resolver=lambda host: [address]).check("https://www.anz.co.nz/a")
+
+
+@pytest.mark.parametrize(
+    "path", ["/nz/%2Fprivate/x", "/nz%2F%2Fprivate/x", "/nz/private%2F/x", "/nz%2Fprivate/x"]
+)
+def test_an_encoded_slash_cannot_reintroduce_a_double_slash_past_the_blocklist(path):
+    p = policy(hosts=("www.deloitte.com",), blocked_path_prefixes=("/nz/private/",))
+    with pytest.raises(UnsafeUrl, match="path"):
+        p.check(f"https://www.deloitte.com{path}")

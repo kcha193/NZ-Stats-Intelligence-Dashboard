@@ -122,6 +122,11 @@ def normalise_url(url: str) -> str:
     return urlunsplit((parts.scheme.lower(), f"{host}{port}", path, urlencode(query), ""))
 
 
+def _fold(path: str) -> str:
+    """Blocklist form: an encoded slash is a separator (a server may read it so), then slashes collapse."""
+    return re.sub(r"/{2,}", "/", path.replace("%2F", "/")).lower()
+
+
 class HostPolicy:
     def __init__(
         self,
@@ -166,10 +171,8 @@ class HostPolicy:
             raise UnsafeUrl("path traversal")
         if self._allowed and not any(path.startswith(p) for p in self._allowed):
             raise UnsafeUrl("path is outside the allowed prefixes")
-        folded = path.replace(
-            "%2F", "/"
-        ).lower()  # a server may read an encoded slash as a separator
-        if any(folded.startswith(p.replace("%2F", "/").lower()) for p in self._blocked):
+        folded = _fold(path)
+        if any(folded.startswith(_fold(p)) for p in self._blocked):
             raise UnsafeUrl("path is blocked")
 
     def _check_addresses(self, host: str) -> None:
