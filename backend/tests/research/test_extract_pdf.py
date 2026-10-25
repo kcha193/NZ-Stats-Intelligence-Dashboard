@@ -9,6 +9,14 @@ from nzstats.research.extract_pdf import EXTRACTOR_VERSION, extract_pdf
 from .pdf_support import encrypted_pdf, text_pdf
 
 LIMITS = ExtractionLimits()
+
+
+@pytest.fixture(autouse=True)
+def _in_process(monkeypatch):
+    # Most tests run the parser in process (fast); the isolated path has its own tests below.
+    monkeypatch.setattr("nzstats.research.extract_pdf.ISOLATE_DEFAULT", False)
+
+
 PAGES = [
     ["Example Outlook (SYNTHETIC FIXTURE)", "Growth in the example economy is assumed flat."],
     [],  # a page with no text layer, e.g. a chart
@@ -95,3 +103,21 @@ def test_missing_pdf_support_is_a_clear_error(monkeypatch):
         extract_pdf(text_pdf(PAGES), LIMITS)
     assert exc.value.error_class is ErrorClass.UNEXPECTED
     assert "pdf_support_not_installed" in str(exc.value)
+
+
+def test_isolated_extraction_matches_in_process_extraction():
+    body = text_pdf(PAGES, title="Example Outlook")
+    assert extract_pdf(body, LIMITS, isolate=True) == extract_pdf(body, LIMITS, isolate=False)
+
+
+def test_isolated_extraction_reports_classified_errors():
+    with pytest.raises(IngestError) as exc:
+        extract_pdf(encrypted_pdf(PAGES), LIMITS, isolate=True)
+    assert exc.value.error_class is ErrorClass.BLOCKED
+
+
+def test_isolated_extraction_that_runs_too_long_is_stopped():
+    with pytest.raises(IngestError) as exc:
+        extract_pdf(text_pdf(PAGES), LIMITS, isolate=True, timeout=0.001)
+    assert exc.value.error_class is ErrorClass.VALIDATION_FAILED
+    assert "pdf_extraction_limit" in str(exc.value)

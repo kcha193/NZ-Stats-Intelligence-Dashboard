@@ -4,32 +4,58 @@ Sections are per page so that every evidence reference has an exact page number;
 from PDF text is unreliable and is left to a later extractor version. PDF metadata dates are when a
 file was made, not when it was published, so no date hint comes from here. Encrypted PDFs are treated
 as access-restricted, never decrypted.
+
+A PDF is a program-like format and the bytes are untrusted, so by default the parser runs in a
+short-lived child process (`python -I -m nzstats.research.extract_pdf`) with a wall-clock timeout and,
+where the OS supports them, CPU-time and address-space limits. A decompression bomb or a parser loop
+then costs one child, not the scheduler process. Only JSON crosses back.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import io
+import json
 import logging
+import subprocess
+import sys
 
 from nzstats.domain import ErrorClass, IngestError
 from nzstats.research.extract import (
     Extracted,
     ExtractionLimits,
+    Section,
     build_sections,
     clean_text,
     too_long,
 )
 
 EXTRACTOR_VERSION = "pdf-1"
+ISOLATE_DEFAULT = True
+PDF_TIMEOUT_SECONDS = 60.0
+CHILD_MEMORY_BYTES = 1024 * 1024 * 1024
+CHILD_CPU_SECONDS = 60
 
 log = logging.getLogger(__name__)
 
 
-def extract_pdf(body: bytes, limits: ExtractionLimits) -> Extracted:
+def extract_pdf(
+    body: bytes,
+    limits: ExtractionLimits,
+    *,
+    isolate: bool | None = None,
+    timeout: float = PDF_TIMEOUT_SECONDS,
+) -> Extracted:
     if len(body) > limits.max_pdf_bytes:
         raise IngestError(ErrorClass.VALIDATION_FAILED, "pdf too large")
     if b"%PDF-" not in body[:1024]:
         raise IngestError(ErrorClass.LAYOUT_CHANGED, "not a pdf (no %PDF- header)")
+    if isolate if isolate is not None else ISOLATE_DEFAULT:
+        return _extract_isolated(body, limits, timeout)
+    return _extract(body, limits)
+
+
+def _extract(body: bytes, limits: ExtractionLimits) -> Extracted:
     try:
         from pypdf import PdfReader
     except ImportError:
@@ -79,3 +105,61 @@ def _title(reader) -> str | None:
     raw = reader.metadata.title if reader.metadata else None
     title = " ".join(clean_text(str(raw)).split()) if raw else ""
     return title[:300] or None
+
+
+def _limit_error() -> IngestError:
+    return IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (time or memory)")
+
+
+def _extract_isolated(body: bytes, limits: ExtractionLimits, timeout: float) -> Extracted:
+    command = [sys.executable, "-I", "-m", __name__, json.dumps(dataclasses.asdict(limits))]
+    try:
+        done = subprocess.run(
+            command, input=body, capture_output=True, timeout=timeout, check=False
+        )
+    except subprocess.TimeoutExpired:
+        raise _limit_error() from None
+    try:
+        reply = json.loads(done.stdout)
+    except ValueError:
+        log.warning("pdf child exited %s without a result", done.returncode)
+        raise _limit_error() from None
+    if "error" in reply:
+        error_class, message = reply["error"]
+        raise IngestError(ErrorClass(error_class), str(message))
+    data = reply["ok"]
+    data["sections"] = tuple(Section(**s) for s in data["sections"])
+    data["warnings"] = tuple(data["warnings"])
+    return Extracted(**data)
+
+
+def _apply_child_limits() -> None:
+    try:
+        import resource
+    except ImportError:  # not POSIX: the parent's timeout still applies
+        return
+    for name, value in (("RLIMIT_AS", CHILD_MEMORY_BYTES), ("RLIMIT_CPU", CHILD_CPU_SECONDS)):
+        limit = getattr(resource, name, None)
+        if limit is None:
+            continue
+        try:
+            resource.setrlimit(limit, (value, value))
+        except (ValueError, OSError):
+            pass  # e.g. macOS refuses RLIMIT_AS; the parent's timeout still applies
+
+
+def _child_main() -> int:
+    _apply_child_limits()
+    limits = ExtractionLimits(**json.loads(sys.argv[1]))
+    try:
+        result = {"ok": dataclasses.asdict(_extract(sys.stdin.buffer.read(), limits))}
+    except IngestError as exc:
+        result = {"error": [exc.error_class.value, str(exc)]}
+    except MemoryError:
+        result = {"error": [ErrorClass.VALIDATION_FAILED.value, str(_limit_error())]}
+    sys.stdout.write(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_child_main())
