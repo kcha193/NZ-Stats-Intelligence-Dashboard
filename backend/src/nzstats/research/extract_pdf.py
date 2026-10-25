@@ -19,6 +19,8 @@ import json
 import logging
 import subprocess
 import sys
+import tempfile
+import warnings
 
 from nzstats.domain import ErrorClass, IngestError
 from nzstats.research.extract import (
@@ -111,16 +113,30 @@ def _limit_error() -> IngestError:
     return IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (time or memory)")
 
 
+def _reply_cap(limits: ExtractionLimits) -> int:
+    # JSON escapes a character to at most 6 bytes; headings and titles are small and capped.
+    return 8 * limits.max_chars + 1024 * 1024
+
+
 def _extract_isolated(body: bytes, limits: ExtractionLimits, timeout: float) -> Extracted:
     command = [sys.executable, "-I", "-m", __name__, json.dumps(dataclasses.asdict(limits))]
+    # The reply goes to a file, not a pipe buffer, and stderr (parser warnings) is discarded, so a
+    # hostile document cannot make this process buffer unbounded output.
+    with tempfile.TemporaryFile() as out:
+        try:
+            done = subprocess.run(
+                command, input=body, stdout=out, stderr=subprocess.DEVNULL, timeout=timeout,
+                check=False,
+            )  # fmt: skip
+        except subprocess.TimeoutExpired:
+            raise _limit_error() from None
+        size = out.seek(0, 2)
+        if size > _reply_cap(limits):
+            raise _limit_error()
+        out.seek(0)
+        raw = out.read()
     try:
-        done = subprocess.run(
-            command, input=body, capture_output=True, timeout=timeout, check=False
-        )
-    except subprocess.TimeoutExpired:
-        raise _limit_error() from None
-    try:
-        reply = json.loads(done.stdout)
+        reply = json.loads(raw)
     except ValueError:
         log.warning("pdf child exited %s without a result", done.returncode)
         raise _limit_error() from None
@@ -133,12 +149,18 @@ def _extract_isolated(body: bytes, limits: ExtractionLimits, timeout: float) -> 
     return Extracted(**data)
 
 
-def _apply_child_limits() -> None:
+def _apply_child_limits(limits: ExtractionLimits) -> None:
+    logging.disable(logging.CRITICAL)
+    warnings.simplefilter("ignore")
     try:
         import resource
     except ImportError:  # not POSIX: the parent's timeout still applies
         return
-    for name, value in (("RLIMIT_AS", CHILD_MEMORY_BYTES), ("RLIMIT_CPU", CHILD_CPU_SECONDS)):
+    for name, value in (
+        ("RLIMIT_AS", CHILD_MEMORY_BYTES),
+        ("RLIMIT_CPU", CHILD_CPU_SECONDS),
+        ("RLIMIT_FSIZE", _reply_cap(limits)),  # bounds the reply file
+    ):
         limit = getattr(resource, name, None)
         if limit is None:
             continue
@@ -149,8 +171,8 @@ def _apply_child_limits() -> None:
 
 
 def _child_main() -> int:
-    _apply_child_limits()
     limits = ExtractionLimits(**json.loads(sys.argv[1]))
+    _apply_child_limits(limits)
     try:
         result = {"ok": dataclasses.asdict(_extract(sys.stdin.buffer.read(), limits))}
     except IngestError as exc:

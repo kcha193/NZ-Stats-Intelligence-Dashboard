@@ -121,3 +121,9 @@ def test_isolated_extraction_that_runs_too_long_is_stopped():
         extract_pdf(text_pdf(PAGES), LIMITS, isolate=True, timeout=0.001)
     assert exc.value.error_class is ErrorClass.VALIDATION_FAILED
     assert "pdf_extraction_limit" in str(exc.value)
+
+
+def test_isolated_reply_over_the_cap_is_refused(monkeypatch):
+    monkeypatch.setattr("nzstats.research.extract_pdf._reply_cap", lambda limits: 10)
+    with pytest.raises(IngestError, match="pdf_extraction_limit"):
+        extract_pdf(text_pdf(PAGES), LIMITS, isolate=True)
