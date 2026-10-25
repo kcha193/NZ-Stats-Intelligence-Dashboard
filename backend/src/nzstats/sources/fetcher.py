@@ -302,8 +302,12 @@ class Fetcher:
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = utc_now,
         pacer: FilePacer | None = None,
+        max_bytes: int | None = None,
     ) -> None:
         self._client = client
+        # None keeps the original unbounded behaviour (Stats NZ). Research fetchers set a cap so a
+        # hostile or broken server cannot make us buffer an arbitrarily large response.
+        self._max_bytes = max_bytes
         self._min_interval = min_interval
         self._max_retries = max_retries
         self._backoff_base = backoff_base
@@ -321,7 +325,21 @@ class Fetcher:
             if wait > 0:
                 self._sleep(wait)
 
-    def get(self, url: str, *, expect: tuple[str, ...] = (), _hops: int = 0) -> FetchResult:
+    def get(
+        self,
+        url: str,
+        *,
+        expect: tuple[str, ...] = (),
+        url_check: Callable[[str], object] | None = None,
+        _hops: int = 0,
+    ) -> FetchResult:
+        """Fetch `url`. `url_check`, when given, runs on this URL and on every redirect target before
+        it is requested and must raise ValueError to refuse (the refusal text is not echoed)."""
+        if url_check is not None:
+            try:
+                url_check(url)
+            except ValueError:
+                raise IngestError(ErrorClass.UNEXPECTED, f"url refused: {url}", url=url) from None
         self._refuse_if_cooling_down(url)
         last_problem = "no response"
         for attempt in range(self._max_retries + 1):
@@ -333,10 +351,13 @@ class Fetcher:
                     self._refuse_retry(url)
                 self._throttle()
                 try:
-                    resp = self._client.get(url, follow_redirects=False)
+                    resp = self._send(url)
                     transport_error = None
                 except httpx.TransportError as exc:
                     resp, transport_error = None, exc
+                except IngestError:
+                    self._last_request = self._clock()
+                    raise
                 self._last_request = self._clock()
                 # Classified and published before the turn ends, so the next process to take the
                 # lock already sees the cooldown.
@@ -366,7 +387,7 @@ class Fetcher:
             if status == 404:
                 raise IngestError(ErrorClass.NOT_FOUND, f"404 for {url}", url=url)
             if status in REDIRECT_STATUSES and "location" in resp.headers:
-                return self._follow(url, resp.headers["location"], expect, _hops)
+                return self._follow(url, resp.headers["location"], expect, _hops, url_check)
             if status == 429 or status >= 500:
                 last_problem = f"HTTP {status}"
                 log.warning("fetch %s -> %s, attempt %d", url, status, attempt + 1)
@@ -385,6 +406,34 @@ class Fetcher:
                 )
             return FetchResult(url, status, ctype, resp.content, self._now())
         raise IngestError(ErrorClass.NETWORK, f"gave up on {url}: {last_problem}", url=url)
+
+    def _send(self, url: str) -> httpx.Response:
+        if self._max_bytes is None:
+            return self._client.get(url, follow_redirects=False)
+        with self._client.stream("GET", url, follow_redirects=False) as resp:
+            declared = _finite(resp.headers.get("content-length", ""))
+            if declared is not None and declared > self._max_bytes:
+                raise self._too_large(url)
+            chunks: list[bytes] = []
+            size = 0
+            for chunk in resp.iter_bytes():  # decoded bytes: the cap also bounds decompression
+                size += len(chunk)
+                if size > self._max_bytes:
+                    raise self._too_large(url)
+                chunks.append(chunk)
+            headers = [
+                (k, v)
+                for k, v in resp.headers.multi_items()
+                if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+            ]
+            return httpx.Response(
+                resp.status_code, headers=headers, content=b"".join(chunks), request=resp.request
+            )
+
+    def _too_large(self, url: str) -> IngestError:
+        return IngestError(
+            ErrorClass.UNEXPECTED, f"response larger than {self._max_bytes} bytes", url=url
+        )
 
     def _refuse_if_cooling_down(self, url: str) -> None:
         if self._blocked_until is not None and self._clock() < self._blocked_until:
@@ -451,13 +500,20 @@ class Fetcher:
             return IngestError(ErrorClass.BLOCKED, message, url=url)
         return None
 
-    def _follow(self, url: str, location: str, expect: tuple[str, ...], hops: int) -> FetchResult:
+    def _follow(
+        self,
+        url: str,
+        location: str,
+        expect: tuple[str, ...],
+        hops: int,
+        url_check: Callable[[str], object] | None = None,
+    ) -> FetchResult:
         target = httpx.URL(url).join(location)
         if target.host != httpx.URL(url).host:
             raise IngestError(ErrorClass.UNEXPECTED, f"redirected off-site from {url}", url=url)
         if hops >= MAX_REDIRECTS:
             raise IngestError(ErrorClass.UNEXPECTED, f"too many redirects from {url}", url=url)
-        return self.get(str(target), expect=expect, _hops=hops + 1)
+        return self.get(str(target), expect=expect, url_check=url_check, _hops=hops + 1)
 
     def _backoff(self, attempt: int, retry_after: float | None = None) -> None:
         if attempt < self._max_retries:
