@@ -22,10 +22,12 @@ from typing import Any
 
 from nzstats.research.contract import (
     ForecastClaim,
+    LlmLimits,
     ModelProvenance,
     OutlookSummary,
     Provider,
     SectionText,
+    SummaryRequest,
     assemble,
     build_request,
     parse_draft,
@@ -193,6 +195,33 @@ _LABELS = {
 }
 
 
+class EvalBudgetExceeded(RuntimeError):
+    """The next live request could take the evaluation past its run budget; it was not sent."""
+
+
+@dataclass
+class EvalBudget:
+    """The run budget for a live evaluation, enforced the way `summarise` enforces it: the worst-case
+    cost of a request (its estimated input plus the output cap) must fit in what is left."""
+
+    pricing: Pricing
+    limits: LlmLimits
+    spent_usd: float = 0.0
+
+    def check(self, request: SummaryRequest) -> None:
+        worst = self.pricing.cost(
+            estimate_tokens(request_chars(request)), self.limits.max_output_tokens
+        )
+        if self.spent_usd + worst > self.limits.max_run_usd:
+            raise EvalBudgetExceeded(
+                f"the next request could cost ${worst:.4f} with ${self.spent_usd:.4f} already spent,"
+                f" over the ${self.limits.max_run_usd:.2f} run budget"
+            )
+
+    def record(self, input_tokens: int, output_tokens: int) -> None:
+        self.spent_usd += self.pricing.cost(input_tokens, output_tokens)
+
+
 def rate(numerator: float, denominator: float) -> float | None:
     return None if denominator == 0 else numerator / denominator
 
@@ -213,6 +242,8 @@ def horizon_key(text: str) -> frozenset[str]:
             tokens.add(f"q:{m.group(1) or _ORDINAL.get(word) or word[0]}")
     elif _YEAR_TO.search(t):
         tokens.add("year_to")
+    if not tokens - {"quarter", "year_to"}:  # "next year", "this quarter": only relative wording
+        tokens.add("rel:" + " ".join(re.findall(r"[a-z]+", t)))
     return frozenset(tokens)
 
 
@@ -326,11 +357,13 @@ def expand_output(output: Mapping[str, Any], version_ids: Mapping[str, int], ver
 
 # --- running -----------------------------------------------------------------------------------
 def _summarise_one(
-    case: Case, version: str, provider: Provider
+    case: Case, version: str, provider: Provider, budget: EvalBudget | None = None
 ) -> tuple[OutlookSummary | None, Any, float, int, int, bool]:
     sections = case.versions[version]
     request = build_request(case.version_ids[version], sections, prompt_version=PROMPT_VERSION,
                             published_on=case.published_on)  # fmt: skip
+    if budget is not None:
+        budget.check(request)
     started = time.perf_counter()
     response = provider.summarise(request)
     latency = (time.perf_counter() - started) * 1000
@@ -345,6 +378,8 @@ def _summarise_one(
         if response.output_tokens is not None
         else estimate_tokens(len(response.text))
     )
+    if budget is not None:
+        budget.record(in_tok, out_tok)
     try:
         draft = parse_draft(response.text)
     except ValueError:
@@ -371,7 +406,10 @@ def run_eval(
     *,
     pricing: Mapping[str, Pricing] | None = None,
     provider: Provider | None = None,
+    budget: EvalBudget | None = None,
 ) -> EvalReport:
+    if provider is not None and budget is None:
+        raise ValueError("a live evaluation needs a budget: nothing may be sent without one")
     report = EvalReport("live" if provider is not None else "replay")
     for case in cases:
         for candidate in case.candidates:
@@ -387,13 +425,17 @@ def run_eval(
                                                  candidate.expected_warnings, errors, warnings))  # fmt: skip
                 continue
             source = provider if provider is not None else _replay(case, candidate)
-            report.models.append(_model_result(case, candidate.version, source))
+            report.models.append(_model_result(case, candidate.version, source, budget))
     _aggregate(report, pricing or PRICE_POINTS)
     return report
 
 
-def _model_result(case: Case, version: str, provider: Provider) -> ModelResult:
-    summary, result, latency, in_tok, out_tok, estimated = _summarise_one(case, version, provider)
+def _model_result(
+    case: Case, version: str, provider: Provider, budget: EvalBudget | None = None
+) -> ModelResult:
+    summary, result, latency, in_tok, out_tok, estimated = _summarise_one(
+        case, version, provider, budget
+    )
     gold = case.gold[version]
     if summary is None or result is None:
         empty = extraction_counts([], gold.forecasts)

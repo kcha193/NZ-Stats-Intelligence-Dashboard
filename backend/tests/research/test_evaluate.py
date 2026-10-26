@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from nzstats.research import evaluate as ev
-from nzstats.research.contract import ForecastClaim
-from nzstats.research.providers import Pricing
+from nzstats.research.contract import ForecastClaim, LlmLimits
+from nzstats.research.providers import FakeProvider, Pricing
 
 EVAL_SET = Path(__file__).parent / "eval_set"
 
@@ -109,3 +109,68 @@ def test_markdown_report_names_the_limitations(report):
 
 def test_clean_probes_are_never_rejected(report):
     assert report.metrics["probe_false_rejection_rate"] == 0.0
+
+
+# --- relative horizons keep their wording -----------------------------------------------------
+@pytest.mark.parametrize(
+    ("a", "b", "same"),
+    [("next year", "this year", False), ("next year", "Next  year.", True),
+     ("next month", "next year", False), ("this quarter", "next quarter", False),
+     ("medium term", "long term", False), ("next year", "2027", False)],
+)  # fmt: skip
+def test_relative_horizons_are_not_collapsed_to_one_empty_key(a, b, same):
+    assert ev.horizon_key(a)  # never empty, so two different relative wordings cannot align
+    assert (ev.horizon_key(a) == ev.horizon_key(b)) is same
+
+
+def test_a_forecast_for_a_different_relative_period_is_not_credited():
+    gold = [ev.GoldClaim("house_prices", "next year", 3.0, "percent", None)]
+    wrong = ev.extraction_counts([fc("house_prices", "this year", 3.0)], gold)
+    right = ev.extraction_counts([fc("house_prices", "next year", 3.0)], gold)
+    assert (wrong["aligned"], wrong["correct"], wrong["value_correct"]) == (0, 0, 0)
+    assert (right["aligned"], right["correct"], right["value_correct"]) == (1, 1, 1)
+
+
+# --- a live evaluation spends only within the configured run budget -----------------------------
+PRICE = Pricing(4.0, 20.0)
+
+
+def live_cases():
+    return ev.load_eval_set(EVAL_SET)
+
+
+def test_a_live_evaluation_without_a_budget_is_refused_before_any_request():
+    fake = FakeProvider("{}")
+    with pytest.raises(ValueError, match="budget"):
+        ev.run_eval(live_cases(), provider=fake)
+    assert fake.calls == []
+
+
+def test_a_budget_smaller_than_the_first_request_sends_nothing():
+    fake = FakeProvider("{}")
+    budget = ev.EvalBudget(PRICE, LlmLimits(max_run_usd=0.0001))
+    with pytest.raises(ev.EvalBudgetExceeded):
+        ev.run_eval(live_cases(), provider=fake, budget=budget)
+    assert fake.calls == [] and budget.spent_usd == 0.0
+
+
+def test_the_budget_stops_a_live_evaluation_before_the_request_that_would_exceed_it():
+    fake = FakeProvider("{}", usage=(1_000, 200))
+    budget = ev.EvalBudget(PRICE, LlmLimits(max_run_usd=0.1))
+    with pytest.raises(ev.EvalBudgetExceeded):
+        ev.run_eval(live_cases(), provider=fake, budget=budget)
+    live = sum(len([c for c in case.candidates if c.role != "probe"]) for case in live_cases())
+    assert 0 < len(fake.calls) < live
+    assert budget.spent_usd == pytest.approx(len(fake.calls) * PRICE.cost(1_000, 200))
+    assert budget.spent_usd <= budget.limits.max_run_usd
+
+
+def test_a_sufficient_budget_runs_every_live_request_and_records_the_spend():
+    fake = FakeProvider("{}", usage=(1_000, 200))
+    budget = ev.EvalBudget(PRICE, LlmLimits(max_run_usd=5.0))
+    report = ev.run_eval(live_cases(), provider=fake, budget=budget)
+    assert len(fake.calls) == len(report.models) and report.mode == "live"
+    assert budget.spent_usd == pytest.approx(len(fake.calls) * PRICE.cost(1_000, 200))
+    assert all(
+        p.as_expected for p in report.probes
+    )  # probes are replayed, never sent to the provider

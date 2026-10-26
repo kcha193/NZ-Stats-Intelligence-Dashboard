@@ -245,7 +245,9 @@ under $5 at the worst case on Claude Opus 5.5 with the default run budget of $1.
 `python ../scripts/evaluate_research_llm.py` (from `backend/`) replays the synthetic, hand-annotated set in
 `backend/tests/research/eval_set/` through parsing, verification and the metrics: no network, no cost. `--live` sends
 the same synthetic documents (never third-party text) to the configured provider; it costs money, so run it
-deliberately and record the model, prompt version and results in `docs/progress.md`. The replay metrics are regression
+deliberately and record the model, prompt version and results in `docs/progress.md`. It enforces
+`NZSTATS_LLM_MAX_RUN_USD` like `summarise` does: before each request it checks the worst-case cost against what is left
+and stops without sending it if it would not fit. The replay metrics are regression
 floors in `nzstats.research.evaluate.RECORDED_BASELINE`.
 
 ### Rollback (Phase 3B only)
