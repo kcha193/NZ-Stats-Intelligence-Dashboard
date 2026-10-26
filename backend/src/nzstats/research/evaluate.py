@@ -55,6 +55,10 @@ _MONTH = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\
 _YEAR = re.compile(r"\b((?:19|20)\d{2})(?:\s*[/–-]\s*(\d{2}))?\b")
 _YEAR_TO = re.compile(r"year\s+(?:to|ending|ended)|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(?:(?:19|20)\d{2}\s+)?year\b|fiscal")  # fmt: skip
 _QUARTER = re.compile(r"\bquarter|\bq[1-4]\b")
+_QUARTER_NUMBER = re.compile(
+    r"\bq([1-4])\b|\b(first|second|third|fourth|[1-4](?:st|nd|rd|th))\s+quarter"
+)
+_ORDINAL = {"first": 1, "second": 2, "third": 3, "fourth": 4}
 
 
 @dataclass(frozen=True)
@@ -204,6 +208,9 @@ def horizon_key(text: str) -> frozenset[str]:
     tokens |= {f"m:{m}" for m in _MONTH.findall(t)}
     if _QUARTER.search(t):
         tokens.add("quarter")
+        for m in _QUARTER_NUMBER.finditer(t):  # Q1 and Q4 of one year are different horizons
+            word = m.group(2)
+            tokens.add(f"q:{m.group(1) or _ORDINAL.get(word) or word[0]}")
     elif _YEAR_TO.search(t):
         tokens.add("year_to")
     return frozenset(tokens)

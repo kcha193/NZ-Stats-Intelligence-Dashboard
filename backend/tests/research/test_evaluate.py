@@ -22,10 +22,23 @@ def fc(indicator, horizon, value, unit="percent", scenario=None):
     [("year to March 2027", "Year to March 2027", True), ("2026/27", "year to June 2027", False),
      ("June 2027 year", "year to June 2027", True), ("March 2027 quarter", "year to March 2027", False),
      ("2027", "calendar 2027", True), ("Feb 2027", "February 2027", True),
-     ("end of 2028", "2028", True)],
+     ("end of 2028", "2028", True),
+     # the quarter number is part of the period: Q1 and Q4 of one year are different horizons
+     ("Q1 2027", "Q4 2027", False), ("Q1 2027", "q1 2027", True), ("Q2 2027", "Q3 2027", False),
+     ("first quarter of 2027", "Q1 2027", True), ("fourth quarter 2027", "Q4 2027", True),
+     ("4th quarter 2027", "Q4 2027", True), ("first quarter of 2027", "Q4 2027", False),
+     ("Q1 2027", "Q1 2028", False), ("Q1 2027", "2027", False)],
 )  # fmt: skip
 def test_horizon_keys_normalise_wording_but_keep_period_basis(a, b, same):
     assert (ev.horizon_key(a) == ev.horizon_key(b)) is same
+
+
+def test_a_forecast_assigned_to_the_wrong_quarter_is_not_credited_as_aligned():
+    gold = [ev.GoldClaim("cpi_inflation", "Q1 2027", 0.5, "percent", None)]
+    wrong = ev.extraction_counts([fc("cpi_inflation", "Q4 2027", 0.5)], gold)
+    right = ev.extraction_counts([fc("cpi_inflation", "Q1 2027", 0.5)], gold)
+    assert (wrong["aligned"], wrong["correct"], wrong["value_correct"]) == (0, 0, 0)
+    assert (right["aligned"], right["correct"], right["value_correct"]) == (1, 1, 1)
 
 
 def test_extraction_counts_alignment_scenario_and_values():
