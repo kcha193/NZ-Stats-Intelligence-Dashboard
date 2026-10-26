@@ -161,6 +161,7 @@ class SummaryRequest:
     sections: tuple[RequestSection, ...]
     truncated: bool
     limits: LlmLimits
+    published_on: str | None = None  # the publication's own date (Pacific/Auckland civil date)
 
 
 class ProviderDisabled(RuntimeError):
@@ -210,6 +211,7 @@ def build_request(
     *,
     prompt_version: str,
     limits: LlmLimits | None = None,
+    published_on: str | None = None,
 ) -> SummaryRequest:
     limits = limits or LlmLimits()
     budget, out, truncated = limits.max_input_chars, [], False
@@ -222,7 +224,9 @@ def build_request(
         truncated = truncated or len(text) < len(s.text)
         out.append(RequestSection(ordinal, s.page_start, s.page_end, text))
         budget -= len(text)
-    return SummaryRequest(version_id, prompt_version, INSTRUCTIONS, tuple(out), truncated, limits)
+    return SummaryRequest(
+        version_id, prompt_version, INSTRUCTIONS, tuple(out), truncated, limits, published_on
+    )
 
 
 def parse_summary(raw: str) -> OutlookSummary:

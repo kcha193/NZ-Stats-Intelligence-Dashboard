@@ -101,6 +101,7 @@ def input_sha256(
         "prompt_version": request.prompt_version,
         "system": system_text(request.instructions),
         "version_id": request.version_id,
+        "published_on": request.published_on,
         "sections": [[s.ordinal, s.page_start, s.page_end, s.text] for s in request.sections],
         "truncated": request.truncated,
         "provider": provider,
