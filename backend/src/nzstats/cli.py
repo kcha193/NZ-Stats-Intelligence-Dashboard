@@ -176,6 +176,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     p_sid = sub.add_parser("snapshot-id", help="print a snapshot's content id")
     p_sid.add_argument("path")
+    # Wiring only: the research domain is separate, and no Stats NZ package imports it.
+    from nzstats.research.cli import add_research_parser, research_command
+
+    add_research_parser(sub)
     args = parser.parse_args(argv)
 
     settings = load_settings()
@@ -202,6 +206,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         print(json.dumps(create_app(settings, start_scheduler=False).openapi(), indent=2))
         return 0
+    if args.command == "research":
+        return research_command(args, settings)
     if args.command == "publish-site":
         return _publish_command(args, settings)
     if args.command in ("export-snapshot", "validate-snapshot", "snapshot-id", "check-site"):

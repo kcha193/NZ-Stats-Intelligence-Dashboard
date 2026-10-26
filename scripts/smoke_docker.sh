@@ -37,6 +37,10 @@ check_persistence() {
     "import sqlite3; db = sqlite3.connect('/data/nzstats.db'); assert db.execute('SELECT value FROM ci_persistence').fetchone() == ('retained',)"
 }
 
+# Research (Phase 3A): the baked-in registry loads, and the PDF dependency is installed. Both make no request.
+docker run --rm --network none "$image" nzstats research sources >/dev/null
+docker run --rm --network none "$image" python -c "import pypdf"
+
 start_api
 wait_healthy
 docker exec "$container" python -c \

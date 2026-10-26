@@ -19,6 +19,7 @@ from nzstats.publish.contract import (
     SCHEMA_VERSION,
     is_stats_nz_url,
     kind_of,
+    known_kind,
     public_reason,
     validate_payload,
 )
@@ -94,6 +95,9 @@ def validate_snapshot(
     for path, meta in sorted(listed.items()):
         file = root / path
         if not file.exists():
+            continue
+        if known_kind(path) is None:
+            err(f"{path} is not a known snapshot file")
             continue
         data = file.read_bytes()
         total += len(data)

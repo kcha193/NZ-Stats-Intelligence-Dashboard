@@ -1,7 +1,96 @@
 # Progress and verification record
 
-Last updated 2026-10-24. Public static site on Netlify is on `feat/netlify-static-publication` (not deployed). Visual stories 2.0 is merged.
-PR #7 (visual stories) is merged to `main`. Earlier entries below are historical.
+Last updated 2026-10-26. Phase 3A (institutional research sources) is on `feat/phase-3a-research-sources` (not merged).
+The Netlify static publication is merged to `main` (PR #10) and not deployed. Earlier entries below are historical.
+
+## Phase 3A: economic research source foundation, 26 October 2026
+
+A separate research domain for commentary from RBNZ, the Treasury, banks and consultancies. Stats NZ ingestion, the API,
+the schema of existing tables and the public snapshot are unchanged. Assessment (with verified source evidence and
+implementation notes): [2026-10-25-phase-3a-research-sources-assessment.md](superpowers/specs/2026-10-25-phase-3a-research-sources-assessment.md).
+Plan: [2026-10-25-phase-3a-research-sources.md](superpowers/plans/2026-10-25-phase-3a-research-sources.md). Runbook:
+[data-sources/research.md](data-sources/research.md). Next: [Phase 3B plan](superpowers/plans/2026-10-25-phase-3b-llm-summaries.md).
+
+- **Registry** (`config/research_sources.toml`): all ten institutions, with hosts, landing pages, discovery mechanism,
+  polling, licence and evidence grades. Approval fails closed (approver, date, note; `full_text` needs terms read directly).
+  **No source is approved**: RBNZ is `restricted`, the other nine are `needs_review`, four with content policy `none`.
+- **Fetching**: `ResearchFetcher` over the shared `Fetcher`, with two opt-in hooks that leave the Stats NZ path unchanged:
+  a response cap (decoded size, so gzip bombs count) and a per-hop URL check. Every URL and redirect hop must be https,
+  on an allowed host and path, resolve only to public addresses, and pass that host's robots.txt. Each institution has its
+  own pacer file and cooldown; the 10 s minimum spacing applies.
+- **Discovery** (RSS/Atom, sitemaps, listing links), **extraction** (stdlib HTML parser; `pypdf` in a resource-limited
+  child process, one section per page), **validation** (walls, challenges, too short, truncated versus previous) and
+  **storage** (migration `004_research.sql`: publications, versions, sections, runs, items, health; one transaction per
+  document; reverts reuse versions; duplicates linked).
+- **Phase 3B contract** (`research/contract.py`): strict output models and `verify_summary`. No LLM is called; only
+  `DisabledProvider` exists, and no vendor SDK is imported anywhere.
+- **CLI**: `nzstats research sources|discover|ingest|status` (also through `scripts/run.sh research …`).
+- **Fixtures are synthetic** (`SYNTHETIC FIXTURE`), a stated deviation from "real excerpts": the reports are not CC BY, so
+  their text is not committed.
+- **Found and fixed**: `validate_snapshot` crashed with `KeyError` on a manifest entry of unknown kind (a stray
+  `research/x.json`). It now reports an error. Three automated security-review findings were fixed with regression
+  tests: PDF parsing moved out of process; the child's output is bounded; DTDs are refused after decoding, not only by
+  byte pattern (a UTF-16 DOCTYPE got past the first version).
+- **Side effect noticed**: `npm run gen:api` builds the app on `backend/data` and migrated that empty development database
+  to schema 4. The real database (`data/nzstats.db`) was never opened for writing: it is still at schema 1–3.
+
+| Command | Outcome |
+|---|---|
+| `cd backend && pytest` | **1348 passed** (267 new; the 1081 existing tests pass, one updated earlier in `3117d42` to derive the schema version instead of hard-coding 3) |
+| `ruff check .` / `ruff format --check .` | Passed (189 files) |
+| `cd frontend && npm test` / `npm run typecheck` / `npm run build` | 383 passed (38 files) / passed / built (frontend unchanged) |
+| `npm run gen:api` | `src/api/schema.d.ts` regenerated with **no diff**: the OpenAPI contract is unchanged |
+| `npx playwright test` (live app) | 93 passed |
+| `scripts/e2e_static.sh` (static site incl. visual parity) | 234 passed |
+| Real database copy: `export-snapshot` then `validate-snapshot --for-publish` | 216 files, 3.14 MB, 43 published releases, origin production, **valid** |
+| Same copy exported with `main` and with this branch | Same `snapshot_id` (`13e4c7cff0e9…`); 214 of 216 files byte-identical, the other two differ only in `generated_at` |
+| Live requests to any research source | **None.** All research tests use `httpx.MockTransport`; no source is approved |
+| Docker image builds | **Not run: no container runtime here.** The image now installs the `research` extra and sets `NZSTATS_RESEARCH_SOURCES_FILE`; `scripts/smoke_docker.sh` checks both. CI could not run (see below) |
+
+Review round 1 (27 findings reviewed; Codex was unavailable, so an independent Claude security reviewer and the automated
+security hook were used). Fixed with regression tests: decompression-bomb memory (peak 616 MB to under 20 MB) and
+truncated compressed bodies; DNS rebinding (connection pinned to the checked address, no proxy); NAT64, 6to4,
+IPv4-compatible and site-local addresses; percent-encoded, case and `//` bypasses of blocked prefixes and robots rules;
+redirects that replaced a document with another page; run-aborting inputs (deep JSON-LD, malformed URLs, unknown XML
+encoding or charset, out-of-range dates, extractor errors); NaN crawl delay, non-positive limits and `--limit -1`;
+approval without terms evidence; the registry file and `pypdf` missing from the Docker image; the PDF child's inherited
+environment. Left for later (minor, documented or latent): purge command for revoked sources, read-only `status`,
+`duplicate_of_id` never cleared, challenge-page cooldown not persisted, `captcha` heuristic, candidate ordering,
+cross-host redirects between two allowlisted hosts, owner-password PDFs.
+
+Review round 2 (of the round-1 fixes) found two regressions and several gaps, all fixed with tests: unbounded buffering of
+bytes after the end of a compressed stream (and a silently ignored second gzip member), robots query-string rules failing
+open after canonicalisation, non-ASCII and `%2F` path forms, raw deflate, multicast and IPv4-translated addresses, raw
+exceptions from malformed registry numbers, cosmetic-redirect false positives, and error statuses hidden by odd bodies.
+Still open and minor: a redirected candidate uses a per-run slot every run, no total read deadline on a trickling body, a
+refused pin is retried before failing, and the PDF child's startup failures are reported as limit errors.
+
+Review round 3 (Codex on PR #11, eight findings) fixed with regression tests: the raw-deflate fallback is one-shot (invalid
+bytes such as `07 00` no longer loop forever while holding the pacing lock); oversized 403/429/5xx responses are still
+classified (block cooldown, Retry-After, retry) without reading the body; a challenge page found by validation (HTTP 200)
+now starts the institution cooldown for this fetcher and, through the pacer, for other processes; discovery resolves
+relative links against the final URL after redirects; a batch longer than `max_documents_per_run` rotates (never-attempted
+reports first, then least recently attempted, from `research_run_item`; the cap and `--limit` still apply and every fetched
+report is still revision-checked); the three publication date columns change together; and `duplicate_of_id` is cleared when
+a publication gets its own version. The percent-encoded robots finding was already fixed by the round-2 canonicalisation
+and now has explicit tests. Three round-1 "left for later" items (`duplicate_of_id`, challenge cooldown, candidate ordering) are
+therefore closed.
+
+Review round 4 (Codex on `508b213`): a raw-deflate stream split after its first byte was rejected because the fallback only
+applied within the first chunk; undecided leading bytes are now replayed into the headerless decoder (fixed, tested at every
+split point). A duplicate recorded only the original's publication, so revising the original changed what the duplicate
+matched; additive migration `005` stores the exact matched version (`duplicate_of_version_id`) and the rollback script drops it
+with the other research tables.
+
+Review round 5 (Codex on `b9aaef9`): robots wildcard rules were translated to a regex and a hostile `robots.txt` could make
+repeated `*` backtrack exponentially (a 25-wildcard rule hung the matcher); they are now matched segment by segment, with the
+old regex kept as a test oracle. An HTTP 200 challenge page on an HTML listing with no links counted as an empty successful
+listing; it is now a block (cooldown published, run ends `blocked`), and any block seen during discovery, including a 403 on
+the listing, ends the run `blocked` instead of `failed`.
+
+Before Phase 3B: approve at least one `full_text` source (the Treasury is the likeliest; read its licence page directly and
+run `research discover treasury`), ingest real documents, decide whether any
+source's terms allow sending its text to an LLM provider. Details in the Phase 3B plan.
 
 ## Public static site on Netlify, 24 October 2026
 

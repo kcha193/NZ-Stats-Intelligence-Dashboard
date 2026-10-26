@@ -9,6 +9,7 @@ import math
 import os
 import re
 import time
+import zlib
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
@@ -26,6 +27,8 @@ log = logging.getLogger(__name__)
 
 # Text Imperva/Incapsula puts in its challenge pages (often served with HTTP 200).
 BLOCK_MARKERS = (b"Request unsuccessful. Incapsula incident ID",)
+# A compressed body may legitimately be a little larger than its decoded form (headers, incompressible data).
+MAX_COMPRESSION_OVERHEAD = 1024 * 1024
 # After a block, no request of any kind for this long (the planner's per-release cooldown is the same).
 BLOCKED_COOLDOWN_SECONDS = 30 * 60
 REDIRECT_STATUSES = (301, 302, 303, 307, 308)
@@ -302,8 +305,12 @@ class Fetcher:
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = utc_now,
         pacer: FilePacer | None = None,
+        max_bytes: int | None = None,
     ) -> None:
         self._client = client
+        # None keeps the original unbounded behaviour (Stats NZ). Research fetchers set a cap so a
+        # hostile or broken server cannot make us buffer an arbitrarily large response.
+        self._max_bytes = max_bytes
         self._min_interval = min_interval
         self._max_retries = max_retries
         self._backoff_base = backoff_base
@@ -321,7 +328,21 @@ class Fetcher:
             if wait > 0:
                 self._sleep(wait)
 
-    def get(self, url: str, *, expect: tuple[str, ...] = (), _hops: int = 0) -> FetchResult:
+    def get(
+        self,
+        url: str,
+        *,
+        expect: tuple[str, ...] = (),
+        url_check: Callable[[str], object] | None = None,
+        _hops: int = 0,
+    ) -> FetchResult:
+        """Fetch `url`. `url_check`, when given, runs on this URL and on every redirect target before
+        it is requested and must raise ValueError to refuse (the refusal text is not echoed)."""
+        if url_check is not None:
+            try:
+                url_check(url)
+            except ValueError:
+                raise IngestError(ErrorClass.UNEXPECTED, f"url refused: {url}", url=url) from None
         self._refuse_if_cooling_down(url)
         last_problem = "no response"
         for attempt in range(self._max_retries + 1):
@@ -333,10 +354,13 @@ class Fetcher:
                     self._refuse_retry(url)
                 self._throttle()
                 try:
-                    resp = self._client.get(url, follow_redirects=False)
+                    resp = self._send(url)
                     transport_error = None
                 except httpx.TransportError as exc:
                     resp, transport_error = None, exc
+                except IngestError:
+                    self._last_request = self._clock()
+                    raise
                 self._last_request = self._clock()
                 # Classified and published before the turn ends, so the next process to take the
                 # lock already sees the cooldown.
@@ -366,7 +390,7 @@ class Fetcher:
             if status == 404:
                 raise IngestError(ErrorClass.NOT_FOUND, f"404 for {url}", url=url)
             if status in REDIRECT_STATUSES and "location" in resp.headers:
-                return self._follow(url, resp.headers["location"], expect, _hops)
+                return self._follow(url, resp.headers["location"], expect, _hops, url_check)
             if status == 429 or status >= 500:
                 last_problem = f"HTTP {status}"
                 log.warning("fetch %s -> %s, attempt %d", url, status, attempt + 1)
@@ -385,6 +409,135 @@ class Fetcher:
                 )
             return FetchResult(url, status, ctype, resp.content, self._now())
         raise IngestError(ErrorClass.NETWORK, f"gave up on {url}: {last_problem}", url=url)
+
+    def record_block(self) -> None:
+        """Start the block cooldown for a challenge the caller recognised after a successful response.
+
+        `get` already does this for a 403 or a known marker; a page that only validation can tell is a
+        challenge (an HTTP 200 "verify you are human" page) needs the same cooldown, for this fetcher and,
+        through the pacer, for every other process. Failing to save it is logged, never raised: the
+        in-memory cooldown is already in force and the caller is stopping anyway.
+        """
+        self._blocked_until = self._clock() + BLOCKED_COOLDOWN_SECONDS
+        if self._pacer is None:
+            return
+        try:
+            with self._pacer.turn() as turn:  # sends nothing; only publishes the deadline
+                turn.block(BLOCKED_COOLDOWN_SECONDS)
+        except RequestRefused:
+            log.exception("could not publish the block cooldown to the shared pacing state")
+            return
+        if turn.persistence_failed:
+            log.error("the block cooldown could not be saved to the shared pacing state")
+
+    def _send(self, url: str) -> httpx.Response:
+        if self._max_bytes is None:
+            return self._client.get(url, follow_redirects=False)
+        # Only advertise encodings that can be decompressed with an output limit (see _bounded_body).
+        request_headers = {"Accept-Encoding": "gzip, deflate"}
+        with self._client.stream(
+            "GET", url, headers=request_headers, follow_redirects=False
+        ) as resp:
+            declared = _finite(resp.headers.get("content-length", ""))
+            if declared is not None and declared > self._max_bytes:
+                if resp.status_code < 400:
+                    raise self._too_large(url)
+                body = b""  # classified from the status below; the oversized body is never read
+            else:
+                try:
+                    body = self._bounded_body(url, resp)
+                except IngestError:
+                    if resp.status_code < 300:
+                        raise
+                    body = b""  # an error status is classified from the status; its odd body does not matter
+            headers = [
+                (k, v)
+                for k, v in resp.headers.multi_items()
+                if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+            ]
+            return httpx.Response(
+                resp.status_code, headers=headers, content=body, request=resp.request
+            )
+
+    def _bounded_body(self, url: str, resp: httpx.Response) -> bytes:
+        """Read the body without ever holding more than the cap (plus one chunk) decoded.
+
+        httpx would decompress a whole network chunk at once, so a small gzip bomb could allocate far more
+        than the cap before the size check ran. Decode the raw bytes here with an output limit instead, and
+        stop at the end of the compressed stream: anything after it is refused, never buffered.
+        """
+        assert self._max_bytes is not None
+        cap = self._max_bytes
+        if (
+            resp.is_stream_consumed
+        ):  # already read and decoded by the transport (in-memory responses)
+            if len(resp.content) > cap:
+                raise self._too_large(url)
+            return resp.content
+        encoding = resp.headers.get("content-encoding", "").strip().lower()
+        if encoding in ("", "identity"):
+            wbits = None
+        elif encoding in ("gzip", "x-gzip", "deflate"):
+            wbits = zlib.MAX_WBITS | 32  # zlib or gzip header, auto-detected
+        else:
+            raise IngestError(
+                ErrorClass.UNEXPECTED, f"unsupported content-encoding {encoding!r}", url=url
+            )
+        decoder = zlib.decompressobj(wbits) if wbits is not None else None
+        out = bytearray()
+        raw_total = 0
+        # `deflate` is sent both with a zlib header (the standard) and headerless. Until the first decoded
+        # byte appears the format is undecided, so those leading bytes are kept (bounded by the raw-size
+        # check below) and replayed into the headerless decoder if the zlib one rejects them, whichever
+        # network chunks they arrived in. The retry is allowed once: None means decided or already tried.
+        undecided: bytearray | None = bytearray() if encoding == "deflate" else None
+        for raw in resp.iter_raw():
+            raw_total += len(raw)
+            if raw_total > cap + MAX_COMPRESSION_OVERHEAD:
+                raise self._too_large(url)
+            if undecided is not None:
+                undecided += raw
+            data = raw
+            while data:
+                if decoder is None:
+                    piece, data = data, b""
+                else:
+                    if decoder.eof:
+                        raise IngestError(
+                            ErrorClass.UNEXPECTED,
+                            "data after the end of the compressed body",
+                            url=url,
+                        )
+                    try:
+                        piece = decoder.decompress(data, cap - len(out) + 1)
+                    except zlib.error:
+                        if undecided is not None and not out:
+                            data, undecided = bytes(undecided), None
+                            decoder = zlib.decompressobj(-zlib.MAX_WBITS)  # raw deflate, no header
+                            continue
+                        raise IngestError(
+                            ErrorClass.UNEXPECTED, "undecodable response body", url=url
+                        ) from None
+                    if decoder.eof and decoder.unused_data:
+                        raise IngestError(
+                            ErrorClass.UNEXPECTED,
+                            "data after the end of the compressed body",
+                            url=url,
+                        )
+                    data = decoder.unconsumed_tail
+                out += piece
+                if out:
+                    undecided = None  # the format is settled
+                if len(out) > cap:
+                    raise self._too_large(url)
+        if decoder is not None and raw_total and not decoder.eof:
+            raise IngestError(ErrorClass.NETWORK, "incomplete compressed response", url=url)
+        return bytes(out)
+
+    def _too_large(self, url: str) -> IngestError:
+        return IngestError(
+            ErrorClass.UNEXPECTED, f"response larger than {self._max_bytes} bytes", url=url
+        )
 
     def _refuse_if_cooling_down(self, url: str) -> None:
         if self._blocked_until is not None and self._clock() < self._blocked_until:
@@ -451,13 +604,20 @@ class Fetcher:
             return IngestError(ErrorClass.BLOCKED, message, url=url)
         return None
 
-    def _follow(self, url: str, location: str, expect: tuple[str, ...], hops: int) -> FetchResult:
+    def _follow(
+        self,
+        url: str,
+        location: str,
+        expect: tuple[str, ...],
+        hops: int,
+        url_check: Callable[[str], object] | None = None,
+    ) -> FetchResult:
         target = httpx.URL(url).join(location)
         if target.host != httpx.URL(url).host:
             raise IngestError(ErrorClass.UNEXPECTED, f"redirected off-site from {url}", url=url)
         if hops >= MAX_REDIRECTS:
             raise IngestError(ErrorClass.UNEXPECTED, f"too many redirects from {url}", url=url)
-        return self.get(str(target), expect=expect, _hops=hops + 1)
+        return self.get(str(target), expect=expect, url_check=url_check, _hops=hops + 1)
 
     def _backoff(self, attempt: int, retry_after: float | None = None) -> None:
         if attempt < self._max_retries:

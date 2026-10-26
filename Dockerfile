@@ -9,11 +9,12 @@ RUN npm run build
 FROM python:3.12-slim AS app
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 TZ=Pacific/Auckland \
     NZSTATS_DATA_DIR=/data NZSTATS_STATIC_DIR=/app/static \
-    NZSTATS_SOURCES_FILE=/app/config/sources.toml
+    NZSTATS_SOURCES_FILE=/app/config/sources.toml \
+    NZSTATS_RESEARCH_SOURCES_FILE=/app/config/research_sources.toml
 WORKDIR /app
 COPY backend/pyproject.toml backend/
 COPY backend/src backend/src
-RUN pip install ./backend
+RUN pip install './backend[research]'
 COPY config /app/config
 COPY --from=web /web/dist /app/static
 RUN useradd --system --uid 10001 nzstats && mkdir /data && chown nzstats /data

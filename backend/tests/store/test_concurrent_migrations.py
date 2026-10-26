@@ -8,6 +8,10 @@ import pytest
 
 from nzstats.store.db import MIGRATIONS_DIR, connect
 
+# Derived, so adding a migration does not require editing every expectation.
+VERSIONS = sorted(int(f.name.split("_", 1)[0]) for f in MIGRATIONS_DIR.glob("*.sql"))
+LATEST = VERSIONS[-1]
+
 
 class SlowVersionRead(sqlite3.Connection):
     def execute(self, sql, parameters=()):
@@ -54,7 +58,7 @@ def test_concurrent_creation_and_upgrade_are_idempotent(tmp_path, initial_versio
         for process in processes:
             process.start()
         outcomes = [results.get(timeout=20) for _ in processes]
-        assert outcomes == [3, 3, 3, 3]
+        assert outcomes == [LATEST] * 4
     finally:
         for process in processes:
             process.join(timeout=5)
@@ -63,11 +67,9 @@ def test_concurrent_creation_and_upgrade_are_idempotent(tmp_path, initial_versio
                 process.join()
         results.close()
     conn = connect(path)
-    assert [r[0] for r in conn.execute("SELECT version FROM schema_version ORDER BY version")] == [
-        1,
-        2,
-        3,
-    ]
+    assert [
+        r[0] for r in conn.execute("SELECT version FROM schema_version ORDER BY version")
+    ] == VERSIONS
     assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     if initial_version:
         assert (
@@ -102,7 +104,7 @@ def test_simultaneous_initialisation_retains_committed_rows(tmp_path):
     try:
         for process in processes:
             process.start()
-        assert [results.get(timeout=20) for _ in processes] == [3, 3, 3, 3]
+        assert [results.get(timeout=20) for _ in processes] == [LATEST] * 4
     finally:
         for process in processes:
             process.join(timeout=5)

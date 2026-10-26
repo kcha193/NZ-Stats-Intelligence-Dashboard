@@ -1,0 +1,237 @@
+# Institutional research source registry (Phase 3A). See docs/data-sources/research.md.
+#
+# Nothing here is fetched until a human sets review_status = "approved" and fills approved_by, approved_on
+# and approval_note after reading the institution's terms. The loader rejects approval without them.
+#
+#   review_status   approved | needs_review | restricted
+#   content_policy  full_text (store text) | metadata_only (title/date/link; body never downloaded) | none
+#   *_evidence      direct (fetched and read) | direct_blocked (probe was refused) | search (a search-engine
+#                   summary only; not read on the page) | none (not examined)
+#
+# Probed 2026-10-25 with a generic client, not the project User-Agent. A 403 is recorded as
+# direct_blocked and does NOT prove the project's descriptive User-Agent would be refused.
+# Landing URLs that were not established are left empty rather than guessed.
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.rbnz]
+name = "Reserve Bank of New Zealand"
+kind = "central_bank"
+allowed_hosts = ["www.rbnz.govt.nz", "rbnz.govt.nz"]
+landing_urls = ["https://www.rbnz.govt.nz/research-and-publications/publications"]
+categories = ["monetary_policy", "financial_stability", "economic_outlook"]
+review_status = "restricted"
+content_policy = "none"
+robots_evidence = "direct_blocked"
+landing_evidence = "direct_blocked"
+terms_evidence = "search"
+licence = "Copyright of the Bank; reuse with attribution and accuracy. Automated scraping reportedly restricted except public search engines obeying robots.txt, or with prior written permission."
+licence_url = "https://www.rbnz.govt.nz/about-our-site/terms-of-use"
+verified_on = "2026-10-25"
+polling = "Monetary Policy Statement quarterly and Financial Stability Report twice yearly; dates are published in advance."
+access_notes = "robots.txt and pages returned HTTP 403 to the probe. The terms (read via a search summary only) restrict automated access without written permission: obtain it, then re-probe, before changing review_status."
+
+[[institutions.rbnz.discovery]]
+mechanism = "rss"
+url = "https://www.rbnz.govt.nz/feeds/news"
+series = "news_release"
+verified = false
+note = "News releases only, seen in search results; not fetched. No publications or MPS feed was found."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.treasury]
+name = "The Treasury (New Zealand)"
+kind = "government"
+allowed_hosts = ["www.treasury.govt.nz"]
+blocked_path_prefixes = ["/publications/search"]
+landing_urls = ["https://www.treasury.govt.nz/publications"]
+categories = ["fiscal", "economic_outlook", "budget"]
+review_status = "needs_review"
+content_policy = "full_text"
+robots_evidence = "direct"
+landing_evidence = "direct_blocked"
+terms_evidence = "search"
+licence = "Crown copyright, Creative Commons Attribution 4.0 International unless indicated; third-party material and logos excluded."
+licence_url = "https://www.treasury.govt.nz/copyright-and-licensing"
+verified_on = "2026-10-25"
+polling = "Budget, HYEFU and Monthly Economic Indicators follow the Treasury's published calendar."
+access_notes = "robots.txt read directly (Drupal rules; disallows /publications/search, /admin, /user/*; no Sitemap, no Crawl-delay). /publications, /sitemap.xml and /copyright returned 403 to the probe. Next step: one throttled probe with the project User-Agent (nzstats research discover treasury), then read the licence page directly before approving."
+
+[[institutions.treasury.discovery]]
+mechanism = "html_links"
+url = "https://www.treasury.govt.nz/publications"
+link_pattern = "^https://www\\.treasury\\.govt\\.nz/(publications|sites/default/files)/.+"
+verified = false
+note = "Listing structure not yet observed. PDFs live at /sites/default/files/YYYY-MM/<name>.pdf (search results)."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.anz]
+name = "ANZ New Zealand"
+kind = "bank"
+allowed_hosts = ["www.anz.co.nz"]
+landing_urls = ["https://www.anz.co.nz/about-us/economic-markets-research/"]
+categories = ["economic_outlook", "weekly_commentary", "sector"]
+review_status = "needs_review"
+content_policy = "metadata_only"
+robots_evidence = "direct"
+landing_evidence = "direct"
+terms_evidence = "direct"
+licence = "(c) ANZ Bank New Zealand Limited, all rights reserved. Terms: reproduce and store solely for viewing; not to be displayed or distributed in public; links need prior permission."
+licence_url = "https://www.anz.co.nz/comms/website-terms-of-use/"
+verified_on = "2026-10-25"
+polling = "Economic Outlook quarterly (Feb, May, Aug, Nov); a release schedule PDF is published for 2026."
+access_notes = "robots.txt has no Disallow and names https://www.anz.co.nz/sitemap.xml. No RSS. Series pages are HTML; the Economic Outlook page shows an HTML summary and PDF links. No login. Terms were read directly and say nothing about automated access: ask ANZ for permission before approving even metadata links."
+url_date_regex = "(\\d{8})\\.pdf$"
+url_date_format = "%Y%m%d"
+
+[[institutions.anz.discovery]]
+mechanism = "html_links"
+url = "https://www.anz.co.nz/about-us/economic-markets-research/economic-outlook/"
+link_pattern = "^https://www\\.anz\\.co\\.nz/content/dam/anzconz/documents/economics-and-market-research/\\d{4}/ANZ-QEO-\\d{8}\\.pdf$"
+series = "economic_outlook"
+verified = true
+note = "Observed 2026-10-25: archive grouped by year, e.g. .../2026/ANZ-QEO-20260813.pdf."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.asb]
+name = "ASB"
+kind = "bank"
+allowed_hosts = ["www.asb.co.nz"]
+blocked_path_prefixes = [
+  "/content/dam/asb/documents/", "/ASBWeb/Javascript/", "/iFrames/investmentPerformance.asp",
+  "/iFrames/latest_unit_prices.asp", "/markets/historicgraphs.asp", "/content/asb/forms/",
+  "/content/asb/constant-collection/", "/content/asb/creatives/", "/content/asb/ratesboard/",
+]
+landing_urls = ["https://www.asb.co.nz/documents/economic-research.html"]
+categories = ["economic_outlook", "weekly_commentary"]
+review_status = "needs_review"
+content_policy = "metadata_only"
+robots_evidence = "direct"
+landing_evidence = "search"
+terms_evidence = "none"
+licence = "Not read. Terms at /documents/terms-and-conditions.html."
+licence_url = "https://www.asb.co.nz/documents/terms-and-conditions.html"
+verified_on = "2026-10-25"
+polling = "Economic Weekly weekly; Quarterly Economic Forecasts quarterly."
+access_notes = "robots.txt read directly: it disallows /content/dam/asb/documents/ (where report PDFs live) and about 200 named bots. HTML report pages under /documents/economic-research/ are not disallowed. A guessed /economics-research URL was a 404. The full reports list page was truncated for the probe (probably script-rendered), so no discovery mechanism is verified."
+
+[[institutions.asb.discovery]]
+mechanism = "html_links"
+url = "https://www.asb.co.nz/documents/economic-research/full-reports-list.html"
+link_pattern = "^https://www\\.asb\\.co\\.nz/documents/economic-research/(economic-weekly|quarterly-economic-forecasts|economic-insights)/[a-z0-9-]+\\.html$"
+verified = false
+note = "Report page URL shapes seen in search results, not in the listing itself."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.westpac]
+name = "Westpac New Zealand"
+kind = "bank"
+allowed_hosts = ["www.westpac.co.nz", "assets.dam.westpac.co.nz"]
+landing_urls = ["https://www.westpac.co.nz/business/business-base/economics/economic-reports/"]
+categories = ["weekly_commentary", "economic_outlook"]
+review_status = "needs_review"
+content_policy = "metadata_only"
+robots_evidence = "direct_blocked"
+landing_evidence = "direct_blocked"
+terms_evidence = "none"
+licence = "Not read."
+verified_on = "2026-10-25"
+polling = "Weekly Commentary on Mondays."
+access_notes = "robots.txt and the landing page returned 403 to the probe. PDFs are on a different host (assets.dam.westpac.co.nz), so that host needs its own robots check. Filename dates appear as DDMMYY and DDMonYY."
+url_date_regex = "_report_(\\d{1,2}[A-Za-z]{3}\\d{2})\\.pdf$"
+url_date_format = "%d%b%y"
+
+[[institutions.westpac.discovery]]
+mechanism = "html_links"
+url = "https://www.westpac.co.nz/business/business-base/economics/economic-reports/"
+link_pattern = "^https://assets\\.dam\\.westpac\\.co\\.nz/is/content/wnzl/dist/all-of-bank/economic-reports/weekly-commentary/Weekly-Commentary_[0-9A-Za-z_]+\\.pdf$"
+series = "weekly_commentary"
+verified = false
+note = "Example seen in search: .../Weekly-Commentary_191026_report_19Oct26.pdf. The listing page itself was not readable."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.bnz]
+name = "BNZ"
+kind = "bank"
+categories = ["economic_outlook"]
+review_status = "needs_review"
+content_policy = "none"
+robots_evidence = "none"
+landing_evidence = "none"
+terms_evidence = "none"
+licence = "Not examined."
+verified_on = "2026-10-25"
+access_notes = "Not probed and no landing page established; none is guessed. Find the official research page, then read robots.txt and the terms."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.kiwibank]
+name = "Kiwibank"
+kind = "bank"
+allowed_hosts = ["www.kiwibank.co.nz"]
+landing_urls = ["https://www.kiwibank.co.nz/business-banking/thrive-hq/kiwi-economics/commentary-insights/"]
+categories = ["economic_outlook", "commentary"]
+review_status = "needs_review"
+content_policy = "none"
+robots_evidence = "none"
+landing_evidence = "search"
+terms_evidence = "none"
+licence = "Not examined."
+verified_on = "2026-10-25"
+access_notes = "Commentary hub under thrive-hq/kiwi-economics seen in search results only. Not probed."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.nzier]
+name = "NZIER"
+kind = "consultancy"
+allowed_hosts = ["www.nzier.org.nz"]
+landing_urls = ["https://www.nzier.org.nz/publications"]
+categories = ["economic_outlook", "consensus_forecasts"]
+review_status = "needs_review"
+content_policy = "metadata_only"
+robots_evidence = "none"
+landing_evidence = "search"
+terms_evidence = "none"
+licence = "Not read."
+verified_on = "2026-10-25"
+polling = "Consensus Forecasts quarterly (March, June, September, December); Quarterly Predictions."
+access_notes = "Public Consensus Forecasts pages at /publications/<slug> and PDFs under /hubfs/Public%20Publications/ (HubSpot) seen in search results. Some NZIER material is for members only: confirm what is public."
+
+[[institutions.nzier.discovery]]
+mechanism = "html_links"
+url = "https://www.nzier.org.nz/publications/tag/consensus-forecasts"
+link_pattern = "^https://www\\.nzier\\.org\\.nz/publications/[a-z0-9-]+$"
+series = "consensus_forecasts"
+verified = false
+note = "Tag listing seen in search results, not fetched."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.infometrics]
+name = "Infometrics"
+kind = "consultancy"
+allowed_hosts = ["economics.infometrics.co.nz", "www.infometrics.co.nz"]
+landing_urls = ["https://economics.infometrics.co.nz/reports"]
+categories = ["regional", "economic_outlook"]
+review_status = "needs_review"
+content_policy = "none"
+robots_evidence = "none"
+landing_evidence = "search"
+terms_evidence = "none"
+licence = "Not examined."
+verified_on = "2026-10-25"
+access_notes = "Insights hub economics.infometrics.co.nz seen in search. The Quarterly Economic Monitor and regional forecasts are described as subscription products: treat as paywalled and ingest only free media releases. A testing-economics.infometrics.co.nz host also appears in search and is deliberately NOT allowlisted."
+
+# ---------------------------------------------------------------------------------------------------------
+[institutions.deloitte]
+name = "Deloitte New Zealand"
+kind = "consultancy"
+allowed_hosts = ["www.deloitte.com"]
+allowed_path_prefixes = ["/nz/"]
+landing_urls = ["https://www.deloitte.com/nz/en/services/consulting-financial/services/deloitte-access-economics.html"]
+categories = ["economic_outlook"]
+review_status = "needs_review"
+content_policy = "none"
+robots_evidence = "none"
+landing_evidence = "search"
+terms_evidence = "none"
+licence = "Not examined."
+verified_on = "2026-10-25"
+access_notes = "Deloitte NZ pages sit on the global www.deloitte.com host, so only the /nz/ path prefix is allowed. No NZ-specific recurring outlook series was confirmed (the Business Outlook series found is Australian)."
