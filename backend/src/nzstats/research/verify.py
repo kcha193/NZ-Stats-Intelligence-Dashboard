@@ -101,6 +101,7 @@ _UNIT_SUFFIX = {
     "nzd_billion": re.compile(r"^\s*(?:billion|bn\b|b\b)", re.I),
     "nzd_million": re.compile(r"^\s*(?:million|mn?\b)", re.I),
 }  # fmt: skip
+_OF_GDP = re.compile(r"^\s*(?:%|per\s*cent|percent)\s+of\s+(?:nominal\s+)?gdp", re.IGNORECASE)
 _DOLLAR_PREFIX = re.compile(r"(?:\$|nzd\s?|nz\$)\s?$", re.IGNORECASE)
 _INDICATOR_WORDS: dict[Indicator, re.Pattern[str]] = {
     Indicator.GDP: re.compile(r"\bgdp\b|gross domestic|economic growth|\beconomy\b|\boutput\b", re.I),
@@ -180,12 +181,13 @@ class _Located:
     def clause_at(self, offset: int) -> str:
         """The clause of the quote's sentence that contains `offset` (section coordinates)."""
         a, b = self.sentences[self.first][0], self.sentences[self.last][1]
-        sentence, cut = self.text[a:b], a
-        for part in _CLAUSE.split(sentence):
-            if cut <= offset < cut + len(part) + 1:
-                return part
-            cut += len(part) + 1
-        return sentence
+        sentence, start = self.text[a:b], a
+        for sep in _CLAUSE.finditer(sentence):
+            end = a + sep.start()
+            if offset < end:
+                return self.text[start:end]
+            start = a + sep.end()
+        return self.text[start:b]
 
 
 def _norm(text: str) -> str:
@@ -427,7 +429,7 @@ class _Checker:
 
         other_percentish = stated("percentage_points") or stated("basis_points")
         if unit == "percent":
-            return stated("percent") and not other_percentish
+            return stated("percent") and not other_percentish and not _OF_GDP.match(after)
         if unit == "percent_of_gdp":
             return stated("percent") and not other_percentish and "gdp" in sentence.lower()
         if unit in ("percentage_points", "basis_points"):

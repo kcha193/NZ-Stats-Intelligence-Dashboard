@@ -375,3 +375,34 @@ def test_an_earlier_forecast_quoted_beside_the_revision_is_not_the_current_one(t
     current = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("gdp",),
                              forecasts=[claim(quote, 0, value=2.1, horizon="2027")])  # fmt: skip
     assert "superseded_value" not in codes(verify(current, {**SECTIONS, **sections}))
+
+
+def test_a_share_of_gdp_reported_as_plain_percent_is_a_unit_mismatch():
+    quote = "projected to reach 43.1% of GDP in 2027"
+    sections = {0: SectionText(f"Net core Crown debt is {quote}.", 1, 1)}
+    debt = dict(indicator="government_debt", indicator_label="Net core Crown debt", value=43.1,
+                horizon="2027")  # fmt: skip
+    for unit, ok in (("percent", False), ("percent_of_gdp", True)):
+        s = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("government_debt",),
+                           forecasts=[claim(quote, 0, unit=unit, **debt)])  # fmt: skip
+        assert ("unit_mismatch" not in codes(verify(s, {**SECTIONS, **sections}))) is ok
+
+
+def test_the_clause_basis_is_read_at_the_right_place_after_a_long_separator():
+    text = ("Annual inflation is forecast to ease to 2.4% in the year to March 2027, and quarterly"
+            " inflation is expected to be 0.5% in the December 2026 quarter.")  # fmt: skip
+    sections = {0: SectionText(text, 1, 1)}
+    # the value sits at the very end of the second clause, where a drifting offset lands outside it
+    quote = "quarterly inflation is expected to be 0.5% in the December 2026 quarter"
+    ok = claim(quote, 0, value=0.5, horizon="December 2026 quarter", indicator="cpi_inflation",
+               indicator_label="Quarterly inflation", direction="unclear")  # fmt: skip
+    s = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("cpi_inflation",),
+                       forecasts=[ok])  # fmt: skip
+    located = __import__("nzstats.research.verify", fromlist=["_locate"])._locate(
+        quote, sections[0]
+    )[0]
+    at = located.text.index("0.5%")
+    assert "quarterly" in located.clause_at(at) and "Annual" not in located.clause_at(at)
+    tail = located.clause_at(len(located.text) - 3)
+    assert tail.endswith("quarter.") and "Annual" not in tail
+    assert "period_basis_mismatch" not in codes(verify(s, {**SECTIONS, **sections}))
