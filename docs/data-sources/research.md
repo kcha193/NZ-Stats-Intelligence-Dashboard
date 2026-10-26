@@ -103,7 +103,7 @@ from a publication date.
 | Item outcome | Meaning |
 |---|---|
 | `new`, `updated`, `reactivated`, `unchanged` | stored as a new publication, a new version, a revert to an earlier version, or no change |
-| `duplicate` | the same text is already stored under another URL; linked by `duplicate_of_id`, no copy kept |
+| `duplicate` | the same text is already stored under another URL; linked by `duplicate_of_id` and the exact matched version (`duplicate_of_version_id`, so a later revision of the original does not change it), no copy kept |
 | `link_only` | `metadata_only` source: publication recorded, body not downloaded |
 | `skipped_robots`, `skipped_unsafe` | refused before any request |
 | `failed` | recorded with an error class and a fixed-vocabulary detail; the previous version stays current |

@@ -322,7 +322,7 @@ def _store(
                 conn, extracted.text_sha256, exclude_publication_id=pub_id
             )
             if original is not None:
-                store.mark_duplicate(conn, pub_id, original)
+                store.mark_duplicate(conn, pub_id, *original)
                 return ItemOutcome(candidate.url, "duplicate", publication_id=pub_id,
                                    warnings=warnings)  # fmt: skip
         version_id, change = store.add_version(

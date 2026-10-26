@@ -90,12 +90,22 @@ def test_rollback_script_removes_only_research_objects(tmp_path):
         (pub,),
     ).lastrowid
     conn.execute("UPDATE research_publication SET current_version_id=? WHERE id=?", (ver, pub))
+    copy = conn.execute(
+        "INSERT INTO research_publication(institution_id,doc_key,canonical_url,title,content_status,"
+        "first_seen_at,last_seen_at,duplicate_of_id,duplicate_of_version_id)"
+        " VALUES (?,'anz:y','https://y','T','link_only','a','a',?,?)",
+        (inst, pub, ver),
+    ).lastrowid
+    assert copy != pub
     conn.executescript(ROLLBACK.read_text(encoding="utf-8"))
     assert _schema(conn, research=True) == {}
     assert _schema(conn, research=False) == old_schema
     assert conn.execute("SELECT COUNT(*) FROM release").fetchone()[0] == 1
-    assert 4 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
-    assert migrate(conn) >= 4  # and it can be re-applied
+    applied = {r[0] for r in conn.execute("SELECT version FROM schema_version")}
+    assert not applied & {4, 5}
+    assert migrate(conn) >= 5  # and both research migrations can be re-applied
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(research_publication)")}
+    assert "duplicate_of_version_id" in columns
 
 
 def test_check_constraints_reject_unknown_policy(conn):
@@ -104,3 +114,25 @@ def test_check_constraints_reject_unknown_policy(conn):
             "INSERT INTO research_institution(key,name,review_status,content_policy,synced_at)"
             " VALUES ('x','X','approved','everything','t')"
         )
+
+
+def test_migration_005_adds_one_nullable_column_and_keeps_existing_research_rows(tmp_path):
+    conn = connect(tmp_path / "at004.db")
+    _apply_up_to(conn, 4)
+    conn.execute(
+        "INSERT INTO research_institution(key, name, review_status, content_policy, synced_at)"
+        " VALUES ('anz','ANZ','approved','full_text','2026-01-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO research_publication(institution_id, doc_key, canonical_url, title,"
+        " categories, content_status, first_seen_at, last_seen_at) VALUES (1,'anz:h/a',"
+        " 'https://h/a','T','[]','link_only','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+    )
+    before = {r[1] for r in conn.execute("PRAGMA table_info(research_publication)")}
+    assert migrate(conn) >= 5
+    after = {r[1] for r in conn.execute("PRAGMA table_info(research_publication)")}
+    assert after - before == {"duplicate_of_version_id"}
+    row = conn.execute("SELECT doc_key, duplicate_of_id, duplicate_of_version_id"
+                       " FROM research_publication").fetchone()  # fmt: skip
+    assert tuple(row) == ("anz:h/a", None, None)
+    assert migrate(conn) >= 5  # idempotent

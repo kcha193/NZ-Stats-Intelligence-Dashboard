@@ -211,6 +211,7 @@ def test_same_text_under_a_second_url_is_a_duplicate(conn):
     assert outcomes(result) == ["new", "duplicate"]
     dup = pub_row(conn, DOC_B)
     assert dup["duplicate_of_id"] == pub_row(conn, DOC_A)["id"]
+    assert dup["duplicate_of_version_id"] == pub_row(conn, DOC_A)["current_version_id"]
     assert dup["current_version_id"] is None and dup["content_status"] == "link_only"
     assert conn.execute("SELECT COUNT(*) FROM research_document_version").fetchone()[0] == 1
 
@@ -610,3 +611,22 @@ def test_other_institutions_do_not_influence_the_rotation(conn):
     mine = institution(max_documents_per_run=2)
     run(conn, other, web)
     assert _processed(run(conn, mine, web)) == urls[0:2]
+
+
+def test_a_duplicate_of_an_earlier_revision_keeps_pointing_at_that_revision(conn):
+    inst = institution()
+    run(conn, inst, site(**{LISTING: listing(DOC_A), DOC_A: report("A", PARA * 6 + "Text X. ")}))
+    version_x = pub_row(conn, DOC_A)["current_version_id"]
+    # A is revised to text Y, then a new report B appears containing the old text X.
+    revised = site(**{LISTING: listing(DOC_A, DOC_B), DOC_A: report("A", PARA * 6 + "Text Y. " * 40),
+                      DOC_B: report("A", PARA * 6 + "Text X. ")})  # fmt: skip
+    result = run(conn, inst, revised, at=NOW + timedelta(days=1))
+    assert {i.url: i.outcome for i in result.items} == {DOC_A: "updated", DOC_B: "duplicate"}
+    dup = pub_row(conn, DOC_B)
+    assert dup["duplicate_of_id"] == pub_row(conn, DOC_A)["id"]
+    assert dup["duplicate_of_version_id"] == version_x != pub_row(conn, DOC_A)["current_version_id"]
+    # A is revised again later: B still points at the text it matched.
+    again = site(**{LISTING: listing(DOC_A, DOC_B), DOC_A: report("A", PARA * 6 + "Text Z. " * 40),
+                    DOC_B: report("A", PARA * 6 + "Text X. ")})  # fmt: skip
+    run(conn, inst, again, at=NOW + timedelta(days=2))
+    assert pub_row(conn, DOC_B)["duplicate_of_version_id"] == version_x

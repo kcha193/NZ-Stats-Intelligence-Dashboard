@@ -122,8 +122,9 @@ def test_find_text_elsewhere_ignores_own_publication(conn):
     p1, _ = _pub(conn, inst)
     p2, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
     _version(conn, p1, "same")
+    vid, _ = _version(conn, p1, "same")  # idempotent: the same version is reused
     assert store.find_text_elsewhere(conn, "same", exclude_publication_id=p1) is None
-    assert store.find_text_elsewhere(conn, "same", exclude_publication_id=p2) == p1
+    assert store.find_text_elsewhere(conn, "same", exclude_publication_id=p2) == (p1, vid)
 
 
 def test_run_items_and_health(conn):
@@ -198,9 +199,9 @@ def test_a_new_publication_may_have_no_date_and_a_later_date_fills_it(conn):
 def test_independent_content_clears_a_stale_duplicate_attribution(conn):
     inst = _inst(conn)
     original, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
-    _version(conn, original, "same-text")
+    original_version_id, _ = _version(conn, original, "same-text")
     copy, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
-    store.mark_duplicate(conn, copy, original)
+    store.mark_duplicate(conn, copy, original, original_version_id)
     assert conn.execute("SELECT duplicate_of_id FROM research_publication WHERE id=?",
                         (copy,)).fetchone()[0] == original  # fmt: skip
     _version(conn, copy, "different-text")
@@ -213,9 +214,9 @@ def test_independent_content_clears_a_stale_duplicate_attribution(conn):
 def test_a_duplicate_without_its_own_version_keeps_its_attribution(conn):
     inst = _inst(conn)
     original, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
-    _version(conn, original, "same-text")
+    original_version_id, _ = _version(conn, original, "same-text")
     copy, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
-    store.mark_duplicate(conn, copy, original)
+    store.mark_duplicate(conn, copy, original, original_version_id)
     _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b", title="Renamed")
     assert conn.execute("SELECT duplicate_of_id FROM research_publication WHERE id=?",
                         (copy,)).fetchone()[0] == original  # fmt: skip
@@ -229,3 +230,55 @@ def test_reactivating_an_old_version_of_an_independent_publication_stays_indepen
     _version(conn, pub, "t1")  # revert
     assert conn.execute("SELECT duplicate_of_id FROM research_publication WHERE id=?",
                         (pub,)).fetchone()[0] is None  # fmt: skip
+
+
+def _dup_row(conn, pub):
+    row = conn.execute(
+        "SELECT duplicate_of_id, duplicate_of_version_id FROM research_publication WHERE id=?",
+        (pub,),
+    ).fetchone()
+    return tuple(row)
+
+
+def test_a_duplicate_keeps_the_exact_version_it_matched_after_the_original_is_revised(conn):
+    inst = _inst(conn)
+    a, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
+    x_version, _ = _version(conn, a, "text-x")
+    b, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
+    assert store.find_text_elsewhere(conn, "text-x", exclude_publication_id=b) == (a, x_version)
+    store.mark_duplicate(conn, b, a, x_version)
+    y_version, _ = _version(conn, a, "text-y")  # the original is revised afterwards
+    assert y_version != x_version and store.current_version(conn, a)["id"] == y_version
+    assert _dup_row(conn, b) == (a, x_version)  # still attributed to the text it actually matched
+    assert conn.execute("SELECT text_sha256 FROM research_document_version WHERE id=?",
+                        (x_version,)).fetchone()[0] == "text-x"  # fmt: skip
+
+
+def test_a_new_publication_matching_a_historical_version_records_that_exact_version(conn):
+    inst = _inst(conn)
+    a, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
+    x_version, _ = _version(conn, a, "text-x")
+    _version(conn, a, "text-y")  # revised before B appears
+    b, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
+    assert store.find_text_elsewhere(conn, "text-x", exclude_publication_id=b) == (a, x_version)
+
+
+def test_a_current_match_is_preferred_over_an_older_version_elsewhere(conn):
+    inst = _inst(conn)
+    a, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
+    _version(conn, a, "shared")
+    _version(conn, a, "other")  # A no longer serves "shared"
+    c, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/c", url="https://www.anz.co.nz/c")
+    c_version, _ = _version(conn, c, "shared")  # C serves it now
+    b, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
+    assert store.find_text_elsewhere(conn, "shared", exclude_publication_id=b) == (c, c_version)
+
+
+def test_becoming_independent_clears_the_exact_version_too(conn):
+    inst = _inst(conn)
+    a, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
+    x_version, _ = _version(conn, a, "text-x")
+    b, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
+    store.mark_duplicate(conn, b, a, x_version)
+    _version(conn, b, "b-own-text")
+    assert _dup_row(conn, b) == (None, None)

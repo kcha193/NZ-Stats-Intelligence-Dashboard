@@ -76,6 +76,12 @@ a publication gets its own version. The percent-encoded robots finding was alrea
 and now has explicit tests. Three round-1 "left for later" items (`duplicate_of_id`, challenge cooldown, candidate ordering) are
 therefore closed.
 
+Review round 4 (Codex on `508b213`): a raw-deflate stream split after its first byte was rejected because the fallback only
+applied within the first chunk; undecided leading bytes are now replayed into the headerless decoder (fixed, tested at every
+split point). A duplicate recorded only the original's publication, so revising the original changed what the duplicate
+matched; additive migration `005` stores the exact matched version (`duplicate_of_version_id`) and the rollback script drops it
+with the other research tables.
+
 Before Phase 3B: approve at least one `full_text` source (the Treasury is the likeliest; read its licence page directly and
 run `research discover treasury`), ingest real documents, decide whether any
 source's terms allow sending its text to an LLM provider. Details in the Phase 3B plan.

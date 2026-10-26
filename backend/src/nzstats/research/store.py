@@ -167,24 +167,34 @@ def _supersede(conn: sqlite3.Connection, current: sqlite3.Row | None, stamp: str
 def _point(conn: sqlite3.Connection, publication_id: int, version_id: int) -> None:
     # A publication with its own current version is independent: drop any earlier duplicate attribution.
     conn.execute("UPDATE research_publication SET current_version_id=?, content_status='extracted',"
-                 " duplicate_of_id=NULL WHERE id=?", (version_id, publication_id))  # fmt: skip
+                 " duplicate_of_id=NULL, duplicate_of_version_id=NULL WHERE id=?",
+                 (version_id, publication_id))  # fmt: skip
 
 
-def mark_duplicate(conn: sqlite3.Connection, publication_id: int, original_id: int) -> None:
-    conn.execute("UPDATE research_publication SET duplicate_of_id=? WHERE id=?",
-                 (original_id, publication_id))  # fmt: skip
+def mark_duplicate(
+    conn: sqlite3.Connection, publication_id: int, original_id: int, original_version_id: int
+) -> None:
+    """Record that this publication's text is the stored version `original_version_id` of another one."""
+    conn.execute("UPDATE research_publication SET duplicate_of_id=?, duplicate_of_version_id=?"
+                 " WHERE id=?", (original_id, original_version_id, publication_id))  # fmt: skip
 
 
 def find_text_elsewhere(
     conn: sqlite3.Connection, text_sha256: str, *, exclude_publication_id: int
-) -> int | None:
-    """The publication that already holds this exact text under a different identity, if any."""
+) -> tuple[int, int] | None:
+    """(publication id, version id) of a stored version with this exact text under another identity.
+
+    A version that is still current is preferred; otherwise the earliest match. The version id is what
+    makes the match exact, because the publication may have been revised since.
+    """
     row = conn.execute(
-        "SELECT publication_id FROM research_document_version WHERE text_sha256=?"
-        " AND publication_id != ? ORDER BY id LIMIT 1",
+        "SELECT v.publication_id, v.id FROM research_document_version v"
+        " JOIN research_publication p ON p.id = v.publication_id"
+        " WHERE v.text_sha256=? AND v.publication_id != ?"
+        " ORDER BY (p.current_version_id = v.id) DESC, v.id LIMIT 1",
         (text_sha256, exclude_publication_id),
     ).fetchone()
-    return int(row[0]) if row else None
+    return (int(row[0]), int(row[1])) if row else None
 
 
 def record_run(
