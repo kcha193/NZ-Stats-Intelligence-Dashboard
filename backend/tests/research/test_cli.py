@@ -123,3 +123,112 @@ def test_sources_shows_the_llm_processing_permission(env, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert "llm" in lines[0]
     assert all("denied" in line for line in lines[1:] if line.strip())
+
+
+# --- Phase 3B: summarise, inspect, approve, reject ----------------------------------------------
+LLM_REGISTRY = REGISTRY.replace(
+    "min_text_chars = 200\n",
+    'min_text_chars = 200\nllm_processing = "local_only"\nllm_processing_note = "synthetic"\n',
+)
+
+
+@pytest.fixture()
+def llm_env(tmp_path, monkeypatch):
+    from nzstats.research.providers import FakeProvider
+    from nzstats.store.db import connect, migrate
+
+    from .llm_support import draft_json, seed_version
+
+    path = tmp_path / "research.toml"
+    path.write_text(textwrap.dedent(LLM_REGISTRY), encoding="utf-8")
+    monkeypatch.setenv("NZSTATS_RESEARCH_SOURCES_FILE", str(path))
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("NZSTATS_LLM_API_KEY", raising=False)
+    for name, value in (("NZSTATS_LLM_PROVIDER", "openai_compatible"), ("NZSTATS_LLM_MODEL", "local"),
+                        ("NZSTATS_LLM_BASE_URL", "http://127.0.0.1:9/v1"),
+                        ("NZSTATS_LLM_INPUT_USD_PER_MTOK", "4"),
+                        ("NZSTATS_LLM_OUTPUT_USD_PER_MTOK", "20")):  # fmt: skip
+        monkeypatch.setenv(name, value)
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    version = seed_version(conn)
+    state = {"text": lambda req: draft_json(req.version_id)}
+    fake = FakeProvider(lambda req: state["text"](req))
+    monkeypatch.setattr("nzstats.research.cli.build_llm_provider", lambda settings: fake)
+    return conn, version, fake, state
+
+
+def test_summarise_without_a_configured_provider_refuses(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "research.toml"
+    path.write_text(textwrap.dedent(LLM_REGISTRY), encoding="utf-8")
+    monkeypatch.setenv("NZSTATS_RESEARCH_SOURCES_FILE", str(path))
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("NZSTATS_LLM_PROVIDER", raising=False)
+    assert main(["research", "summarise"]) == 1
+    assert "no LLM provider is configured" in capsys.readouterr().out
+
+
+def test_a_bad_llm_configuration_is_a_clear_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("NZSTATS_LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("NZSTATS_LLM_API_KEY", "sk-secret-value")
+    assert main(["research", "summarise"]) == 2
+    out = capsys.readouterr().out
+    assert "NZSTATS_LLM_MODEL" in out and "sk-secret-value" not in out
+
+
+def test_summarise_then_list_inspect_and_approve(llm_env, capsys):
+    conn, version, fake, _ = llm_env
+    assert main(["research", "summarise", "example"]) == 0
+    out = capsys.readouterr().out
+    assert f"version {version}" in out and "verified" in out and "spent" in out
+    assert main(["research", "summaries"]) == 0
+    listing = capsys.readouterr().out
+    assert "verified" in listing and "unreviewed" in listing
+    sid = conn.execute("SELECT id FROM research_summary").fetchone()[0]
+    assert main(["research", "summary", str(sid)]) == 0
+    shown = capsys.readouterr().out
+    assert "not a check of economic accuracy" in shown
+    assert "expected to grow 2.5% in the year to March 2027" in shown and "page 1" in shown
+    assert "Not an official statistic" in shown
+    assert main(["research", "approve", str(sid), "--reviewer", "Kevin"]) == 0
+    assert main(["research", "summaries", "--review", "approved"]) == 0
+    assert "approved" in capsys.readouterr().out
+
+
+def test_dry_run_estimates_without_calling(llm_env, capsys):
+    _, _, fake, _ = llm_env
+    assert main(["research", "summarise", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "would_summarise" in out and "estimated" in out and fake.calls == []
+
+
+def test_a_failed_summary_cannot_be_approved_and_rejection_needs_a_note(llm_env, capsys):
+    conn, _, _, state = llm_env
+    state["text"] = lambda req: "not json"
+    assert main(["research", "summarise"]) == 0  # the run worked; the output was invalid
+    sid = conn.execute("SELECT id FROM research_summary").fetchone()[0]
+    assert main(["research", "approve", str(sid), "--reviewer", "Kevin"]) == 1
+    assert "only verified" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        main(["research", "reject", str(sid), "--reviewer", "Kevin"])
+    assert (
+        main(["research", "reject", str(sid), "--reviewer", "Kevin", "--note", "bad output"]) == 0
+    )
+    assert main(["research", "summary", "999"]) == 1
+
+
+def test_model_text_is_printed_without_control_characters(llm_env, capsys):
+    conn, version, _, state = llm_env
+    from .llm_support import draft_json
+
+    state["text"] = lambda req: draft_json(req.version_id, outlook={
+        "text": "Growth \x1b[2J\x1b]0;pwned\x07 is expected to pick up.",
+        "evidence": [{"version_id": req.version_id, "section_ordinal": 0, "page": 1,
+                      "quote": "expected to grow 2.5% in the year to March 2027"}]})  # fmt: skip
+    assert main(["research", "summarise"]) == 0
+    sid = conn.execute("SELECT id FROM research_summary").fetchone()[0]
+    capsys.readouterr()
+    assert main(["research", "summary", str(sid)]) == 0
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out and "\\x1b[2J" in out
