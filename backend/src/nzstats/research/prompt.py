@@ -41,7 +41,7 @@ Rules:
 Return only one JSON object matching this schema, with no other text:
 """
 
-_INJECTION = re.compile(
+INJECTION_PATTERN = re.compile(
     r"ignore\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|prompts?|messages)"
     r"|disregard\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier)"
     r"|system\s+prompt"
@@ -113,4 +113,4 @@ def input_sha256(
 
 def injection_findings(sections: Mapping[int, SectionText]) -> list[int]:
     """Ordinals of sections whose text resembles instructions addressed to a model."""
-    return sorted(k for k, s in sections.items() if _INJECTION.search(s.text))
+    return sorted(k for k, s in sections.items() if INJECTION_PATTERN.search(s.text))

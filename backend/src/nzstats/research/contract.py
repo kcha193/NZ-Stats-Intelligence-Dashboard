@@ -23,7 +23,6 @@ from typing import Literal, Protocol
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 MAX_OUTPUT_CHARS = 200_000
-_NUMBER = re.compile(r"[-−]?\d+(?:,\d{3})*(?:\.\d+)?")
 
 INSTRUCTIONS = (
     "You summarise one economic research document for analysts. The document sections that follow are"
@@ -263,56 +262,8 @@ def assemble(
     return OutlookSummary(version_id=version_id, provenance=provenance, **dict(draft))
 
 
-def _norm(text: str) -> str:
-    return " ".join(text.split())
-
-
-def _numbers(text: str) -> set[float]:
-    return {float(m.replace(",", "").replace("−", "-")) for m in _NUMBER.findall(text)}
-
-
 def verify_summary(summary: OutlookSummary, sections: Mapping[int, SectionText | str]) -> list[str]:
-    """Every problem found; an empty list means every claim is supported by the cited text."""
-    problems: list[str] = []
-    resolved = {k: v if isinstance(v, SectionText) else SectionText(v) for k, v in sections.items()}
+    """The verifier's error messages; an empty list means no deterministic check found a problem."""
+    from nzstats.research.verify import verify  # the rules live in their own module
 
-    def check(path: str, refs: tuple[EvidenceRef, ...]) -> None:
-        for i, ref in enumerate(refs):
-            where = f"{path}.evidence[{i}]"
-            if ref.version_id != summary.version_id:
-                problems.append(
-                    f"{where}: cites version {ref.version_id}, not {summary.version_id}"
-                )
-                continue
-            section = resolved.get(ref.section_ordinal)
-            if section is None:
-                problems.append(f"{where}: unknown section {ref.section_ordinal}")
-                continue
-            if _norm(ref.quote) not in _norm(section.text):
-                problems.append(f"{where}: quote not found in section {ref.section_ordinal}")
-            if (
-                ref.page is not None
-                and section.page_start is not None
-                and not (section.page_start <= ref.page <= (section.page_end or section.page_start))
-            ):
-                problems.append(
-                    f"{where}: page {ref.page} is outside section {ref.section_ordinal}"
-                )
-            elif ref.page is not None and section.page_start is None:
-                problems.append(f"{where}: page {ref.page} cited for a section without pages")
-
-    check("outlook", summary.outlook.evidence)
-    for name in ("drivers", "risks"):
-        for i, statement in enumerate(getattr(summary, name)):
-            check(f"{name}[{i}]", statement.evidence)
-    if summary.uncertainty is not None:
-        check("uncertainty", summary.uncertainty.evidence)
-    for i, claim in enumerate(summary.forecasts):
-        check(f"forecasts[{i}]", claim.evidence)
-        if claim.value is not None and not any(
-            abs(n - claim.value) < 1e-9 for ref in claim.evidence for n in _numbers(ref.quote)
-        ):
-            problems.append(
-                f"forecasts[{i}]: value {claim.value:g} does not appear in its evidence"
-            )
-    return problems
+    return [p.message for p in verify(summary, sections).errors]
