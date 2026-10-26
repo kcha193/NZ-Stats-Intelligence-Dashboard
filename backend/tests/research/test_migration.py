@@ -7,6 +7,9 @@ from nzstats.store.db import MIGRATIONS_DIR, connect, migrate
 
 REPO = Path(__file__).resolve().parents[3]
 ROLLBACK = REPO / "scripts" / "rollback" / "004_research_down.sql"
+ROLLBACK_006 = REPO / "scripts" / "rollback" / "006_research_summaries_down.sql"
+TABLES_006 = {"research_llm_run", "research_summary", "research_forecast_claim", "research_llm_usage",
+              "research_summary_review"}  # fmt: skip
 
 
 def _schema(conn: sqlite3.Connection, *, research: bool) -> dict[str, str]:
@@ -136,3 +139,61 @@ def test_migration_005_adds_one_nullable_column_and_keeps_existing_research_rows
                        " FROM research_publication").fetchone()  # fmt: skip
     assert tuple(row) == ("anz:h/a", None, None)
     assert migrate(conn) >= 5  # idempotent
+
+
+def test_migration_006_is_additive_on_a_populated_schema_5_database(tmp_path):
+    conn = _populated_pre_research(tmp_path)
+    migrate(conn)  # to the latest, then roll 006 back to compare
+    conn.executescript(ROLLBACK_006.read_text(encoding="utf-8"))
+    before = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    rows = conn.execute("SELECT * FROM release").fetchall()
+    assert migrate(conn) >= 6
+    after = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    assert {k: v for k, v in after.items() if k in before} == before
+    assert TABLES_006 <= set(after)
+    assert [tuple(r) for r in conn.execute("SELECT * FROM release")] == [tuple(r) for r in rows]
+
+
+def test_migration_006_references_no_statistical_table(conn):
+    for name, sql in _schema(conn, research=True).items():
+        if any(t in name for t in TABLES_006):
+            for table in ("release", "series", "vintage", "observation", "ingest_run"):
+                assert f"REFERENCES {table} " not in sql and f"REFERENCES {table}(" not in sql
+
+
+def test_rollback_006_removes_only_its_objects(tmp_path):
+    conn = connect(tmp_path / "r.db")
+    migrate(conn)
+
+    def objects() -> dict[str, str]:
+        return {r["name"]: r["tbl_name"] for r in conn.execute(
+            "SELECT name, tbl_name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")}  # fmt: skip
+
+    before = objects()
+    conn.executescript(ROLLBACK_006.read_text(encoding="utf-8"))
+    after = objects()
+    assert set(before) - set(after) == {n for n, t in before.items() if t in TABLES_006}
+    assert {n: before[n] for n in after} == after and "research_document_version" in after
+    assert 6 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
+    assert migrate(conn) >= 6
+
+
+def test_full_research_rollback_also_removes_the_006_tables(tmp_path):
+    from .llm_support import seed_version
+
+    conn = connect(tmp_path / "f.db")
+    migrate(conn)
+    version = seed_version(conn)
+    run = conn.execute(
+        "INSERT INTO research_llm_run(provider, model, hosted, prompt_version, processing_version,"
+        " started_at) VALUES ('fake','m',0,'p','3b-1','t')"
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO research_summary(version_id, run_id, attempt, provider, model, hosted,"
+        " prompt_version, processing_version, verifier_version, input_sha256, status, created_at)"
+        " VALUES (?, ?, 1, 'fake', 'm', 0, 'p', '3b-1', 'v', ?, 'provider_error', 't')",
+        (version, run, "a" * 64),
+    )
+    conn.executescript(ROLLBACK.read_text(encoding="utf-8"))
+    assert _schema(conn, research=True) == {}
+    assert not {r[0] for r in conn.execute("SELECT version FROM schema_version")} & {4, 5, 6}
