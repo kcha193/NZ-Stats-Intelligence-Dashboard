@@ -232,3 +232,21 @@ def test_model_text_is_printed_without_control_characters(llm_env, capsys):
     assert main(["research", "summary", str(sid)]) == 0
     out = capsys.readouterr().out
     assert "\x1b" not in out and "\x07" not in out and "\\x1b[2J" in out
+
+
+def test_every_stored_field_from_the_model_is_escaped_including_units(llm_env, capsys):
+    conn, _, _, state = llm_env
+    from .llm_support import draft
+
+    def output(req):
+        data = draft(req.version_id)
+        data["forecasts"][0]["unit"] = "\x1b[31mpct"
+        return __import__("json").dumps(data)
+
+    state["text"] = output
+    assert main(["research", "summarise"]) == 0
+    sid = conn.execute("SELECT id FROM research_summary").fetchone()[0]
+    capsys.readouterr()
+    assert main(["research", "summary", str(sid)]) == 0
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\\x1b[31mpct" in out

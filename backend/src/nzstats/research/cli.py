@@ -177,6 +177,12 @@ def _safe(text: object) -> str:
     return "".join(out)
 
 
+def _emit(text: str = "") -> None:
+    """Print one or more lines; every line is escaped, so no stored field reaches the terminal raw."""
+    for line in str(text).split("\n"):
+        print(_safe(line))
+
+
 def _open(settings: Settings):
     conn = connect(settings.db_path)
     migrate(conn)
@@ -189,14 +195,14 @@ def _summarise(
     try:
         llm = load_llm_settings(os.environ)
     except LlmConfigError as exc:
-        print(f"LLM configuration error: {exc}")
+        _emit(f"LLM configuration error: {exc}")
         return 2
     if llm.provider == "disabled":
-        print("no LLM provider is configured; set NZSTATS_LLM_PROVIDER and the related variables"
+        _emit("no LLM provider is configured; set NZSTATS_LLM_PROVIDER and the related variables"
               " (docs/data-sources/research.md)")  # fmt: skip
         return 1
     if args.key and args.key not in registry:
-        print(f"unknown institution {args.key!r}; see `nzstats research sources`")
+        _emit(f"unknown institution {args.key!r}; see `nzstats research sources`")
         return 2
     provider = build_llm_provider(llm)
     conn = _open(settings)
@@ -205,28 +211,28 @@ def _summarise(
         version_ids=tuple(args.version), limit=args.limit, dry_run=args.dry_run,
     )  # fmt: skip
     for key, reason in result.refusals:
-        print(f"{key}: refused ({reason})")
+        _emit(f"{key}: refused ({reason})")
     for item in result.items:
         detail = f" ({item.error_class})" if item.error_class else ""
         if item.summary_id is not None:
             detail += f" summary {item.summary_id}, {item.errors} errors, {item.warnings} warnings"
-        print(f"version {item.version_id} ({item.institution}): {item.outcome}{detail}"
+        _emit(f"version {item.version_id} ({item.institution}): {item.outcome}{detail}"
               f" estimated ${item.estimated_usd:.4f}")  # fmt: skip
     where = "dry run" if args.dry_run else f"run {result.run_id}"
-    print(f"{provider.name}/{provider.model} {where}: {result.outcome} {result.counts};"
+    _emit(f"{provider.name}/{provider.model} {where}: {result.outcome} {result.counts};"
           f" spent ${result.spent_usd:.4f} of ${llm.limits.max_run_usd:.2f}")  # fmt: skip
     return 0 if result.outcome == "ok" else 1
 
 
 def _list(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
     rows = ss.list_summaries(_open(settings), status=args.status, review_status=args.review)
-    print(
+    _emit(
         f"{'id':>5} {'institution':<12} {'version':>7} {'status':<20} {'review':<11} model / prompt"
     )
     for r in rows:
-        print(f"{r['id']:>5} {r['institution']:<12} {r['version_id']:>7} {r['status']:<20}"
+        _emit(f"{r['id']:>5} {r['institution']:<12} {r['version_id']:>7} {r['status']:<20}"
               f" {r['review_status']:<11} {_safe(r['model'])} / {_safe(r['prompt_version'])}")  # fmt: skip
-    print(f"{len(rows)} summaries")
+    _emit(f"{len(rows)} summaries")
     return 0
 
 
@@ -243,55 +249,55 @@ def _show(args: argparse.Namespace, settings: Settings, registry: dict[str, Inst
     conn = _open(settings)
     row = ss.get_summary(conn, args.id)
     if row is None:
-        print(f"no summary {args.id}")
+        _emit(f"no summary {args.id}")
         return 1
-    print(f"Summary {row['id']}: {row['institution']} \u2014 {_safe(row['document_title'])}")
-    print(f"  document version {row['version_id']} (no. {row['version_no']}), published"
+    _emit(f"Summary {row['id']}: {row['institution']} \u2014 {_safe(row['document_title'])}")
+    _emit(f"  document version {row['version_id']} (no. {row['version_no']}), published"
           f" {row['published_on'] or 'unknown'}{' (superseded)' if row['superseded_at'] else ''}")  # fmt: skip
-    print(f"  {row['provider']}/{_safe(row['model'])}, prompt {row['prompt_version']}, processing"
+    _emit(f"  {row['provider']}/{_safe(row['model'])}, prompt {row['prompt_version']}, processing"
           f" {row['processing_version']}, verifier {row['verifier_version']}, created"
           f" {to_akl_iso(row['created_at'])}")  # fmt: skip
     error = f" ({row['error_class']})" if row["error_class"] else ""
     review = row["review_status"]
     if row["reviewed_by"]:
         review += f" by {_safe(row['reviewed_by'])}: {_safe(row['review_note'] or '')}"
-    print(f"  status {row['status']}{error}; review {review}")
-    print("  Not an official statistic: an interpretation of institutional commentary.")
-    print(f"  {SCOPE}")
+    _emit(f"  status {row['status']}{error}; review {review}")
+    _emit("  Not an official statistic: an interpretation of institutional commentary.")
+    _emit(f"  {SCOPE}")
     if row["output_json"]:
         out = json.loads(row["output_json"])
         for name in ("outlook", "uncertainty"):
             if out.get(name):
-                print(f"  {name}: {_safe(out[name]['text'])}")
-                print("\n".join(_evidence(out[name]["evidence"])))
+                _emit(f"  {name}: {_safe(out[name]['text'])}")
+                _emit("\n".join(_evidence(out[name]["evidence"])))
         for name in ("drivers", "risks"):
             for st in out.get(name, []):
-                print(f"  {name[:-1]}: {_safe(st['text'])}")
-                print("\n".join(_evidence(st["evidence"])))
-        print(f"  indicators: {', '.join(out.get('indicators', [])) or '-'}")
+                _emit(f"  {name[:-1]}: {_safe(st['text'])}")
+                _emit("\n".join(_evidence(st["evidence"])))
+        _emit(f"  indicators: {', '.join(out.get('indicators', [])) or '-'}")
         for i, c in enumerate(out.get("forecasts", [])):
             value = "-" if c["value"] is None else f"{c['value']:g} {c['unit'] or '(no unit)'}"
             scenario = (
                 f" [scenario: {_safe(c['scenario'])}]" if c.get("scenario") else " [baseline]"
             )
-            print(f"  forecast {i}: {c['indicator']} ({_safe(c['indicator_label'])}), {_safe(c['horizon'])}:"
+            _emit(f"  forecast {i}: {c['indicator']} ({_safe(c['indicator_label'])}), {_safe(c['horizon'])}:"
                   f" {value}, {c['direction']}{scenario}")  # fmt: skip
             if c.get("qualification"):
-                print(f"      qualification: {_safe(c['qualification'])}")
-            print("\n".join(_evidence(c["evidence"])))
+                _emit(f"      qualification: {_safe(c['qualification'])}")
+            _emit("\n".join(_evidence(c["evidence"])))
     elif row["raw_output"] is not None:
-        print(f"  raw output: {len(row['raw_output'])} characters (stored, not shown)")
+        _emit(f"  raw output: {len(row['raw_output'])} characters (stored, not shown)")
     if row["verification"]:
         report = json.loads(row["verification"])
         for kind in ("errors", "warnings"):
             for p in report[kind]:
-                print(f"  {kind[:-1]}: {p['code']}: {_safe(p['message'])}")
+                _emit(f"  {kind[:-1]}: {p['code']}: {_safe(p['message'])}")
     usage = ss.usage_for(conn, row["id"])
     if usage:
         tokens_in = sum(u["input_tokens"] or 0 for u in usage)
         tokens_out = sum(u["output_tokens"] or 0 for u in usage)
         estimated = " (some estimated)" if any(u["usage_estimated"] for u in usage) else ""
-        print(f"  usage: {len(usage)} calls, {tokens_in} input / {tokens_out} output tokens{estimated},"
+        _emit(f"  usage: {len(usage)} calls, {tokens_in} input / {tokens_out} output tokens{estimated},"
               f" ${sum(u['cost_usd'] for u in usage):.4f}, {sum(u['latency_ms'] for u in usage)} ms")  # fmt: skip
     return 0
 
@@ -302,9 +308,9 @@ def _review(args: argparse.Namespace, settings: Settings, registry: dict[str, In
         ss.review(_open(settings), args.id, decision=decision, reviewer=args.reviewer, note=args.note,
                   now=utc_now())  # fmt: skip
     except ss.ReviewError as exc:
-        print(f"refused: {exc}")
+        _emit(f"refused: {exc}")
         return 1
-    print(f"summary {args.id}: {decision} by {_safe(args.reviewer.strip())}")
+    _emit(f"summary {args.id}: {decision} by {_safe(args.reviewer.strip())}")
     return 0
 
 
