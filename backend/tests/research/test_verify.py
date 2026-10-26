@@ -356,3 +356,22 @@ def test_report_serialises_for_storage():
 def test_a_fabricated_quote_cannot_support_a_value_even_if_it_contains_the_number():
     report = run(claim("expected to grow 3.5% in the year to March 2027", 0, value=3.5))
     assert {"quote_not_found", "value_not_in_evidence"} <= codes(report)
+
+
+@pytest.mark.parametrize(
+    ("text", "quote"),
+    [
+        ("We have revised our forecast: GDP growth of 2.1% in 2027, down from 2.5% previously.",
+         "GDP growth of 2.1% in 2027, down from 2.5% previously"),
+        ("GDP growth is forecast at 2.1% in 2027 (previously 2.5%).",
+         "GDP growth is forecast at 2.1% in 2027 (previously 2.5%)"),
+    ],
+)  # fmt: skip
+def test_an_earlier_forecast_quoted_beside_the_revision_is_not_the_current_one(text, quote):
+    sections = {0: SectionText(text, 1, 1)}
+    s = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("gdp",),
+                       forecasts=[claim(quote, 0, value=2.5, horizon="2027")])  # fmt: skip
+    assert "superseded_value" in codes(verify(s, {**SECTIONS, **sections}))
+    current = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("gdp",),
+                             forecasts=[claim(quote, 0, value=2.1, horizon="2027")])  # fmt: skip
+    assert "superseded_value" not in codes(verify(current, {**SECTIONS, **sections}))

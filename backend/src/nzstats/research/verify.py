@@ -71,6 +71,15 @@ _DOWN = re.compile(
     r"\b(?:fall|fell|declin|decreas|lower|eas(?:e|es|ed|ing)\b|cut|contract|weaken|slow|drop|reduc"
     r"|deteriorat)", re.IGNORECASE)  # fmt: skip
 _FLAT = re.compile(r"\b(?:steady|unchanged|flat|stable|hold|remain)", re.IGNORECASE)
+_EARLIER_BEFORE = re.compile(
+    r"(?:\b(?:down|up|revised|lowered|raised|cut|increased|changed)\s+from|\bpreviously"
+    r"|\b(?:previous|prior|earlier|last)\s+(?:forecast|projection|estimate)\s+(?:of|was))\s*\(?\s*$",
+    re.IGNORECASE,
+)
+_EARLIER_AFTER = re.compile(
+    r"^\s*(?:%|per\s*cent|percent)?\s*\)?\s*,?\s*(?:previously|in (?:our|the) (?:previous|prior|last|earlier))",
+    re.IGNORECASE,
+)
 _CERTAIN = re.compile(
     r"\b(?:certain(?:ly)?|definitely|guarantee[ds]?|inevitabl[ey]|undoubtedly|no doubt)\b", re.I
 )
@@ -366,14 +375,22 @@ class _Checker:
         self.numbers_in(path, "indicator label", claim.indicator_label, f"{quotes} {sentences}")
         self.numbers_in(path, "qualification", claim.qualification, f"{quotes} {sentences}")
         value_at: list[tuple[_Located, int]] = []  # where the value sits, in section coordinates
+        superseded = []
         if claim.value is not None:
             for ref, loc in found:
-                value_at += [
-                    (loc, loc.start + s) for s, _ in _value_spans(claim.value, _norm(ref.quote))
-                ]
+                for s, e in _value_spans(claim.value, _norm(ref.quote)):
+                    value_at.append((loc, loc.start + s))
+                    before = loc.text[max(0, loc.start + s - 30) : loc.start + s]
+                    after = loc.text[loc.start + e : loc.start + e + 30]
+                    superseded.append(
+                        bool(_EARLIER_BEFORE.search(before) or _EARLIER_AFTER.match(after))
+                    )
             if not value_at:  # only quotes actually found in the document can support a value
                 self.error("value_not_in_evidence", path,
                            f"value {claim.value:g} does not appear in its evidence")  # fmt: skip
+            elif all(superseded):
+                self.error("superseded_value", path,
+                           f"value {claim.value:g} is described as an earlier forecast")  # fmt: skip
             self.unit(path, claim, found)
         if not found:
             return
