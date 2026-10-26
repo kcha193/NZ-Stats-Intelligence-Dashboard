@@ -14,6 +14,8 @@ from nzstats.publish.contract import is_stats_nz_url
 from nzstats.publish.snapshot import export_snapshot
 from nzstats.publish.validate import validate_snapshot
 from nzstats.research import store
+from nzstats.research import summary_store as ss
+from nzstats.research.contract import ForecastClaim
 from nzstats.store.db import connect, migrate, transaction
 
 from .conftest import EXPORT_NOW
@@ -44,7 +46,28 @@ def seed_research(data_dir: Path) -> None:
         store.record_item(conn, run, url="https://www.anz.co.nz/x", outcome="new", error_class=None,
                           detail=None, publication_id=pub, version_id=version)  # fmt: skip
         store.set_health(conn, inst, state="ok", now=NOW, success=True, detail=None)
+    seed_summary(conn, version)
     conn.close()
+
+
+def seed_summary(conn, version: int) -> None:
+    """A verified, approved Phase 3B summary with a claim, usage and a review decision."""
+    key = ss.SummaryKey(version, "fake", "fake-1", "outlook-v1", "3b-1", "a" * 64)
+    run = ss.start_run(conn, provider="fake", model="fake-1", hosted=False, prompt_version="outlook-v1",
+                       processing_version="3b-1", limits={}, dry_run=False, now=NOW)  # fmt: skip
+    claim = ForecastClaim(indicator="gdp", indicator_label=TEXT[:100], horizon="2027", value=9.9,
+                          unit="percent", direction="up", evidence=[{"version_id": version,
+                          "section_ordinal": 0, "quote": TEXT[:60]}])  # fmt: skip
+    with transaction(conn):
+        sid = ss.insert_summary(conn, key, run_id=run, attempt=1, hosted=False, verifier_version="v",
+                                parameters={}, raw_output=TEXT, output_json=json.dumps({"t": TEXT}),
+                                status="verified", error_class=None, verification={}, now=NOW)  # fmt: skip
+        ss.insert_claims(conn, sid, [claim])
+        ss.record_usage(conn, run_id=run, version_id=version, summary_id=sid, call_no=1, provider="fake",
+                        model="fake-1", input_tokens=1, output_tokens=1, usage_estimated=False,
+                        latency_ms=1, cost_usd=0.0, outcome="ok", error_class=None, now=NOW)  # fmt: skip
+    ss.review(conn, sid, decision="approved", reviewer="Test", note=TEXT, now=NOW)
+    ss.finish_run(conn, run, outcome="ok", counts={"verified": 1}, spent_usd=0.0, now=NOW)
 
 
 def _files(root: Path) -> dict[str, bytes]:

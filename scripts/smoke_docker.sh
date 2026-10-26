@@ -40,6 +40,12 @@ check_persistence() {
 # Research (Phase 3A): the baked-in registry loads, and the PDF dependency is installed. Both make no request.
 docker run --rm --network none "$image" nzstats research sources >/dev/null
 docker run --rm --network none "$image" python -c "import pypdf"
+# Phase 3B: with no NZSTATS_LLM_* configuration, summarising refuses (exit 1) before any request.
+if docker run --rm --network none "$image" nzstats research summarise; then
+  echo "research summarise ran without a configured provider" >&2
+  exit 1
+fi
+docker run --rm --network none "$image" nzstats research summaries >/dev/null
 
 start_api
 wait_healthy
