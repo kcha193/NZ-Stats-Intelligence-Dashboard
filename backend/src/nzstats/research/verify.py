@@ -103,6 +103,10 @@ _UNIT_SUFFIX = {
 }  # fmt: skip
 _OF_GDP = re.compile(r"^\s*(?:%|per\s*cent|percent)\s+of\s+(?:nominal\s+)?gdp", re.IGNORECASE)
 _DOLLAR_PREFIX = re.compile(r"(?:\$|nzd\s?|nz\$)\s?$", re.IGNORECASE)
+# A scale word or abbreviation straight after a dollar amount: plain NZD must not match these.
+_MONEY_SCALE = re.compile(
+    r"^\s*(?:thousand|k\b|million|mn?\b|billion|bn\b|b\b|trillion|tn\b|t\b)", re.IGNORECASE
+)
 _INDICATOR_WORDS: dict[Indicator, re.Pattern[str]] = {
     Indicator.GDP: re.compile(r"\bgdp\b|gross domestic|economic growth|\beconomy\b|\boutput\b", re.I),
     Indicator.CPI_INFLATION: re.compile(r"\bcpi\b|inflation|consumers?\s+price", re.I),
@@ -415,15 +419,19 @@ class _Checker:
         for ref, loc in found:
             quote = _norm(ref.quote)
             for s, e in _value_spans(claim.value, quote):
+                # the section may carry on past a quote that stops at the number: "$25" | " billion"
+                beyond = loc.text[loc.start + e : loc.start + e + 30]
                 checked.append(
-                    self._unit_matches(claim.unit, quote[:s], quote[e:], loc.sentence_text())
+                    self._unit_matches(
+                        claim.unit, quote[:s], quote[e:], loc.sentence_text(), beyond
+                    )
                 )
         if checked and not any(checked):
             self.error("unit_mismatch", path,
                        f"unit {claim.unit!r} is not what the evidence states next to {claim.value:g}")  # fmt: skip
 
     @staticmethod
-    def _unit_matches(unit: str, before: str, after: str, sentence: str) -> bool:
+    def _unit_matches(unit: str, before: str, after: str, sentence: str, beyond: str = "") -> bool:
         def stated(name: str) -> bool:
             return bool(_UNIT_SUFFIX[name].match(after))
 
@@ -436,7 +444,9 @@ class _Checker:
             return stated(unit)
         if unit in ("nzd_billion", "nzd_million"):
             return bool(_DOLLAR_PREFIX.search(before)) and stated(unit)
-        if unit == "nzd":
+        if unit == "nzd":  # plain dollars: "$25 billion" is not 25 dollars
+            if _MONEY_SCALE.match(after) or _MONEY_SCALE.match(beyond):
+                return False
             return bool(_DOLLAR_PREFIX.search(before)) or after.lower().lstrip().startswith(
                 "dollar"
             )

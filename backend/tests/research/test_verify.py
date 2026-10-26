@@ -230,6 +230,84 @@ def test_unit_must_match_what_the_quote_states_next_to_the_number(quote, ordinal
     assert ("unit_mismatch" not in codes(report)) is ok, report.errors
 
 
+def _debt(sentence: str, quote: str, unit: str, value: float = 25):
+    """Verify a government-debt claim against `sentence`, stored as a section of its own."""
+    sections = {9: SectionText(sentence, 10, 10)}
+    debt = claim(quote, 9, indicator="government_debt", indicator_label="Government debt",
+                 value=value, unit=unit, horizon="2027", direction="up")  # fmt: skip
+    s = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("government_debt",),
+                       forecasts=[debt])  # fmt: skip
+    return verify(s, {**SECTIONS, **sections})
+
+
+@pytest.mark.parametrize(
+    ("amount", "unit", "ok"),
+    [
+        ("$25 billion", "nzd", False),
+        ("$25 billion", "nzd_billion", True),
+        ("$25 billion", "nzd_million", False),
+        ("$25 million", "nzd", False),
+        ("$25 million", "nzd_million", True),
+        ("$25 million", "nzd_billion", False),
+        ("$25", "nzd", True),
+        ("25 dollars", "nzd", True),
+        ("NZ$25 billion", "nzd", False),
+        ("NZ$25 billion", "nzd_billion", True),
+        ("NZ$25", "nzd", True),
+        ("NZD 25 billion", "nzd", False),
+        ("$25bn", "nzd", False),
+        ("$25bn", "nzd_billion", True),
+        ("$25 BN", "nzd", False),
+        ("$25b", "nzd", False),
+        ("$25m", "nzd", False),
+        ("$25m", "nzd_million", True),
+        ("$25 mn", "nzd", False),
+        ("$25M", "nzd", False),
+        ("$25 trillion", "nzd", False),
+        ("$25 thousand", "nzd", False),
+        ("$25k", "nzd", False),
+    ],
+)
+def test_a_scaled_dollar_amount_is_not_a_plain_nzd_amount(amount, unit, ok):
+    sentence = f"Government debt is forecast to rise to {amount} in 2027."
+    quote = f"forecast to rise to {amount} in 2027"
+    assert ("unit_mismatch" not in codes(_debt(sentence, quote, unit))) is ok
+
+
+@pytest.mark.parametrize("after", [", mostly offset by 2026 savings.", "; the 2027 gap narrows.",
+                                   " per barrel in 2027.", " (up from $3 in 2026) in 2027.",
+                                   " a share, in 2027."])  # fmt: skip
+def test_plain_dollars_survive_punctuation_and_following_words(after):
+    sentence = f"Government debt is forecast to rise to $25{after}"
+    assert "unit_mismatch" not in codes(_debt(sentence, sentence.rstrip("."), "nzd"))
+
+
+def test_the_scale_is_read_from_the_section_when_the_quote_stops_at_the_number():
+    sentence = "Government debt is forecast to rise to $25 billion in 2027."
+    # a clean word boundary, but the section goes on to say billion
+    assert "unit_mismatch" in codes(_debt(sentence, "forecast to rise to $25", "nzd"))
+
+
+def test_scaled_money_elsewhere_in_the_section_does_not_change_a_plain_amount():
+    sentence = (
+        "Government debt is forecast to rise to $25 in 2027. The balance sheet is $300 billion."
+    )
+    assert "unit_mismatch" not in codes(_debt(sentence, "rise to $25 in 2027", "nzd"))
+
+
+def test_a_plain_amount_elsewhere_does_not_rescue_a_scaled_one():
+    sentence = "Government debt is forecast to rise to $25 billion in 2027. The fee is $25."
+    assert "unit_mismatch" in codes(_debt(sentence, "rise to $25 billion in 2027", "nzd"))
+
+
+def test_a_scaled_amount_reported_as_plain_nzd_cannot_pass_verification():
+    sentence = "Government debt is forecast to rise to $25 billion in 2027."
+    report = _debt(sentence, "forecast to rise to $25 billion in 2027", "nzd")
+    assert not report.passed and "unit_mismatch" in codes(report)
+    right = _debt(sentence, "forecast to rise to $25 billion in 2027", "nzd_billion")
+    assert right.passed, right.errors
+
+
 # --- horizons and period basis ---------------------------------------------------------------
 def test_horizon_must_be_stated_near_the_quote():
     assert "horizon_not_supported" in codes(run(claim(GOOD.evidence[0].quote, 0, horizon="2028")))
