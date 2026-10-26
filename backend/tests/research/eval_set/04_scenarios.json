@@ -1,0 +1,36 @@
+{
+  "id": "scenarios",
+  "description": "A central forecast with downside and upside scenarios; the simulated model misses the upside one.",
+  "published_on": "2026-09-01",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Our central forecast has GDP growing 1.8% in 2027."},
+    {"page": 2, "text": "In a downside scenario where export prices fall sharply, GDP contracts 0.5% in 2027. An upside scenario sees growth of 3.0% in 2027."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["gdp"],
+    "forecasts": [
+      {"indicator": "gdp", "horizon": "2027", "value": 1.8, "unit": "percent", "scenario": null},
+      {"indicator": "gdp", "horizon": "2027", "value": -0.5, "unit": "percent", "scenario": "downside scenario"},
+      {"indicator": "gdp", "horizon": "2027", "value": 3.0, "unit": "percent", "scenario": "upside scenario"}
+    ],
+    "key_points": [["central"], ["downside"], ["upside"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "The central forecast is for moderate growth, with a downside scenario if export prices fall.", "evidence": [
+        [0, 1, "Our central forecast has GDP growing 1.8% in 2027"],
+        [1, 2, "In a downside scenario where export prices fall sharply"]]},
+      "indicators": ["gdp"],
+      "forecasts": [
+        {"indicator": "gdp", "label": "GDP", "horizon": "2027", "value": 1.8, "unit": "percent", "direction": "up",
+         "evidence": [[0, 1, "Our central forecast has GDP growing 1.8% in 2027"]]},
+        {"indicator": "gdp", "label": "GDP", "horizon": "2027", "value": -0.5, "unit": "percent", "direction": "down", "scenario": "downside scenario",
+         "evidence": [[1, 2, "GDP contracts 0.5% in 2027"]]}]}},
+    {"id": "scenario-as-baseline", "version": "v1", "expected_errors": ["scenario_as_baseline"], "output": {"forecasts": [
+      {"indicator": "gdp", "label": "GDP", "horizon": "2027", "value": -0.5, "unit": "percent", "direction": "down",
+       "evidence": [[1, 2, "GDP contracts 0.5% in 2027"]]}]}},
+    {"id": "invented-scenario-name", "version": "v1", "expected_errors": ["scenario_not_in_text"], "output": {"forecasts": [
+      {"indicator": "gdp", "label": "GDP", "horizon": "2027", "value": -0.5, "unit": "percent", "direction": "down", "scenario": "pandemic case",
+       "evidence": [[1, 2, "GDP contracts 0.5% in 2027"]]}]}}
+  ]
+}

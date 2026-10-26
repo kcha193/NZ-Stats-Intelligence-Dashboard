@@ -1,0 +1,38 @@
+{
+  "id": "number-formats",
+  "description": "Fractions, thousands separators, a Unicode minus and a share of GDP; the simulated model misclassifies the current account as the fiscal balance.",
+  "published_on": "2026-09-15",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Wage growth is expected to slow to 3½% in 2027."},
+    {"page": 2, "text": "Net migration is forecast to fall to 25,000 people in the year to June 2027."},
+    {"page": 3, "text": "The current account deficit is projected to narrow to −4.1% of GDP in 2027."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["wages", "migration", "trade"],
+    "forecasts": [
+      {"indicator": "wages", "horizon": "2027", "value": 3.5, "unit": "percent", "scenario": null},
+      {"indicator": "migration", "horizon": "year to June 2027", "value": 25000, "unit": "persons", "scenario": null},
+      {"indicator": "trade", "horizon": "2027", "value": -4.1, "unit": "percent_of_gdp", "scenario": null}
+    ],
+    "key_points": [["wage"], ["migration"], ["current account"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "Wage growth slows and net migration falls.", "evidence": [
+        [0, 1, "Wage growth is expected to slow to 3½% in 2027"], [1, 2, "Net migration is forecast to fall to 25,000 people"]]},
+      "indicators": ["wages", "migration", "fiscal_balance"],
+      "forecasts": [
+        {"indicator": "wages", "label": "Wage growth", "horizon": "2027", "value": 3.5, "unit": "percent", "direction": "down",
+         "evidence": [[0, 1, "Wage growth is expected to slow to 3½% in 2027"]]},
+        {"indicator": "migration", "label": "Net migration", "horizon": "year to June 2027", "value": 25000, "unit": "persons", "direction": "down",
+         "evidence": [[1, 2, "Net migration is forecast to fall to 25,000 people in the year to June 2027"]]},
+        {"indicator": "fiscal_balance", "label": "Current account deficit", "horizon": "2027", "value": -4.1, "unit": "percent_of_gdp", "direction": "unclear",
+         "evidence": [[2, 3, "The current account deficit is projected to narrow to −4.1% of GDP in 2027"]]}]}},
+    {"id": "count-without-unit", "version": "v1", "expected_errors": ["missing_unit"], "output": {"forecasts": [
+      {"indicator": "migration", "label": "Net migration", "horizon": "year to June 2027", "value": 25000, "direction": "down",
+       "evidence": [[1, 2, "Net migration is forecast to fall to 25,000 people in the year to June 2027"]]}]}},
+    {"id": "number-in-label", "version": "v1", "expected_errors": ["number_not_in_evidence"], "output": {"forecasts": [
+      {"indicator": "wages", "label": "Wage growth of 4%", "horizon": "2027", "value": 3.5, "unit": "percent", "direction": "down",
+       "evidence": [[0, 1, "Wage growth is expected to slow to 3½% in 2027"]]}]}}
+  ]
+}

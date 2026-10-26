@@ -1,0 +1,36 @@
+{
+  "id": "cpi-quarterly-annual",
+  "description": "Annual versus quarterly CPI in one sentence, plus a historical quarterly outturn.",
+  "published_on": "2026-11-05",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Consumer prices rose 0.9% in the September 2026 quarter."},
+    {"page": 2, "text": "Annual CPI inflation is forecast to ease to 2.4% in the year to March 2027, and quarterly inflation is expected to be 0.5% in the December 2026 quarter."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["cpi_inflation"],
+    "forecasts": [
+      {"indicator": "cpi_inflation", "horizon": "year to March 2027", "value": 2.4, "unit": "percent", "scenario": null},
+      {"indicator": "cpi_inflation", "horizon": "December 2026 quarter", "value": 0.5, "unit": "percent", "scenario": null}
+    ],
+    "key_points": [["inflation", "ease"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "Annual inflation is expected to ease.", "evidence": [[1, 2, "Annual CPI inflation is forecast to ease to 2.4%"]]},
+      "indicators": ["cpi_inflation"],
+      "forecasts": [
+        {"indicator": "cpi_inflation", "label": "Annual CPI inflation", "horizon": "year to March 2027", "value": 2.4, "unit": "percent", "direction": "down",
+         "evidence": [[1, 2, "Annual CPI inflation is forecast to ease to 2.4% in the year to March 2027"]]},
+        {"indicator": "cpi_inflation", "label": "Quarterly CPI inflation", "horizon": "December 2026 quarter", "value": 0.5, "unit": "percent", "direction": "unclear",
+         "evidence": [[1, 2, "quarterly inflation is expected to be 0.5% in the December 2026 quarter"]]}]}},
+    {"id": "outturn-as-forecast", "version": "v1", "expected_errors": ["historical_not_forecast"], "output": {"forecasts": [
+      {"indicator": "cpi_inflation", "label": "CPI", "horizon": "September 2026 quarter", "value": 0.9, "unit": "percent", "direction": "up",
+       "evidence": [[0, 1, "Consumer prices rose 0.9% in the September 2026 quarter"]]}]}},
+    {"id": "annual-as-quarterly", "version": "v1", "expected_errors": ["period_basis_mismatch"], "output": {"forecasts": [
+      {"indicator": "cpi_inflation", "label": "CPI inflation", "horizon": "March 2027 quarter", "value": 2.4, "unit": "percent", "direction": "down",
+       "evidence": [[1, 2, "Annual CPI inflation is forecast to ease to 2.4% in the year to March 2027"]]}]}},
+    {"id": "quarterly-as-annual", "version": "v1", "expected_errors": ["period_basis_mismatch"], "output": {"forecasts": [
+      {"indicator": "cpi_inflation", "label": "Quarterly CPI inflation", "horizon": "year to December 2026", "value": 0.5, "unit": "percent", "direction": "unclear",
+       "evidence": [[1, 2, "quarterly inflation is expected to be 0.5% in the December 2026 quarter"]]}]}}
+  ]
+}

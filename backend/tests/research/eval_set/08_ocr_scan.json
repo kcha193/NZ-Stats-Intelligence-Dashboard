@@ -1,0 +1,24 @@
+{
+  "id": "ocr-scan",
+  "description": "Text from a scanned PDF with OCR spacing noise. A model that tidies the quote is rejected (a known false rejection); a verbatim quote passes.",
+  "published_on": "2026-06-30",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE (scanned). Hous e prices are fore cast to rise 4.5 % in 2027, w hile rents increase 3.0 % ."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["house_prices"],
+    "forecasts": [{"indicator": "house_prices", "horizon": "2027", "value": 4.5, "unit": "percent", "scenario": null}],
+    "key_points": [["house"]]
+  }},
+  "candidates": [
+    {"id": "model-tidied", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "House prices are expected to rise.", "evidence": [[0, 1, "House prices are forecast to rise 4.5% in 2027"]]},
+      "indicators": ["house_prices"],
+      "forecasts": [{"indicator": "house_prices", "label": "House prices", "horizon": "2027", "value": 4.5, "unit": "percent", "direction": "up",
+                     "evidence": [[0, 1, "House prices are forecast to rise 4.5% in 2027"]]}]}},
+    {"id": "verbatim-noisy-quote", "version": "v1", "expected_errors": [], "output": {
+      "outlook": {"text": "House prices are expected to rise.", "evidence": [[0, 1, "Hous e prices are fore cast to rise 4.5 % in 2027"]]},
+      "forecasts": [{"indicator": "house_prices", "label": "House prices", "horizon": "2027", "value": 4.5, "unit": "percent", "direction": "up",
+                     "evidence": [[0, 1, "Hous e prices are fore cast to rise 4.5 % in 2027"]]}]}}
+  ]
+}

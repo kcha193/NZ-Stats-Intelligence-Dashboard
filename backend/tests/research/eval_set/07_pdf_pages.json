@@ -1,0 +1,35 @@
+{
+  "id": "pdf-pages",
+  "description": "A paged PDF-style report: page citations and a quote that spans two pages.",
+  "published_on": "2026-07-15",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Quarterly economic outlook (synthetic). Contents and summary."},
+    {"page": 2, "text": "House prices are expected to rise 4.0% in 2027 as mortgage rates fall."},
+    {"page": 3, "text": "Employment is forecast to grow 1.2% in the year to December 2027."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["house_prices", "employment"],
+    "forecasts": [
+      {"indicator": "house_prices", "horizon": "2027", "value": 4.0, "unit": "percent", "scenario": null},
+      {"indicator": "employment", "horizon": "year to December 2027", "value": 1.2, "unit": "percent", "scenario": null}
+    ],
+    "key_points": [["house", "prices"], ["employment"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "House prices and employment are expected to rise.", "evidence": [
+        [1, 2, "House prices are expected to rise 4.0% in 2027"], [2, 3, "Employment is forecast to grow 1.2%"]]},
+      "indicators": ["house_prices", "employment"],
+      "forecasts": [
+        {"indicator": "house_prices", "label": "House prices", "horizon": "2027", "value": 4.0, "unit": "percent", "direction": "up",
+         "evidence": [[1, 2, "House prices are expected to rise 4.0% in 2027"]]},
+        {"indicator": "employment", "label": "Employment", "horizon": "year to December 2027", "value": 1.2, "unit": "percent", "direction": "up",
+         "evidence": [[2, 3, "Employment is forecast to grow 1.2% in the year to December 2027"]]}]}},
+    {"id": "wrong-page", "version": "v1", "expected_errors": ["page_outside_section"], "output": {"forecasts": [
+      {"indicator": "house_prices", "label": "House prices", "horizon": "2027", "value": 4.0, "unit": "percent", "direction": "up",
+       "evidence": [[1, 3, "House prices are expected to rise 4.0% in 2027"]]}]}},
+    {"id": "quote-across-pages", "version": "v1", "expected_errors": ["quote_not_found"], "output": {"forecasts": [
+      {"indicator": "house_prices", "label": "House prices", "horizon": "2027", "value": 4.0, "unit": "percent", "direction": "up",
+       "evidence": [[1, 2, "rise 4.0% in 2027 as mortgage rates fall. Employment is forecast"]]}]}}
+  ]
+}
