@@ -1,7 +1,90 @@
 # Progress and verification record
 
-Last updated 2026-10-26. Phase 3A (institutional research sources) is on `feat/phase-3a-research-sources` (not merged).
-The Netlify static publication is merged to `main` (PR #10) and not deployed. Earlier entries below are historical.
+Last updated 2026-10-26. Phase 3B (evidence-grounded LLM summaries) is on `feat/phase-3b-llm-intelligence` (not merged).
+Phase 3A (institutional research sources) is merged to `main` (PR #11). The Netlify static publication is merged to
+`main` (PR #10) and not deployed. Earlier entries below are historical.
+
+## Phase 3B: evidence-grounded LLM economic intelligence, 26 October 2026
+
+Structured summaries (outlook, drivers, risks, uncertainty, indicators) and explicit forecast claims for stored research
+document versions, every claim cited to `(version, section, page, verbatim quote)`, verified deterministically and
+gated by human review. **Disabled by default**: no provider is configured and every source has
+`llm_processing = "denied"`. Plan (revised): [2026-10-25-phase-3b-llm-summaries.md](superpowers/plans/2026-10-25-phase-3b-llm-summaries.md).
+Runbook: [data-sources/research.md](data-sources/research.md#llm-summaries-and-forecast-claims-phase-3b).
+
+- **Permission**: per-source `llm_processing = denied | local_only | hosted` with a required note; anything but
+  `denied` needs an approved `full_text` source. Only a loopback base URL counts as local.
+- **Providers**: Anthropic Messages (`anthropic-version: 2026-10-21`; no sampling parameters, which that version
+  rejects) and an OpenAI-compatible `/chat/completions` adapter (OpenAI or a local server), both over httpx with no
+  vendor SDK, so dependencies and the Docker image are unchanged. A deterministic `FakeProvider` for tests and
+  evaluation cannot be selected by configuration.
+- **Limits**: input cap (a longer document is refused, never truncated), output tokens, timeout, bounded retries with
+  backoff, per-run budget checked against the worst-case cost of every call, documents per run. Failed calls are
+  charged with reported usage, or at worst case unless rejected before generation.
+- **Verifier** (`research/verify.py`, `verify-2`): 26 error and warning rules, each with a test that fails when the rule
+  is removed (checked by disabling each rule in turn). Every report carries the scope statement that passing is not a
+  check of economic accuracy. Prompt-injection regressions: injected text stays inside random-boundary delimiters, and
+  outputs that obey it (invented quote, verbatim instruction as evidence, another version) fail.
+- **Storage** (migration `006_research_summaries.sql`): runs, append-only summaries (idempotent key: version, provider,
+  model, prompt and processing version, input hash, attempt), claims for verified summaries, usage per call, review
+  log; triggers enforce immutability, approve-verified-only and final rejection. Rollback script for 006; the full
+  research rollback drops 006 first.
+- **CLI**: `research summarise [KEY] [--version ID] [--limit N] [--dry-run]`, `summaries`, `summary ID`,
+  `approve ID --reviewer`, `reject ID --reviewer --note`. Output is escaped line by line.
+- **Found and fixed during the work**: a fabricated quote containing the number supported a value (now only found
+  quotes count); a value quoted as the previous forecast ("down from 2.5% previously") passed (`superseded_value`);
+  clause offsets drifted after ", and"; "43.1% of GDP" passed as plain percent. The automated security review found two
+  more, both fixed with tests: truncated or refused responses were charged as free against the budget, and the unit
+  field was printed without escaping.
+
+### Model quality evaluation (replay, prompt `outlook-v1`, verifier `verify-2`)
+
+Twelve synthetic, hand-annotated cases in `backend/tests/research/eval_set/` (OCR path, annual versus quarterly CPI,
+June-year versus calendar-year GDP and debt for 2026/27, central and scenario forecasts, a historical outturn beside the
+forecast, a forecast revised across two versions, paged PDF, OCR-scanned text, fractions and separators, prompt
+injection, a relative horizon, a narrative outlook). 13 simulated model outputs and 29 labelled probes.
+`python ../scripts/evaluate_research_llm.py` from `backend/`.
+
+**This is a replay of hand-written simulated outputs. It measures the parsing, verification, gating and metric code,
+not a real model.** No live provider was run: none is configured or approved, and running one costs money.
+
+| Metric | Value |
+|---|---|
+| Forecast precision / recall, raw model output | 0.909 / 0.909 (20 of 22) |
+| Forecast precision / recall, accepted after the verifier gate | 0.941 / 0.727 (16 of 17; 16 of 22) |
+| Numerical fidelity (aligned claims with the gold value and unit) | 0.950 |
+| Scenario versus baseline (aligned claims) | 1.000 |
+| Indicator classification precision / recall / F1 | 0.941 / 0.941 / 0.941 |
+| Citation correctness (evidence references without a reference error) | 0.953 |
+| Summary completeness (gold key points covered) | 0.870 |
+| Items with a verifier error | 0.105 |
+| Model outputs passing verification | 10 of 13 |
+| Planted errors detected / clean probes wrongly rejected | 29 of 29 as labelled (detection 1.000, false rejection 0.000) |
+| Mean tokens per synthetic document (estimated, 3 characters per token) | 1,906 input, 299 output |
+| Mean cost per synthetic document (estimate) | Opus 5.5 $0.0136, Sonnet 5.5 $0.0068, Haiku 5.5 $0.0003 |
+| Latency | not measured (replay) |
+
+What the numbers show: the gate trades recall for precision. One wrong claim (an outturn reported as a forecast, a
+missing unit, a tidied OCR quote) rejects the whole summary, so three summaries and their correct claims were dropped.
+Limitations: the set is small and synthetic and the simulated outputs were written by the same author as the gold
+labels; a misclassified indicator whose keywords overlap (a current-account *deficit* filed as the fiscal balance)
+passes; recall misses are invisible to the verifier; OCR noise causes false rejection when a model tidies the quote;
+real report tables are not represented. The replay metrics are regression floors (`RECORDED_BASELINE`).
+
+### Verification
+
+| Command | Outcome |
+|---|---|
+| `cd backend && pytest` | **1713 passed** (188 new; the 1525 on `main` pass unchanged) |
+| `ruff check .` / `ruff format --check .` | Passed (202 files) |
+| `cd frontend && npm test` / `npm run typecheck` / `npm run build` | 383 passed (38 files) / passed / built (frontend unchanged) |
+| `npm run gen:api` | `src/api/schema.d.ts` regenerated with **no diff**: the OpenAPI contract is unchanged |
+| `npx playwright test` (live app) | 93 passed |
+| `scripts/e2e_static.sh` (static site incl. visual parity) | 234 passed |
+| Real database copy (schema 5), exported with `main` and with this branch | Same `snapshot_id` (`945d201a29c4`); 213 of 216 files byte-identical, the other three differ only in `generated_at`; `validate-snapshot --for-publish` **valid** |
+| Clean Python 3.12 venv, `pip install 'backend[research]'` | Installs; `research summarise` refuses with no provider (exit 1); migration 6 applies; no new dependency (`pyproject.toml` and Dockerfiles unchanged from `main`) |
+| Docker image build and `scripts/smoke_docker.sh` | **Not run: the Docker daemon is not running here.** The smoke script now also checks that `research summarise` refuses and `research summaries` runs in the image |
+| Live requests to any research source or LLM provider | **None.** Provider tests use `httpx.MockTransport`; the pipeline and evaluation use `FakeProvider` |
 
 ## Phase 3A: economic research source foundation, 26 October 2026
 
