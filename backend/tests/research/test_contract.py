@@ -1,4 +1,5 @@
 import ast
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -156,3 +157,77 @@ def test_no_vendor_llm_sdk_is_imported_anywhere_in_the_backend():
             elif isinstance(node, ast.ImportFrom):
                 names = [node.module or ""]
             assert not any(n.split(".")[0] in ("anthropic", "openai") for n in names), path
+
+
+# --- Phase 3B: the model returns a draft; the pipeline attaches version and provenance -----------
+def _draft_json(**kw) -> str:
+    s = summary()
+    data = s.model_dump(mode="json", exclude={"version_id", "provenance", "not_official_statistic",
+                                              "review_status"})  # fmt: skip
+    data.update(kw)
+    return json.dumps(data)
+
+
+def test_a_draft_parses_and_assembles_into_an_unreviewed_interpretation():
+    draft = contract.parse_draft(_draft_json())
+    assembled = contract.assemble(draft, version_id=7, provenance=PROV)
+    assert assembled == summary()
+    assert assembled.not_official_statistic is True and assembled.review_status == "unreviewed"
+
+
+def test_a_single_json_code_fence_is_tolerated():
+    assert contract.parse_draft("```json\n" + _draft_json() + "\n```") == contract.parse_draft(
+        _draft_json()
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "not json at all",
+        "",
+        '{"outlook": 1, "outlook": 2}',
+        "x" * (contract.MAX_OUTPUT_CHARS + 1),
+        "[]",
+    ],
+)
+def test_bad_model_output_is_a_value_error(raw):
+    with pytest.raises(ValueError):
+        contract.parse_draft(raw)
+
+
+def test_a_duplicate_key_anywhere_is_rejected():
+    raw = _draft_json().replace('"indicators"', '"indicators": [], "indicators"', 1)
+    with pytest.raises(ValueError, match="duplicate"):
+        contract.parse_draft(raw)
+
+
+def test_draft_rejects_provenance_or_review_fields_written_by_the_model():
+    for extra in (
+        {"review_status": "approved"},
+        {"version_id": 7},
+        {"not_official_statistic": True},
+    ):
+        with pytest.raises(ValueError):
+            contract.parse_draft(_draft_json(**extra))
+
+
+def test_output_size_is_bounded_by_item_counts():
+    claim = summary().forecasts[0].model_dump(mode="json")
+    with pytest.raises(ValueError):
+        contract.parse_draft(_draft_json(forecasts=[claim] * 51))
+    many_refs = dict(claim, evidence=[claim["evidence"][0]] * 6)
+    with pytest.raises(ValueError):
+        contract.parse_draft(_draft_json(forecasts=[many_refs]))
+
+
+def test_scenario_defaults_to_baseline():
+    assert summary().forecasts[0].scenario is None
+    named = summary().forecasts[0].model_copy(update={"scenario": "downside scenario"})
+    assert named.scenario == "downside scenario"
+
+
+def test_provider_errors_carry_only_a_class_and_retryability():
+    err = contract.ProviderError("rate_limited", retryable=True)
+    assert err.error_class == "rate_limited" and err.retryable and str(err) == "rate_limited"
+    assert contract.LlmLimits().max_retries == 2

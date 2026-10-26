@@ -1,17 +1,19 @@
-"""The Phase 3B contract for evidence-grounded LLM summaries, defined now and verified deterministically.
+"""The contract for evidence-grounded LLM summaries (defined in Phase 3A, used from Phase 3B).
 
-No model is called in Phase 3A: the only provider is `DisabledProvider`. This module fixes the shape
-of what a provider must return (outlook, drivers, risks, indicator classification, explicit forecast
-claims with qualification) and `verify_summary`, which checks every claim against the stored sections:
-each quote must appear verbatim (whitespace-normalised) in the cited section and page, and every
-forecast number must appear in its own quote. Output is commentary interpretation, labelled
-`not_official_statistic`, starts `unreviewed`, and has no path into the statistical tables.
+This module fixes the shape of what a provider must return (a `SummaryDraft`: outlook, drivers, risks,
+uncertainty, indicator classification, explicit forecast claims with qualification and scenario) and
+how the pipeline wraps it (`assemble` adds the version and provenance). `verify_summary` checks every
+claim against the stored sections (see `nzstats.research.verify`). Output is commentary
+interpretation, labelled `not_official_statistic`, starts `unreviewed`, and has no path into the
+statistical tables.
 
-It imports no network client and no vendor SDK (a test enforces this); providers are pluggable.
+It imports no network client and no vendor SDK (a test enforces this); providers are pluggable and
+live in `nzstats.research.providers`.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -61,6 +63,11 @@ class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+MAX_EVIDENCE = 5
+MAX_STATEMENTS = 20
+MAX_FORECASTS = 50
+
+
 class EvidenceRef(_Strict):
     version_id: int
     section_ordinal: int = Field(ge=0)
@@ -70,7 +77,7 @@ class EvidenceRef(_Strict):
 
 class Statement(_Strict):
     text: str = Field(min_length=1, max_length=2000)
-    evidence: tuple[EvidenceRef, ...] = Field(min_length=1)
+    evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
 
 
 class ForecastClaim(_Strict):
@@ -81,7 +88,10 @@ class ForecastClaim(_Strict):
     unit: str | None = Field(default=None, max_length=40)
     direction: Direction
     qualification: str | None = Field(default=None, max_length=1000)
-    evidence: tuple[EvidenceRef, ...] = Field(min_length=1)
+    scenario: str | None = Field(
+        default=None, max_length=200
+    )  # None: the baseline/central forecast
+    evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
 
 
 class ModelProvenance(_Strict):
@@ -94,14 +104,25 @@ class ModelProvenance(_Strict):
     created_at: AwareDatetime
 
 
+class SummaryDraft(_Strict):
+    """What a model returns: interpretation with evidence, nothing about provenance or review."""
+
+    outlook: Statement
+    drivers: tuple[Statement, ...] = Field(default=(), max_length=MAX_STATEMENTS)
+    risks: tuple[Statement, ...] = Field(default=(), max_length=MAX_STATEMENTS)
+    uncertainty: Statement | None = None
+    indicators: tuple[Indicator, ...] = ()
+    forecasts: tuple[ForecastClaim, ...] = Field(default=(), max_length=MAX_FORECASTS)
+
+
 class OutlookSummary(_Strict):
     version_id: int
     outlook: Statement
-    drivers: tuple[Statement, ...] = ()
-    risks: tuple[Statement, ...] = ()
+    drivers: tuple[Statement, ...] = Field(default=(), max_length=MAX_STATEMENTS)
+    risks: tuple[Statement, ...] = Field(default=(), max_length=MAX_STATEMENTS)
     uncertainty: Statement | None = None
     indicators: tuple[Indicator, ...] = ()
-    forecasts: tuple[ForecastClaim, ...] = ()
+    forecasts: tuple[ForecastClaim, ...] = Field(default=(), max_length=MAX_FORECASTS)
     provenance: ModelProvenance
     not_official_statistic: Literal[True] = True
     review_status: Literal["unreviewed", "approved", "rejected"] = "unreviewed"
@@ -112,6 +133,7 @@ class SectionText:
     text: str
     page_start: int | None = None
     page_end: int | None = None
+    heading: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +150,8 @@ class LlmLimits:
     max_output_tokens: int = 4_000
     max_documents_per_run: int = 5
     timeout_seconds: float = 120.0
+    max_retries: int = 2  # further attempts after a retryable provider error
+    max_run_usd: float = 1.0  # worst-case spend allowed in one run, retries included
 
 
 @dataclass(frozen=True)
@@ -144,19 +168,41 @@ class ProviderDisabled(RuntimeError):
     pass
 
 
+class ProviderError(RuntimeError):
+    """A failed provider call: a fixed-vocabulary class only, never the upstream message."""
+
+    def __init__(self, error_class: str, *, retryable: bool) -> None:
+        super().__init__(error_class)
+        self.error_class = error_class
+        self.retryable = retryable
+
+
+@dataclass(frozen=True)
+class ProviderResponse:
+    text: str
+    model: str  # as the provider reports it
+    input_tokens: int | None = None  # None when the provider does not report usage
+    output_tokens: int | None = None
+    stop_reason: str | None = None
+
+
 class Provider(Protocol):
     name: str
+    model: str
+    hosted: bool  # True when the text leaves this machine (third-party processing)
 
-    def summarise(self, request: SummaryRequest) -> str:
-        """Raw JSON text; the caller parses it with `parse_summary` and checks `verify_summary`."""
+    def summarise(self, request: SummaryRequest) -> ProviderResponse:
+        """Raw model text; the caller parses it with `parse_draft` and verifies it."""
         ...
 
 
 class DisabledProvider:
     name = "disabled"
+    model = "none"
+    hosted = False
 
-    def summarise(self, request: SummaryRequest) -> str:
-        raise ProviderDisabled("no LLM provider is configured (Phase 3A)")
+    def summarise(self, request: SummaryRequest) -> ProviderResponse:
+        raise ProviderDisabled("no LLM provider is configured")
 
 
 def build_request(
@@ -184,6 +230,37 @@ def parse_summary(raw: str) -> OutlookSummary:
     if len(raw) > MAX_OUTPUT_CHARS:
         raise ValueError("model output too large")
     return OutlookSummary.model_validate_json(raw)
+
+
+_FENCE = re.compile(r"^\s*```(?:json)?\s*\n(.*)\n\s*```\s*$", re.DOTALL)
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    keys = [k for k, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise ValueError("duplicate key in model output")
+    return dict(pairs)
+
+
+def parse_draft(raw: str) -> SummaryDraft:
+    """Strictly parse a model's JSON. Every failure is a `ValueError` (pydantic's included)."""
+    if len(raw) > MAX_OUTPUT_CHARS:
+        raise ValueError("model output too large")
+    fenced = _FENCE.match(raw)
+    text = fenced.group(1) if fenced else raw
+    try:
+        data = json.loads(text, object_pairs_hook=_no_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        raise ValueError("model output is not JSON") from exc
+    if not isinstance(data, dict):
+        raise ValueError("model output is not a JSON object")
+    return SummaryDraft.model_validate(data)
+
+
+def assemble(
+    draft: SummaryDraft, *, version_id: int, provenance: ModelProvenance
+) -> OutlookSummary:
+    return OutlookSummary(version_id=version_id, provenance=provenance, **dict(draft))
 
 
 def _norm(text: str) -> str:
