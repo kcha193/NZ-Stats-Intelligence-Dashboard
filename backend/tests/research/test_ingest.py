@@ -630,3 +630,26 @@ def test_a_duplicate_of_an_earlier_revision_keeps_pointing_at_that_revision(conn
                     DOC_B: report("A", PARA * 6 + "Text X. ")})  # fmt: skip
     run(conn, inst, again, at=NOW + timedelta(days=2))
     assert pub_row(conn, DOC_B)["duplicate_of_version_id"] == version_x
+
+
+def test_a_challenge_listing_ends_the_run_blocked_without_requesting_documents(conn, tmp_path):
+    inst, clock = institution(), FakeClock()
+    web = site(**{LISTING: "<html><body><p>Checking your browser before accessing.</p></body></html>",
+                  DOC_A: report("A")})  # fmt: skip
+    result, fetcher = _paced_run(conn, inst, web, tmp_path, clock)
+    assert result.outcome == "blocked" and result.items == []
+    assert result.discovery_errors == [("html_links", "blocked")]
+    assert DOC_A not in web.requests
+    health = conn.execute("SELECT state, last_success_at FROM research_source_health").fetchone()
+    assert health["state"] == "blocked" and health["last_success_at"] is None
+    later = site(**{DOC_A: report("A")})
+    other = research_fetcher(inst, later, clock=clock, pacer=_pacer(tmp_path, inst, clock))
+    with pytest.raises(RequestRefused):
+        other.get(DOC_A)
+    assert later.requests == []
+
+
+def test_a_blocked_listing_status_also_ends_the_run_blocked(conn):
+    web = site(**{LISTING: (403, {}, b"no"), DOC_A: report("A")})
+    result = run(conn, institution(), web)
+    assert result.outcome == "blocked" and DOC_A not in web.requests

@@ -82,6 +82,12 @@ split point). A duplicate recorded only the original's publication, so revising 
 matched; additive migration `005` stores the exact matched version (`duplicate_of_version_id`) and the rollback script drops it
 with the other research tables.
 
+Review round 5 (Codex on `b9aaef9`): robots wildcard rules were translated to a regex and a hostile `robots.txt` could make
+repeated `*` backtrack exponentially (a 25-wildcard rule hung the matcher); they are now matched segment by segment, with the
+old regex kept as a test oracle. An HTTP 200 challenge page on an HTML listing with no links counted as an empty successful
+listing; it is now a block (cooldown published, run ends `blocked`), and any block seen during discovery, including a 403 on
+the listing, ends the run `blocked` instead of `failed`.
+
 Before Phase 3B: approve at least one `full_text` source (the Treasury is the likeliest; read its licence page directly and
 run `research discover treasury`), ingest real documents, decide whether any
 source's terms allow sending its text to an LLM provider. Details in the Phase 3B plan.

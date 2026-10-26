@@ -258,3 +258,50 @@ def test_a_redirect_off_the_allowed_hosts_never_yields_candidates():
     result = discover(inst, research_fetcher(inst, site))
     assert result.candidates == [] and result.errors
     assert "https://evil.example.net/research/" not in site.requests
+
+
+CHALLENGE_LISTING = (
+    b"<html><head><title>Just a moment</title></head><body><main>"
+    b"<p>Please verify you are human to continue.</p></main></body></html>"
+)
+
+
+def test_a_challenge_listing_with_no_links_is_a_block_not_an_empty_success(tmp_path):
+    from nzstats.domain import RequestRefused
+    from nzstats.research.fetch import research_pacer
+
+    from .support import FakeClock
+
+    inst = _inst(mechanism="html_links", url=f"{BASE}/research/", link_pattern=PATTERN)
+    clock = FakeClock()
+    site = Site({ROBOTS: "", f"{BASE}/research/": CHALLENGE_LISTING})
+    fetcher = research_fetcher(inst, site, clock=clock, pacer=research_pacer(
+        tmp_path, inst, sleep=clock.sleep, wall=clock))  # fmt: skip
+    result = discover(inst, fetcher)
+    assert result.candidates == [] and result.errors == [("html_links", "blocked")]
+    with pytest.raises(RequestRefused):  # the cooldown is in force for this fetcher...
+        fetcher.get(f"{BASE}/research/x")
+    other = Site({f"{BASE}/research/x": "ok"})
+    fresh = research_fetcher(inst, other, clock=clock, pacer=research_pacer(
+        tmp_path, inst, sleep=clock.sleep, wall=clock))  # fmt: skip
+    with pytest.raises(RequestRefused):  # ...and for another process sharing the pacing file
+        fresh.get(f"{BASE}/research/x")
+    assert other.requests == []
+
+
+def test_a_listing_that_mentions_a_challenge_word_but_has_links_is_not_blocked():
+    inst = _inst(mechanism="html_links", url=f"{BASE}/research/", link_pattern=PATTERN)
+    page = b'<p>Enter the captcha to subscribe.</p><a href="/research/real-report">Report</a>'
+    site = Site({ROBOTS: "", f"{BASE}/research/": page, f"{BASE}/research/real-report": "ok"})
+    fetcher = research_fetcher(inst, site)
+    result = discover(inst, fetcher)
+    assert [c.url for c in result.candidates] == [f"{BASE}/research/real-report"]
+    assert result.errors == []
+    assert fetcher.get(f"{BASE}/research/real-report")  # no cooldown was started
+
+
+def test_an_empty_listing_without_a_challenge_marker_is_still_just_empty():
+    inst = _inst(mechanism="html_links", url=f"{BASE}/research/", link_pattern=PATTERN)
+    site = Site({ROBOTS: "", f"{BASE}/research/": b"<p>No reports yet.</p>"})
+    result = discover(inst, research_fetcher(inst, site))
+    assert result.candidates == [] and result.errors == []

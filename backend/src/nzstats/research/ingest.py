@@ -103,7 +103,8 @@ def run_institution(
         result.outcome = "dry_run"
         return result
     cap = max(1, min(limit or inst.max_documents_per_run, inst.max_documents_per_run))
-    blocked = fetcher.access_restricted
+    # A block while discovering (403, challenge page, cooldown in force) ends the run like one while fetching.
+    blocked = fetcher.access_restricted or any(cls == "blocked" for _, cls in found.errors)
     batch = _rotated(found.candidates, store.last_attempt_runs(conn, inst_id))[:cap]
     for candidate in [] if blocked else batch:
         try:

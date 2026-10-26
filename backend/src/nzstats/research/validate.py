@@ -28,6 +28,13 @@ _CHALLENGE = (
 _SAFE_DETAIL = re.compile(r"^[a-z][a-z0-9_ ,.]*( \(([A-Za-z0-9_]+|[a-z ]+|> ?\d+|\d+)\))?$")
 
 
+def looks_like_challenge(text: str) -> bool:
+    """True if `text` carries a known bot-challenge phrase (case-insensitive). Callers pass the part of
+    the page where a challenge shows its message, not the whole document."""
+    lowered = text.lower()
+    return any(m in lowered for m in _CHALLENGE)
+
+
 @dataclass(frozen=True)
 class PreviousVersion:
     char_count: int
@@ -39,7 +46,7 @@ def validate_document(
 ) -> list[str]:
     """Raises `IngestError` if the text must not be stored; otherwise returns warning codes."""
     head = f"{extracted.title or ''}\n{extracted.text[:MARKER_WINDOW]}".lower()
-    if any(m in head for m in _CHALLENGE):
+    if looks_like_challenge(head):
         raise IngestError(ErrorClass.BLOCKED, "challenge_page")
     if any(m in head for m in _ACCESS_WALL) and extracted.char_count < 10 * inst.min_text_chars:
         raise IngestError(ErrorClass.VALIDATION_FAILED, "access_wall")

@@ -23,6 +23,7 @@ from nzstats.research.extract import clean_text
 from nzstats.research.fetch import ResearchFetcher
 from nzstats.research.registry import Discovery, Institution, Mechanism
 from nzstats.research.safety import HostPolicy, UnsafeUrl
+from nzstats.research.validate import MARKER_WINDOW, looks_like_challenge
 
 log = logging.getLogger(__name__)
 
@@ -238,6 +239,10 @@ def discover(inst: Institution, fetcher: ResearchFetcher) -> DiscoveryResult:
     return result
 
 
+def _head(body: bytes) -> str:
+    return body[: 4 * MARKER_WINDOW].decode("utf-8", errors="replace")[:MARKER_WINDOW]
+
+
 def _from(source: Discovery, fetcher: ResearchFetcher, static: HostPolicy) -> list[Candidate]:
     assert source.url is not None
     # Relative links are resolved against the URL that actually served the page (`fetched.url`, after
@@ -247,7 +252,12 @@ def _from(source: Discovery, fetcher: ResearchFetcher, static: HostPolicy) -> li
         return parse_feed(fetched.body, fetched.url)
     if source.mechanism is Mechanism.HTML_LINKS:
         fetched = fetcher.get(source.url, expect=HTML_TYPES)
-        return parse_html_links(fetched.body, fetched.url, source.link_pattern or "^$")
+        found = parse_html_links(fetched.body, fetched.url, source.link_pattern or "^$")
+        if not found and looks_like_challenge(_head(fetched.body)):
+            # An HTTP 200 bot-challenge page is not an empty listing: start the institution cooldown.
+            fetcher.record_block()
+            raise IngestError(ErrorClass.BLOCKED, "challenge_page", url=fetched.url)
+        return found
     pattern = re.compile(source.link_pattern) if source.link_pattern else None
     urls, children = parse_sitemap(fetcher.get(source.url, expect=SITEMAP_TYPES).body)
     for child in children[:MAX_CHILD_SITEMAPS]:

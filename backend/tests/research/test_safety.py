@@ -1,3 +1,7 @@
+import random
+import re
+import time
+
 import httpx
 import pytest
 
@@ -342,3 +346,62 @@ def test_an_encoded_slash_cannot_reintroduce_a_double_slash_past_the_blocklist(p
 def test_robots_percent_encoding_equivalence_preserves_reserved_characters(rule, target, allowed):
     rules = RobotsRules.parse(f"User-agent: *\nDisallow: {rule}\n", AGENT)
     assert rules.allowed(canonical_target(target)) is allowed
+
+
+def _reference_match(pattern: str, target: str) -> bool:
+    """The previous regex semantics, kept as an oracle: `*` is any run, a trailing `$` anchors."""
+    anchored = pattern.endswith("$")
+    body = ".*".join(re.escape(p) for p in pattern.removesuffix("$").split("*"))
+    return re.match(body + ("$" if anchored else ""), target) is not None
+
+
+def test_repeated_wildcards_do_not_cause_catastrophic_backtracking():
+    pattern = "/" + "*a" * 25 + "b$"
+    rules = RobotsRules({pattern: False})
+    started = time.monotonic()
+    assert rules.allowed("/" + "a" * 100) is True  # the rule does not match, so the path is allowed
+    assert rules.allowed("/" + "a" * 100 + "b") is False
+    assert time.monotonic() - started < 0.5
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["/" + "*a" * 30 + "b", "/" + "*" * 60 + "b$", "/*a*a*a*a*a*a*a*a*a*a*a*a*c", "/a*" * 40 + "$"],
+)
+def test_hostile_wildcard_patterns_finish_quickly_on_long_targets(pattern):
+    rules = RobotsRules({pattern: False})
+    started = time.monotonic()
+    for target in ("/" + "a" * 2000, "/" + "ab" * 1000, "/" + "a/" * 1000):
+        rules.allowed(target)
+    assert time.monotonic() - started < 1.0
+
+
+def test_wildcard_matching_agrees_with_the_regex_oracle():
+    rnd = random.Random(11)
+    alphabet = "ab/?"
+    for _ in range(4000):
+        pattern = "".join(rnd.choice(alphabet + "**") for _ in range(rnd.randint(0, 8)))
+        pattern = "/" + pattern + rnd.choice(["", "", "$"])
+        target = "/" + "".join(rnd.choice(alphabet) for _ in range(rnd.randint(0, 10)))
+        got = RobotsRules({pattern: False})._matches(pattern, target)
+        assert got == _reference_match(pattern, target), (pattern, target)
+
+
+@pytest.mark.parametrize(
+    ("pattern", "target", "expected"),
+    [
+        ("/private", "/private/x", True),
+        ("/private$", "/private/x", False),
+        ("/private$", "/private", True),
+        ("/*.pdf$", "/a/b.pdf", True),
+        ("/*.pdf$", "/a/b.pdf?x=1", False),
+        ("/*.pdf", "/a/b.pdf?x=1", True),
+        ("/a*b*c", "/aXbYc", True),
+        ("/a*b*c", "/aXcYb", False),
+        ("/a*a$", "/a", False),  # the suffix may not overlap the prefix
+        ("/*$", "/anything", True),
+        ("/a$b", "/a$b", True),  # a `$` that is not last is a literal
+    ],
+)
+def test_wildcard_and_anchor_semantics(pattern, target, expected):
+    assert RobotsRules({pattern: False})._matches(pattern, target) is expected

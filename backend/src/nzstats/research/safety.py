@@ -192,7 +192,6 @@ class RobotsRules:
     def __init__(self, rules: dict[str, bool], crawl_delay: float | None = None) -> None:
         self._rules = rules  # pattern -> allow
         self.crawl_delay = crawl_delay
-        self._compiled: dict[str, re.Pattern[str]] = {}
 
     @classmethod
     def parse(cls, text: str, agent: str) -> RobotsRules:
@@ -254,15 +253,30 @@ class RobotsRules:
                 best_len, verdict = len(pattern), allow
         return verdict
 
-    def _matches(self, pattern: str, target: str) -> bool:
-        if "*" not in pattern and not pattern.endswith("$"):
-            return target.startswith(pattern)
-        regex = self._compiled.get(pattern)
-        if regex is None:
-            anchored = pattern.endswith("$")
-            body = ".*".join(re.escape(p) for p in pattern.removesuffix("$").split("*"))
-            regex = self._compiled[pattern] = re.compile(body + ("$" if anchored else ""))
-        return regex.match(target) is not None
+    @staticmethod
+    def _matches(pattern: str, target: str) -> bool:
+        """`*` matches any run of characters and a trailing `$` anchors the end; nothing else is special.
+
+        Matched segment by segment with `str.find` instead of a regex: a robots.txt file is upstream input,
+        and many `*` in a regex backtrack exponentially. Taking the leftmost occurrence of each literal
+        segment is exact for this wildcard-only syntax and linear in the number of segments.
+        """
+        anchored = pattern.endswith("$")
+        parts = (pattern[:-1] if anchored else pattern).split("*")
+        first, last = parts[0], parts[-1]
+        if not target.startswith(first):
+            return False
+        if len(parts) == 1:  # no wildcard: a prefix rule, or an exact one when anchored
+            return not anchored or target == first
+        position = len(first)
+        for part in parts[1:-1]:
+            found = target.find(part, position)
+            if found < 0:
+                return False
+            position = found + len(part)
+        if anchored:  # the final segment is a suffix that may not overlap what was already matched
+            return len(target) - len(last) >= position and target.endswith(last)
+        return target.find(last, position) >= 0
 
 
 ALLOW_ALL = RobotsRules({})
