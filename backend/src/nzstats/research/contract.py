@@ -239,10 +239,13 @@ def build_request(
         if budget <= 0:
             truncated = True
             break
-        text = s.text[:budget]
-        truncated = truncated or len(text) < len(s.text)
+        heading_chars = len(
+            s.heading or ""
+        )  # the heading is sent too, so it counts against the cap
+        text = s.text[: max(budget - heading_chars, 0)]
+        truncated = truncated or heading_chars > budget or len(text) < len(s.text)
         out.append(RequestSection(ordinal, s.page_start, s.page_end, text, s.heading))
-        budget -= len(text)
+        budget -= len(text) + heading_chars
     return SummaryRequest(
         version_id, prompt_version, INSTRUCTIONS, tuple(out), truncated, limits, published_on
     )

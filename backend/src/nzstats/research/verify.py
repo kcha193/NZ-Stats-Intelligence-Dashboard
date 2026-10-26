@@ -50,6 +50,10 @@ _SCENARIO = re.compile(
     r"scenario|alternative (?:path|projection|forecast)|sensitivity|illustrative|stress test",
     re.IGNORECASE,
 )
+# "baseline scenario" / "central scenario" name the central forecast, not an alternative path.
+_BASELINE_QUALIFIER = re.compile(
+    r"(?<!non )(?<![-\w])(?:baseline|central|base|main|reference)\s+$", re.IGNORECASE
+)
 _FISCAL = re.compile(
     r"fiscal|financial year|june\s+(?:20\d{2}\s+)?year|year\s+(?:to|ending|ended)\s+june"
     r"|\b(?:19|20)\d{2}\s*[/–-]\s*\d{2}\b|\bfy\s*\d",
@@ -208,6 +212,14 @@ def _number_spans(text: str) -> list[tuple[float, int, int]]:
         value += _FRACTIONS.get(frac or "", 0.0)
         out.append((-value if m.group("sign") else value, m.start(), m.end()))
     return out
+
+
+def _alternative_scenario(text: str) -> bool:
+    """Whether `text` names a scenario other than one introduced as the baseline or central one."""
+    return any(
+        not _BASELINE_QUALIFIER.search(text[max(m.start() - 25, 0) : m.start()])
+        for m in _SCENARIO.finditer(text)
+    )
 
 
 def _numbers(text: str) -> set[float]:
@@ -432,12 +444,22 @@ class _Checker:
 
     @staticmethod
     def _unit_matches(unit: str, before: str, after: str, sentence: str, beyond: str = "") -> bool:
-        def stated(name: str) -> bool:
-            return bool(_UNIT_SUFFIX[name].match(after))
+        def stated(name: str, text: str = after) -> bool:
+            return bool(_UNIT_SUFFIX[name].match(text))
 
-        other_percentish = stated("percentage_points") or stated("basis_points")
+        # A quote can stop at the number; what the stored text says next still qualifies it.
+        following = (after, beyond)
+        other_percentish = any(
+            stated(name, text)
+            for name in ("percentage_points", "basis_points")
+            for text in following
+        )
         if unit == "percent":
-            return stated("percent") and not other_percentish and not _OF_GDP.match(after)
+            return (
+                stated("percent")
+                and not other_percentish
+                and not any(_OF_GDP.match(text) for text in following)
+            )
         if unit == "percent_of_gdp":
             return stated("percent") and not other_percentish and "gdp" in sentence.lower()
         if unit in ("percentage_points", "basis_points"):
@@ -512,7 +534,7 @@ class _Checker:
                 self.error("historical_not_forecast", path,
                            f"horizon {claim.horizon!r} ends before publication ({published.isoformat()})")  # fmt: skip
         scenario_context = " ".join(f"{loc.heading} {loc.sentence_text()}" for _, loc in found)
-        if claim.scenario is None and _SCENARIO.search(scenario_context):
+        if claim.scenario is None and _alternative_scenario(scenario_context):
             self.error(
                 "scenario_as_baseline", path, "evidence describes a scenario, not the baseline"
             )

@@ -308,6 +308,83 @@ def test_a_scaled_amount_reported_as_plain_nzd_cannot_pass_verification():
     assert right.passed, right.errors
 
 
+def _one_section(sentence, quote, **kw):
+    """Verify a claim against `sentence`, stored as a section of its own (ordinal 9, heading from kw)."""
+    heading = kw.pop("heading", None)
+    sections = {9: SectionText(sentence, 10, 10, heading)}
+    base = dict(indicator="government_debt", indicator_label="Government debt", value=2.5,
+                unit="percent", horizon="2027", direction="up")  # fmt: skip
+    base.update(kw)
+    s = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("government_debt",),
+                       forecasts=[claim(quote, 9, **base)])  # fmt: skip
+    return verify(s, {**SECTIONS, **{9: sections[9]}})
+
+
+@pytest.mark.parametrize(
+    ("sentence", "quote", "unit", "ok"),
+    [
+        # the quote stops at the percent sign but the stored text goes on
+        ("Government debt is forecast to rise to 2.5% of GDP in 2027.",
+         "Government debt is forecast to rise to 2.5%", "percent", False),
+        ("Government debt is forecast to rise to 2.5% of GDP in 2027.",
+         "Government debt is forecast to rise to 2.5%", "percent_of_gdp", True),
+        ("Government debt is forecast to rise to 2.5% of nominal GDP in 2027.",
+         "Government debt is forecast to rise to 2.5%", "percent", False),
+        ("Government debt is forecast to rise 2.5%pts in 2027.",
+         "Government debt is forecast to rise 2.5%", "percent", False),
+        ("Government debt is forecast to rise 2.5%pts in 2027.",
+         "Government debt is forecast to rise 2.5%pts", "percentage_points", True),
+        ("Government debt is forecast to rise 2.5 percentage points in 2027.",
+         "Government debt is forecast to rise 2.5 percentage points", "percent", False),
+        # the full sentence behaves the same way
+        ("Government debt is forecast to rise to 2.5% of GDP in 2027.",
+         "Government debt is forecast to rise to 2.5% of GDP in 2027", "percent", False),
+        # a plain percent with a benign continuation is still plain percent
+        ("Government debt is forecast to rise 2.5% in the year to March 2027.",
+         "Government debt is forecast to rise 2.5%", "percent", True),
+        ("Government debt is forecast to rise 2.5%, mostly of households, in 2027.",
+         "Government debt is forecast to rise 2.5%", "percent", True),
+    ],
+)  # fmt: skip
+def test_a_quote_that_stops_at_the_number_cannot_hide_a_following_unit_qualifier(
+    sentence, quote, unit, ok
+):
+    report = _one_section(sentence, quote, unit=unit)
+    assert ("unit_mismatch" not in codes(report)) is ok, report.errors
+
+
+@pytest.mark.parametrize(
+    ("sentence", "heading", "scenario", "flagged"),
+    [
+        ("Under our baseline scenario, GDP is forecast to grow 2.5% in 2027.", None, None, False),
+        ("Under the central scenario, GDP is forecast to grow 2.5% in 2027.", None, None, False),
+        ("GDP is forecast to grow 2.5% in 2027.", "Baseline scenario", None, False),
+        ("GDP is forecast to grow 2.5% in 2027.", "Central scenario", None, False),
+        ("GDP is forecast to grow 2.5% in 2027.", "Downside scenario", None, True),
+        ("Under the downside scenario, GDP is forecast to grow 2.5% in 2027.", None, None, True),
+        ("Under a non-baseline scenario, GDP is forecast to grow 2.5% in 2027.", None, None, True),
+        ("Under a non baseline scenario, GDP is forecast to grow 2.5% in 2027.", None, None, True),
+        ("Under the rebaseline scenario, GDP is forecast to grow 2.5% in 2027.", None, None, True),
+        ("GDP is forecast to grow 2.5% in 2027, against 1.0% in the downside scenario.", None, None, True),
+        ("Under the baseline scenario, GDP is forecast to grow 2.5% in 2027, and under the downside"
+         " scenario 1.0%.", None, None, True),
+        ("A sensitivity analysis shows GDP is forecast to grow 2.5% in 2027.", None, None, True),
+    ],
+)  # fmt: skip
+def test_explicit_baseline_wording_is_not_an_alternative_scenario(
+    sentence, heading, scenario, flagged
+):
+    quote = (
+        sentence.split(", ", 1)[1]
+        if sentence.startswith("Under") and ", " in sentence
+        else sentence
+    )
+    quote = quote.rstrip(".")
+    report = _one_section(sentence, quote, heading=heading, scenario=scenario, indicator="gdp",
+                          indicator_label="GDP growth", unit="percent", value=2.5)  # fmt: skip
+    assert ("scenario_as_baseline" in codes(report)) is flagged, report.errors
+
+
 # --- horizons and period basis ---------------------------------------------------------------
 def test_horizon_must_be_stated_near_the_quote():
     assert "horizon_not_supported" in codes(run(claim(GOOD.evidence[0].quote, 0, horizon="2028")))
