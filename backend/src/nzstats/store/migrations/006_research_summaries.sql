@@ -137,3 +137,12 @@ BEGIN SELECT RAISE(ABORT, 'claims are stored for verified summaries only'); END;
 
 CREATE TRIGGER research_claim_immutable BEFORE UPDATE ON research_forecast_claim
 BEGIN SELECT RAISE(ABORT, 'research_forecast_claim is immutable'); END;
+
+CREATE TRIGGER research_claim_no_delete BEFORE DELETE ON research_forecast_claim
+BEGIN SELECT RAISE(ABORT, 'research_forecast_claim is immutable'); END;
+
+CREATE TRIGGER research_usage_immutable BEFORE UPDATE ON research_llm_usage
+BEGIN SELECT RAISE(ABORT, 'research_llm_usage is immutable'); END;
+
+CREATE TRIGGER research_usage_no_delete BEFORE DELETE ON research_llm_usage
+BEGIN SELECT RAISE(ABORT, 'research_llm_usage is immutable'); END;

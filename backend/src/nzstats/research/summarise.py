@@ -182,7 +182,7 @@ def summarise_versions(
     )
     cap = min(limit or limits.max_documents_per_run, limits.max_documents_per_run)
     result = SummariseResult(refusals=refusals)
-    parameters = dict(provider.parameters()) if hasattr(provider, "parameters") else {}
+    parameters = dict(provider.parameters())
     if not dry_run:
         result.run_id = ss.start_run(
             conn, provider=provider.name, model=provider.model, hosted=provider.hosted,

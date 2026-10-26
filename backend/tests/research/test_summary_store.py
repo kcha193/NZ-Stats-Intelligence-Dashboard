@@ -132,3 +132,14 @@ def test_usage_is_recorded_per_call(conn):
     run_row = conn.execute("SELECT outcome, spent_usd, counts FROM research_llm_run WHERE id=?",
                            (run,)).fetchone()  # fmt: skip
     assert run_row["outcome"] == "ok" and run_row["spent_usd"] == 0.002
+
+
+def test_claims_and_usage_cannot_be_changed_or_deleted(conn):
+    test_usage_is_recorded_per_call(conn)
+    sid = conn.execute("SELECT id FROM research_summary").fetchone()[0]
+    with transaction(conn):
+        ss.insert_claims(conn, sid, [ForecastClaim(**c) for c in draft(1)["forecasts"]])
+    for sql in ("DELETE FROM research_forecast_claim", "DELETE FROM research_llm_usage",
+                "UPDATE research_llm_usage SET cost_usd = 0"):  # fmt: skip
+        with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+            conn.execute(sql)

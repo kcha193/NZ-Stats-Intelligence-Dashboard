@@ -201,6 +201,10 @@ class Provider(Protocol):
     model: str
     hosted: bool  # True when the text leaves this machine (third-party processing)
 
+    def parameters(self) -> dict[str, str | int | float | bool]:
+        """Request settings that can change the output; part of the idempotency key and provenance."""
+        ...
+
     def summarise(self, request: SummaryRequest) -> ProviderResponse:
         """Raw model text; the caller parses it with `parse_draft` and verifies it."""
         ...
@@ -210,6 +214,9 @@ class DisabledProvider:
     name = "disabled"
     model = "none"
     hosted = False
+
+    def parameters(self) -> dict[str, str | int | float | bool]:
+        return {}
 
     def summarise(self, request: SummaryRequest) -> ProviderResponse:
         raise ProviderDisabled("no LLM provider is configured")
