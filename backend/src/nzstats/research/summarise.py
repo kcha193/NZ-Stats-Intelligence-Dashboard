@@ -193,18 +193,16 @@ def summarise_versions(
             dry_run=False, now=now_fn(),
         )  # fmt: skip
     stopped = False
+    slots = 0  # the cap bounds work still to do; finished and oversize versions never use a slot
     try:
-        for candidate in candidates[:cap]:
-            item = ItemResult(candidate.version_id, candidate.institution, "pending")
-            result.items.append(item)
-            if stopped:
-                item.outcome = "budget_exhausted"
-                continue
+        for candidate in candidates:
             sections = load_sections(conn, candidate.version_id)
             request = build_request(candidate.version_id, sections, prompt_version=PROMPT_VERSION,
                                     limits=limits, published_on=candidate.published_on)  # fmt: skip
+            item = ItemResult(candidate.version_id, candidate.institution, "pending")
             if request.truncated:
                 item.outcome = "input_too_long"
+                result.items.append(item)
                 continue
             key = ss.SummaryKey(
                 candidate.version_id, provider.name, provider.model, PROMPT_VERSION, PROCESSING_VERSION,
@@ -215,13 +213,20 @@ def summarise_versions(
             existing = ss.completed_summary(conn, key)
             if existing is not None:
                 item.outcome, item.summary_id = "exists", int(existing["id"])
+                result.items.append(item)
                 continue
-            if dry_run:
+            if slots >= cap:
+                break
+            slots += 1
+            result.items.append(item)
+            if stopped:
+                item.outcome = "budget_exhausted"
+            elif dry_run:
                 item.outcome = "would_summarise"
-                continue
-            stopped = _process(conn, provider, request, sections, key, parameters, item, result,
-                               pricing=pricing, limits=limits, worst=worst, now_fn=now_fn, sleep=sleep,
-                               clock=clock)  # fmt: skip
+            else:
+                stopped = _process(conn, provider, request, sections, key, parameters, item, result,
+                                   pricing=pricing, limits=limits, worst=worst, now_fn=now_fn,
+                                   sleep=sleep, clock=clock)  # fmt: skip
     except BaseException:
         if result.run_id is not None:
             ss.finish_run(conn, result.run_id, outcome="aborted", counts=result.counts,

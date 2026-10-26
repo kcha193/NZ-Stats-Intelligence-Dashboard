@@ -250,8 +250,12 @@ def test_limit_and_per_run_cap_bound_the_work(conn):
     for doc in "abc":
         seed_version(conn, doc=doc)
     fake = FakeProvider(lambda req: draft_json(req.version_id))
-    assert len(run(conn, fake, limit=1).items) == 1
-    assert len(run(conn, fake, limits=LlmLimits(max_documents_per_run=1)).items) == 1
+    assert len(run(conn, fake, limit=1).items) == 1 and len(fake.calls) == 1
+    run(conn, fake, limits=LlmLimits(max_documents_per_run=1))
+    assert len(fake.calls) == 2  # one more document each run; finished ones are not repeated
+    run(conn, fake, limit=5, limits=LlmLimits(max_documents_per_run=1))
+    assert len(fake.calls) == 3  # `limit` cannot raise the configured per-run cap
+    assert len({c.version_id for c in fake.calls}) == 3
 
 
 def test_specific_versions_can_be_summarised_including_a_superseded_one(conn):
@@ -284,3 +288,178 @@ def test_failed_calls_are_charged_conservatively(conn, error, expected):
     assert result.spent_usd == pytest.approx(want)
     (usage,) = rows(conn, "research_llm_usage")
     assert usage["cost_usd"] == pytest.approx(want)
+
+
+# --- the per-run cap counts work still to do, so repeated runs drain a backlog ------------------
+def seed_backlog(conn, count=6, **kw):
+    """`count` current versions, newest first by publication date (the order they are processed)."""
+    return [
+        seed_version(conn, doc=str(i), published_on=f"2026-08-{20 - i:02d}", **kw)
+        for i in range(count)
+    ]
+
+
+def faithful():
+    return FakeProvider(lambda req: draft_json(req.version_id))
+
+
+def test_a_backlog_larger_than_the_cap_is_drained_by_successive_runs(conn):
+    versions = seed_backlog(conn)
+    fake = faithful()
+    limits = LlmLimits(max_documents_per_run=5)
+    first = run(conn, fake, limits=limits)
+    assert [(i.version_id, i.outcome) for i in first.items] == [
+        (v, "verified") for v in versions[:5]
+    ]
+    second = run(conn, fake, limits=limits)
+    assert [(i.version_id, i.outcome) for i in second.items] == (
+        [(v, "exists") for v in versions[:5]] + [(versions[5], "verified")]
+    )
+    assert [c.version_id for c in fake.calls] == versions  # each version exactly one call
+    assert [r["version_id"] for r in rows(conn, "research_summary")] == versions
+    assert [r["attempt"] for r in rows(conn, "research_summary")] == [1] * 6
+    assert len(rows(conn, "research_llm_usage")) == 6
+    assert [json.loads(r["counts"]) for r in rows(conn, "research_llm_run")] == [
+        {"verified": 5}, {"exists": 5, "verified": 1}]  # fmt: skip
+
+
+def test_repeating_a_finished_backlog_makes_no_calls_and_stores_nothing_new(conn):
+    versions = seed_backlog(conn)
+    fake = faithful()
+    limits = LlmLimits(max_documents_per_run=5)
+    run(conn, fake, limits=limits)
+    run(conn, fake, limits=limits)
+    spent = sum(r["cost_usd"] for r in rows(conn, "research_llm_usage"))
+    third = run(conn, fake, limits=limits)
+    assert [(i.version_id, i.outcome) for i in third.items] == [(v, "exists") for v in versions]
+    assert len(fake.calls) == 6 and len(rows(conn, "research_summary")) == 6
+    assert third.spent_usd == 0.0 and spent > 0
+    assert len(rows(conn, "research_llm_usage")) == 6
+
+
+def test_the_limit_option_also_counts_only_work_still_to_do(conn):
+    versions = seed_backlog(conn, 4)
+    fake = faithful()
+    run(conn, fake, limit=2)
+    again = run(conn, fake, limit=2)
+    assert [(i.version_id, i.outcome) for i in again.items] == (
+        [(v, "exists") for v in versions[:2]] + [(v, "verified") for v in versions[2:]]
+    )
+    assert [c.version_id for c in fake.calls] == versions
+
+
+def test_a_dry_run_reports_the_same_work_a_real_run_would_do_and_changes_nothing(conn):
+    versions = seed_backlog(conn)
+    fake = faithful()
+    limits = LlmLimits(max_documents_per_run=5)
+    before = run(conn, fake, limits=limits, dry_run=True)
+    assert [i.outcome for i in before.items] == ["would_summarise"] * 5
+    run(conn, fake, limits=limits)
+    calls, stored, audits = (
+        len(fake.calls),
+        len(rows(conn, "research_summary")),
+        len(rows(conn, "research_llm_run")),
+    )
+    after = run(conn, fake, limits=limits, dry_run=True)
+    assert [(i.version_id, i.outcome) for i in after.items] == (
+        [(v, "exists") for v in versions[:5]] + [(versions[5], "would_summarise")]
+    )
+    assert after.run_id is None and after.spent_usd == 0.0
+    assert (len(fake.calls), len(rows(conn, "research_summary")), len(rows(conn, "research_llm_run"))) == (
+        calls, stored, audits)  # fmt: skip
+
+
+def test_a_document_over_the_input_cap_does_not_take_a_slot_from_the_backlog(conn):
+    long_text = ("The economy is expected to grow 2.5% in 2027. " * 10,)
+    oversize = [seed_version(conn, long_text, doc=f"big{i}", published_on=f"2026-09-{10 - i:02d}")
+                for i in range(2)]  # fmt: skip
+    normal = seed_version(conn, doc="ok", published_on="2026-08-01")
+    fake = faithful()
+    result = run(conn, fake, limits=LlmLimits(max_documents_per_run=1, max_input_chars=300))
+    assert [(i.version_id, i.outcome) for i in result.items] == (
+        [(v, "input_too_long") for v in oversize] + [(normal, "verified")]
+    )
+    assert [c.version_id for c in fake.calls] == [normal]
+    assert rows(conn, "research_summary")[0]["version_id"] == normal
+
+
+def test_mixed_completed_failed_incomplete_and_refused_versions(conn):
+    # newest first: done (verified), bad (failed verification), flaky (provider error), fresh1, fresh2
+    done, bad, flaky, fresh1, fresh2 = seed_backlog(conn, 5)
+    other = seed_version(conn, key="other", doc="o", published_on="2026-09-30")  # llm denied below
+    reg = {**registry(), "other": institution("other")}
+    bad_draft = lambda req: draft_json(req.version_id, forecasts=[{  # noqa: E731
+        "indicator": "gdp", "indicator_label": "GDP", "horizon": "year to March 2027", "value": 3.5,
+        "unit": "percent", "direction": "up", "evidence": [{"version_id": req.version_id,
+        "section_ordinal": 0, "page": 1, "quote": "expected to grow 3.5% in the year to March 2027"}]}])  # fmt: skip
+
+    def answer(req):
+        return bad_draft(req) if req.version_id == bad else draft_json(req.version_id)
+
+    fake = FakeProvider(answer, fail_first=[])
+    run(conn, fake, reg, version_ids=(done, bad))
+    flaky_fail = FakeProvider(answer, fail_first=[ProviderError("auth_error", retryable=False)])
+    run(conn, flaky_fail, reg, version_ids=(flaky,))
+    assert [r["status"] for r in rows(conn, "research_summary")] == [
+        "verified", "failed_verification", "provider_error"]  # fmt: skip
+
+    limits = LlmLimits(max_documents_per_run=2)
+    fake.calls.clear()
+    result = run(conn, fake, reg, limits=limits)
+    assert result.refusals == [("other", "llm processing denied for this source")]
+    assert [(i.version_id, i.outcome) for i in result.items] == [
+        (done, "exists"),
+        (bad, "exists"),  # finished work is never repeated, even a failed check
+        (flaky, "verified"),  # a provider error is retried, as attempt 2
+        (fresh1, "verified"),
+    ]
+    assert [c.version_id for c in fake.calls] == [flaky, fresh1]
+    assert other not in [c.version_id for c in fake.calls]
+    assert [(r["version_id"], r["attempt"]) for r in rows(conn, "research_summary")
+            if r["version_id"] == flaky] == [(flaky, 1), (flaky, 2)]  # fmt: skip
+    last = run(conn, fake, reg, limits=limits)
+    assert [(i.version_id, i.outcome) for i in last.items][-1] == (fresh2, "verified")
+    assert len(fake.calls) == 3
+
+
+def test_explicit_versions_are_capped_by_work_still_to_do(conn):
+    versions = seed_backlog(conn, 5)
+    fake = faithful()
+    run(conn, fake, version_ids=versions[:2])
+    result = run(conn, fake, version_ids=versions, limits=LlmLimits(max_documents_per_run=2))
+    assert sorted((i.version_id, i.outcome) for i in result.items) == sorted(
+        [(v, "exists") for v in versions[:2]] + [(v, "verified") for v in versions[2:4]]
+    )
+    assert sorted(c.version_id for c in fake.calls) == sorted(versions[:4])
+    assert versions[4] not in [i.version_id for i in result.items]
+
+
+def test_budget_exhaustion_stops_calls_and_the_backlog_resumes_without_duplicates(conn):
+    versions = seed_backlog(conn)
+    fake = FakeProvider(lambda req: draft_json(req.version_id), usage=(10_000, 4_000))
+    limits = LlmLimits(max_documents_per_run=5)
+    worst = run(conn, FakeProvider("{}"), dry_run=True, limits=limits).items[0].estimated_usd
+    tight = LlmLimits(
+        max_documents_per_run=5, max_run_usd=PRICING.cost(10_000, 4_000) + worst * 0.5
+    )
+    first = run(conn, fake, limits=tight)
+    assert [i.outcome for i in first.items] == ["verified"] + ["budget_exhausted"] * 4
+    assert first.outcome == "budget_exhausted" and len(fake.calls) == 1
+    # a document stopped by the budget stores nothing, so it is still outstanding next time
+    assert [r["version_id"] for r in rows(conn, "research_summary")] == versions[:1]
+    second = run(conn, fake, limits=limits)
+    assert [(i.version_id, i.outcome) for i in second.items] == (
+        [(versions[0], "exists")] + [(v, "verified") for v in versions[1:]]
+    )
+    assert [c.version_id for c in fake.calls] == versions
+    assert len({r["version_id"] for r in rows(conn, "research_summary")}) == 6
+
+
+def test_a_finished_document_is_not_reported_as_budget_exhausted(conn):
+    done, fresh = seed_backlog(conn, 2)
+    fake = FakeProvider(lambda req: draft_json(req.version_id), usage=(10_000, 4_000))
+    run(conn, fake, version_ids=(done,))
+    result = run(conn, fake, limits=LlmLimits(max_run_usd=0.0001))
+    assert [(i.version_id, i.outcome) for i in result.items] == [
+        (done, "exists"), (fresh, "budget_exhausted")]  # fmt: skip
+    assert len(fake.calls) == 1

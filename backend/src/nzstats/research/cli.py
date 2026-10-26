@@ -53,7 +53,8 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_sum.add_argument("key", nargs="?", help="one institution (default: every permitted one)")
     p_sum.add_argument("--version", type=_positive_int, action="append", default=[],
                        help="a specific document version id (repeatable)")  # fmt: skip
-    p_sum.add_argument("--limit", type=_positive_int, help="at most this many documents")
+    p_sum.add_argument("--limit", type=_positive_int,
+                       help="summarise at most this many not-yet-summarised documents")  # fmt: skip
     p_sum.add_argument(
         "--dry-run", action="store_true", help="estimate cost; call and write nothing"
     )

@@ -209,6 +209,10 @@ missed forecast (recall), a misread table row, and OCR-garbled text, where a mod
 | `research approve ID --reviewer NAME [--note TEXT]` | no | review decision (verified summaries only) |
 | `research reject ID --reviewer NAME --note TEXT` | no | review decision (final) |
 
+`--limit` and `NZSTATS_LLM_MAX_DOCUMENTS` cap the documents a run still has to summarise (newest first). Versions that
+already have a finished summary for the same model, prompt and settings are listed as `exists` and use no slot, and
+neither do versions over the input cap, so repeating the command works through a larger backlog.
+
 Summaries are append-only (database triggers): content never changes, rows are never deleted, a new prompt or model
 adds rows, a rejection is final, and only `verified` summaries can be approved. Every decision is kept in
 `research_summary_review`. Model text is printed with control characters escaped.
