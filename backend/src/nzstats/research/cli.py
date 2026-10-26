@@ -51,12 +51,12 @@ def research_command(args: argparse.Namespace, settings: Settings) -> int:
         print(f"research registry error: {exc}")
         return 2
     if args.research_command == "sources":
-        print(f"{'key':<12} {'review':<13} {'policy':<14} {'verified':<11} access")
+        print(f"{'key':<12} {'review':<13} {'policy':<14} {'llm':<11} {'verified':<11} access")
         for inst in registry.values():
             access = inst.refusal_reason() or "allowed"
             verified = inst.verified_on.isoformat() if inst.verified_on else "-"
             print(f"{inst.key:<12} {inst.review_status.value:<13} {inst.content_policy.value:<14}"
-                  f" {verified:<11} {access}")  # fmt: skip
+                  f" {inst.llm_processing.value:<11} {verified:<11} {access}")  # fmt: skip
         return 0
     if args.research_command == "status":
         return _status(settings, registry)

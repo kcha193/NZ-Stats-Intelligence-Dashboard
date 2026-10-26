@@ -7,6 +7,10 @@
 #   content_policy  full_text (store text) | metadata_only (title/date/link; body never downloaded) | none
 #   *_evidence      direct (fetched and read) | direct_blocked (probe was refused) | search (a search-engine
 #                   summary only; not read on the page) | none (not examined)
+#   llm_processing  denied (default: never sent to a language model) | local_only (a model on this machine only)
+#                   | hosted (a hosted LLM provider too). Sending text to a hosted model is processing by a third
+#                   party: set it only after reading that the terms allow it, and record what they say in
+#                   llm_processing_note. Requires an approved full_text source. Phase 3B; none is set.
 #
 # Probed 2026-10-25 with a generic client, not the project User-Agent. A 403 is recorded as
 # direct_blocked and does NOT prove the project's descriptive User-Agent would be refused.

@@ -116,3 +116,10 @@ def test_limit_must_be_a_positive_integer(value, capsys):
     with pytest.raises(SystemExit) as exc:
         main(["research", "ingest", "example", "--limit", value])
     assert exc.value.code == 2
+
+
+def test_sources_shows_the_llm_processing_permission(env, capsys):
+    assert main(["research", "sources"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert "llm" in lines[0]
+    assert all("denied" in line for line in lines[1:] if line.strip())
