@@ -246,13 +246,11 @@ class AnthropicProvider(_HttpProvider):
             stop, usage = data.get("stop_reason"), data.get("usage") or {}
         except (KeyError, TypeError, AttributeError):
             raise ProviderError("invalid_response", retryable=False) from None
-        if stop == "max_tokens":
-            raise ProviderError("output_truncated", retryable=False)
-        if stop == "refusal":
-            raise ProviderError("refused", retryable=False)
-        return ProviderResponse(text, str(data.get("model") or self.model),
-                                _count(usage.get("input_tokens")), _count(usage.get("output_tokens")),
-                                stop)  # fmt: skip
+        tokens = _count(usage.get("input_tokens")), _count(usage.get("output_tokens"))
+        if stop in ("max_tokens", "refusal"):
+            raise ProviderError("output_truncated" if stop == "max_tokens" else "refused",
+                                retryable=False, input_tokens=tokens[0], output_tokens=tokens[1])  # fmt: skip
+        return ProviderResponse(text, str(data.get("model") or self.model), *tokens, stop)
 
 
 class OpenAICompatibleProvider(_HttpProvider):
@@ -288,13 +286,11 @@ class OpenAICompatibleProvider(_HttpProvider):
                 raise TypeError
         except (KeyError, IndexError, TypeError, AttributeError):
             raise ProviderError("invalid_response", retryable=False) from None
-        if finish == "length":
-            raise ProviderError("output_truncated", retryable=False)
-        if finish == "content_filter":
-            raise ProviderError("refused", retryable=False)
-        return ProviderResponse(text, str(data.get("model") or self.model),
-                                _count(usage.get("prompt_tokens")), _count(usage.get("completion_tokens")),
-                                finish)  # fmt: skip
+        tokens = _count(usage.get("prompt_tokens")), _count(usage.get("completion_tokens"))
+        if finish in ("length", "content_filter"):
+            raise ProviderError("output_truncated" if finish == "length" else "refused",
+                                retryable=False, input_tokens=tokens[0], output_tokens=tokens[1])  # fmt: skip
+        return ProviderResponse(text, str(data.get("model") or self.model), *tokens, finish)
 
 
 class FakeProvider:

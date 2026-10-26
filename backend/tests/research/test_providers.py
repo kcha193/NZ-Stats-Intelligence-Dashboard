@@ -252,3 +252,11 @@ def test_token_estimate_is_conservative():
 
 def test_default_limits_are_unchanged_by_default_settings():
     assert pv.load_llm_settings({}).limits == LlmLimits()
+
+
+def test_a_truncated_or_refused_response_carries_its_billed_usage():
+    provider = pv.build_provider(pv.load_llm_settings(REAL),
+                                 client=_client(_anthropic_ok(stop="max_tokens", usage=(900, 4000))))  # fmt: skip
+    with pytest.raises(ProviderError) as exc:
+        provider.summarise(REQUEST)
+    assert (exc.value.input_tokens, exc.value.output_tokens) == (900, 4000)

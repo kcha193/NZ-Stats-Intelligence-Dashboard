@@ -46,6 +46,11 @@ log = logging.getLogger(__name__)
 
 PROCESSING_VERSION = "3b-1"
 BACKOFF_SECONDS = 2.0
+# Failures the provider reports before generating anything, so nothing is billed. Every other failure
+# is charged with the usage the provider reported, or at the worst case when it reported none.
+NOT_BILLED = frozenset(
+    {"auth_error", "bad_request", "rate_limited", "overloaded", "conflict", "http_error"}
+)
 MAX_BACKOFF_SECONDS = 30.0
 
 
@@ -279,11 +284,13 @@ def _process(
             result.spent_usd += cost
             break
         assert error is not None
-        # A timed-out call may still have been billed, so it counts at worst case; refusals do not.
-        cost = worst if error.error_class == "timeout" else 0.0
-        calls.append(
-            _Call(call_no, None, None, True, latency, cost, "provider_error", error.error_class)
-        )
+        reported = error.input_tokens is not None and error.output_tokens is not None
+        if reported:
+            cost = pricing.cost(error.input_tokens or 0, error.output_tokens or 0)
+        else:
+            cost = 0.0 if error.error_class in NOT_BILLED else worst
+        calls.append(_Call(call_no, error.input_tokens, error.output_tokens, not reported, latency,
+                           cost, "provider_error", error.error_class))  # fmt: skip
         result.spent_usd += cost
         if not error.retryable or call_no > limits.max_retries:
             break

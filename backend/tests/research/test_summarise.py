@@ -263,3 +263,24 @@ def test_specific_versions_can_be_summarised_including_a_superseded_one(conn):
     assert [i.version_id for i in result.items] == [old] and fake.calls[0].version_id == old
     current = run(conn, FakeProvider("{}", model="m2"))
     assert [i.version_id for i in current.items] == [new]
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (ProviderError("output_truncated", retryable=False, input_tokens=1000, output_tokens=4000),
+         "reported"),
+        (ProviderError("server_error", retryable=False), "worst"),  # may have been billed
+        (ProviderError("network_error", retryable=False), "worst"),
+        (ProviderError("rate_limited", retryable=False), "zero"),  # refused before any generation
+        (ProviderError("auth_error", retryable=False), "zero"),
+    ],
+)  # fmt: skip
+def test_failed_calls_are_charged_conservatively(conn, error, expected):
+    seed_version(conn)
+    dry = run(conn, FakeProvider("{}"), dry_run=True).items[0].estimated_usd
+    result = run(conn, FakeProvider("{}", fail_first=[error]))
+    want = {"reported": PRICING.cost(1000, 4000), "worst": dry, "zero": 0.0}[expected]
+    assert result.spent_usd == pytest.approx(want)
+    (usage,) = rows(conn, "research_llm_usage")
+    assert usage["cost_usd"] == pytest.approx(want)

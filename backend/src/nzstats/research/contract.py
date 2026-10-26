@@ -171,10 +171,20 @@ class ProviderDisabled(RuntimeError):
 class ProviderError(RuntimeError):
     """A failed provider call: a fixed-vocabulary class only, never the upstream message."""
 
-    def __init__(self, error_class: str, *, retryable: bool) -> None:
+    def __init__(
+        self,
+        error_class: str,
+        *,
+        retryable: bool,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+    ) -> None:
         super().__init__(error_class)
         self.error_class = error_class
         self.retryable = retryable
+        # Usage the provider reported for a call that still failed (truncated or refused output is billed).
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
 
 
 @dataclass(frozen=True)
