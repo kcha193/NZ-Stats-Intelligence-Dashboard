@@ -351,3 +351,8 @@ def test_report_serialises_for_storage():
     data = run(GOOD).to_json()
     assert data["passed"] is True and data["scope"] == SCOPE and data["version"]
     assert isinstance(data["warnings"], list)
+
+
+def test_a_fabricated_quote_cannot_support_a_value_even_if_it_contains_the_number():
+    report = run(claim("expected to grow 3.5% in the year to March 2027", 0, value=3.5))
+    assert {"quote_not_found", "value_not_in_evidence"} <= codes(report)

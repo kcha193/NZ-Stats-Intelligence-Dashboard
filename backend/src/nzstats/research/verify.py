@@ -371,7 +371,7 @@ class _Checker:
                 value_at += [
                     (loc, loc.start + s) for s, _ in _value_spans(claim.value, _norm(ref.quote))
                 ]
-            if not any(_value_spans(claim.value, r.quote) for r in claim.evidence):
+            if not value_at:  # only quotes actually found in the document can support a value
                 self.error("value_not_in_evidence", path,
                            f"value {claim.value:g} does not appear in its evidence")  # fmt: skip
             self.unit(path, claim, found)
