@@ -385,6 +385,60 @@ def test_explicit_baseline_wording_is_not_an_alternative_scenario(
     assert ("scenario_as_baseline" in codes(report)) is flagged, report.errors
 
 
+@pytest.mark.parametrize(
+    ("sentence", "quote", "value", "indicator", "found"),
+    [
+        # a level the series falls TO is positive; it is not a negative change
+        ("We expect the OCR to be cut to 2.25% by February 2027.", "OCR to be cut to 2.25%", -2.25, "ocr", False),
+        ("We expect the OCR to be cut to 2.25% by February 2027.", "OCR to be cut to 2.25%", 2.25, "ocr", True),
+        ("Unemployment is expected to fall to 4.0% in 2027.", "expected to fall to 4.0%", -4.0, "unemployment", False),
+        ("Unemployment is expected to fall to about 4.0% in 2027.", "fall to about 4.0%", -4.0, "unemployment", False),
+        ("Unemployment is expected to ease to around 4.0% in 2027.", "ease to around 4.0%", -4.0, "unemployment", False),
+        ("Inflation is expected to decline to 2.0% in 2027.", "decline to 2.0%", -2.0, "cpi_inflation", False),
+        # a fall BY an amount is a negative change
+        ("Output is expected to contract 0.4% in 2027.", "expected to contract 0.4%", -0.4, "gdp", True),
+        ("Inflation is expected to fall by 0.4% in 2027.", "expected to fall by 0.4%", -0.4, "cpi_inflation", True),
+        ("The OCR is expected to be cut by 0.5% in 2027.", "OCR is expected to be cut by 0.5%", -0.5, "ocr", True),
+        ("Inflation is expected to fall by about 0.4% in 2027.", "fall by about 0.4%", -0.4, "cpi_inflation", True),
+        # both in one sentence: the change is read where it is stated
+        ("The OCR is cut by 0.5% to 2.25% in 2027.", "cut by 0.5% to 2.25%", -0.5, "ocr", True),
+        ("The OCR is cut by 0.5% to 2.25% in 2027.", "cut by 0.5% to 2.25%", -2.25, "ocr", False),
+    ],
+)  # fmt: skip
+def test_an_unsigned_level_after_to_is_not_a_negative_change(
+    sentence, quote, value, indicator, found
+):
+    report = _one_section(sentence, quote, value=value, indicator=indicator, indicator_label="Rate",
+                          horizon="2027", direction="down", unit="percent")  # fmt: skip
+    assert ("value_not_in_evidence" not in codes(report)) is found, report.errors
+
+
+@pytest.mark.parametrize(
+    ("sentence", "quote", "ok"),
+    [
+        ("GDP is forecast to grow 2.5% in 2027.", "GDP is forecast to grow 2.5%", False),
+        ("GDP is forecast to grow 2.5% in 2027.", "GDP is forecast to grow 2.5% in 2027", False),
+        ("Government debt is forecast to rise to 2.5% of GDP in 2027.",
+         "Government debt is forecast to rise to 2.5%", True),  # the quote stops early
+        ("Government debt is forecast to rise to 2.5% of GDP in 2027.",
+         "Government debt is forecast to rise to 2.5% of GDP in 2027", True),
+        ("Government debt is forecast to rise to 2.5 per cent of nominal GDP in 2027.",
+         "Government debt is forecast to rise to 2.5 per cent", True),
+        ("The net debt to GDP ratio is forecast to reach 2.5% in 2027.",
+         "net debt to GDP ratio is forecast to reach 2.5%", True),
+        ("The debt-to-GDP ratio is forecast to rise to 2.5% in 2027.",
+         "debt-to-GDP ratio is forecast to rise to 2.5%", True),
+        # a GDP share elsewhere in the sentence does not qualify this number
+        ("GDP is forecast to grow 2.5%, and the deficit is 3.0% of GDP in 2027.",
+         "GDP is forecast to grow 2.5%", False),
+    ],
+)  # fmt: skip
+def test_percent_of_gdp_needs_a_gdp_share_qualifier_attached_to_the_number(sentence, quote, ok):
+    report = _one_section(sentence, quote, unit="percent_of_gdp", indicator="gdp",
+                          indicator_label="GDP growth", value=2.5)  # fmt: skip
+    assert ("unit_mismatch" not in codes(report)) is ok, report.errors
+
+
 # --- horizons and period basis ---------------------------------------------------------------
 def test_horizon_must_be_stated_near_the_quote():
     assert "horizon_not_supported" in codes(run(claim(GOOD.evidence[0].quote, 0, horizon="2028")))

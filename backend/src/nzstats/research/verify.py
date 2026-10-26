@@ -54,6 +54,16 @@ _SCENARIO = re.compile(
 _BASELINE_QUALIFIER = re.compile(
     r"(?<!non )(?<![-\w])(?:baseline|central|base|main|reference)\s+$", re.IGNORECASE
 )
+# "fall to 2.25%" gives a level; only "fall by 0.4%" / "contract 0.4%" is a negative change.
+_LEVEL_AFTER_TO = re.compile(
+    r"\bto\s+(?:about\s+|around\s+|roughly\s+|approximately\s+|nearly\s+|just\s+(?:under|over)\s+)?\$?$",
+    re.IGNORECASE,
+)
+# A share of GDP stated before the number: "debt-to-GDP ratio of 43.1%", "net debt to GDP is 43.1%".
+_GDP_RATIO_BEFORE = re.compile(
+    r"(?:\bto[-\s]+|/\s*|\b(?:share|percentage|proportion)\s+of\s+)(?:nominal\s+)?gdp\b",
+    re.IGNORECASE,
+)
 _FISCAL = re.compile(
     r"fiscal|financial year|june\s+(?:20\d{2}\s+)?year|year\s+(?:to|ending|ended)\s+june"
     r"|\b(?:19|20)\d{2}\s*[/–-]\s*\d{2}\b|\bfy\s*\d",
@@ -234,7 +244,11 @@ def _value_spans(value: float, quote: str) -> list[tuple[int, int]]:
     """Where `value` is stated in the quote; a negative value may be an unsigned number + decline word."""
     spans = [(s, e) for v, s, e in _number_spans(quote) if _same(v, value)]
     if not spans and value < 0 and _DOWN.search(quote):
-        spans = [(s, e) for v, s, e in _number_spans(quote) if _same(v, -value)]
+        spans = [
+            (s, e)
+            for v, s, e in _number_spans(quote)
+            if _same(v, -value) and not _LEVEL_AFTER_TO.search(quote[max(s - 40, 0) : s])
+        ]
     return spans
 
 
@@ -433,17 +447,13 @@ class _Checker:
             for s, e in _value_spans(claim.value, quote):
                 # the section may carry on past a quote that stops at the number: "$25" | " billion"
                 beyond = loc.text[loc.start + e : loc.start + e + 30]
-                checked.append(
-                    self._unit_matches(
-                        claim.unit, quote[:s], quote[e:], loc.sentence_text(), beyond
-                    )
-                )
+                checked.append(self._unit_matches(claim.unit, quote[:s], quote[e:], beyond))
         if checked and not any(checked):
             self.error("unit_mismatch", path,
                        f"unit {claim.unit!r} is not what the evidence states next to {claim.value:g}")  # fmt: skip
 
     @staticmethod
-    def _unit_matches(unit: str, before: str, after: str, sentence: str, beyond: str = "") -> bool:
+    def _unit_matches(unit: str, before: str, after: str, beyond: str = "") -> bool:
         def stated(name: str, text: str = after) -> bool:
             return bool(_UNIT_SUFFIX[name].match(text))
 
@@ -460,8 +470,11 @@ class _Checker:
                 and not other_percentish
                 and not any(_OF_GDP.match(text) for text in following)
             )
-        if unit == "percent_of_gdp":
-            return stated("percent") and not other_percentish and "gdp" in sentence.lower()
+        if unit == "percent_of_gdp":  # the GDP qualifier must belong to this number
+            share = any(_OF_GDP.match(text) for text in following) or bool(
+                _GDP_RATIO_BEFORE.search(before[-80:])
+            )
+            return stated("percent") and not other_percentish and share
         if unit in ("percentage_points", "basis_points"):
             return stated(unit)
         if unit in ("nzd_billion", "nzd_million"):
