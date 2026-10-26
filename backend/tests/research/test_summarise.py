@@ -56,7 +56,7 @@ def test_a_faithful_summary_is_verified_stored_with_claims_usage_and_audit(conn)
     assert summary["status"] == "verified" and summary["review_status"] == "unreviewed"
     assert summary["version_id"] == v and summary["hosted"] == 0 and summary["provider"] == "fake"
     output = json.loads(summary["output_json"])
-    assert output["provenance"]["prompt_version"] == "outlook-v1"
+    assert output["provenance"]["prompt_version"] == "outlook-v2"
     assert output["provenance"]["input_text_sha256"] == summary["input_sha256"]
     assert output["not_official_statistic"] is True
     verification = json.loads(summary["verification"])
@@ -463,3 +463,95 @@ def test_a_finished_document_is_not_reported_as_budget_exhausted(conn):
     assert [(i.version_id, i.outcome) for i in result.items] == [
         (done, "exists"), (fresh, "budget_exhausted")]  # fmt: skip
     assert len(fake.calls) == 1
+
+
+# --- a rejected summary is replaced by summarising again ----------------------------------------
+def reject(conn, summary_id, note="misread the table"):
+    ss.review(conn, summary_id, decision="rejected", reviewer="kc", note=note, now=NOW)
+
+
+def test_a_rejected_summary_is_regenerated_as_a_new_attempt_and_its_history_is_kept(conn):
+    seed_version(conn)
+    fake = faithful()
+    run(conn, fake)
+    (first,) = rows(conn, "research_summary")
+    reject(conn, first["id"])
+    again = run(conn, fake)
+    assert [i.outcome for i in again.items] == ["verified"] and len(fake.calls) == 2
+    stored = rows(conn, "research_summary")
+    assert [(r["attempt"], r["review_status"]) for r in stored] == [
+        (1, "rejected"),
+        (2, "unreviewed"),
+    ]
+    assert (
+        stored[0]["output_json"] == first["output_json"]
+        and stored[0]["review_note"] == "misread the table"
+    )
+    assert ss.claims_for(conn, stored[0]["id"]) and ss.claims_for(conn, stored[1]["id"])
+    settled = run(conn, fake)  # the replacement is now the finished work
+    assert [(i.outcome, i.summary_id) for i in settled.items] == [("exists", stored[1]["id"])]
+    assert len(fake.calls) == 2
+    reject(conn, stored[1]["id"], "still wrong")
+    run(conn, fake)
+    assert [r["attempt"] for r in rows(conn, "research_summary")] == [1, 2, 3]
+
+
+def test_approved_and_unreviewed_summaries_are_not_regenerated(conn):
+    approved, unreviewed = seed_backlog(conn, 2)
+    fake = faithful()
+    run(conn, fake)
+    ss.review(conn, rows(conn, "research_summary")[0]["id"], decision="approved", reviewer="kc",
+              note=None, now=NOW)  # fmt: skip
+    again = run(conn, fake)
+    assert [(i.version_id, i.outcome) for i in again.items] == [
+        (approved, "exists"), (unreviewed, "exists")]  # fmt: skip
+    assert len(fake.calls) == 2
+
+
+def test_a_rejected_summary_uses_a_slot_like_any_other_work_still_to_do(conn):
+    first, second = seed_backlog(conn, 2)
+    fake = faithful()
+    run(conn, fake)
+    reject(conn, rows(conn, "research_summary")[0]["id"])
+    capped = LlmLimits(max_documents_per_run=1)
+    result = run(conn, fake, limits=capped)
+    assert [(i.version_id, i.outcome) for i in result.items] == [
+        (first, "verified"),
+        (second, "exists"),
+    ]
+    assert len(fake.calls) == 3
+
+
+# --- section headings reach the model -----------------------------------------------------------
+def scenario_aware(req):
+    """A model that does what it is shown: it names the scenario only when the heading says so."""
+    heading = req.sections[0].heading
+    forecast = {
+        "indicator": "gdp", "indicator_label": "GDP growth", "horizon": "2027", "value": -0.5,
+        "unit": "percent", "direction": "down", "scenario": heading,
+        "evidence": [{"version_id": req.version_id, "section_ordinal": 0, "page": 1,
+                      "quote": "GDP is forecast to contract 0.5% in 2027"}]}  # fmt: skip
+    outlook = {"text": "Growth is forecast to weaken.", "evidence": forecast["evidence"]}
+    return draft_json(req.version_id, forecasts=[forecast], outlook=outlook, indicators=["gdp"])
+
+
+def test_a_stored_heading_is_sent_to_the_provider_and_can_make_a_scenario_claim_verifiable(conn):
+    v = seed_version(
+        conn, ("GDP is forecast to contract 0.5% in 2027.",), headings=("Downside scenario",)
+    )
+    fake = FakeProvider(scenario_aware)
+    result = run(conn, fake)
+    assert fake.calls[0].sections[0].heading == "Downside scenario"
+    assert [i.outcome for i in result.items] == ["verified"], rows(conn, "research_summary")[0][
+        "verification"
+    ]
+    (claim,) = ss.claims_for(conn, rows(conn, "research_summary")[0]["id"])
+    assert claim["scenario"] == "Downside scenario" and v
+
+
+def test_the_heading_is_part_of_the_input_cost_estimate(conn):
+    text = ("GDP is forecast to contract 0.5% in 2027.",)
+    seed_version(conn, text, doc="a", headings=("A" * 300,))
+    seed_version(conn, text, doc="b")
+    with_heading, without = run(conn, FakeProvider("{}"), dry_run=True).items
+    assert with_heading.estimated_usd > without.estimated_usd

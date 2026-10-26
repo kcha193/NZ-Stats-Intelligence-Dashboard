@@ -171,7 +171,7 @@ No vendor SDK is installed, so the Docker image is unchanged. Redirects are not 
 ### What a run does
 
 1. Selects current versions (or `--version ID`, which may be superseded) whose source permits the provider's locality.
-2. Frames the sections as untrusted data between delimiters with a random per-request boundary (prompt `outlook-v1`).
+2. Frames the sections as untrusted data between delimiters with a random per-request boundary (prompt `outlook-v2`). A section's stored heading is sent inside its block as context.
 3. Skips a version already summarised for the same provider, model, prompt version, processing version (`3b-1`) and
    input hash. A provider error does not count, so it is retried next run as a new attempt.
 4. Before **every** call, refuses if spent + worst-case cost of the call (input characters / 3 tokens, the full output
@@ -222,7 +222,8 @@ adds rows, a rejection is final, and only `verified` summaries can be approved. 
 Read each claim's quote in context (`research summary ID` shows version, section and page). Check the horizon and its
 basis (June year, quarter, annual average), whether the figure is a forecast or an outturn, baseline or scenario, the
 unit, and whether a newer version of the document exists (`superseded` is shown). Reject with a note saying what was
-wrong; summarise again to replace it.
+wrong; summarise again to replace it (a rejected summary does not count as finished work, so the next run adds a new
+attempt and the rejected row stays as history).
 
 ### Cost
 

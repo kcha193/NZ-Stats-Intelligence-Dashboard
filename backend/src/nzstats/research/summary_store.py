@@ -90,11 +90,12 @@ def finish_run(
 
 
 def completed_summary(conn: sqlite3.Connection, key: SummaryKey) -> sqlite3.Row | None:
-    """The finished summary for this key; a provider error does not count, so it can be retried."""
+    """The finished summary for this key. A provider error does not count, so it can be retried, and
+    neither does a rejected summary: summarising again adds a new attempt and keeps the rejected row."""
     where, params = key.where()
     return conn.execute(
         f"SELECT * FROM research_summary WHERE {where} AND status != 'provider_error'"
-        " ORDER BY attempt DESC LIMIT 1",
+        " AND review_status != 'rejected' ORDER BY attempt DESC LIMIT 1",
         params,
     ).fetchone()
 

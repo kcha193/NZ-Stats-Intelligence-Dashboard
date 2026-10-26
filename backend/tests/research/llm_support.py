@@ -27,8 +27,12 @@ def seed_version(
     doc: str = "a",
     published_on: str | None = "2026-08-13",
     pages: bool = True,
+    headings: Sequence[str | None] = (),
 ) -> int:
-    """Store one publication with one version made of `sections` (one page each); its version id."""
+    """Store one publication with one version made of `sections` (one page each); its version id.
+
+    `headings[i]`, when given, is the stored heading of section i (as the HTML extractor keeps them).
+    """
     with transaction(conn):
         inst = store.upsert_institution(conn, key=key, name=key.title(), review_status="approved",
                                         content_policy="full_text", now=NOW)  # fmt: skip
@@ -42,7 +46,8 @@ def seed_version(
         rows, offset = [], 0
         for i, text in enumerate(sections):
             page = i + 1 if pages else None
-            rows.append(store.SectionRow(i, None, text, page, page, offset, offset + len(text)))
+            heading = headings[i] if i < len(headings) else None
+            rows.append(store.SectionRow(i, heading, text, page, page, offset, offset + len(text)))
             offset += len(text) + 1
         digest = hashlib.sha256("\n".join(sections).encode()).hexdigest()
         version, _ = store.add_version(

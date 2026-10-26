@@ -37,7 +37,7 @@ Runbook: [data-sources/research.md](data-sources/research.md#llm-summaries-and-f
   more, both fixed with tests: truncated or refused responses were charged as free against the budget, and the unit
   field was printed without escaping.
 
-### Model quality evaluation (replay, prompt `outlook-v1`, verifier `verify-2`)
+### Model quality evaluation (replay, prompt `outlook-v2`, verifier `verify-2`)
 
 Twelve synthetic, hand-annotated cases in `backend/tests/research/eval_set/` (OCR path, annual versus quarterly CPI,
 June-year versus calendar-year GDP and debt for 2026/27, central and scenario forecasts, a historical outturn beside the
@@ -60,8 +60,8 @@ not a real model.** No live provider was run: none is configured or approved, an
 | Items with a verifier error | 0.105 |
 | Model outputs passing verification | 10 of 13 |
 | Planted errors detected / clean probes wrongly rejected | 29 of 29 as labelled (detection 1.000, false rejection 0.000) |
-| Mean tokens per synthetic document (estimated, 3 characters per token) | 1,906 input, 299 output |
-| Mean cost per synthetic document (estimate) | Opus 5.5 $0.0136, Sonnet 5.5 $0.0068, Haiku 5.5 $0.0003 |
+| Mean tokens per synthetic document (estimated, 3 characters per token) | 1,957 input, 299 output |
+| Mean cost per synthetic document (estimate) | Opus 5.5 $0.0138, Sonnet 5.5 $0.0069, Haiku 5.5 $0.0003 |
 | Latency | not measured (replay) |
 
 What the numbers show: the gate trades recall for precision. One wrong claim (an outturn reported as a forecast, a

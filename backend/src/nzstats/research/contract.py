@@ -141,6 +141,8 @@ class RequestSection:
     page_start: int | None
     page_end: int | None
     text: str
+    # The document's own heading for the section: context for the model, never quotable text.
+    heading: str | None = None
 
 
 @dataclass(frozen=True)
@@ -239,7 +241,7 @@ def build_request(
             break
         text = s.text[:budget]
         truncated = truncated or len(text) < len(s.text)
-        out.append(RequestSection(ordinal, s.page_start, s.page_end, text))
+        out.append(RequestSection(ordinal, s.page_start, s.page_end, text, s.heading))
         budget -= len(text)
     return SummaryRequest(
         version_id, prompt_version, INSTRUCTIONS, tuple(out), truncated, limits, published_on
