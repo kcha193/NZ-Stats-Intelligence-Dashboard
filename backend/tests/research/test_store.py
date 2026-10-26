@@ -153,3 +153,79 @@ def test_run_items_and_health(conn):
         0,
         "2026-10-25T01:00:00Z",
     )
+
+
+def _dates(conn, pub):
+    row = conn.execute(
+        "SELECT published_on, published_at, published_precision FROM research_publication WHERE id=?",
+        (pub,),
+    ).fetchone()
+    return tuple(row)
+
+
+def test_a_day_only_replacement_clears_the_old_timestamp(conn):
+    inst = _inst(conn)
+    pub, _ = _pub(conn, inst, published_on="2026-08-13", published_at="2026-08-12T20:00:00Z",
+                  precision="instant")  # fmt: skip
+    _pub(conn, inst, published_on="2026-08-14", published_at=None, precision="day")
+    assert _dates(conn, pub) == ("2026-08-14", None, "day")
+
+
+def test_a_replacement_instant_replaces_the_whole_date_group(conn):
+    inst = _inst(conn)
+    pub, _ = _pub(conn, inst, published_on="2026-08-13", published_at=None, precision="day")
+    _pub(conn, inst, published_on="2026-08-14", published_at="2026-08-13T20:30:00Z",
+         precision="instant")  # fmt: skip
+    assert _dates(conn, pub) == ("2026-08-14", "2026-08-13T20:30:00Z", "instant")
+
+
+def test_no_replacement_date_keeps_the_existing_group(conn):
+    inst = _inst(conn)
+    pub, _ = _pub(conn, inst, published_on="2026-08-13", published_at="2026-08-12T20:00:00Z",
+                  precision="instant")  # fmt: skip
+    _pub(conn, inst, published_on=None, published_at=None, precision=None)
+    assert _dates(conn, pub) == ("2026-08-13", "2026-08-12T20:00:00Z", "instant")
+
+
+def test_a_new_publication_may_have_no_date_and_a_later_date_fills_it(conn):
+    inst = _inst(conn)
+    pub, _ = _pub(conn, inst, published_on=None, published_at=None, precision=None)
+    assert _dates(conn, pub) == (None, None, None)
+    _pub(conn, inst, published_on="2026-08-14", published_at=None, precision="day")
+    assert _dates(conn, pub) == ("2026-08-14", None, "day")
+
+
+def test_independent_content_clears_a_stale_duplicate_attribution(conn):
+    inst = _inst(conn)
+    original, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
+    _version(conn, original, "same-text")
+    copy, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
+    store.mark_duplicate(conn, copy, original)
+    assert conn.execute("SELECT duplicate_of_id FROM research_publication WHERE id=?",
+                        (copy,)).fetchone()[0] == original  # fmt: skip
+    _version(conn, copy, "different-text")
+    assert conn.execute("SELECT duplicate_of_id FROM research_publication WHERE id=?",
+                        (copy,)).fetchone()[0] is None  # fmt: skip
+    # The original is untouched and still current.
+    assert store.current_version(conn, original) is not None
+
+
+def test_a_duplicate_without_its_own_version_keeps_its_attribution(conn):
+    inst = _inst(conn)
+    original, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/a")
+    _version(conn, original, "same-text")
+    copy, _ = _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b")
+    store.mark_duplicate(conn, copy, original)
+    _pub(conn, inst, doc_key="anz:www.anz.co.nz/b", url="https://www.anz.co.nz/b", title="Renamed")
+    assert conn.execute("SELECT duplicate_of_id FROM research_publication WHERE id=?",
+                        (copy,)).fetchone()[0] == original  # fmt: skip
+
+
+def test_reactivating_an_old_version_of_an_independent_publication_stays_independent(conn):
+    inst = _inst(conn)
+    pub, _ = _pub(conn, inst)
+    _version(conn, pub, "t1")
+    _version(conn, pub, "t2")
+    _version(conn, pub, "t1")  # revert
+    assert conn.execute("SELECT duplicate_of_id FROM research_publication WHERE id=?",
+                        (pub,)).fetchone()[0] is None  # fmt: skip

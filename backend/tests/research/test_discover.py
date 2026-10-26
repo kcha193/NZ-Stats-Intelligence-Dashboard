@@ -201,3 +201,60 @@ def test_an_unexpected_parser_error_is_recorded_as_a_discovery_error(monkeypatch
     result = discover(institution(), research_fetcher(institution(), site))
     assert result.candidates == [] and result.errors == [("html_links", "unexpected")]
     assert "secret" not in repr(result.errors)
+
+
+def test_html_links_resolve_against_the_final_url_after_a_redirect():
+    inst = _inst(mechanism="html_links", url=f"{BASE}/research", link_pattern=PATTERN)
+    listing = (
+        b'<a href="report.pdf">Report</a><a href="./other">Other</a><a href="/research/abs">Abs</a>'
+    )
+    site = Site(
+        {
+            ROBOTS: "",
+            f"{BASE}/research": (301, {"location": "/research/"}, b""),
+            f"{BASE}/research/": listing,
+        }
+    )
+    result = discover(inst, research_fetcher(inst, site))
+    assert [c.url for c in result.candidates] == [
+        f"{BASE}/research/report.pdf",
+        f"{BASE}/research/other",
+        f"{BASE}/research/abs",
+    ]
+    assert site.requests == [ROBOTS, f"{BASE}/research", f"{BASE}/research/"]
+
+
+def test_feed_links_resolve_against_the_final_url_after_a_redirect():
+    inst = _inst(mechanism="rss", url=f"{BASE}/feed")
+    rss = {"content-type": "application/rss+xml"}
+    body = b"<rss><channel><item><title>A</title><link>weekly-1</link></item></channel></rss>"
+    site = Site(
+        {
+            ROBOTS: "",
+            f"{BASE}/feed": (302, {"location": "/research/feed.xml"}, b""),
+            f"{BASE}/research/feed.xml": (200, rss, body),
+        }
+    )
+    result = discover(inst, research_fetcher(inst, site))
+    assert [c.url for c in result.candidates] == [f"{BASE}/research/weekly-1"]
+
+
+def test_links_without_a_redirect_still_resolve_against_the_configured_url():
+    inst = _inst(mechanism="html_links", url=f"{BASE}/research/", link_pattern=PATTERN)
+    site = Site({ROBOTS: "", f"{BASE}/research/": b'<a href="report.pdf">R</a>'})
+    result = discover(inst, research_fetcher(inst, site))
+    assert [c.url for c in result.candidates] == [f"{BASE}/research/report.pdf"]
+
+
+def test_a_redirect_off_the_allowed_hosts_never_yields_candidates():
+    inst = _inst(mechanism="html_links", url=f"{BASE}/research", link_pattern=r"^https://.+")
+    site = Site(
+        {
+            ROBOTS: "",
+            f"{BASE}/research": (301, {"location": "https://evil.example.net/research/"}, b""),
+            "https://evil.example.net/research/": b'<a href="/research/x">x</a>',
+        }
+    )
+    result = discover(inst, research_fetcher(inst, site))
+    assert result.candidates == [] and result.errors
+    assert "https://evil.example.net/research/" not in site.requests

@@ -74,11 +74,18 @@ def upsert_publication(
         return int(cur.lastrowid), True
     conn.execute(
         "UPDATE research_publication SET canonical_url=?, title=?, series=?, categories=?,"
-        " published_on=COALESCE(?, published_on), published_at=COALESCE(?, published_at),"
-        " published_precision=COALESCE(?, published_precision), last_seen_at=? WHERE id=?",
-        (url, title, series, json.dumps(list(categories)), published_on, published_at, precision,
-         stamp, existing["id"]),
-    )  # fmt: skip
+        " last_seen_at=? WHERE id=?",
+        (url, title, series, json.dumps(list(categories)), stamp, existing["id"]),
+    )
+    if published_on is not None:
+        # The three date columns describe one stated date, so they change together: a replacement
+        # overwrites all of them (clearing a timestamp the new source does not state). With no
+        # replacement date the existing group is kept untouched.
+        conn.execute(
+            "UPDATE research_publication SET published_on=?, published_at=?, published_precision=?"
+            " WHERE id=?",
+            (published_on, published_at, precision, existing["id"]),
+        )
     return int(existing["id"]), False
 
 
@@ -158,8 +165,9 @@ def _supersede(conn: sqlite3.Connection, current: sqlite3.Row | None, stamp: str
 
 
 def _point(conn: sqlite3.Connection, publication_id: int, version_id: int) -> None:
-    conn.execute("UPDATE research_publication SET current_version_id=?, content_status='extracted'"
-                 " WHERE id=?", (version_id, publication_id))  # fmt: skip
+    # A publication with its own current version is independent: drop any earlier duplicate attribution.
+    conn.execute("UPDATE research_publication SET current_version_id=?, content_status='extracted',"
+                 " duplicate_of_id=NULL WHERE id=?", (version_id, publication_id))  # fmt: skip
 
 
 def mark_duplicate(conn: sqlite3.Connection, publication_id: int, original_id: int) -> None:
@@ -198,6 +206,22 @@ def record_run(
          json.dumps(counts, sort_keys=True), error_class, detail),
     )  # fmt: skip
     return int(cur.lastrowid)
+
+
+def last_attempt_runs(conn: sqlite3.Connection, institution_id: int) -> dict[str, int]:
+    """URL -> id of the latest recorded (non-dry) run of this institution that attempted it.
+
+    Run ids only grow, so this orders attempts without depending on the clock.
+    """
+    return {
+        row["url"]: int(row["last_run"])
+        for row in conn.execute(
+            "SELECT i.url AS url, MAX(i.run_id) AS last_run FROM research_run_item i"
+            " JOIN research_run r ON r.id = i.run_id"
+            " WHERE r.institution_id=? AND r.dry_run=0 GROUP BY i.url",
+            (institution_id,),
+        )
+    }
 
 
 def record_item(

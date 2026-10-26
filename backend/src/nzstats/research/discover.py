@@ -240,11 +240,14 @@ def discover(inst: Institution, fetcher: ResearchFetcher) -> DiscoveryResult:
 
 def _from(source: Discovery, fetcher: ResearchFetcher, static: HostPolicy) -> list[Candidate]:
     assert source.url is not None
+    # Relative links are resolved against the URL that actually served the page (`fetched.url`, after
+    # any redirects), not the configured one.
     if source.mechanism is Mechanism.RSS:
-        return parse_feed(fetcher.get(source.url, expect=FEED_TYPES).body, source.url)
+        fetched = fetcher.get(source.url, expect=FEED_TYPES)
+        return parse_feed(fetched.body, fetched.url)
     if source.mechanism is Mechanism.HTML_LINKS:
-        body = fetcher.get(source.url, expect=HTML_TYPES).body
-        return parse_html_links(body, source.url, source.link_pattern or "^$")
+        fetched = fetcher.get(source.url, expect=HTML_TYPES)
+        return parse_html_links(fetched.body, fetched.url, source.link_pattern or "^$")
     pattern = re.compile(source.link_pattern) if source.link_pattern else None
     urls, children = parse_sitemap(fetcher.get(source.url, expect=SITEMAP_TYPES).body)
     for child in children[:MAX_CHILD_SITEMAPS]:

@@ -6,6 +6,7 @@ from datetime import timedelta
 import httpx
 import pytest
 
+from nzstats.domain import RequestRefused
 from nzstats.research import store
 from nzstats.research.ingest import run_institution
 from nzstats.sources.artifacts import ArtifactStore
@@ -436,3 +437,176 @@ def test_a_cosmetic_redirect_to_the_same_document_is_followed(conn):
 def test_cosmetic_path_differences_in_a_redirect_are_the_same_document(conn, target):
     web = site(**{DOC_A: (301, {"location": target}, b""), target: report("A")})
     assert outcomes(run(conn, institution(), web)) == ["new"]
+
+
+CHALLENGE = report("Wait", "Please verify you are human before reading this report. " + PARA * 4)
+
+
+def _pacer(tmp_path, inst, clock):
+    from nzstats.research.fetch import research_pacer
+
+    return research_pacer(tmp_path, inst, sleep=clock.sleep, wall=clock)
+
+
+def _paced_run(conn, inst, web, tmp_path, clock):
+    fetcher = research_fetcher(inst, web, clock=clock, pacer=_pacer(tmp_path, inst, clock))
+    result = run_institution(conn, inst, fetcher, now_fn=lambda: NOW)
+    return result, fetcher
+
+
+def test_a_challenge_found_by_validation_starts_the_institution_cooldown(conn, tmp_path):
+    inst, clock = institution(), FakeClock()
+    web = site(**{LISTING: listing(DOC_A, DOC_B), DOC_A: CHALLENGE, DOC_B: report("B")})
+    result, fetcher = _paced_run(conn, inst, web, tmp_path, clock)
+    assert result.outcome == "blocked" and DOC_B not in web.requests
+    # The same fetcher now refuses everything...
+    before = list(web.requests)
+    with pytest.raises(RequestRefused):
+        fetcher.get(DOC_B)
+    assert web.requests == before
+    # ...and so does another process (a new fetcher on the same pacing file) a minute later.
+    clock.t += 60
+    later = site(**{DOC_A: report("A")})
+    other = research_fetcher(inst, later, clock=clock, pacer=_pacer(tmp_path, inst, clock))
+    with pytest.raises(RequestRefused):
+        other.get(DOC_A)
+    assert later.requests == []
+
+
+def test_the_challenge_cooldown_ends_after_thirty_minutes(conn, tmp_path):
+    inst, clock = institution(), FakeClock()
+    _paced_run(conn, inst, site(**{DOC_A: CHALLENGE}), tmp_path, clock)
+    clock.t += 31 * 60
+    later = site(**{DOC_A: report("A")})
+    other = research_fetcher(inst, later, clock=clock, pacer=_pacer(tmp_path, inst, clock))
+    assert other.get(DOC_A).body.startswith(b"<html>")
+    assert DOC_A in later.requests
+
+
+def test_a_challenge_without_a_shared_pacer_still_blocks_this_fetcher(conn):
+    inst = institution()
+    web = site(**{LISTING: listing(DOC_A, DOC_B), DOC_A: CHALLENGE, DOC_B: report("B")})
+    fetcher = research_fetcher(inst, web)
+    result = run_institution(conn, inst, fetcher, now_fn=lambda: NOW)
+    assert result.outcome == "blocked"
+    with pytest.raises(RequestRefused):
+        fetcher.get(DOC_B)
+
+
+def test_a_challenge_is_still_a_block_if_the_cooldown_cannot_be_saved(conn, tmp_path, monkeypatch):
+    import os
+
+    inst, clock = institution(), FakeClock()
+    web = site(**{LISTING: listing(DOC_A, DOC_B), DOC_A: CHALLENGE, DOC_B: report("B")})
+    fetcher = research_fetcher(inst, web, clock=clock, pacer=_pacer(tmp_path, inst, clock))
+    real, calls = os.pwrite, []
+
+    def fail_after_the_document_request(fd, data, offset):
+        calls.append(1)
+        # Writes 1-2 and 3-4 are the robots and listing requests, 5-6 the document's own turn;
+        # everything after that is the block being published.
+        if len(calls) > 6:
+            raise OSError("private disk error")
+        return real(fd, data, offset)
+
+    monkeypatch.setattr(os, "pwrite", fail_after_the_document_request)
+    result = run_institution(conn, inst, fetcher, now_fn=lambda: NOW)
+    assert len(calls) > 6, "the cooldown save was never attempted"
+    assert result.outcome == "blocked" and DOC_B not in web.requests
+    assert "private" not in " ".join(str(i.detail) for i in result.items)
+    with pytest.raises(RequestRefused):  # still refused in memory although the save failed
+        fetcher.get(DOC_B)
+
+
+def _many(n, *, changed=()):
+    urls = [f"{BASE}/research/r{i}" for i in range(n)]
+    pages = {
+        u: report(f"R{i}", PARA * 6 + f"Unique {i}. " + ("Revised. " * 30 if i in changed else ""))
+        for i, u in enumerate(urls)
+    }
+    return urls, pages
+
+
+def _processed(result):
+    return [i.url for i in result.items]
+
+
+def test_repeated_capped_runs_cover_every_listed_report(conn):
+    urls, pages = _many(6)
+    web = site(**{LISTING: listing(*urls)}, **pages)
+    inst = institution(max_documents_per_run=5)
+    first = run(conn, inst, web)
+    assert _processed(first) == urls[:5]
+    second = run(conn, inst, web)
+    assert _processed(second)[0] == urls[5]  # never attempted before: first in line
+    assert len(second.items) == 5  # the per-run cap still holds
+    assert outcomes(second)[0] == "new"
+    assert all(pub_row(conn, u) is not None for u in urls)
+
+
+def test_a_new_report_appended_after_the_cap_is_fetched_on_the_next_run(conn):
+    urls, pages = _many(6)
+    inst = institution(max_documents_per_run=5)
+    run(conn, inst, site(**{LISTING: listing(*urls[:5])}, **pages))
+    web = site(**{LISTING: listing(*urls)}, **pages)  # a sixth report is published
+    result = run(conn, inst, web)
+    assert _processed(result)[0] == urls[5]
+    assert outcomes(result)[0] == "new"
+
+
+def test_rotation_visits_the_least_recently_attempted_first_and_loops_around(conn):
+    urls, pages = _many(4)
+    web = site(**{LISTING: listing(*urls)}, **pages)
+    inst = institution(max_documents_per_run=2)
+    order = [_processed(run(conn, inst, web)) for _ in range(4)]
+    assert order == [urls[0:2], urls[2:4], urls[0:2], urls[2:4]]
+
+
+def test_a_rotated_report_that_changed_is_still_revision_checked(conn):
+    urls, pages = _many(4)
+    inst = institution(max_documents_per_run=2)
+    run(conn, inst, site(**{LISTING: listing(*urls)}, **pages))
+    run(conn, inst, site(**{LISTING: listing(*urls)}, **pages))  # second pair, all stored
+    _, revised = _many(4, changed=(0,))
+    result = run(conn, inst, site(**{LISTING: listing(*urls)}, **revised))
+    assert _processed(result) == urls[0:2]
+    assert outcomes(result) == ["updated", "unchanged"]
+    assert conn.execute("SELECT COUNT(*) FROM research_document_version WHERE publication_id="
+                        "(SELECT id FROM research_publication WHERE canonical_url=?)",
+                        (urls[0],)).fetchone()[0] == 2  # fmt: skip
+
+
+def test_a_report_that_always_fails_does_not_starve_the_others(conn):
+    urls, pages = _many(4)
+    del pages[urls[0]]  # r0 is listed but always 404
+    web = site(**{LISTING: listing(*urls)}, **pages)
+    inst = institution(max_documents_per_run=2)
+    seen = set()
+    for _ in range(3):
+        seen |= {i.url for i in run(conn, inst, web).items if i.outcome != "failed"}
+    assert seen == set(urls[1:])
+
+
+def test_rotation_never_exceeds_the_cap_or_a_lower_limit(conn):
+    urls, pages = _many(7)
+    web = site(**{LISTING: listing(*urls)}, **pages)
+    inst = institution(max_documents_per_run=3)
+    assert [len(run(conn, inst, web, limit=n).items) for n in (None, 2, 99, 1)] == [3, 2, 3, 1]
+
+
+def test_a_dry_run_does_not_move_the_rotation(conn):
+    urls, pages = _many(4)
+    web = site(**{LISTING: listing(*urls)}, **pages)
+    inst = institution(max_documents_per_run=2, review_status="needs_review")
+    approved = institution(max_documents_per_run=2)
+    run(conn, inst, web, dry_run=True)
+    assert _processed(run(conn, approved, web)) == urls[0:2]
+
+
+def test_other_institutions_do_not_influence_the_rotation(conn):
+    urls, pages = _many(4)
+    web = site(**{LISTING: listing(*urls)}, **pages)
+    other = institution("other_bank", max_documents_per_run=2)
+    mine = institution(max_documents_per_run=2)
+    run(conn, other, web)
+    assert _processed(run(conn, mine, web)) == urls[0:2]

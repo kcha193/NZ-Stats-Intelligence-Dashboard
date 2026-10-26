@@ -70,7 +70,7 @@ container only after an image rebuild.
 |---|---|---|
 | `research sources` | none | none |
 | `research discover KEY` | robots.txt and the listing pages only. Allowed for `needs_review` (the deliberate first probe), never for `restricted` or policy `none` | none |
-| `research ingest KEY [--limit N] [--dry-run]` | approved sources only: listing pages, then up to `max_documents_per_run` (default 5) documents | publications, versions, sections, run, items, health |
+| `research ingest KEY [--limit N] [--dry-run]` | approved sources only: listing pages, then up to `max_documents_per_run` (default 5) documents, least recently attempted first so a longer listing is covered over successive runs | publications, versions, sections, run, items, health |
 | `research status` | none | none |
 
 A refused command exits 1 and names the reason (`restricted`, `needs review`, `content policy none`) before any HTTP client exists.

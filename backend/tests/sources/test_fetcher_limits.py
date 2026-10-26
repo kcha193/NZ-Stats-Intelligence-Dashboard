@@ -3,7 +3,9 @@
 Both default to off, so the Stats NZ fetch path is unchanged (see the rest of the fetcher tests).
 """
 
+import fcntl
 import gzip
+import os
 import tracemalloc
 import zlib
 
@@ -244,3 +246,190 @@ def test_a_bad_body_on_an_error_status_does_not_hide_the_status():
     with pytest.raises(IngestError) as exc:
         f.get("https://h.test/a")
     assert exc.value.error_class is ErrorClass.BLOCKED
+
+
+def _chunked(chunks, encoding):
+    class Chunks(httpx.SyncByteStream):
+        def __iter__(self):
+            yield from chunks
+
+    def handler(request):
+        return httpx.Response(200, stream=Chunks(), headers={"content-encoding": encoding})
+
+    return handler
+
+
+class _DecoderBudget:
+    """Counts zlib decoder constructions in the fetcher and fails the test instead of hanging it."""
+
+    def __init__(self, monkeypatch, limit: int) -> None:
+        self.made = 0
+        real = zlib.decompressobj
+
+        def counted(*args, **kwargs):
+            self.made += 1
+            if self.made > limit:
+                raise AssertionError("decoder fallback is not one-shot")
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr("nzstats.sources.fetcher.zlib.decompressobj", counted)
+
+
+@pytest.mark.parametrize("junk", [b"\x07\x00", b"\xff", b"\x78\x9c\xff\xff\xff", b"\x00" * 64])
+def test_invalid_deflate_bytes_fail_once_with_a_controlled_error(monkeypatch, junk):
+    budget = _DecoderBudget(monkeypatch, limit=2)  # zlib/gzip attempt, then one raw attempt
+    # Junk that is also no valid raw-deflate prefix is "undecodable"; a lone valid prefix is "incomplete".
+    with pytest.raises(IngestError, match="undecodable|incomplete") as exc:
+        _fetcher(_streaming([junk], "deflate"), max_bytes=10_000).get("https://h.test/a")
+    assert exc.value.error_class in (ErrorClass.UNEXPECTED, ErrorClass.NETWORK)
+    assert budget.made <= 2
+
+
+def test_invalid_deflate_in_a_later_chunk_does_not_retry_the_raw_format(monkeypatch):
+    # The raw fallback only applies when the very first bytes were rejected.
+    budget = _DecoderBudget(monkeypatch, limit=1)
+    good = zlib.compress(b"hello " * 100)
+    with pytest.raises(IngestError, match="undecodable"):
+        _fetcher(_chunked([good[:10], b"\x07\x00" * 4], "deflate"), max_bytes=10_000).get(
+            "https://h.test/a"
+        )
+    assert budget.made == 1
+
+
+def test_undecodable_gzip_is_refused_without_a_raw_fallback(monkeypatch):
+    budget = _DecoderBudget(monkeypatch, limit=1)
+    with pytest.raises(IngestError, match="undecodable"):
+        _fetcher(_streaming([b"\x07\x00"], "gzip"), max_bytes=10_000).get("https://h.test/a")
+    assert budget.made == 1
+
+
+def test_zlib_wrapped_deflate_still_decodes_without_the_fallback(monkeypatch):
+    budget = _DecoderBudget(monkeypatch, limit=1)
+    payload = b"zlib wrapped " * 20
+    body = _fetcher(_streaming([zlib.compress(payload)], "deflate"), max_bytes=10_000).get(
+        "https://h.test/a"
+    )
+    assert body.body == payload
+    assert budget.made == 1
+
+
+def test_raw_deflate_split_across_chunks_decodes():
+    payload = b"split raw deflate " * 50
+    comp = zlib.compressobj(wbits=-15)
+    raw = comp.compress(payload) + comp.flush()
+    # The first chunk is rejected as a zlib stream, so the raw decoder takes over from byte 0.
+    out = _fetcher(_chunked([raw[:7], raw[7:]], "deflate"), max_bytes=10_000).get(
+        "https://h.test/a"
+    )
+    assert out.body == payload
+
+
+def test_invalid_deflate_releases_the_pacing_lock(tmp_path, monkeypatch):
+    from nzstats.sources.fetcher import FilePacer
+
+    _DecoderBudget(monkeypatch, limit=2)
+
+    pacer = FilePacer(tmp_path / "pace", 0.0, sleep=lambda s: None)
+    client = httpx.Client(transport=httpx.MockTransport(_streaming([b"\x07\x00"], "deflate")))
+    fetcher = Fetcher(client, sleep=lambda s: None, clock=lambda: 0.0, pacer=pacer, max_bytes=1000)
+    with pytest.raises(IngestError, match="undecodable"):
+        fetcher.get("https://h.test/a")
+    # Nothing still holds the cross-process lock: a non-blocking exclusive flock succeeds at once.
+    fd = os.open(tmp_path / "pace", os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        os.close(fd)
+
+
+def _oversized(status, headers=None, pulled=None):
+    class Huge(httpx.SyncByteStream):
+        def __iter__(self):
+            for i in range(1000):
+                if pulled is not None:
+                    pulled.append(i)
+                yield b"y" * 1024
+
+    def handler(request):
+        return httpx.Response(
+            status,
+            stream=Huge(),
+            headers={"content-length": "999999999", **(headers or {})},
+        )
+
+    return handler
+
+
+def test_oversized_403_is_still_classified_as_a_block_without_reading_the_body():
+    pulled: list[int] = []
+    f = _fetcher(_oversized(403, pulled=pulled), max_bytes=1000)
+    with pytest.raises(IngestError) as exc:
+        f.get("https://h.test/a")
+    assert exc.value.error_class is ErrorClass.BLOCKED
+    assert pulled == []
+    with pytest.raises(IngestError) as again:  # the block put the fetcher into its cooldown
+        f.get("https://h.test/b")
+    assert again.value.error_class is ErrorClass.BLOCKED
+    assert "cooling down" in str(again.value)
+
+
+def test_oversized_403_without_a_declared_length_stops_reading_and_still_blocks():
+    pulled: list[int] = []
+
+    class Huge(httpx.SyncByteStream):
+        def __iter__(self):
+            for i in range(1000):
+                pulled.append(i)
+                yield b"y" * 1024
+
+    f = _fetcher(lambda r: httpx.Response(403, stream=Huge()), max_bytes=4096)
+    with pytest.raises(IngestError) as exc:
+        f.get("https://h.test/a")
+    assert exc.value.error_class is ErrorClass.BLOCKED
+    assert len(pulled) < 10
+
+
+def test_oversized_429_honours_retry_after_instead_of_reporting_a_size_error():
+    calls = []
+    slept = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            return _oversized(429, {"retry-after": "5"})(request)
+        return httpx.Response(200, content=b"ok")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    f = Fetcher(client, sleep=slept.append, clock=lambda: 0.0, max_bytes=1000)
+    assert f.get("https://h.test/a").body == b"ok"
+    assert len(calls) == 2
+    assert 5 in slept or any(s >= 5 for s in slept)
+
+
+def test_oversized_503_is_retried_not_reported_as_too_large():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            return _oversized(503)(request)
+        return httpx.Response(200, content=b"ok")
+
+    assert _fetcher(handler, max_bytes=1000).get("https://h.test/a").body == b"ok"
+
+
+def test_oversized_404_is_not_found_and_oversized_success_is_still_refused():
+    with pytest.raises(IngestError) as nf:
+        _fetcher(_oversized(404), max_bytes=1000).get("https://h.test/a")
+    assert nf.value.error_class is ErrorClass.NOT_FOUND
+    pulled: list[int] = []
+    with pytest.raises(IngestError, match="larger than") as big:
+        _fetcher(_oversized(200, pulled=pulled), max_bytes=1000).get("https://h.test/a")
+    assert big.value.error_class is ErrorClass.UNEXPECTED
+    assert pulled == []
+
+
+def test_an_oversized_redirect_body_is_still_refused_not_turned_into_an_empty_success():
+    handler = _oversized(302, {"location": "/elsewhere"})
+    with pytest.raises(IngestError, match="larger than"):
+        _fetcher(handler, max_bytes=1000).get("https://h.test/a")

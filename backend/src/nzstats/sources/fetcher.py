@@ -410,6 +410,26 @@ class Fetcher:
             return FetchResult(url, status, ctype, resp.content, self._now())
         raise IngestError(ErrorClass.NETWORK, f"gave up on {url}: {last_problem}", url=url)
 
+    def record_block(self) -> None:
+        """Start the block cooldown for a challenge the caller recognised after a successful response.
+
+        `get` already does this for a 403 or a known marker; a page that only validation can tell is a
+        challenge (an HTTP 200 "verify you are human" page) needs the same cooldown, for this fetcher and,
+        through the pacer, for every other process. Failing to save it is logged, never raised: the
+        in-memory cooldown is already in force and the caller is stopping anyway.
+        """
+        self._blocked_until = self._clock() + BLOCKED_COOLDOWN_SECONDS
+        if self._pacer is None:
+            return
+        try:
+            with self._pacer.turn() as turn:  # sends nothing; only publishes the deadline
+                turn.block(BLOCKED_COOLDOWN_SECONDS)
+        except RequestRefused:
+            log.exception("could not publish the block cooldown to the shared pacing state")
+            return
+        if turn.persistence_failed:
+            log.error("the block cooldown could not be saved to the shared pacing state")
+
     def _send(self, url: str) -> httpx.Response:
         if self._max_bytes is None:
             return self._client.get(url, follow_redirects=False)
@@ -420,13 +440,16 @@ class Fetcher:
         ) as resp:
             declared = _finite(resp.headers.get("content-length", ""))
             if declared is not None and declared > self._max_bytes:
-                raise self._too_large(url)
-            try:
-                body = self._bounded_body(url, resp)
-            except IngestError:
-                if resp.status_code < 300:
-                    raise
-                body = b""  # an error status is classified from the status; its odd body does not matter
+                if resp.status_code < 400:
+                    raise self._too_large(url)
+                body = b""  # classified from the status below; the oversized body is never read
+            else:
+                try:
+                    body = self._bounded_body(url, resp)
+                except IngestError:
+                    if resp.status_code < 300:
+                        raise
+                    body = b""  # an error status is classified from the status; its odd body does not matter
             headers = [
                 (k, v)
                 for k, v in resp.headers.multi_items()
@@ -463,6 +486,7 @@ class Fetcher:
         decoder = zlib.decompressobj(wbits) if wbits is not None else None
         out = bytearray()
         raw_total = 0
+        raw_fallback_tried = False  # the headerless retry is allowed once, never a second time
         for raw in resp.iter_raw():
             raw_total += len(raw)
             if raw_total > cap + MAX_COMPRESSION_OVERHEAD:
@@ -481,7 +505,13 @@ class Fetcher:
                     try:
                         piece = decoder.decompress(data, cap - len(out) + 1)
                     except zlib.error:
-                        if encoding == "deflate" and not out and raw_total == len(raw):
+                        if (
+                            encoding == "deflate"
+                            and not out
+                            and raw_total == len(raw)
+                            and not raw_fallback_tried
+                        ):
+                            raw_fallback_tried = True
                             decoder = zlib.decompressobj(-zlib.MAX_WBITS)  # raw deflate, no header
                             continue
                         raise IngestError(

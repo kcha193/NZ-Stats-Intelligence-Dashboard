@@ -104,7 +104,8 @@ def run_institution(
         return result
     cap = max(1, min(limit or inst.max_documents_per_run, inst.max_documents_per_run))
     blocked = fetcher.access_restricted
-    for candidate in [] if blocked else found.candidates[:cap]:
+    batch = _rotated(found.candidates, store.last_attempt_runs(conn, inst_id))[:cap]
+    for candidate in [] if blocked else batch:
         try:
             item = _one(conn, inst, inst_id, fetcher, candidate, artifacts, now_fn, limits)
         except _StopRun as stop:
@@ -115,6 +116,16 @@ def run_institution(
     result.outcome = _outcome(result, blocked or fetcher.access_restricted)
     _record(conn, inst_id, result, started, now_fn())
     return result
+
+
+def _rotated(candidates: list[Candidate], attempts: dict[str, int]) -> list[Candidate]:
+    """Never-attempted candidates first, then the least recently attempted; ties keep listing order.
+
+    The per-run cap is applied to this order, so a listing longer than the cap is covered over
+    successive runs instead of re-fetching the same prefix. Every candidate in the batch is still
+    fetched and revision-checked as before.
+    """
+    return sorted(candidates, key=lambda c: attempts.get(c.url, 0))
 
 
 def refusal_for(inst: Institution, *, dry_run: bool) -> str | None:
@@ -171,6 +182,7 @@ def _one(
         warnings = validate_document(inst, extracted, previous=previous)
     except IngestError as exc:
         if exc.error_class is ErrorClass.BLOCKED and str(exc) == "challenge_page":
+            fetcher.record_block()  # an HTTP 200 challenge still starts the institution cooldown
             raise _StopRun(_failed(url, exc)) from None
         return _failed(url, exc)
     except Exception as exc:  # a parser bug on hostile input fails this document, not the run

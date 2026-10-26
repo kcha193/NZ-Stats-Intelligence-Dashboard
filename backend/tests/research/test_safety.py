@@ -319,3 +319,26 @@ def test_an_encoded_slash_cannot_reintroduce_a_double_slash_past_the_blocklist(p
     p = policy(hosts=("www.deloitte.com",), blocked_path_prefixes=("/nz/private/",))
     with pytest.raises(UnsafeUrl, match="path"):
         p.check(f"https://www.deloitte.com{path}")
+
+
+@pytest.mark.parametrize(
+    ("rule", "target", "allowed"),
+    [
+        ("/research/private/", "/research/%70rivate/report", False),  # encoded unreserved in target
+        ("/research/%70rivate/", "/research/private/report", False),  # ...and in the rule
+        ("/research/%70rivate/", "/research/%70rivate/report", False),
+        ("/research/%7Eprivate/", "/research/~private/x", False),
+        (
+            "/research/private/",
+            "/research/%50rivate/report",
+            True,
+        ),  # robots paths are case-sensitive
+        ("/a/b", "/a%2Fb", True),  # a reserved escape is not a separator for robots matching
+        ("/a%2Fb", "/a%2fb", False),  # but equal reserved escapes match whatever their hex case
+        ("/a%2Fb", "/a/b", True),
+        ("/research/private/", "/research/pr%69vate%2Freport", True),
+    ],
+)
+def test_robots_percent_encoding_equivalence_preserves_reserved_characters(rule, target, allowed):
+    rules = RobotsRules.parse(f"User-agent: *\nDisallow: {rule}\n", AGENT)
+    assert rules.allowed(canonical_target(target)) is allowed

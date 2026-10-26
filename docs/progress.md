@@ -65,6 +65,17 @@ exceptions from malformed registry numbers, cosmetic-redirect false positives, a
 Still open and minor: a redirected candidate uses a per-run slot every run, no total read deadline on a trickling body, a
 refused pin is retried before failing, and the PDF child's startup failures are reported as limit errors.
 
+Review round 3 (Codex on PR #11, eight findings) fixed with regression tests: the raw-deflate fallback is one-shot (invalid
+bytes such as `07 00` no longer loop forever while holding the pacing lock); oversized 403/429/5xx responses are still
+classified (block cooldown, Retry-After, retry) without reading the body; a challenge page found by validation (HTTP 200)
+now starts the institution cooldown for this fetcher and, through the pacer, for other processes; discovery resolves
+relative links against the final URL after redirects; a batch longer than `max_documents_per_run` rotates (never-attempted
+reports first, then least recently attempted, from `research_run_item`; the cap and `--limit` still apply and every fetched
+report is still revision-checked); the three publication date columns change together; and `duplicate_of_id` is cleared when
+a publication gets its own version. The percent-encoded robots finding was already fixed by the round-2 canonicalisation
+and now has explicit tests. Three round-1 "left for later" items (`duplicate_of_id`, challenge cooldown, candidate ordering) are
+therefore closed.
+
 Before Phase 3B: approve at least one `full_text` source (the Treasury is the likeliest; read its licence page directly and
 run `research discover treasury`), ingest real documents, decide whether any
 source's terms allow sending its text to an LLM provider. Details in the Phase 3B plan.

@@ -119,6 +119,10 @@ class ResearchFetcher:
         # `url_check` runs on this URL and on every redirect hop, before each request.
         return self._fetcher.get(url, expect=expect, url_check=self._gate)
 
+    def record_block(self) -> None:
+        """Publish the institution cooldown for a challenge page that validation (not HTTP) identified."""
+        self._fetcher.record_block()
+
     def check(self, url: str) -> str:
         """The normalised URL if it passes the host policy (no network, no robots); else `Refused`."""
         try:
