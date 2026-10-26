@@ -486,11 +486,17 @@ class Fetcher:
         decoder = zlib.decompressobj(wbits) if wbits is not None else None
         out = bytearray()
         raw_total = 0
-        raw_fallback_tried = False  # the headerless retry is allowed once, never a second time
+        # `deflate` is sent both with a zlib header (the standard) and headerless. Until the first decoded
+        # byte appears the format is undecided, so those leading bytes are kept (bounded by the raw-size
+        # check below) and replayed into the headerless decoder if the zlib one rejects them, whichever
+        # network chunks they arrived in. The retry is allowed once: None means decided or already tried.
+        undecided: bytearray | None = bytearray() if encoding == "deflate" else None
         for raw in resp.iter_raw():
             raw_total += len(raw)
             if raw_total > cap + MAX_COMPRESSION_OVERHEAD:
                 raise self._too_large(url)
+            if undecided is not None:
+                undecided += raw
             data = raw
             while data:
                 if decoder is None:
@@ -505,13 +511,8 @@ class Fetcher:
                     try:
                         piece = decoder.decompress(data, cap - len(out) + 1)
                     except zlib.error:
-                        if (
-                            encoding == "deflate"
-                            and not out
-                            and raw_total == len(raw)
-                            and not raw_fallback_tried
-                        ):
-                            raw_fallback_tried = True
+                        if undecided is not None and not out:
+                            data, undecided = bytes(undecided), None
                             decoder = zlib.decompressobj(-zlib.MAX_WBITS)  # raw deflate, no header
                             continue
                         raise IngestError(
@@ -525,6 +526,8 @@ class Fetcher:
                         )
                     data = decoder.unconsumed_tail
                 out += piece
+                if out:
+                    undecided = None  # the format is settled
                 if len(out) > cap:
                     raise self._too_large(url)
         if decoder is not None and raw_total and not decoder.eof:

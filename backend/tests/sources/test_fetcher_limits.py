@@ -433,3 +433,59 @@ def test_an_oversized_redirect_body_is_still_refused_not_turned_into_an_empty_su
     handler = _oversized(302, {"location": "/elsewhere"})
     with pytest.raises(IngestError, match="larger than"):
         _fetcher(handler, max_bytes=1000).get("https://h.test/a")
+
+
+_RAW_PAYLOAD = b"hello " * 10
+_RAW_COMP = zlib.compressobj(wbits=-15)
+_RAW_BLOB = _RAW_COMP.compress(_RAW_PAYLOAD) + _RAW_COMP.flush()
+
+
+@pytest.mark.parametrize("split", range(1, len(_RAW_BLOB)))
+def test_raw_deflate_decodes_whatever_the_chunk_boundaries(split):
+    payload, raw = _RAW_PAYLOAD, _RAW_BLOB
+    out = _fetcher(_chunked([raw[:split], raw[split:]], "deflate"), max_bytes=10_000).get(
+        "https://h.test/a"
+    )
+    assert out.body == payload
+
+
+def test_raw_deflate_delivered_one_byte_at_a_time_decodes():
+    payload = b"byte at a time " * 20
+    comp = zlib.compressobj(wbits=-15)
+    raw = comp.compress(payload) + comp.flush()
+    chunks = [raw[i : i + 1] for i in range(len(raw))]
+    out = _fetcher(_chunked(chunks, "deflate"), max_bytes=10_000).get("https://h.test/a")
+    assert out.body == payload
+
+
+@pytest.mark.parametrize("split", range(1, 12))
+def test_zlib_deflate_decodes_whatever_the_chunk_boundaries(split, monkeypatch):
+    budget = _DecoderBudget(monkeypatch, limit=1)  # a valid zlib stream never needs the fallback
+    payload = b"zlib split " * 20
+    blob = zlib.compress(payload)
+    out = _fetcher(_chunked([blob[:split], blob[split:]], "deflate"), max_bytes=10_000).get(
+        "https://h.test/a"
+    )
+    assert out.body == payload and budget.made == 1
+
+
+@pytest.mark.parametrize("split", range(1, 4))
+def test_invalid_deflate_split_across_chunks_still_fails_after_one_fallback(monkeypatch, split):
+    budget = _DecoderBudget(monkeypatch, limit=2)
+    junk = b"\x07\x00\xff\xff\xff"
+    with pytest.raises(IngestError, match="undecodable|incomplete"):
+        _fetcher(_chunked([junk[:split], junk[split:]], "deflate"), max_bytes=10_000).get(
+            "https://h.test/a"
+        )
+    assert budget.made <= 2
+
+
+def test_a_valid_raw_prefix_followed_by_junk_is_refused_once(monkeypatch):
+    budget = _DecoderBudget(monkeypatch, limit=2)
+    comp = zlib.compressobj(wbits=-15)
+    raw = comp.compress(b"x" * 50) + comp.flush()
+    with pytest.raises(IngestError):
+        _fetcher(_chunked([raw[:1], b"\xff" * 8], "deflate"), max_bytes=10_000).get(
+            "https://h.test/a"
+        )
+    assert budget.made <= 2
