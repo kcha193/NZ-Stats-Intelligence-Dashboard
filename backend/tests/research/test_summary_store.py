@@ -143,3 +143,63 @@ def test_claims_and_usage_cannot_be_changed_or_deleted(conn):
                 "UPDATE research_llm_usage SET cost_usd = 0"):  # fmt: skip
         with pytest.raises(sqlite3.DatabaseError, match="immutable"):
             conn.execute(sql)
+
+
+# Publication (Phase 3C): a separate, later decision than review, recorded the same append-only way.
+def _approved(conn) -> int:
+    sid = _summary(conn, _key(seed_version(conn)))
+    ss.review(conn, sid, decision="approved", reviewer="Kevin", note=None, now=NOW)
+    return sid
+
+
+def test_publication_is_an_append_only_log_where_the_latest_decision_wins(conn):
+    sid = _approved(conn)
+    assert ss.publication_state(conn, sid) is None
+    ss.record_publication(
+        conn, sid, decision="publish", approver="Kevin", note="terms checked", now=NOW
+    )
+    assert ss.publication_state(conn, sid)["decision"] == "publish"
+    ss.record_publication(
+        conn, sid, decision="withdraw", approver="Kevin", note="licence query", now=NOW
+    )
+    assert ss.publication_state(conn, sid)["decision"] == "withdraw"
+    log = conn.execute("SELECT decision FROM research_summary_publication WHERE summary_id=? ORDER BY id",
+                       (sid,)).fetchall()  # fmt: skip
+    assert [r[0] for r in log] == ["publish", "withdraw"]
+    for sql in (
+        "UPDATE research_summary_publication SET note='x'",
+        "DELETE FROM research_summary_publication",
+    ):
+        with pytest.raises(sqlite3.DatabaseError, match="immutable"):
+            conn.execute(sql)
+
+
+@pytest.mark.parametrize("state", ["unreviewed", "rejected", "failed_verification"])
+def test_only_an_approved_verified_summary_can_be_published(conn, state):
+    v = seed_version(conn)
+    sid = _summary(
+        conn,
+        _key(v),
+        status="failed_verification" if state == "failed_verification" else "verified",
+    )
+    if state == "rejected":
+        ss.review(conn, sid, decision="rejected", reviewer="Kevin", note="misread", now=NOW)
+    with pytest.raises(ss.PublicationError, match="approved"):
+        ss.record_publication(conn, sid, decision="publish", approver="Kevin", note="n", now=NOW)
+    with pytest.raises(sqlite3.DatabaseError, match="approved"):
+        conn.execute("INSERT INTO research_summary_publication(summary_id, decision, approver, note,"
+                     " decided_at) VALUES (?, 'publish', 'K', 'n', 't')", (sid,))  # fmt: skip
+    # Withdrawing is always allowed: it can only make less public.
+    ss.record_publication(conn, sid, decision="withdraw", approver="Kevin", note="n", now=NOW)
+
+
+@pytest.mark.parametrize(
+    ("decision", "approver", "note", "match"),
+    [("publish", " ", "n", "approver"), ("publish", "Kevin", " ", "note"), ("share", "Kevin", "n", "decision")],
+)  # fmt: skip
+def test_publication_input_is_validated(conn, decision, approver, note, match):
+    sid = _approved(conn)
+    with pytest.raises(ss.PublicationError, match=match):
+        ss.record_publication(conn, sid, decision=decision, approver=approver, note=note, now=NOW)
+    with pytest.raises(ss.PublicationError, match="no summary"):
+        ss.record_publication(conn, 999, decision="withdraw", approver="K", note="n", now=NOW)
