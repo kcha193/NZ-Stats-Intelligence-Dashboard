@@ -9,7 +9,7 @@ import { useChartTheme } from "@/charts/theme";
 import { ErrorState } from "@/components/QueryBoundary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCivilDate } from "@/lib/format";
-import { horizonEnd, researchPath } from "@/lib/research";
+import { matchedOutcomeFor, researchPath } from "@/lib/research";
 
 const NAMES: Record<string, string> = { gdp: "GDP", cpi_inflation: "CPI inflation", ocr: "official cash rate", unemployment: "unemployment" };
 const BANDS: Record<string, string> = { h0: "Same quarter or later", h1_2: "1 to 2 quarters ahead", h3_4: "3 to 4 quarters ahead", h5_8: "5 to 8 quarters ahead", h9: "9 or more quarters ahead" };
@@ -18,11 +18,9 @@ const Empty = ({ children }: { children: React.ReactNode }) => <p className="mt-
 
 const targetLabel = (s: ForecastSeries) => `${s.basis_label}, ${s.horizon_label}${s.kind === "scenario" ? `, scenario: ${s.scenario}` : ""}`;
 
-/** The first-published official outcome for a CPI target, when the evaluation matched one. Never the latest quarter. */
+/** The first-published official outcome for a CPI series, when the evaluation matched one of its forecasts. Never the latest quarter. */
 function outcomeFor(series: ForecastSeries, evaluation: ForecastEvaluation | null | undefined): Outcome | null {
-  if (!evaluation || series.kind !== "central") return null;
-  const end = horizonEnd(series.horizon_key);
-  const row = evaluation.evaluated.find((e) => e.status === "matched" && e.target_quarter === end && e.measure.startsWith(series.basis));
+  const row = evaluation ? matchedOutcomeFor(series, evaluation.evaluated) : null;
   return row?.first ? { value: row.first.value, label: row.first.first_release ? "First published" : "Earliest stored" } : null;
 }
 
@@ -42,9 +40,10 @@ function History({ data, evaluation }: { data: ForecastHistory; evaluation?: For
   const [chosen, setChosen] = useState("");
   const key = targets.some(([k]) => k === chosen) ? chosen : richest;
   const panels = targets.find(([k]) => k === key)?.[1] ?? [];
-  const outcome = panels[0] ? outcomeFor(panels[0], evaluation) : null;
+  const outcomes = panels.map((s) => outcomeFor(s, evaluation));
+  const outcomeLabels = [...new Set(outcomes.flatMap((o) => (o ? [o.label.toLowerCase()] : [])))];
   const unit = panels[0]?.unit_label ?? "%";
-  const values = [...panels.flatMap((s) => s.vintages.map((v) => v.value)), ...(outcome ? [outcome.value] : [])];
+  const values = [...panels.flatMap((s) => s.vintages.map((v) => v.value)), ...outcomes.flatMap((o) => (o ? [o.value] : []))];
   const range = valueRange(values, minSpanFor(unit, values));
   const dates = dateBounds(panels);
   const note = axisNote(range, unit);
@@ -58,20 +57,20 @@ function History({ data, evaluation }: { data: ForecastHistory; evaluation?: For
         </select>
       </div>
       <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-        {panels.map((s) => (
+        {panels.map((s, i) => (
           <figure key={s.key} aria-label={`${s.institution.name}: ${targetLabel(s)}`} className="border-t pt-3">
             <figcaption className="text-sm font-medium">{s.institution.name}</figcaption>
             <p className="text-xs text-muted-foreground">
               {s.vintages.length} vintage{s.vintages.length === 1 ? "" : "s"}; {s.n_revisions === 0 ? "no revision" : `${s.n_revisions} revision${s.n_revisions === 1 ? "" : "s"}, ${pp(s.total_revision)} points in all`}
             </p>
-            <EChart option={revisionOption(s, theme, range, dates, outcome)} height={180}
+            <EChart option={revisionOption(s, theme, range, dates, outcomes[i])} height={180}
               ariaLabel={`${s.institution.name}, ${targetLabel(s)}: ${s.vintages.map((v) => `${formatForecastValue(v.value, unit)} published ${formatCivilDate(v.published_on)}`).join("; ")}.`} />
           </figure>
         ))}
       </div>
       <ul aria-label="Legend" className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <li className="inline-flex items-center gap-1.5"><span aria-hidden className="inline-block size-2.5 rounded-full bg-[var(--chart-1)]" />Forecast, by publication date</li>
-        {outcome && <li className="inline-flex items-center gap-1.5"><span aria-hidden className="inline-block h-0.5 w-3 bg-[var(--chart-2)]" />Official outcome ({outcome.label.toLowerCase()})</li>}
+        {outcomeLabels.length > 0 && <li className="inline-flex items-center gap-1.5"><span aria-hidden className="inline-block h-0.5 w-3 bg-[var(--chart-2)]" />Official outcome ({outcomeLabels.join(" or ")})</li>}
       </ul>
       {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
       <details className="mt-3 text-sm">
@@ -239,7 +238,7 @@ export function ForecastTrack({ indicator }: { indicator: string }) {
           <li>Only CPI has an official series here. A forecast is checked only on the measure it states (annual change, annual average change, or quarterly change with its seasonal adjustment stated) and only for the quarter it names.</li>
           <li>The outcome is the first published figure for that quarter, with the latest figure beside it. A forecast published on or after that release is not checked.</li>
           <li>Scenarios, ambiguous wording and calendar or fiscal-year horizons are not checked, and each says why.</li>
-          <li>Averages need at least {evaluation.data?.min_for_summary ?? 4} outcomes in a horizon band. A ranking needs at least {evaluation.data?.min_for_ranking ?? 8} targets that every ranked institution forecast at the same horizon. No significance test is run.</li>
+          <li>Averages need at least {evaluation.data?.min_for_summary ?? 4} distinct target quarters in a horizon band, each scored on the institution&rsquo;s latest forecast in that band. A ranking needs at least {evaluation.data?.min_for_ranking ?? 8} targets that every ranked institution forecast at the same horizon. No significance test is run.</li>
         </ul>
       </details>
     </section>

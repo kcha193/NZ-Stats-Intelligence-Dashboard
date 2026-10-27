@@ -1,4 +1,4 @@
-import type { ForecastGroup, Kpi, ResearchItem } from "@/api/types";
+import type { EvaluatedForecast, ForecastGroup, ForecastSeries, Kpi, ResearchItem } from "@/api/types";
 import type { FeedParams } from "@/api/hooks";
 import type { Observation } from "@/charts/forecasts";
 
@@ -39,6 +39,40 @@ export function horizonEnd(key: string): string | null {
   if (kind === "calendar" && /^\d{4}$/.test(value)) return `${value}-12`;
   if (kind === "split" && /^\d{4}\/\d{2}$/.test(value)) return `${Number(value.slice(0, 4)) + 1}-01`;
   return null;
+}
+
+/** The official CPI measures the evaluation scores forecasts against (`MEASURES` in the backend's `research/outcomes.py`). */
+export type CpiMeasure = "annual_change" | "annual_average_change" | "quarterly_change_nsa" | "quarterly_change_sa";
+
+/**
+ * Comparison basis (the history's identifier) to the official evaluation measure. The two vocabularies differ, so
+ * nothing is inferred from the strings: a basis not listed has no official outcome. The history leaves "seasonally
+ * adjusted" out of the basis (it is a stated word, not a qualifier), so a quarterly change without a qualifier maps to the
+ * seasonally adjusted measure only as a candidate: `matchedOutcomeFor` still requires the evaluation to have matched one
+ * of this series' own forecasts on it, so an unlabelled quarterly change is never given an official figure.
+ */
+const CPI_MEASURE_BY_BASIS: ReadonlyMap<string, CpiMeasure> = new Map<string, CpiMeasure>([
+  ["annual_change", "annual_change"],
+  ["annual_average_change", "annual_average_change"],
+  ["quarterly_change:unadjusted", "quarterly_change_nsa"],
+  ["quarterly_change", "quarterly_change_sa"],
+]);
+
+export function cpiMeasureFor(series: Pick<ForecastSeries, "indicator" | "basis">): CpiMeasure | null {
+  return series.indicator === "cpi_inflation" ? (CPI_MEASURE_BY_BASIS.get(series.basis) ?? null) : null;
+}
+
+/**
+ * The evaluation row that gives a central series its official outcome: matched, on the measure its basis maps to, for the
+ * quarter its horizon ends, and for one of this series' own vintages. Null when any of these fails (a scenario is never
+ * scored; an unsupported or ambiguous basis, a pending target or another institution's forecast gives no outcome).
+ */
+export function matchedOutcomeFor(series: ForecastSeries, evaluated: readonly EvaluatedForecast[]): EvaluatedForecast | null {
+  const measure = cpiMeasureFor(series);
+  const end = horizonEnd(series.horizon_key);
+  if (series.kind !== "central" || measure === null || end === null) return null;
+  const own = new Set(series.vintages.map((v) => v.summary_id));
+  return evaluated.find((e) => e.status === "matched" && e.measure === measure && e.target_quarter === end && own.has(e.forecast.summary_id)) ?? null;
 }
 
 /**
