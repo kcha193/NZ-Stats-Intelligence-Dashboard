@@ -42,17 +42,18 @@ def store_summary(
     review: str | None = "approved",
     publish: bool = True,
     prompt_version: str = "outlook-v2",
+    model: str = "fake-1",
 ) -> int:
     """A summary of `version_id` stored exactly as the pipeline would, then reviewed and published."""
     data = output if output is not None else draft(version_id)
     provenance = ModelProvenance(
-        provider="fake", model="fake-1", prompt_version=prompt_version, processing_version="3b-1",
+        provider="fake", model=model, prompt_version=prompt_version, processing_version="3b-1",
         parameters={}, input_text_sha256="a" * 64, created_at=NOW,
     )  # fmt: skip
     summary = assemble(parse_draft(json.dumps(data)), version_id=version_id, provenance=provenance)
     report = verify(summary, load_sections(conn, version_id))
-    key = ss.SummaryKey(version_id, "fake", "fake-1", prompt_version, "3b-1", "a" * 64)
-    run = ss.start_run(conn, provider="fake", model="fake-1", hosted=False, prompt_version=prompt_version,
+    key = ss.SummaryKey(version_id, "fake", model, prompt_version, "3b-1", "a" * 64)
+    run = ss.start_run(conn, provider="fake", model=model, hosted=False, prompt_version=prompt_version,
                        processing_version="3b-1", limits={}, dry_run=False, now=NOW)  # fmt: skip
     status = "verified" if report.passed else "failed_verification"
     with transaction(conn):

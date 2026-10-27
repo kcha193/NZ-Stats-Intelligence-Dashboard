@@ -286,3 +286,75 @@ def test_sources_shows_the_public_display_permission(env, capsys):
     assert main(["research", "sources"]) == 0
     out = capsys.readouterr().out
     assert "display" in out.splitlines()[0] and "none" in out
+
+
+def test_readiness_reports_each_gate_without_any_request(env, capsys, monkeypatch):
+    web, built = env
+    monkeypatch.delenv("NZSTATS_LLM_PROVIDER", raising=False)
+    assert main(["research", "readiness", "example"]) == 0
+    out = capsys.readouterr().out
+    assert "1. Automated discovery and fetching: granted" in out
+    assert "2. Extraction and local storage: granted" in out
+    assert "3. LLM processing: not granted" in out and "llm_processing is denied" in out
+    assert "4. Public display: not granted" in out
+    assert "first blocker:" in out
+    assert built == [] and web.requests == []
+
+
+def test_readiness_of_the_shipped_registry_lists_every_source_as_not_ready(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.delenv("NZSTATS_RESEARCH_SOURCES_FILE", raising=False)
+    monkeypatch.delenv("NZSTATS_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    assert main(["research", "readiness"]) == 0
+    out = capsys.readouterr().out
+    assert "treasury" in out and "rbnz" in out
+    assert "granted 0 of 4" in out
+
+
+def test_readiness_of_an_unknown_institution_is_an_error(env, capsys):
+    assert main(["research", "readiness", "nope"]) == 2
+
+
+def test_quality_grades_stored_versions(env, capsys, tmp_path):
+    from nzstats.store.db import connect, migrate
+
+    from .llm_support import seed_version
+
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    version = seed_version(conn, (PARA * 3, "�" * 50 + PARA))
+    conn.close()
+    assert main(["research", "quality"]) == 0
+    out = capsys.readouterr().out
+    assert f"version {version}" in out and "poor" in out and "undecodable_characters" in out
+    assert main(["research", "quality", "424242"]) == 1
+    assert "no version 424242" in capsys.readouterr().out
+
+
+def test_evaluate_scores_stored_summaries_without_calling_a_model(
+    env, capsys, tmp_path, monkeypatch
+):
+    import json
+
+    from nzstats.store.db import connect, migrate
+
+    from .llm_support import seed_version
+    from .public_support import store_summary
+
+    monkeypatch.setattr("nzstats.research.cli.build_llm_provider", pytest.fail)
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    version = seed_version(conn)
+    store_summary(conn, version, review=None, publish=False)
+    conn.close()
+    path = tmp_path / "ann.json"
+    path.write_text(json.dumps({"annotator": "A", "annotated_on": "2026-10-28", "documents": [
+        {"version_id": version, "indicators": ["gdp"], "forecasts": [
+            {"indicator": "gdp", "horizon": "year to March 2027", "value": 2.5, "unit": "percent"}]}]}))  # fmt: skip
+    assert main(["research", "evaluate", "--annotations", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "Real documents" in out and "fake/fake-1" in out
+    path.write_text("{}")
+    assert main(["research", "evaluate", "--annotations", str(path)]) == 2

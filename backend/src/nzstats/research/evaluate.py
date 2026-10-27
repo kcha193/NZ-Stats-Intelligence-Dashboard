@@ -34,7 +34,7 @@ from nzstats.research.contract import (
 )
 from nzstats.research.prompt import PROMPT_VERSION, injection_findings
 from nzstats.research.providers import FakeProvider, Pricing, estimate_tokens, request_chars
-from nzstats.research.verify import VerificationContext, verify
+from nzstats.research.verify import VerificationContext, VerificationReport, verify
 
 REF_CODES = frozenset({"wrong_version", "unknown_section", "quote_not_found", "quote_truncated",
                        "page_outside_section", "page_without_pages", "instruction_like_evidence"})  # fmt: skip
@@ -426,7 +426,7 @@ def run_eval(
                 continue
             source = provider if provider is not None else _replay(case, candidate)
             report.models.append(_model_result(case, candidate.version, source, budget))
-    _aggregate(report, pricing or PRICE_POINTS)
+    aggregate(report, pricing or PRICE_POINTS)
     return report
 
 
@@ -436,10 +436,26 @@ def _model_result(
     summary, result, latency, in_tok, out_tok, estimated = _summarise_one(
         case, version, provider, budget
     )
-    gold = case.gold[version]
+    return score(
+        case.id, version, summary, result, case.gold[version], in_tok, out_tok, estimated, latency
+    )
+
+
+def score(
+    case_id: str,
+    version: str,
+    summary: OutlookSummary | None,
+    result: VerificationReport | None,
+    gold: GoldVersion,
+    in_tok: int,
+    out_tok: int,
+    estimated: bool,
+    latency: float,
+) -> ModelResult:
+    """Score one model output against its gold annotation (shared by the replay, live and real evaluations)."""
     if summary is None or result is None:
         empty = extraction_counts([], gold.forecasts)
-        return ModelResult(case.id, version, False, frozenset({"invalid_output"}), empty, empty,
+        return ModelResult(case_id, version, False, frozenset({"invalid_output"}), empty, empty,
                            (0, 0, len(gold.indicators)), 0, 0, 0, 0, (0, len(gold.key_points)),
                            in_tok, out_tok, estimated, latency)  # fmt: skip
     errors = result.errors
@@ -460,13 +476,13 @@ def _model_result(
     bad_refs = len({e.path for e in errors if e.code in REF_CODES})
     text = " ".join(s.text for _, s in statements)
     return ModelResult(
-        case.id, version, result.passed, frozenset(e.code for e in errors), raw, accepted,
+        case_id, version, result.passed, frozenset(e.code for e in errors), raw, accepted,
         indicator_counts({i.value for i in summary.indicators}, set(gold.indicators)), refs, bad_refs,
         len(items), unsupported, completeness(text, gold.key_points), in_tok, out_tok, estimated, latency,
     )  # fmt: skip
 
 
-def _aggregate(report: EvalReport, pricing: Mapping[str, Pricing]) -> None:
+def aggregate(report: EvalReport, pricing: Mapping[str, Pricing]) -> None:
     models = report.models
 
     def total(name: str, key: str) -> int:
@@ -502,7 +518,7 @@ def _aggregate(report: EvalReport, pricing: Mapping[str, Pricing]) -> None:
     m["mean_input_tokens"] = rate(sum(x.input_tokens for x in models), len(models))
     m["mean_output_tokens"] = rate(sum(x.output_tokens for x in models), len(models))
     m["mean_latency_ms"] = (
-        rate(sum(x.latency_ms for x in models), len(models)) if report.mode == "live" else None
+        rate(sum(x.latency_ms for x in models), len(models)) if report.mode != "replay" else None
     )
     report.metrics = m
     if models:

@@ -1,7 +1,7 @@
 # Progress and verification record
 
-Last updated 2026-10-28. Phase 3D-B (historical forecast intelligence) is on `feat/phase-3d-b-forecast-evaluation` (not
-merged); Phase 3D-A (pilot readiness) is a separate branch and PR. Phases 3A to 3C (PRs #11 to #13) and the Netlify static
+Last updated 2026-10-28. Phase 3D-B (historical forecast intelligence) is on `feat/phase-3d-b-forecast-evaluation`
+(PR #15, not merged). Phases 3A to 3C (PRs #11 to #13), Phase 3D-A (pilot readiness, PR #14) and the Netlify static
 publication (PR #10) are merged to `main`; the static site is not deployed. Earlier entries below are historical.
 
 ## Phase 3D-B: forecast history, evaluation and consensus, 28 October 2026
@@ -25,8 +25,38 @@ Runbook: [data-sources/research.md](data-sources/research.md#forecast-history-ev
   institution's oldest document for the detail fixtures.
 - **Chart colours**: a categorical line per institution was rejected after the validator failed navy and violet together
   (CVD ΔE 2.7 light, 0.7 dark); revision charts are small multiples in the validated navy and amber pair.
+- **Review fixes (Codex, PR #15)**: the first-published CPI outcome reads each release's earliest stored bundle (a correction
+  had replaced it); accuracy summaries count distinct target quarters, one latest vintage per quarter and band (four updates of
+  one quarter had passed the four-outcome minimum); the revision charts map history bases to evaluation measures explicitly
+  (`quarterly_change:unadjusted` never matched `quarterly_change_nsa`). Regression tests for each.
 - **Synthetic only**: the seed adds four earlier documents from the fictional institutions. No real research exists, so
   no real forecaster's accuracy is reported anywhere.
+
+## Phase 3D-A: real-research pilot readiness, 28 October 2026
+
+Design and audit: [2026-10-28-phase-3d-design.md](superpowers/specs/2026-10-28-phase-3d-design.md). Runbook:
+[data-sources/research.md](data-sources/research.md#pilot-readiness-phase-3d-a).
+
+- **CI**: every GitHub Actions run since 2026-10-24 00:33 UTC failed before any job started ("recent account payments
+  have failed or your spending limit needs to be increased"; zero steps, no runner). Infrastructure, not code. All
+  verification below is local.
+- **Pilot source: blocked.** The Treasury's licence page returned HTTP 403 to a direct read on 2026-10-28, as its
+  publications listing did to the Phase 3A probe. Its terms are therefore still known only from a search summary, and
+  no approval was inferred from the CC BY 4.0 summary. No permission setting changed; the only registry edit is the
+  evidence note. RBNZ stays `restricted`. No live collection and no model call happened.
+- **Readiness report** (`research/readiness.py`, `nzstats research readiness [KEY]`): the four permissions judged
+  separately (fetching, storage, LLM processing with the configured provider's locality, public display with the API
+  switch), each with its evidence fields and first blocker; later gates say which decision they wait on. Shipped
+  registry: all ten sources 0 of 4.
+- **Extraction quality** (`research/quality.py`, `nzstats research quality`): deterministic findings on stored
+  sections (missing and empty pages, undecodable and control characters, symbol soup, glued or spaced-out words,
+  running headers, hyphen breaks, numeric density), graded ok, review or poor. Advisory only.
+- **Real-model evaluation** (`research/pilot_eval.py`, `nzstats research evaluate --annotations FILE`): scores stored
+  summaries of real documents against a human annotation file kept under `data/`, re-verifying each with the current
+  verifier and reusing the replay's metric functions (`evaluate.score`, `evaluate.aggregate`, extracted from the
+  existing code without changing any metric); cost and latency are the recorded usage of every attempt. Labelled real
+  and never merged with the synthetic `RECORDED_BASELINE`. No real result exists yet: there is no approved source.
+- `providers.is_hosted` is now the one definition of a hosted provider (the adapter and the readiness report share it).
 
 ### Verification
 
@@ -34,10 +64,11 @@ Runbook: [data-sources/research.md](data-sources/research.md#forecast-history-ev
 |---|---|
 | `pytest` (backend) | see the PR description for the final run |
 | `ruff check .`, `ruff format --check .` | clean |
-| `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` | 441 passed; clean; existing warnings only; built |
+| `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` | 458 passed; clean; existing warnings only; built |
 | `npx playwright test` | 108 passed |
 | `npx playwright test -c playwright.research.config.ts` | 21 passed (desktop, tablet, mobile; screenshots light and dark) |
 | `scripts/e2e_static.sh` | 252 passed, 3 skipped (unchanged: no research in the static site) |
+| `nzstats research readiness` on the shipped registry | 10 sources, 0 of 4 gates each; Treasury blocked on terms evidence |
 
 ## Phase 3C: economic outlook, 27 October 2026
 
