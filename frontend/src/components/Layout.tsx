@@ -9,6 +9,7 @@ type Dest = { to: string; label: string; note: string; end?: boolean };
 /** Reading destinations come first; every dashboard, the calendar and data health stay one click from any page. */
 const PRIMARY: Dest[] = [
   { to: "/", label: "Home", note: "Today's findings", end: true },
+  { to: "/economic-outlook", label: "Outlook", note: "Indicators beside institutional forecasts" },
   { to: "/stories", label: "Stories", note: "Every finding, one per page" },
 ];
 const EXPLORE: { group: string; links: Dest[] }[] = [

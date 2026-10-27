@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 // the live app does not have, is hidden, and the one sentence that differs by design (live refresh versus "updated
 // after each verified release") is made identical in both. Health differs by design (no ingestion log) and is excluded.
 const LIVE = process.env.LIVE_URL!;
-const ROUTES = ["/", "/stories", "/stories/spending-retail-2026-09", "/stories/inflation-drivers-2026-06", "/inflation", "/electronic-card-transactions", "/migration", "/calendar"];
+const ROUTES = ["/", "/economic-outlook", "/stories", "/stories/spending-retail-2026-09", "/stories/inflation-drivers-2026-06", "/inflation", "/electronic-card-transactions", "/migration", "/calendar"];
 
 const settle = async (page: import("@playwright/test").Page, url: string) => {
   await page.goto(url);

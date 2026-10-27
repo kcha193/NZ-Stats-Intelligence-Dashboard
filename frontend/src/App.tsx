@@ -6,6 +6,8 @@ const Overview = lazy(() => import("@/pages/Overview"));
 const Migration = lazy(() => import("@/pages/Migration"));
 const Inflation = lazy(() => import("@/pages/Inflation"));
 const ElectronicCardTransactions = lazy(() => import('@/pages/ElectronicCardTransactions'));
+const EconomicOutlook = lazy(() => import("@/pages/EconomicOutlook"));
+const ResearchDetail = lazy(() => import("@/pages/ResearchDetail"));
 const Stories = lazy(() => import("@/pages/Stories"));
 const StoryPage = lazy(() => import("@/pages/Story"));
 const ReleaseAnalysis = lazy(() => import("@/pages/ReleaseAnalysis"));
@@ -25,6 +27,8 @@ export default function App() {
           <Route path="/migration" element={<Migration />} />
           <Route path="/inflation" element={<Inflation />} />
           <Route path="/electronic-card-transactions" element={<ElectronicCardTransactions />} />
+          <Route path="/economic-outlook" element={<EconomicOutlook />} />
+          <Route path="/economic-outlook/research/:id" element={<ResearchDetail />} />
           <Route path="/stories" element={<Stories />} />
           <Route path="/stories/:id" element={<StoryPage />} />
           <Route path="/releases/:id" element={<ReleaseAnalysis />} />
