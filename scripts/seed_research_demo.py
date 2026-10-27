@@ -185,6 +185,76 @@ def tasman(conn) -> None:
     })  # fmt: skip
 
 
+def earlier_vintages(conn) -> None:
+    """Earlier documents from the same fictional institutions (Phase 3D-B): forecast revisions, a change of measure,
+    and CPI forecasts for quarters whose official outcomes are in the e2e database (March and June 2026)."""
+    h1 = seed_version(conn, [
+        SYN + "Annual CPI inflation is forecast to be 2.5% in the year to June 2027.",
+        "We expect annual CPI inflation of 3.0% in the year to June 2026.",
+        "Annual CPI inflation is forecast to be 3.2% in the year to March 2026.",
+    ], key="harbourside", doc="harbourside/february-outlook", published_on="2026-02-12")  # fmt: skip
+    store_summary(conn, h1, output={
+        "outlook": {"text": "Inflation is expected to stay above the middle of the band through mid-2026.",
+                    "evidence": [ev(h1, 1, "We expect annual CPI inflation of 3.0% in the year to June 2026")]},
+        "indicators": ["cpi_inflation"],
+        "forecasts": [
+            claim(h1, 0, "Annual CPI inflation is forecast to be 2.5% in the year to June 2027", "cpi_inflation",
+                  "Annual CPI inflation", "year to June 2027", 2.5, "down"),
+            claim(h1, 1, "We expect annual CPI inflation of 3.0% in the year to June 2026", "cpi_inflation",
+                  "Annual CPI inflation", "year to June 2026", 3.0, "flat"),
+            claim(h1, 2, "Annual CPI inflation is forecast to be 3.2% in the year to March 2026", "cpi_inflation",
+                  "Annual CPI inflation", "year to March 2026", 3.2, "up"),
+        ],
+    })  # fmt: skip
+    h2 = seed_version(conn, [
+        SYN + "Annual CPI inflation is forecast to be 2.7% in the year to June 2027.",
+        "We now expect annual CPI inflation of 3.6% in the year to June 2026.",
+        "The OCR is forecast to be 3.0% in December 2026.",
+    ], key="harbourside", doc="harbourside/may-outlook", published_on="2026-05-14")  # fmt: skip
+    store_summary(conn, h2, output={
+        "outlook": {"text": "Inflation has picked up and is expected to peak in mid-2026.",
+                    "evidence": [ev(h2, 1, "We now expect annual CPI inflation of 3.6% in the year to June 2026")]},
+        "indicators": ["cpi_inflation", "ocr"],
+        "forecasts": [
+            claim(h2, 0, "Annual CPI inflation is forecast to be 2.7% in the year to June 2027", "cpi_inflation",
+                  "Annual CPI inflation", "year to June 2027", 2.7, "down"),
+            claim(h2, 1, "We now expect annual CPI inflation of 3.6% in the year to June 2026", "cpi_inflation",
+                  "Annual CPI inflation", "year to June 2026", 3.6, "up"),
+            claim(h2, 2, "The OCR is forecast to be 3.0% in December 2026", "ocr", "OCR", "December 2026", 3.0, "flat"),
+        ],
+    })  # fmt: skip
+    k1 = seed_version(conn, [
+        SYN + "Annual average CPI inflation is forecast to be 2.8% in the year to June 2027.",
+        "We forecast annual CPI inflation of 3.9% in the year to June 2026.",
+    ], key="kauri", doc="kauri/winter-forecasts", published_on="2026-06-18")  # fmt: skip
+    store_summary(conn, k1, output={
+        "outlook": {"text": "Inflation is expected to peak in the June 2026 quarter.",
+                    "evidence": [ev(k1, 1, "We forecast annual CPI inflation of 3.9% in the year to June 2026")]},
+        "indicators": ["cpi_inflation"],
+        "forecasts": [
+            claim(k1, 0, "Annual average CPI inflation is forecast to be 2.8% in the year to June 2027",
+                  "cpi_inflation", "CPI inflation, annual average", "year to June 2027", 2.8, "down"),
+            claim(k1, 1, "We forecast annual CPI inflation of 3.9% in the year to June 2026", "cpi_inflation",
+                  "Annual CPI inflation", "year to June 2026", 3.9, "up"),
+        ],
+    })  # fmt: skip
+    s1 = seed_version(conn, [
+        SYN + "Annual CPI inflation is forecast to be 2.6% in the year to June 2027.",
+        "Annual CPI inflation is forecast to be 3.4% in the year to June 2026.",
+    ], key="southern", doc="southern/budget-update", published_on="2026-05-21")  # fmt: skip
+    store_summary(conn, s1, output={
+        "outlook": {"text": "Inflation is forecast to ease by mid-2027.",
+                    "evidence": [ev(s1, 0, "Annual CPI inflation is forecast to be 2.6% in the year to June 2027")]},
+        "indicators": ["cpi_inflation"],
+        "forecasts": [
+            claim(s1, 0, "Annual CPI inflation is forecast to be 2.6% in the year to June 2027", "cpi_inflation",
+                  "Annual CPI inflation", "year to June 2027", 2.6, "down"),
+            claim(s1, 1, "Annual CPI inflation is forecast to be 3.4% in the year to June 2026", "cpi_inflation",
+                  "Annual CPI inflation", "year to June 2026", 3.4, "up"),
+        ],
+    })  # fmt: skip
+
+
 TITLES = {
     "harbourside/quarterly-outlook": "Quarterly Economic Outlook, October 2026 (synthetic)",
     "harbourside/rejected": "Inflation Update, rejected draft (synthetic)",
@@ -192,6 +262,10 @@ TITLES = {
     "kauri/spring-forecasts": "Economic Forecasts, Spring 2026 (synthetic)",
     "southern/fiscal-update": "Fiscal and Economic Update 2026 (synthetic)",
     "tasman/weekly-commentary": "Weekly Market Commentary (synthetic)",
+    "harbourside/february-outlook": "Quarterly Economic Outlook, February 2026 (synthetic)",
+    "harbourside/may-outlook": "Quarterly Economic Outlook, May 2026 (synthetic)",
+    "kauri/winter-forecasts": "Economic Forecasts, Winter 2026 (synthetic)",
+    "southern/budget-update": "Budget Economic Update 2026 (synthetic)",
 }
 
 
@@ -211,7 +285,7 @@ def main(target: Path) -> None:
     load_registry(registry_file)  # the loader's own checks, so a bad fixture fails here
     conn = connect(target / "nzstats.db")
     migrate(conn)
-    for seed in (harbourside, kauri, southern, tasman):
+    for seed in (harbourside, kauri, southern, tasman, earlier_vintages):
         seed(conn)
     retitle(conn)
     statuses = [(r["institution"], r["status"], r["review_status"]) for r in ss.list_summaries(conn)]

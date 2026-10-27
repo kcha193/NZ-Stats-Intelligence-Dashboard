@@ -55,6 +55,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/forecast-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["history_api_research_forecast_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/forecast-evaluation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation */
+        get: operations["evaluation_api_research_forecast_evaluation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/consensus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Consensus View */
+        get: operations["consensus_view_api_research_consensus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -263,6 +314,40 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccuracySummaryOut */
+        AccuracySummaryOut: {
+            institution: components["schemas"]["InstitutionOut"];
+            /** Measure */
+            measure: string;
+            /** Measure Label */
+            measure_label: string;
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "h0" | "h1_2" | "h3_4" | "h5_8" | "h9";
+            /** N */
+            n: number;
+            /** Sufficient */
+            sufficient: boolean;
+            /** Mean Error */
+            mean_error: number | null;
+            /** Mae */
+            mae: number | null;
+            /** Rmse */
+            rmse: number | null;
+        };
+        /** ActualOut */
+        ActualOut: {
+            /** Value */
+            value: number;
+            /** Release */
+            release: string;
+            /** Released On */
+            released_on: string;
+            /** First Release */
+            first_release: boolean;
+        };
         /** CalendarOut */
         CalendarOut: {
             /** Items */
@@ -284,6 +369,90 @@ export interface components {
             absolute: number;
             /** Percent */
             percent: number | null;
+        };
+        /** ConsensusGroupOut */
+        ConsensusGroupOut: {
+            /** Key */
+            key: string;
+            /** Indicator */
+            indicator: string;
+            /** Indicator Name */
+            indicator_name: string;
+            /** Unit */
+            unit: string;
+            /** Unit Label */
+            unit_label: string;
+            /** Basis */
+            basis: string;
+            /** Basis Label */
+            basis_label: string;
+            /** Horizon Key */
+            horizon_key: string;
+            /** Horizon Label */
+            horizon_label: string;
+            /**
+             * Kind
+             * @default central
+             * @constant
+             */
+            kind: "central";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "available" | "insufficient";
+            /** N */
+            n: number;
+            /** Mean */
+            mean: number | null;
+            /** Median */
+            median: number | null;
+            /** Minimum */
+            minimum: number | null;
+            /** Maximum */
+            maximum: number | null;
+            /** Range */
+            range: number | null;
+            /** Std Dev */
+            std_dev: number | null;
+            /** Outliers Assessed */
+            outliers_assessed: boolean;
+            /** Outliers */
+            outliers: components["schemas"]["ContributorOut"][];
+            /** Contributors */
+            contributors: components["schemas"]["ContributorOut"][];
+            /** Excluded */
+            excluded: components["schemas"]["ExcludedForecastOut"][];
+            /** As Of */
+            as_of: string | null;
+            /**
+             * Note
+             * @default A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast.
+             */
+            note: string;
+        };
+        /** ConsensusOut */
+        ConsensusOut: {
+            /** Groups */
+            groups: components["schemas"]["ConsensusGroupOut"][];
+            /**
+             * Note
+             * @default A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast.
+             */
+            note: string;
+        };
+        /** ContributorOut */
+        ContributorOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Value */
+            value: number;
+            /** Published On */
+            published_on: string | null;
+            /** Summary Id */
+            summary_id: number;
         };
         /** CorrectionBlock */
         CorrectionBlock: {
@@ -404,6 +573,16 @@ export interface components {
             earliest_release: string | null;
             /** Note */
             note: string;
+        };
+        /** CoverageOut */
+        CoverageOut: {
+            institution: components["schemas"]["InstitutionOut"];
+            /** Matched */
+            matched: number;
+            /** Pending */
+            pending: number;
+            /** Excluded */
+            excluded: number;
         };
         /** CpiContributionBlock */
         CpiContributionBlock: {
@@ -555,6 +734,38 @@ export interface components {
             /** Series */
             series: components["schemas"]["SeriesDataOut"][];
         };
+        /** EvaluatedForecastOut */
+        EvaluatedForecastOut: {
+            forecast: components["schemas"]["ForecastOut"];
+            /** Measure */
+            measure: string;
+            /** Measure Label */
+            measure_label: string;
+            /** Target Quarter */
+            target_quarter: string;
+            /** Target Label */
+            target_label: string;
+            /** Horizon Quarters */
+            horizon_quarters: number;
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "h0" | "h1_2" | "h3_4" | "h5_8" | "h9";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "matched" | "pending";
+            first: components["schemas"]["ActualOut"] | null;
+            latest: components["schemas"]["ActualOut"] | null;
+            /** Error First */
+            error_first: number | null;
+            /** Error Latest */
+            error_latest: number | null;
+            /** Outcome Revision */
+            outcome_revision: number | null;
+        };
         /** Evidence */
         Evidence: {
             /** Series Key */
@@ -616,6 +827,45 @@ export interface components {
              */
             note: string;
         };
+        /** ForecastEvaluationOut */
+        ForecastEvaluationOut: {
+            /** Indicator */
+            indicator: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "no_official_series" | "nothing_to_evaluate";
+            /** Official Series */
+            official_series: string | null;
+            /** Actuals As Of */
+            actuals_as_of: string | null;
+            /** Actuals Released On */
+            actuals_released_on: string | null;
+            /** Vintages From */
+            vintages_from: string | null;
+            /** Vintages To */
+            vintages_to: string | null;
+            /** Evaluated */
+            evaluated: components["schemas"]["EvaluatedForecastOut"][];
+            /** Excluded */
+            excluded: components["schemas"]["ExcludedForecastOut"][];
+            /** Summaries */
+            summaries: components["schemas"]["AccuracySummaryOut"][];
+            /** Rankings */
+            rankings: components["schemas"]["RankingOut"][];
+            /** Coverage */
+            coverage: components["schemas"]["CoverageOut"][];
+            /** Min For Summary */
+            min_for_summary: number;
+            /** Min For Ranking */
+            min_for_ranking: number;
+            /**
+             * Note
+             * @default Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four outcomes, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
+             */
+            note: string;
+        };
         /** ForecastGroupOut */
         ForecastGroupOut: {
             /** Key */
@@ -648,6 +898,20 @@ export interface components {
             /** Comparable */
             comparable: boolean;
             /** Note */
+            note: string;
+        };
+        /** ForecastHistoryOut */
+        ForecastHistoryOut: {
+            /** Series */
+            series: components["schemas"]["ForecastSeriesOut"][];
+            /** Measure Changes */
+            measure_changes: components["schemas"]["MeasureChangeOut"][];
+            /** Excluded */
+            excluded: components["schemas"]["ExcludedForecastOut"][];
+            /**
+             * Note
+             * @default A vintage is one published document's forecast. A revision is a change of value for the same institution, measure, horizon and kind; a change of measure (for example annual average to through the year) is shown separately and is never a revision.
+             */
             note: string;
         };
         /** ForecastOut */
@@ -683,6 +947,67 @@ export interface components {
             forecast: components["schemas"]["ForecastOut"];
             /** Earlier Vintages */
             earlier_vintages: components["schemas"]["ForecastOut"][];
+        };
+        /** ForecastSeriesOut */
+        ForecastSeriesOut: {
+            /** Key */
+            key: string;
+            /** Target Key */
+            target_key: string;
+            institution: components["schemas"]["InstitutionOut"];
+            /** Indicator */
+            indicator: string;
+            /** Indicator Name */
+            indicator_name: string;
+            /** Unit */
+            unit: string;
+            /** Unit Label */
+            unit_label: string;
+            /** Basis */
+            basis: string;
+            /** Basis Label */
+            basis_label: string;
+            /** Horizon Key */
+            horizon_key: string;
+            /** Horizon Label */
+            horizon_label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "central" | "scenario";
+            /** Scenario */
+            scenario: string | null;
+            /** Vintages */
+            vintages: components["schemas"]["ForecastVintageOut"][];
+            latest: components["schemas"]["ForecastVintageOut"];
+            /** N Revisions */
+            n_revisions: number;
+            /** Total Revision */
+            total_revision: number | null;
+        };
+        /** ForecastVintageOut */
+        ForecastVintageOut: {
+            /** Summary Id */
+            summary_id: number;
+            /** Published On */
+            published_on: string | null;
+            /** Document Title */
+            document_title: string;
+            /** Value */
+            value: number;
+            /** Indicator Label */
+            indicator_label: string;
+            /** Horizon */
+            horizon: string;
+            /** Qualification */
+            qualification: string | null;
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceOut"][];
+            /** Superseded */
+            superseded: boolean;
+            /** Revision */
+            revision: number | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -749,6 +1074,43 @@ export interface components {
             published_at: string;
             /** Source Url */
             source_url: string | null;
+        };
+        /** MeasureChangeOut */
+        MeasureChangeOut: {
+            institution: components["schemas"]["InstitutionOut"];
+            /** Indicator */
+            indicator: string;
+            /** Indicator Name */
+            indicator_name: string;
+            /** Horizon Key */
+            horizon_key: string;
+            /** Horizon Label */
+            horizon_label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "central" | "scenario";
+            /** Scenario */
+            scenario: string | null;
+            /** From Basis */
+            from_basis: string;
+            /** From Basis Label */
+            from_basis_label: string;
+            /** To Basis */
+            to_basis: string;
+            /** To Basis Label */
+            to_basis_label: string;
+            /** From Summary Id */
+            from_summary_id: number;
+            /** From Published On */
+            from_published_on: string | null;
+            /** To Summary Id */
+            to_summary_id: number;
+            /** To Published On */
+            to_published_on: string | null;
+            /** Note */
+            note: string;
         };
         /** Methodology */
         Methodology: {
@@ -868,6 +1230,33 @@ export interface components {
             verifier_version: string;
             /** Created At */
             created_at: string;
+        };
+        /** RankingEntryOut */
+        RankingEntryOut: {
+            institution: components["schemas"]["InstitutionOut"];
+            /** N */
+            n: number;
+            /** Mae */
+            mae: number;
+            /** Rmse */
+            rmse: number;
+            /** Mean Error */
+            mean_error: number;
+        };
+        /** RankingOut */
+        RankingOut: {
+            /** Measure */
+            measure: string;
+            /** Measure Label */
+            measure_label: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string;
+            /** Matched Cells */
+            matched_cells: number;
+            /** Entries */
+            entries: components["schemas"]["RankingEntryOut"][];
         };
         /** ReleaseAnalysis */
         ReleaseAnalysis: {
@@ -1258,6 +1647,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastComparisonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    history_api_research_forecast_history_get: {
+        parameters: {
+            query?: {
+                indicator?: string | null;
+                institution?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluation_api_research_forecast_evaluation_get: {
+        parameters: {
+            query?: {
+                indicator?: string;
+                institution?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastEvaluationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consensus_view_api_research_consensus_get: {
+        parameters: {
+            query?: {
+                indicator?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsensusOut"];
                 };
             };
             /** @description Validation Error */

@@ -1,0 +1,1121 @@
+{
+ "series": [
+  {
+   "key": "harbourside|gdp|percent|real_annual_average_change|year_to:2027-03|central",
+   "target_key": "gdp|percent|real_annual_average_change|year_to:2027-03|central",
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "indicator": "gdp",
+   "indicator_name": "GDP",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "real_annual_average_change",
+   "basis_label": "Real terms, annual average change",
+   "horizon_key": "year_to:2027-03",
+   "horizon_label": "Year to March 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 1,
+     "published_on": "2026-10-08",
+     "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+     "value": 1.8,
+     "indicator_label": "Real GDP, annual average growth",
+     "horizon": "year to March 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 1,
+       "page": 2,
+       "quote": "We expect real GDP annual average growth of 1.8% in the year to March 2027"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 1,
+    "published_on": "2026-10-08",
+    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "value": 1.8,
+    "indicator_label": "Real GDP, annual average growth",
+    "horizon": "year to March 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "We expect real GDP annual average growth of 1.8% in the year to March 2027"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "kauri|gdp|percent|real_annual_average_change|year_to:2027-03|central",
+   "target_key": "gdp|percent|real_annual_average_change|year_to:2027-03|central",
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "gdp",
+   "indicator_name": "GDP",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "real_annual_average_change",
+   "basis_label": "Real terms, annual average change",
+   "horizon_key": "year_to:2027-03",
+   "horizon_label": "Year to March 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 4,
+     "published_on": "2026-09-24",
+     "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+     "value": 1.5,
+     "indicator_label": "Real GDP, annual average growth",
+     "horizon": "year to March 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 2,
+       "page": 3,
+       "quote": "real GDP growth is forecast at 1.5% in the year to March 2027"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 4,
+    "published_on": "2026-09-24",
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "value": 1.5,
+    "indicator_label": "Real GDP, annual average growth",
+    "horizon": "year to March 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 2,
+      "page": 3,
+      "quote": "real GDP growth is forecast at 1.5% in the year to March 2027"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "kauri|gdp|percent|real_annual_change|year_to:2027-03|central",
+   "target_key": "gdp|percent|real_annual_change|year_to:2027-03|central",
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "gdp",
+   "indicator_name": "GDP",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "real_annual_change",
+   "basis_label": "Real terms, annual change (through the year)",
+   "horizon_key": "year_to:2027-03",
+   "horizon_label": "Year to March 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 4,
+     "published_on": "2026-09-24",
+     "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+     "value": 2.0,
+     "indicator_label": "Real GDP growth (y/y)",
+     "horizon": "year to March 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 1,
+       "page": 2,
+       "quote": "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 4,
+    "published_on": "2026-09-24",
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "value": 2.0,
+    "indicator_label": "Real GDP growth (y/y)",
+    "horizon": "year to March 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "kauri|cpi_inflation|percent|annual_average_change|year_to:2027-06|central",
+   "target_key": "cpi_inflation|percent|annual_average_change|year_to:2027-06|central",
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_average_change",
+   "basis_label": "Annual average change",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 9,
+     "published_on": "2026-06-18",
+     "document_title": "Economic Forecasts, Winter 2026 (synthetic)",
+     "value": 2.8,
+     "indicator_label": "CPI inflation, annual average",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": "Annual average CPI inflation is forecast to be 2.8% in the year to June 2027"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 9,
+    "published_on": "2026-06-18",
+    "document_title": "Economic Forecasts, Winter 2026 (synthetic)",
+    "value": 2.8,
+    "indicator_label": "CPI inflation, annual average",
+    "horizon": "year to June 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "Annual average CPI inflation is forecast to be 2.8% in the year to June 2027"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "harbourside|cpi_inflation|percent|annual_change|year_to:2026-03|central",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2026-03|central",
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2026-03",
+   "horizon_label": "Year to March 2026",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 7,
+     "published_on": "2026-02-12",
+     "document_title": "Quarterly Economic Outlook, February 2026 (synthetic)",
+     "value": 3.2,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to March 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 2,
+       "page": 3,
+       "quote": "Annual CPI inflation is forecast to be 3.2% in the year to March 2026"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 7,
+    "published_on": "2026-02-12",
+    "document_title": "Quarterly Economic Outlook, February 2026 (synthetic)",
+    "value": 3.2,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to March 2026",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 2,
+      "page": 3,
+      "quote": "Annual CPI inflation is forecast to be 3.2% in the year to March 2026"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "harbourside|cpi_inflation|percent|annual_change|year_to:2026-06|central",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2026-06|central",
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2026-06",
+   "horizon_label": "Year to June 2026",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 7,
+     "published_on": "2026-02-12",
+     "document_title": "Quarterly Economic Outlook, February 2026 (synthetic)",
+     "value": 3.0,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 1,
+       "page": 2,
+       "quote": "We expect annual CPI inflation of 3.0% in the year to June 2026"
+      }
+     ],
+     "superseded": true,
+     "revision": null
+    },
+    {
+     "summary_id": 8,
+     "published_on": "2026-05-14",
+     "document_title": "Quarterly Economic Outlook, May 2026 (synthetic)",
+     "value": 3.6,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 1,
+       "page": 2,
+       "quote": "We now expect annual CPI inflation of 3.6% in the year to June 2026"
+      }
+     ],
+     "superseded": false,
+     "revision": 0.6
+    }
+   ],
+   "latest": {
+    "summary_id": 8,
+    "published_on": "2026-05-14",
+    "document_title": "Quarterly Economic Outlook, May 2026 (synthetic)",
+    "value": 3.6,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2026",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "We now expect annual CPI inflation of 3.6% in the year to June 2026"
+     }
+    ],
+    "superseded": false,
+    "revision": 0.6
+   },
+   "n_revisions": 1,
+   "total_revision": 0.6
+  },
+  {
+   "key": "kauri|cpi_inflation|percent|annual_change|year_to:2026-06|central",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2026-06|central",
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2026-06",
+   "horizon_label": "Year to June 2026",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 9,
+     "published_on": "2026-06-18",
+     "document_title": "Economic Forecasts, Winter 2026 (synthetic)",
+     "value": 3.9,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 1,
+       "page": 2,
+       "quote": "We forecast annual CPI inflation of 3.9% in the year to June 2026"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 9,
+    "published_on": "2026-06-18",
+    "document_title": "Economic Forecasts, Winter 2026 (synthetic)",
+    "value": 3.9,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2026",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "We forecast annual CPI inflation of 3.9% in the year to June 2026"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "southern|cpi_inflation|percent|annual_change|year_to:2026-06|central",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2026-06|central",
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2026-06",
+   "horizon_label": "Year to June 2026",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 10,
+     "published_on": "2026-05-21",
+     "document_title": "Budget Economic Update 2026 (synthetic)",
+     "value": 3.4,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 1,
+       "page": 2,
+       "quote": null
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 10,
+    "published_on": "2026-05-21",
+    "document_title": "Budget Economic Update 2026 (synthetic)",
+    "value": 3.4,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2026",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": null
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "harbourside|cpi_inflation|percent|annual_change|year_to:2027-06|central",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2027-06|central",
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 7,
+     "published_on": "2026-02-12",
+     "document_title": "Quarterly Economic Outlook, February 2026 (synthetic)",
+     "value": 2.5,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": "Annual CPI inflation is forecast to be 2.5% in the year to June 2027"
+      }
+     ],
+     "superseded": true,
+     "revision": null
+    },
+    {
+     "summary_id": 8,
+     "published_on": "2026-05-14",
+     "document_title": "Quarterly Economic Outlook, May 2026 (synthetic)",
+     "value": 2.7,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": "Annual CPI inflation is forecast to be 2.7% in the year to June 2027"
+      }
+     ],
+     "superseded": true,
+     "revision": 0.2
+    },
+    {
+     "summary_id": 1,
+     "published_on": "2026-10-08",
+     "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+     "value": 2.3,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": "forecast to ease to 2.3% in the year to June 2027"
+      }
+     ],
+     "superseded": false,
+     "revision": -0.4
+    }
+   ],
+   "latest": {
+    "summary_id": 1,
+    "published_on": "2026-10-08",
+    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "value": 2.3,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "forecast to ease to 2.3% in the year to June 2027"
+     }
+    ],
+    "superseded": false,
+    "revision": -0.4
+   },
+   "n_revisions": 2,
+   "total_revision": -0.2
+  },
+  {
+   "key": "kauri|cpi_inflation|percent|annual_change|year_to:2027-06|central",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2027-06|central",
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 4,
+     "published_on": "2026-09-24",
+     "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+     "value": 2.1,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": "We forecast annual CPI inflation of 2.1% in the year to June 2027"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 4,
+    "published_on": "2026-09-24",
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "value": 2.1,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "We forecast annual CPI inflation of 2.1% in the year to June 2027"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "southern|cpi_inflation|percent|annual_change|year_to:2027-06|central",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2027-06|central",
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 10,
+     "published_on": "2026-05-21",
+     "document_title": "Budget Economic Update 2026 (synthetic)",
+     "value": 2.6,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": null
+      }
+     ],
+     "superseded": true,
+     "revision": null
+    },
+    {
+     "summary_id": 5,
+     "published_on": "2026-10-15",
+     "document_title": "Fiscal and Economic Update 2026 (synthetic)",
+     "value": 2.4,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": null
+      }
+     ],
+     "superseded": false,
+     "revision": -0.2
+    }
+   ],
+   "latest": {
+    "summary_id": 5,
+    "published_on": "2026-10-15",
+    "document_title": "Fiscal and Economic Update 2026 (synthetic)",
+    "value": 2.4,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": null
+     }
+    ],
+    "superseded": false,
+    "revision": -0.2
+   },
+   "n_revisions": 1,
+   "total_revision": -0.2
+  },
+  {
+   "key": "harbourside|cpi_inflation|percent|annual_change|year_to:2027-06|downside",
+   "target_key": "cpi_inflation|percent|annual_change|year_to:2027-06|downside",
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "scenario",
+   "scenario": "Downside",
+   "vintages": [
+    {
+     "summary_id": 1,
+     "published_on": "2026-10-08",
+     "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+     "value": 1.6,
+     "indicator_label": "Annual CPI inflation",
+     "horizon": "year to June 2027",
+     "qualification": "Weaker export prices",
+     "evidence": [
+      {
+       "section_ordinal": 3,
+       "page": 4,
+       "quote": "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in the year to June 2027"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 1,
+    "published_on": "2026-10-08",
+    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "value": 1.6,
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "qualification": "Weaker export prices",
+    "evidence": [
+     {
+      "section_ordinal": 3,
+      "page": 4,
+      "quote": "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in the year to June 2027"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "harbourside|ocr|percent|level|month:2026-12|central",
+   "target_key": "ocr|percent|level|month:2026-12|central",
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "indicator": "ocr",
+   "indicator_name": "Official cash rate",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "level",
+   "basis_label": "Level (timing within the period not stated)",
+   "horizon_key": "month:2026-12",
+   "horizon_label": "December 2026",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 8,
+     "published_on": "2026-05-14",
+     "document_title": "Quarterly Economic Outlook, May 2026 (synthetic)",
+     "value": 3.0,
+     "indicator_label": "OCR",
+     "horizon": "December 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 2,
+       "page": 3,
+       "quote": "The OCR is forecast to be 3.0% in December 2026"
+      }
+     ],
+     "superseded": true,
+     "revision": null
+    },
+    {
+     "summary_id": 1,
+     "published_on": "2026-10-08",
+     "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+     "value": 2.75,
+     "indicator_label": "OCR",
+     "horizon": "December 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 2,
+       "page": 3,
+       "quote": "The OCR is forecast to be 2.75% in December 2026"
+      }
+     ],
+     "superseded": false,
+     "revision": -0.25
+    }
+   ],
+   "latest": {
+    "summary_id": 1,
+    "published_on": "2026-10-08",
+    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "value": 2.75,
+    "indicator_label": "OCR",
+    "horizon": "December 2026",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 2,
+      "page": 3,
+      "quote": "The OCR is forecast to be 2.75% in December 2026"
+     }
+    ],
+    "superseded": false,
+    "revision": -0.25
+   },
+   "n_revisions": 1,
+   "total_revision": -0.25
+  },
+  {
+   "key": "kauri|ocr|percent|level|month:2026-12|central",
+   "target_key": "ocr|percent|level|month:2026-12|central",
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "ocr",
+   "indicator_name": "Official cash rate",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "level",
+   "basis_label": "Level (timing within the period not stated)",
+   "horizon_key": "month:2026-12",
+   "horizon_label": "December 2026",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 4,
+     "published_on": "2026-09-24",
+     "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+     "value": 2.5,
+     "indicator_label": "OCR",
+     "horizon": "December 2026",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 4,
+       "page": 5,
+       "quote": "We expect the OCR to be 2.5% in December 2026"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 4,
+    "published_on": "2026-09-24",
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "value": 2.5,
+    "indicator_label": "OCR",
+    "horizon": "December 2026",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 4,
+      "page": 5,
+      "quote": "We expect the OCR to be 2.5% in December 2026"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "kauri|unemployment|percent|rate|quarter:2026-12|central",
+   "target_key": "unemployment|percent|rate|quarter:2026-12|central",
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "unemployment",
+   "indicator_name": "Unemployment",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "rate",
+   "basis_label": "Rate",
+   "horizon_key": "quarter:2026-12",
+   "horizon_label": "December 2026 quarter",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 4,
+     "published_on": "2026-09-24",
+     "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+     "value": 5.4,
+     "indicator_label": "Unemployment rate",
+     "horizon": "December 2026 quarter",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 3,
+       "page": 4,
+       "quote": "The unemployment rate is forecast to be 5.4% in the December 2026 quarter"
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 4,
+    "published_on": "2026-09-24",
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "value": 5.4,
+    "indicator_label": "Unemployment rate",
+    "horizon": "December 2026 quarter",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 3,
+      "page": 4,
+      "quote": "The unemployment rate is forecast to be 5.4% in the December 2026 quarter"
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  },
+  {
+   "key": "southern|government_debt|percent_of_gdp|share_of_gdp:net-core-crown-debt|year_to:2027-06|central",
+   "target_key": "government_debt|percent_of_gdp|share_of_gdp:net-core-crown-debt|year_to:2027-06|central",
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "indicator": "government_debt",
+   "indicator_name": "Government debt",
+   "unit": "percent_of_gdp",
+   "unit_label": "% of GDP",
+   "basis": "share_of_gdp:net-core-crown-debt",
+   "basis_label": "Share of GDP (Net core Crown debt)",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "scenario": null,
+   "vintages": [
+    {
+     "summary_id": 5,
+     "published_on": "2026-10-15",
+     "document_title": "Fiscal and Economic Update 2026 (synthetic)",
+     "value": 43.5,
+     "indicator_label": "Net core Crown debt",
+     "horizon": "year to June 2027",
+     "qualification": null,
+     "evidence": [
+      {
+       "section_ordinal": 2,
+       "page": 3,
+       "quote": null
+      }
+     ],
+     "superseded": false,
+     "revision": null
+    }
+   ],
+   "latest": {
+    "summary_id": 5,
+    "published_on": "2026-10-15",
+    "document_title": "Fiscal and Economic Update 2026 (synthetic)",
+    "value": 43.5,
+    "indicator_label": "Net core Crown debt",
+    "horizon": "year to June 2027",
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 2,
+      "page": 3,
+      "quote": null
+     }
+    ],
+    "superseded": false,
+    "revision": null
+   },
+   "n_revisions": 0,
+   "total_revision": null
+  }
+ ],
+ "measure_changes": [
+  {
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "scenario": null,
+   "from_basis": "annual_average_change",
+   "from_basis_label": "Annual average change",
+   "to_basis": "annual_change",
+   "to_basis_label": "Annual change (through the year)",
+   "from_summary_id": 9,
+   "from_published_on": "2026-06-18",
+   "to_summary_id": 4,
+   "to_published_on": "2026-09-24",
+   "note": "The institution stated a different measure for this horizon in its next publication. The values are different statistics, so the change is not a revision."
+  }
+ ],
+ "excluded": [
+  {
+   "forecast": {
+    "summary_id": 4,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "published_on": "2026-09-24",
+    "indicator": "gdp",
+    "indicator_label": "Economic growth",
+    "horizon": "next year",
+    "value": null,
+    "unit": null,
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 5,
+      "page": 6,
+      "quote": "Growth should improve next year"
+     }
+    ]
+   },
+   "reason": "States a direction only, with no number to compare."
+  },
+  {
+   "forecast": {
+    "summary_id": 5,
+    "institution": {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "kind": "government"
+    },
+    "document_title": "Fiscal and Economic Update 2026 (synthetic)",
+    "published_on": "2026-10-15",
+    "indicator": "gdp",
+    "indicator_label": "Economic growth",
+    "horizon": "year to March 2027",
+    "value": 1.2,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": null
+     }
+    ]
+   },
+   "reason": "The statistical basis is not stated clearly enough to compare: GDP growth can be real or nominal, and an annual average or a change through the year."
+  }
+ ],
+ "note": "A vintage is one published document's forecast. A revision is a change of value for the same institution, measure, horizon and kind; a change of measure (for example annual average to through the year) is shown separately and is never a revision."
+}

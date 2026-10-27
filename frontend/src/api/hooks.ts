@@ -3,7 +3,8 @@ import { ApiError, getJson } from "./client";
 import { pollEvery } from "./mode";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
-  SeriesData, EctDashboard, CpiDashboard, ResearchFeed, ResearchDetail, ForecastComparison,
+  SeriesData, EctDashboard, CpiDashboard, ResearchFeed, ResearchDetail, ForecastComparison, ForecastHistory,
+  ForecastEvaluation, Consensus,
 } from "./types";
 
 const qs = (params: Record<string, string | number | undefined>): string => {
@@ -109,4 +110,24 @@ export const useForecasts = (params: ForecastParams = {}) =>
     queryKey: ["research-forecasts", params],
     queryFn: ({ signal }) => orUnpublished(getJson<ForecastComparison>(`/api/research/forecasts${qs(params)}`, signal)),
     placeholderData: keepPreviousData,
+  });
+
+export const useForecastHistory = (indicator: string) =>
+  useQuery({
+    queryKey: ["research-forecast-history", indicator],
+    queryFn: ({ signal }) => orUnpublished(getJson<ForecastHistory>(`/api/research/forecast-history${qs({ indicator })}`, signal)),
+    placeholderData: keepPreviousData,
+  });
+
+export const useForecastEvaluation = (indicator: string) =>
+  useQuery({
+    queryKey: ["research-forecast-evaluation", indicator],
+    queryFn: ({ signal }) => orUnpublished(getJson<ForecastEvaluation>(`/api/research/forecast-evaluation${qs({ indicator })}`, signal)),
+    placeholderData: keepPreviousData,
+  });
+
+export const useConsensus = (indicator: string) =>
+  useQuery({
+    queryKey: ["research-consensus", indicator],
+    queryFn: ({ signal }) => orUnpublished(getJson<Consensus>(`/api/research/consensus${qs({ indicator })}`, signal)),
   });

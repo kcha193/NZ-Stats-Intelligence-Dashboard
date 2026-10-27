@@ -1,0 +1,17 @@
+{
+ "indicator": "gdp",
+ "state": "no_official_series",
+ "official_series": null,
+ "actuals_as_of": "Consumers price index: June 2026 quarter",
+ "actuals_released_on": "2026-07-21",
+ "vintages_from": null,
+ "vintages_to": null,
+ "evaluated": [],
+ "excluded": [],
+ "summaries": [],
+ "rankings": [],
+ "coverage": [],
+ "min_for_summary": 4,
+ "min_for_ranking": 8,
+ "note": "Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four outcomes, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
+}

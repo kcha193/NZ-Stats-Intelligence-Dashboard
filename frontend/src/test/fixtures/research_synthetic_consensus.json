@@ -1,0 +1,353 @@
+{
+ "groups": [
+  {
+   "key": "gdp|percent|real_annual_average_change|year_to:2027-03|central",
+   "indicator": "gdp",
+   "indicator_name": "GDP",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "real_annual_average_change",
+   "basis_label": "Real terms, annual average change",
+   "horizon_key": "year_to:2027-03",
+   "horizon_label": "Year to March 2027",
+   "kind": "central",
+   "status": "available",
+   "n": 2,
+   "mean": 1.65,
+   "median": 1.65,
+   "minimum": 1.5,
+   "maximum": 1.8,
+   "range": 0.3,
+   "std_dev": null,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "value": 1.8,
+     "published_on": "2026-10-08",
+     "summary_id": 1
+    },
+    {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "value": 1.5,
+     "published_on": "2026-09-24",
+     "summary_id": 4
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-10-08",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "gdp|percent|real_annual_change|year_to:2027-03|central",
+   "indicator": "gdp",
+   "indicator_name": "GDP",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "real_annual_change",
+   "basis_label": "Real terms, annual change (through the year)",
+   "horizon_key": "year_to:2027-03",
+   "horizon_label": "Year to March 2027",
+   "kind": "central",
+   "status": "insufficient",
+   "n": 1,
+   "mean": null,
+   "median": null,
+   "minimum": null,
+   "maximum": null,
+   "range": null,
+   "std_dev": null,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "value": 2.0,
+     "published_on": "2026-09-24",
+     "summary_id": 4
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-09-24",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "cpi_inflation|percent|annual_average_change|year_to:2027-06|central",
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_average_change",
+   "basis_label": "Annual average change",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "status": "insufficient",
+   "n": 1,
+   "mean": null,
+   "median": null,
+   "minimum": null,
+   "maximum": null,
+   "range": null,
+   "std_dev": null,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "value": 2.8,
+     "published_on": "2026-06-18",
+     "summary_id": 9
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-06-18",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "cpi_inflation|percent|annual_change|year_to:2026-03|central",
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2026-03",
+   "horizon_label": "Year to March 2026",
+   "kind": "central",
+   "status": "insufficient",
+   "n": 1,
+   "mean": null,
+   "median": null,
+   "minimum": null,
+   "maximum": null,
+   "range": null,
+   "std_dev": null,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "value": 3.2,
+     "published_on": "2026-02-12",
+     "summary_id": 7
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-02-12",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "cpi_inflation|percent|annual_change|year_to:2026-06|central",
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2026-06",
+   "horizon_label": "Year to June 2026",
+   "kind": "central",
+   "status": "available",
+   "n": 3,
+   "mean": 3.633333,
+   "median": 3.6,
+   "minimum": 3.4,
+   "maximum": 3.9,
+   "range": 0.5,
+   "std_dev": 0.251661,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "value": 3.6,
+     "published_on": "2026-05-14",
+     "summary_id": 8
+    },
+    {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "value": 3.9,
+     "published_on": "2026-06-18",
+     "summary_id": 9
+    },
+    {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "value": 3.4,
+     "published_on": "2026-05-21",
+     "summary_id": 10
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-06-18",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "cpi_inflation|percent|annual_change|year_to:2027-06|central",
+   "indicator": "cpi_inflation",
+   "indicator_name": "CPI inflation",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "status": "available",
+   "n": 3,
+   "mean": 2.266667,
+   "median": 2.3,
+   "minimum": 2.1,
+   "maximum": 2.4,
+   "range": 0.3,
+   "std_dev": 0.152753,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "value": 2.3,
+     "published_on": "2026-10-08",
+     "summary_id": 1
+    },
+    {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "value": 2.1,
+     "published_on": "2026-09-24",
+     "summary_id": 4
+    },
+    {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "value": 2.4,
+     "published_on": "2026-10-15",
+     "summary_id": 5
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-10-15",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "ocr|percent|level|month:2026-12|central",
+   "indicator": "ocr",
+   "indicator_name": "Official cash rate",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "level",
+   "basis_label": "Level (timing within the period not stated)",
+   "horizon_key": "month:2026-12",
+   "horizon_label": "December 2026",
+   "kind": "central",
+   "status": "available",
+   "n": 2,
+   "mean": 2.625,
+   "median": 2.625,
+   "minimum": 2.5,
+   "maximum": 2.75,
+   "range": 0.25,
+   "std_dev": null,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "value": 2.75,
+     "published_on": "2026-10-08",
+     "summary_id": 1
+    },
+    {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "value": 2.5,
+     "published_on": "2026-09-24",
+     "summary_id": 4
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-10-08",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "unemployment|percent|rate|quarter:2026-12|central",
+   "indicator": "unemployment",
+   "indicator_name": "Unemployment",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "rate",
+   "basis_label": "Rate",
+   "horizon_key": "quarter:2026-12",
+   "horizon_label": "December 2026 quarter",
+   "kind": "central",
+   "status": "insufficient",
+   "n": 1,
+   "mean": null,
+   "median": null,
+   "minimum": null,
+   "maximum": null,
+   "range": null,
+   "std_dev": null,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "value": 5.4,
+     "published_on": "2026-09-24",
+     "summary_id": 4
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-09-24",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  },
+  {
+   "key": "government_debt|percent_of_gdp|share_of_gdp:net-core-crown-debt|year_to:2027-06|central",
+   "indicator": "government_debt",
+   "indicator_name": "Government debt",
+   "unit": "percent_of_gdp",
+   "unit_label": "% of GDP",
+   "basis": "share_of_gdp:net-core-crown-debt",
+   "basis_label": "Share of GDP (Net core Crown debt)",
+   "horizon_key": "year_to:2027-06",
+   "horizon_label": "Year to June 2027",
+   "kind": "central",
+   "status": "insufficient",
+   "n": 1,
+   "mean": null,
+   "median": null,
+   "minimum": null,
+   "maximum": null,
+   "range": null,
+   "std_dev": null,
+   "outliers_assessed": false,
+   "outliers": [],
+   "contributors": [
+    {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "value": 43.5,
+     "published_on": "2026-10-15",
+     "summary_id": 5
+    }
+   ],
+   "excluded": [],
+   "as_of": "2026-10-15",
+   "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+  }
+ ],
+ "note": "A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast."
+}

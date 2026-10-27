@@ -62,9 +62,11 @@ def dump_research_fixtures() -> None:
     from nzstats.research.registry import load_registry
 
     sys.path.insert(0, str(ROOT / "scripts"))
+    from seed_e2e_db import seed_cpi_from_fixtures
     from seed_research_demo import main as seed_research
 
     with tempfile.TemporaryDirectory() as tmp:
+        seed_cpi_from_fixtures(Path(tmp))  # real CPI releases, so forecast evaluation has official outcomes
         seed_research(Path(tmp))
         registry = load_registry(Path(tmp) / "research_sources.synthetic.toml")
         app = create_app(
@@ -73,7 +75,9 @@ def dump_research_fixtures() -> None:
         )
         with TestClient(app) as c:
             feed = c.get("/api/research/feed").json()
-            by_key = {i["institution"]["key"]: i["id"] for i in feed["items"]}
+            by_key: dict[str, int] = {}
+            for item in feed["items"]:  # newest first: each institution's newest document
+                by_key.setdefault(item["institution"]["key"], item["id"])
             payloads = {
                 "research_synthetic_feed": feed,
                 "research_synthetic_forecasts": c.get("/api/research/forecasts").json(),
@@ -89,6 +93,14 @@ def dump_research_fixtures() -> None:
                 "research_synthetic_detail_link_only": c.get(
                     f"/api/research/summaries/{by_key['tasman']}"
                 ).json(),
+                "research_synthetic_history": c.get("/api/research/forecast-history").json(),
+                "research_synthetic_evaluation": c.get(
+                    "/api/research/forecast-evaluation", params={"indicator": "cpi_inflation"}
+                ).json(),
+                "research_synthetic_evaluation_gdp": c.get(
+                    "/api/research/forecast-evaluation", params={"indicator": "gdp"}
+                ).json(),
+                "research_synthetic_consensus": c.get("/api/research/consensus").json(),
             }
         for name, payload in payloads.items():
             (OUT / f"{name}.json").write_text(json.dumps(payload, indent=1) + "\n")
