@@ -383,13 +383,13 @@
    "note": "Only one institution has a published forecast on this basis."
   },
   {
-   "key": "government_debt|percent_of_gdp|share_of_gdp|year_to:2027-06|central",
+   "key": "government_debt|percent_of_gdp|share_of_gdp:net-core-crown-debt|year_to:2027-06|central",
    "indicator": "government_debt",
    "indicator_name": "Government debt",
    "unit": "percent_of_gdp",
    "unit_label": "% of GDP",
-   "basis": "share_of_gdp",
-   "basis_label": "Share of GDP",
+   "basis": "share_of_gdp:net-core-crown-debt",
+   "basis_label": "Share of GDP (Net core Crown debt)",
    "horizon_key": "year_to:2027-06",
    "horizon_label": "Year to June 2027",
    "kind": "central",

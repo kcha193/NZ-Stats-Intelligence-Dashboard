@@ -112,7 +112,12 @@ deterministic and conservative; anything unrecognised is listed as not comparabl
   `rate_average`, `rate_end`, or `rate` (a quarter or month, which is itself the point in time) / `rate_timing_unstated`
   (a longer span with no stated timing); a peak or trough is excluded. OCR `level_end` (end of / by), `level_average`
   (average) or `level` (as stated). Other indicators only when the label names a basis, with `real_` / `nominal_`
-  when stated. No basis: "statistical basis not stated clearly enough to compare".
+  when stated. GDP, CPI, OCR and unemployment each name one series; every other indicator is only a topic, so the
+  measure the label names is part of its basis (`annual_change:house-prices`, `share_of_gdp:net-core-crown-debt`):
+  net and gross debt, or average earnings and the labour cost index, are never grouped. The measure is the label's
+  words minus units, cadence, forecast and price-basis wording. No basis: "statistical basis not stated clearly
+  enough to compare". Government debt must also say net or gross exactly once, and a fiscal-balance label must say
+  more than "balance"; otherwise the claim is excluded rather than assumed.
 - **Horizon key**: `year_to:2027-03` (year to / ended / ending March 2027), `quarter:2027-03` (March 2027 quarter,
   Q1 2027), `calendar:2027` (2027, calendar 2027), `month:2026-12` (December 2026, end of 2026). Split years such as
   "2026/27" stay as written (`split:2026/27`) because June and March years are both called that; relative horizons

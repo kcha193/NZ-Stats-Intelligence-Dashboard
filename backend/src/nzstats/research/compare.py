@@ -90,6 +90,22 @@ _CPI_VARIANT = re.compile(
     re.IGNORECASE,
 )
 _POINT_IN_TIME = ("quarter:", "month:")
+# GDP, CPI, OCR and unemployment each name one series. Every other indicator is only a topic ("wages", "house prices",
+# "government debt"), so the measure the label names ("Net core Crown debt") is part of its basis.
+_SINGLE_SERIES = frozenset(INDICATOR_ORDER)
+# A tenor ("2 year", "90-day") is part of the measure, so it stays one token; otherwise "2 year" and "2 month" would meet.
+_MEASURE_WORD = re.compile(
+    r"\d{1,3}\s*-?\s*(?:year|month|day|week)s?\b|[A-Za-z0-9]+", re.IGNORECASE
+)
+_TENOR = re.compile(r"(\d+)\s*-?\s*(year|month|day|week)s?", re.IGNORECASE)
+# Words every fiscal-balance label shares; a label made only of these does not say which balance it is.
+_BALANCE_TOPIC = frozenset("fiscal budget balance surplus deficit".split())
+# Words that say how, not what: units, forecast wording, cadence, price basis and joining words.
+_NOT_THE_MEASURE = frozenset(
+    "a an and as at by in of on or the to per cent percent pct gdp share ratio forecast forecasts projected projection "
+    "expected annual annually average quarterly quarter year yearly yoy yy qoq change changes growth through over "
+    "real nominal constant month months".split()
+)  # fmt: skip
 
 
 def _month(token: str) -> int:
@@ -171,12 +187,27 @@ def _priced(label: str, cadence: str | None, *, required: bool) -> str | None:
     return None if required else cadence
 
 
-def basis_label(basis: str) -> str:
-    for price, name in PRICE_LABELS.items():
-        if basis.startswith(f"{price}_"):
-            cadence = BASIS_LABELS[basis.removeprefix(f"{price}_")]
-            return f"{name}, {cadence[0].lower()}{cadence[1:]}"
-    return BASIS_LABELS[basis]
+def measure_words(label: str) -> list[str]:
+    """The words of the label that name what is measured, alphanumeric only so the result is safe to display."""
+    words = [
+        f"{m[1]}{m[2].lower()}" if (m := _TENOR.fullmatch(w)) else w
+        for w in _MEASURE_WORD.findall(label)
+    ]
+    return [w for w in words if w.lower() not in _NOT_THE_MEASURE]
+
+
+def basis_label(basis: str, label: str = "") -> str:
+    """Plain-English basis; `label` is any member's indicator label, used only for the words naming the measure."""
+    base, _, measure = basis.partition(":")
+    price = next((p for p in PRICE_LABELS if base.startswith(f"{p}_")), None)
+    if price is None:
+        text = BASIS_LABELS[base]
+    else:
+        cadence = BASIS_LABELS[base.removeprefix(f"{price}_")]
+        text = f"{PRICE_LABELS[price]}, {cadence[0].lower()}{cadence[1:]}"
+    if measure:
+        text = f"{text} ({' '.join(measure_words(label)) or measure.replace('-', ' ')})"
+    return text
 
 
 def basis_of(indicator: str, label: str, horizon: str, unit: str | None) -> str | None:
@@ -217,13 +248,25 @@ def basis_of(indicator: str, label: str, horizon: str, unit: str | None) -> str 
         if average:
             return "level_average"
         return "level_end" if end else "level"
-    if unit == "percent_of_gdp":
-        return "share_of_gdp"
     if indicator == "gdp" and _GDP_VARIANT.search(label):
         return None
-    found = _cadences(text)
-    cadence = found[0] if len(found) == 1 else None
-    return _priced(label, cadence, required=indicator == "gdp")
+    if unit == "percent_of_gdp":
+        basis = "share_of_gdp"
+    else:
+        found = _cadences(text)
+        basis = _priced(label, found[0] if len(found) == 1 else None, required=indicator == "gdp")
+    if basis is None:
+        return None
+    if indicator in _SINGLE_SERIES and unit != "percent_of_gdp":
+        return basis
+    # Net and gross debt, or average earnings and the labour cost index, are different statistics under one indicator.
+    words = [w.lower() for w in measure_words(label)]
+    # Debt must say net or gross (once): "Crown debt" alone could be either, and the two are different statistics.
+    if indicator == "government_debt" and sum(w in ("net", "gross") for w in words) != 1:
+        return None
+    if indicator == "fiscal_balance" and not set(words) - _BALANCE_TOPIC:
+        return None
+    return f"{basis}:{'-'.join(words)}" if words else None
 
 
 def _exclusion(f: ForecastOut) -> str | None:
@@ -289,7 +332,7 @@ def compare_forecasts(forecasts: list[ForecastOut]) -> ForecastComparisonOut:
             ForecastGroupOut(
                 key="|".join((indicator, unit, basis, horizon_key, scenario or "central")),
                 indicator=indicator, indicator_name=INDICATOR_NAMES.get(indicator, indicator),
-                unit=unit, unit_label=UNIT_LABELS[unit], basis=basis, basis_label=basis_label(basis),
+                unit=unit, unit_label=UNIT_LABELS[unit], basis=basis, basis_label=basis_label(basis, first.indicator_label),
                 horizon_key=horizon_key, horizon_label=horizon_of(first.horizon)[1],  # type: ignore[index]
                 kind="scenario" if scenario else "central",
                 scenario=" ".join(first.scenario.split()) if scenario and first.scenario else None,

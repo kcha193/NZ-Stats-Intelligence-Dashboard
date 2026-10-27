@@ -120,14 +120,14 @@ def test_relative_or_odd_horizons_are_not_recognised(text):
             "Net core Crown debt",
             "year to June 2027",
             "percent_of_gdp",
-            "share_of_gdp",
+            "share_of_gdp:net-core-crown-debt",
         ),
         (
             "house_prices",
             "House prices, annual % change",
             "December 2026 quarter",
             "percent",
-            "annual_change",
+            "annual_change:house-prices",
         ),
         ("house_prices", "House prices", "2027", "percent", None),
     ],
@@ -416,16 +416,22 @@ def test_unemployment_timing_is_part_of_the_basis(label, horizon, expected):
             "Real wage growth, annual % change",
             "year to March 2027",
             "percent",
-            "real_annual_change",
+            "real_annual_change:wage",
         ),
         (
             "wages",
             "Nominal wage growth, annual % change",
             "year to March 2027",
             "percent",
-            "nominal_annual_change",
+            "nominal_annual_change:wage",
         ),
-        ("wages", "Wage growth, annual % change", "year to March 2027", "percent", "annual_change"),
+        (
+            "wages",
+            "Wage growth, annual % change",
+            "year to March 2027",
+            "percent",
+            "annual_change:wage",
+        ),
         (
             "wages",
             "Real nominal wage growth, annual % change",
@@ -494,3 +500,192 @@ def test_grouping_is_deterministic_regardless_of_input_order():
         unemployment("beta", "End of year unemployment rate", "2027"),
     ]  # fmt: skip
     assert compare_forecasts(list(reversed(claims))) == compare_forecasts(claims)
+
+
+# --- PR #13 review round 2: the measure itself is part of the basis for indicators without one defined series ---
+
+
+def debt(institution="alpha", label="Net core Crown debt", **kw):
+    data = {
+        "indicator": "government_debt",
+        "unit": "percent_of_gdp",
+        "horizon": "year to June 2027",
+    }
+    return claim(institution=institution, indicator_label=label, **{**data, **kw})
+
+
+def test_net_and_gross_debt_as_a_share_of_gdp_are_separate_groups():
+    out = compare_forecasts(
+        [debt("alpha", "Net core Crown debt"), debt("beta", "Gross Crown debt")]
+    )
+    assert out.excluded == [] and len(out.groups) == 2
+    assert all(not g.comparable and len(g.rows) == 1 for g in out.groups)
+    assert len({g.key for g in out.groups}) == 2
+
+
+def test_same_institution_net_and_gross_debt_are_not_vintages_of_each_other():
+    out = compare_forecasts([
+        debt("alpha", "Net core Crown debt", value=43.5, published_on="2026-08-01", summary_id=1),
+        debt("alpha", "Gross Crown debt", value=55.0, published_on="2026-08-02", summary_id=2),
+    ])  # fmt: skip
+    assert len(out.groups) == 2 and all(g.rows[0].earlier_vintages == [] for g in out.groups)
+
+
+def test_the_same_debt_measure_is_compared_whatever_the_unit_wording():
+    out = compare_forecasts([
+        debt("alpha", "Net core Crown debt"),
+        debt("beta", "Net core Crown debt (% of GDP)"),
+        debt("gamma", "net core Crown debt, per cent of GDP"),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert g.comparable and len(g.rows) == 3
+    assert g.basis.startswith("share_of_gdp") and "Net core Crown debt" in g.basis_label
+
+
+def test_debt_vintages_of_one_measure_still_deduplicate():
+    out = compare_forecasts([
+        debt("alpha", value=43.0, published_on="2026-05-01", summary_id=1),
+        debt("alpha", value=43.5, published_on="2026-08-01", summary_id=2),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert g.rows[0].forecast.value == 43.5 and [e.value for e in g.rows[0].earlier_vintages] == [
+        43.0
+    ]
+
+
+def test_a_share_of_gdp_label_that_names_no_measure_is_excluded():
+    out = compare_forecasts([debt("alpha", "% of GDP")])
+    assert out.groups == [] and len(out.excluded) == 1
+
+
+@pytest.mark.parametrize(
+    ("indicator", "a", "b"),
+    [
+        ("house_prices", "House prices, annual % change", "Auckland house prices, annual % change"),
+        ("wages", "Average hourly earnings, annual % change", "Labour cost index, annual % change"),
+        ("fiscal_balance", "OBEGALx", "Core Crown operating balance"),
+    ],
+)
+def test_different_measures_under_one_indicator_are_never_grouped(indicator, a, b):
+    unit = "percent_of_gdp" if indicator == "fiscal_balance" else "percent"
+    horizon = "year to June 2027"
+    out = compare_forecasts([
+        claim(institution="alpha", indicator=indicator, indicator_label=a, horizon=horizon, unit=unit),
+        claim(institution="beta", indicator=indicator, indicator_label=b, horizon=horizon, unit=unit),
+    ])  # fmt: skip
+    assert len(out.groups) == 2 and all(not g.comparable for g in out.groups)
+
+
+def test_one_measure_under_another_indicator_still_compares_across_institutions():
+    kw = {"indicator": "house_prices", "horizon": "December 2026 quarter", "unit": "percent"}
+    out = compare_forecasts([
+        claim(institution="alpha", indicator_label="House prices, annual % change", **kw),
+        claim(institution="beta", indicator_label="House prices (annual % change)", **kw),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert g.comparable and g.basis == "annual_change:house-prices"
+
+
+def test_measure_wording_in_the_basis_label_is_plain_words_only():
+    out = compare_forecasts([debt("alpha", "Net <b>core</b> Crown debt & more")])
+    (g,) = out.groups
+    assert "<" not in g.basis_label and "&" not in g.basis_label and "<" not in g.key
+
+
+# --- PR #13 review round 2b: a debt or balance label must say which statistic it is ---
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "Government debt",
+        "Crown debt",
+        "Core Crown debt",
+        "Total Crown debt",
+        "Public debt",
+        "Net and gross Crown debt",
+        "Gross, net core Crown debt",
+    ],
+)
+def test_debt_that_does_not_say_net_or_gross_exactly_once_is_excluded(label):
+    out = compare_forecasts([debt("alpha", label)])
+    assert out.groups == [] and len(out.excluded) == 1
+    assert "not stated clearly enough" in out.excluded[0].reason
+
+
+def test_core_crown_and_total_crown_net_debt_are_never_conflated():
+    out = compare_forecasts(
+        [debt("alpha", "Net core Crown debt"), debt("beta", "Net total Crown debt")]
+    )
+    assert len(out.groups) == 2 and all(not g.comparable for g in out.groups)
+
+
+def test_net_debt_without_a_stated_scope_is_not_grouped_with_a_stated_scope():
+    out = compare_forecasts([debt("alpha", "Net debt"), debt("beta", "Net core Crown debt")])
+    assert len(out.groups) == 2 and all(not g.comparable for g in out.groups)
+
+
+def test_identical_net_debt_measures_from_two_institutions_compare():
+    out = compare_forecasts(
+        [debt("alpha", "Net core Crown debt"), debt("beta", "Net core Crown debt, % of GDP")]
+    )
+    (g,) = out.groups
+    assert g.comparable and len(g.rows) == 2 and "Net core Crown debt" in g.basis_label
+
+
+@pytest.mark.parametrize(
+    "label", ["Fiscal balance", "Budget balance", "Balance", "Deficit", "Surplus (% of GDP)"]
+)
+def test_a_bare_fiscal_balance_is_excluded(label):
+    out = compare_forecasts([debt("alpha", label, indicator="fiscal_balance")])
+    assert out.groups == [] and len(out.excluded) == 1
+
+
+def test_operating_balance_obegal_and_cash_balance_are_separate_groups():
+    labels = ("Operating balance", "OBEGAL", "Cash balance")
+    out = compare_forecasts(
+        [debt(f"i{n}", label, indicator="fiscal_balance") for n, label in enumerate(labels)]
+    )
+    assert len(out.groups) == 3 and all(not g.comparable for g in out.groups)
+
+
+@pytest.mark.parametrize(
+    "label", ["Interest rates", "Mortgage rate", "2-year swap rate", "Floating mortgage rate"]
+)
+def test_interest_rate_levels_without_a_stated_change_basis_are_excluded(label):
+    out = compare_forecasts(
+        [claim(indicator="interest_rates", indicator_label=label, unit="percent")]
+    )
+    assert out.groups == [] and len(out.excluded) == 1
+
+
+def test_a_tenor_is_part_of_the_measure():
+    kw = {"indicator": "interest_rates", "unit": "percent"}
+    out = compare_forecasts([
+        claim(institution="alpha", indicator_label="2 year swap rate, annual % change", **kw),
+        claim(institution="beta", indicator_label="2 month swap rate, annual % change", **kw),
+        claim(institution="gamma", indicator_label="12 month swap rate, annual % change", **kw),
+        claim(institution="delta", indicator_label="1 year swap rate, annual % change", **kw),
+    ])  # fmt: skip
+    assert len(out.groups) == 4 and all(not g.comparable for g in out.groups)
+
+
+def test_the_distinction_survives_serialisation_and_is_deterministic():
+    claims = [
+        debt("alpha", "Net core Crown debt"),
+        debt("beta", "Gross Crown debt"),
+        debt("gamma", "Gross Crown debt"),
+    ]
+    body = compare_forecasts(claims).model_dump(mode="json")
+    assert compare_forecasts(list(reversed(claims))).model_dump(mode="json") == body
+    by_basis = {g["basis"]: g for g in body["groups"]}
+    assert set(by_basis) == {"share_of_gdp:net-core-crown-debt", "share_of_gdp:gross-crown-debt"}
+    assert by_basis["share_of_gdp:gross-crown-debt"]["key"] == (
+        "government_debt|percent_of_gdp|share_of_gdp:gross-crown-debt|year_to:2027-06|central"
+    )
+    assert (
+        by_basis["share_of_gdp:gross-crown-debt"]["basis_label"]
+        == "Share of GDP (Gross Crown debt)"
+    )
+    assert by_basis["share_of_gdp:gross-crown-debt"]["comparable"] is True
+    assert by_basis["share_of_gdp:net-core-crown-debt"]["comparable"] is False

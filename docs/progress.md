@@ -76,6 +76,22 @@ thousands).
 - Note: GitHub Actions for b4039c6 never started ("recent account payments have failed or your spending limit needs to be
   increased"), so CI evidence for this PR is local until billing is fixed.
 
+### PR #13 review round 2 (Codex, head 8fa1784): the measure is part of the basis
+
+- P2, net vs gross debt: every `percent_of_gdp` claim became `share_of_gdp`, so `Net core Crown debt` and `Gross Crown debt`
+  shared a key. The same gap existed for any indicator that is only a topic (wages, house prices, fiscal balance). Those
+  indicators now carry the measure the label names in the basis and group key (`share_of_gdp:net-core-crown-debt`,
+  `annual_change:house-prices`); the measure is the label's words minus units, cadence, forecast and price-basis wording,
+  and a label naming no measure is excluded. GDP, CPI, OCR and unemployment name one series and are unchanged. The basis
+  label shows the measure as plain alphanumeric words only. Different phrasing of one measure still groups ("Net core Crown
+  debt (% of GDP)"); a differently worded but equivalent measure does not, which is the conservative direction.
+- Tightened in the same round: government debt must say net or gross (exactly once; `Crown debt`, `Core Crown debt` and
+  `Net and gross Crown debt` are excluded, and core vs total Crown stays in the key); a fiscal-balance label made only of
+  `fiscal`/`budget`/`balance`/`surplus`/`deficit` is excluded (OBEGAL, operating and cash balance stay separate groups);
+  a tenor ("2 year", "90-day") is one token of the measure so `2 year` and `2 month` never meet. Interest-rate levels
+  were already excluded (no stated change basis); a test now pins that. Wages, house prices and employment keep the
+  measure-in-key rule only: the label does not let us say more, and unequal wording is never grouped.
+
 ## Phase 3B: evidence-grounded LLM economic intelligence, 26 October 2026
 
 Structured summaries (outlook, drivers, risks, uncertainty, indicators) and explicit forecast claims for stored research
