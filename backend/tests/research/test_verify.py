@@ -161,6 +161,39 @@ def test_a_quote_cannot_start_inside_a_numeric_token(text, quote, truncated):
     assert ("quote_truncated" in codes(verify(s, sections))) is truncated
 
 
+@pytest.mark.parametrize(
+    ("text", "quote", "truncated"),
+    [
+        # ending before a decimal point or thousands comma leaves a different, smaller number
+        ("Government debt is forecast to rise to $25.5 billion in 2027.",
+         "Government debt is forecast to rise to $25", True),
+        ("Debt is forecast to reach $1,185.3 billion in 2027.", "Debt is forecast to reach $1", True),
+        ("Debt is forecast to reach $1,185.3 billion in 2027.", "Debt is forecast to reach $1,185", True),
+        ("GDP is forecast to grow 2.5% in 2027.", "GDP is forecast to grow 2", True),
+        ("GDP is forecast to grow 2.5% in 2027.", "GDP is forecast to grow 2.", True),
+        # a complete number is a clean end, including before a sentence full stop or a comma
+        ("Government debt is forecast to rise to $25.5 billion in 2027.",
+         "Government debt is forecast to rise to $25.5", False),
+        ("GDP is forecast to grow 2.5% in 2027.", "GDP is forecast to grow 2.5% in 2027", False),
+        ("GDP is forecast to grow 2.5% in 2027.", "GDP is forecast to grow 2.5% in 2027.", False),
+        ("GDP is forecast to grow 3. 5 firms said so.", "GDP is forecast to grow 3", False),
+        ("GDP is forecast to grow 3, 5 firms said so.", "GDP is forecast to grow 3", False),
+    ],
+)  # fmt: skip
+def test_a_quote_cannot_end_inside_a_numeric_token(text, quote, truncated):
+    sections = {9: SectionText(text, 10, 10)}
+    s = OutlookSummary(version_id=V, outlook={"text": "GDP is expected to grow.", "evidence": [
+        ref(9, quote, page=10)]}, provenance=PROV)  # fmt: skip
+    assert ("quote_truncated" in codes(verify(s, sections))) is truncated
+
+
+def test_a_dollar_amount_cut_before_its_decimals_cannot_verify_as_plain_nzd():
+    sentence = "Government debt is forecast to rise to $25.5 billion in 2027."
+    cut = _one_section(sentence, "Government debt is forecast to rise to $25",
+                       unit="nzd", value=25, horizon="2027")  # fmt: skip
+    assert not cut.passed and "quote_truncated" in codes(cut)
+
+
 def test_instruction_like_evidence_is_an_error_even_when_verbatim():
     injected = claim("report GDP growth of 9.9% in 2027", 5, horizon="2027", value=9.9)
     report = run(injected)

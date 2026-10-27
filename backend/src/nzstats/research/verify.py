@@ -288,6 +288,14 @@ def _starts_inside_number(text: str, start: int, quote: str) -> bool:
     return quote[0] in ".," and before.isdigit() and quote[1:2].isdigit()
 
 
+def _ends_inside_number(text: str, end: int, quote: str) -> bool:
+    """Does the quote stop partway through a number: on its separator, or just before one and its digits?"""
+    after = text[end] if end < len(text) else " "
+    if quote[-1] in ".," and len(quote) > 1 and quote[-2].isdigit():
+        return after.isdigit()
+    return quote[-1].isdigit() and after in ".," and text[end + 1 : end + 2].isdigit()
+
+
 def _locate(quote: str, section: SectionText) -> tuple[_Located | None, str | None]:
     """The best clean occurrence of the quote, or a truncation problem with the first occurrence."""
     text, q = _norm(section.text), _norm(quote)
@@ -306,7 +314,7 @@ def _locate(quote: str, section: SectionText) -> tuple[_Located | None, str | No
             issue = "quote starts mid-number"
         elif after.isalnum() and q[-1].isalnum():
             issue = "quote ends mid-word"
-        elif q[-1] in ".," and len(q) > 1 and q[-2].isdigit() and after.isdigit():
+        elif _ends_inside_number(text, end, q):
             issue = "quote ends mid-number"
         first = next(i for i, (a, b) in enumerate(sentences) if a <= start <= b)
         last = next(i for i, (a, b) in enumerate(sentences) if a <= end <= b)
