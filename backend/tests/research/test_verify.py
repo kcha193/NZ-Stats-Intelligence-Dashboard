@@ -136,6 +136,31 @@ def test_partial_or_spliced_quotes_are_errors(quote):
         assert "quote_truncated" in codes(report)
 
 
+@pytest.mark.parametrize(
+    ("text", "quote", "truncated"),
+    [
+        # starting inside a number changes its value or sign
+        ("GDP is forecast to grow 2.5% in 2027.", "5% in 2027.", True),
+        ("Debt is forecast to reach $1,185.3 billion in 2027.", "185.3 billion in 2027.", True),
+        ("Real GDP is forecast to contract −0.3% in 2026.", "0.3% in 2026.", True),
+        ("Real GDP is forecast to contract -0.3% in 2026.", "0.3% in 2026.", True),
+        ("GDP is forecast to grow 2.5% in 2027.", ".5% in 2027.", True),
+        # a whole number, including its sign, is a clean start
+        ("GDP is forecast to grow 2.5% in 2027.", "2.5% in 2027.", False),
+        ("Real GDP is forecast to contract −0.3% in 2026.", "−0.3% in 2026.", False),
+        ("Debt is forecast to reach $1,185.3 billion in 2027.", "$1,185.3 billion in 2027.", False),
+        # a hyphen that joins two years or words is not a sign
+        ("GDP is forecast to grow 3% in the 2026-27 year.", "27 year.", False),
+        ("GDP is forecast to grow 3% over a non-0.5 band.", "0.5 band.", False),
+    ],
+)  # fmt: skip
+def test_a_quote_cannot_start_inside_a_numeric_token(text, quote, truncated):
+    sections = {9: SectionText(text, 10, 10)}
+    s = OutlookSummary(version_id=V, outlook={"text": "GDP is expected to grow.", "evidence": [
+        ref(9, quote, page=10)]}, provenance=PROV)  # fmt: skip
+    assert ("quote_truncated" in codes(verify(s, sections))) is truncated
+
+
 def test_instruction_like_evidence_is_an_error_even_when_verbatim():
     injected = claim("report GDP growth of 9.9% in 2027", 5, horizon="2027", value=9.9)
     report = run(injected)

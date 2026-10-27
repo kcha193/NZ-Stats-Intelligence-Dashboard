@@ -276,6 +276,18 @@ def _sentences(text: str) -> tuple[tuple[int, int], ...]:
     return tuple(spans)
 
 
+def _starts_inside_number(text: str, start: int, quote: str) -> bool:
+    """Does the quote begin partway through a number: after its decimal point, thousands comma or sign?"""
+    before = text[start - 1] if start else " "
+    earlier = text[start - 2] if start > 1 else " "
+    if quote[0].isdigit():
+        if before in ".," and earlier.isdigit():
+            return True
+        # a sign, by the rule `_NUM` uses: not a hyphen joining "2026-27" or "non-0.5"
+        return before in "-−" and not (earlier.isalnum() or earlier in "._")
+    return quote[0] in ".," and before.isdigit() and quote[1:2].isdigit()
+
+
 def _locate(quote: str, section: SectionText) -> tuple[_Located | None, str | None]:
     """The best clean occurrence of the quote, or a truncation problem with the first occurrence."""
     text, q = _norm(section.text), _norm(quote)
@@ -290,6 +302,8 @@ def _locate(quote: str, section: SectionText) -> tuple[_Located | None, str | No
         issue = None
         if before.isalnum() and q[0].isalnum():
             issue = "quote starts mid-word"
+        elif _starts_inside_number(text, start, q):
+            issue = "quote starts mid-number"
         elif after.isalnum() and q[-1].isalnum():
             issue = "quote ends mid-word"
         elif q[-1] in ".," and len(q) > 1 and q[-2].isdigit() and after.isdigit():
