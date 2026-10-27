@@ -52,3 +52,19 @@ def test_research_never_writes_the_statistical_tables():
                 assert f"{verb} {table} " not in source and f"{verb} {table}(" not in source, (
                     path.name
                 )
+
+
+def test_research_models_never_shadow_a_stats_nz_api_model():
+    # OpenAPI components are keyed by class name: a clash silently replaces one schema with the other.
+    import inspect
+
+    from pydantic import BaseModel
+
+    import nzstats.models as stats_models
+    import nzstats.research.api_models as research_models
+
+    def names(module):
+        return {n for n, c in inspect.getmembers(module, inspect.isclass) if issubclass(c, BaseModel)
+                and c.__module__ == module.__name__}  # fmt: skip
+
+    assert names(research_models) and not names(research_models) & names(stats_models)

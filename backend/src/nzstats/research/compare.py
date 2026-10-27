@@ -382,18 +382,49 @@ def _note(basis: str, institutions: int) -> str:
     return f"{institutions} institutions, on the same basis and horizon."
 
 
-def compare_forecasts(forecasts: list[ForecastOut]) -> ForecastComparisonOut:
-    groups: dict[tuple, list[ForecastOut]] = defaultdict(list)
+CONFLICT = (
+    "The document states two different values for the same measure and horizon, so neither is used."
+)
+
+
+def group_key(f: ForecastOut) -> tuple[str, str, str, str, str | None]:
+    """(indicator, unit, basis, horizon key, normalised scenario) of a comparable forecast; see `_exclusion`."""
+    horizon_key, _ = horizon_of(f.horizon)  # type: ignore[misc]
+    basis = basis_of(f.indicator, f.indicator_label, f.horizon, f.unit)
+    scenario = " ".join(f.scenario.split()).lower() if f.scenario else None
+    return f.indicator, f.unit, basis, horizon_key, scenario  # type: ignore[return-value]
+
+
+def resolve(
+    forecasts: list[ForecastOut],
+) -> tuple[list[tuple[tuple, ForecastOut]], list[ExcludedForecastOut]]:
+    """Comparable forecasts with their group key, and the rest with a reason.
+
+    Within one document (summary), an identical repeat of a measure (in the text and a table) is one claim, and two
+    different values for one measure are a conflict: neither is used.
+    """
     excluded: list[ExcludedForecastOut] = []
+    by_document: dict[tuple, list[ForecastOut]] = defaultdict(list)
     for f in forecasts:
         reason = _exclusion(f)
         if reason is not None:
             excluded.append(ExcludedForecastOut(forecast=f, reason=reason))
             continue
-        horizon_key, _ = horizon_of(f.horizon)  # type: ignore[misc]
-        basis = basis_of(f.indicator, f.indicator_label, f.horizon, f.unit)
-        scenario = " ".join(f.scenario.split()).lower() if f.scenario else None
-        groups[(f.indicator, f.unit, basis, horizon_key, scenario)].append(f)
+        by_document[(f.summary_id, f.institution.key, group_key(f))].append(f)
+    kept: list[tuple[tuple, ForecastOut]] = []
+    for (_, _, key), same in by_document.items():
+        if len({f.value for f in same}) == 1:
+            kept.append((key, same[0]))
+        else:
+            excluded.extend(ExcludedForecastOut(forecast=f, reason=CONFLICT) for f in same)
+    return kept, excluded
+
+
+def compare_forecasts(forecasts: list[ForecastOut]) -> ForecastComparisonOut:
+    groups: dict[tuple, list[ForecastOut]] = defaultdict(list)
+    kept, excluded = resolve(forecasts)
+    for key, f in kept:
+        groups[key].append(f)
 
     out: list[ForecastGroupOut] = []
     for (indicator, unit, basis, horizon_key, scenario), members in groups.items():

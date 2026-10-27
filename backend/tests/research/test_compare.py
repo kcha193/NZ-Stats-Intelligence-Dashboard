@@ -1044,3 +1044,20 @@ def test_matrix_an_extreme_never_joins_or_hides_an_ordinary_forecast(indicator, 
     (g,) = out.groups
     assert g.rows[0].earlier_vintages == [] and len(out.excluded) == 1
     assert "peak, trough" in out.excluded[0].reason.lower()
+
+
+def test_a_repeat_in_the_same_document_is_one_claim_not_an_earlier_vintage():
+    out = compare_forecasts([claim(summary_id=7), claim(summary_id=7)])
+    (g,) = out.groups
+    assert len(g.rows) == 1 and g.rows[0].earlier_vintages == [] and out.excluded == []
+
+
+def test_two_values_for_one_measure_in_one_document_are_withheld_as_a_conflict():
+    out = compare_forecasts([
+        claim(summary_id=7, value=2.1), claim(summary_id=7, value=2.3),
+        claim(institution="beta", summary_id=8, value=2.0),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert [r.forecast.institution.key for r in g.rows] == ["beta"]
+    assert sorted(e.forecast.value for e in out.excluded) == [2.1, 2.3]
+    assert all("two different values" in e.reason for e in out.excluded)

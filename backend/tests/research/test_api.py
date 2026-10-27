@@ -7,9 +7,7 @@ from fastapi.testclient import TestClient
 
 from nzstats.api.app import create_app
 from nzstats.config import load_settings
-from nzstats.research.api import research_router
 from nzstats.research.registry import RegistryError
-from nzstats.store.db import connect
 
 from .llm_support import NOW, SECTIONS, draft, seed_version
 from .public_support import displayable, registry, store_summary
@@ -18,24 +16,6 @@ PRIVATE = ("RAW MODEL OUTPUT", "PRIVATE REVIEW NOTE", "Private Reviewer Name", "
            "PRIVATE PUBLICATION NOTE", "raw_output", "review_note", "reviewed_by", "parameters",
            "temperature", "input_sha256", "cost_usd", SECTIONS[0], SECTIONS[1])  # fmt: skip
 ROUTES = ("/api/research/feed", "/api/research/forecasts", "/api/research/summaries/1")
-
-
-@pytest.fixture()
-def make(tmp_path, monkeypatch):
-    monkeypatch.delenv("NZSTATS_PUBLIC_RESEARCH", raising=False)
-    settings = load_settings({"NZSTATS_DATA_DIR": str(tmp_path / "data")})
-
-    def build(*, enabled=True, reg=None, routers=None):
-        reg = registry() if reg is None else reg
-        loader = reg if callable(reg) else (lambda: reg)
-        routers = (
-            [research_router(enabled=enabled, registry=loader)] if routers is None else routers
-        )
-        return TestClient(create_app(settings, routers=routers))
-
-    conn = connect(settings.db_path)
-    build(enabled=False)  # migrates the database
-    return build, conn
 
 
 def _two_institutions(conn):

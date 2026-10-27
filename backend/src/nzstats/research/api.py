@@ -20,11 +20,15 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from nzstats.clock import AKL, from_utc_iso, to_akl_iso
+from nzstats.research.accuracy import evaluate_forecasts
 from nzstats.research.api_models import (
+    ConsensusOut,
     DocumentOut,
     EvidenceOut,
     FacetOut,
     ForecastComparisonOut,
+    ForecastEvaluationOut,
+    ForecastHistoryOut,
     ForecastOut,
     InstitutionOut,
     ProcessingOut,
@@ -36,7 +40,10 @@ from nzstats.research.api_models import (
     VersionOut,
 )
 from nzstats.research.compare import INDICATOR_NAMES, compare_forecasts, indicator_rank
+from nzstats.research.consensus import consensus
 from nzstats.research.contract import ForecastClaim, Statement
+from nzstats.research.history import forecast_history
+from nzstats.research.outcomes import CpiActuals
 from nzstats.research.public import PublicSummary, public_summaries, topics
 from nzstats.research.registry import Institution, PublicDisplay, RegistryError, load_registry
 from nzstats.research.verify import VERIFIER_VERSION
@@ -49,6 +56,8 @@ _TOPIC_LABELS = {"economic_outlook": "Economic outlook", "monetary_policy": "Mon
                  "financial_stability": "Financial stability", "weekly_commentary": "Weekly commentary"}  # fmt: skip
 
 RegistryLoader = Callable[[], Mapping[str, Institution]]
+Indicator = Annotated[str | None, Query(pattern=r"^[a-z_]{1,40}$")]
+Institutions = Annotated[str | None, Query(pattern=_KEY_LIST)]
 
 
 def public_research_enabled(env: Mapping[str, str] | None = None) -> bool:
@@ -267,5 +276,37 @@ def research_router(
             "indicators": everything.indicators, "institutions": everything.institutions,
             "horizons": everything.horizons,
         })  # fmt: skip
+
+    def claims(
+        c: sqlite3.Connection, indicator: str | None, institution: str | None
+    ) -> list[ForecastOut]:
+        chosen = set(institution.split(",")) if institution else None
+        return [
+            f for v in views(c) for f in v.forecasts()
+            if (chosen is None or f.institution.key in chosen) and (not indicator or f.indicator == indicator)
+        ]  # fmt: skip
+
+    @router.get("/research/forecast-history", response_model=ForecastHistoryOut, dependencies=deps)
+    def history(
+        c: Conn, indicator: Indicator = None, institution: Institutions = None
+    ) -> ForecastHistoryOut:
+        return forecast_history(claims(c, indicator, institution))
+
+    @router.get(
+        "/research/forecast-evaluation", response_model=ForecastEvaluationOut, dependencies=deps
+    )
+    def evaluation(
+        c: Conn,
+        indicator: Annotated[str, Query(pattern=r"^[a-z_]{1,40}$")] = "cpi_inflation",
+        institution: Institutions = None,
+    ) -> ForecastEvaluationOut:
+        # Official CPI vintages are public Stats NZ data; read here through the same read-only connection.
+        return evaluate_forecasts(
+            claims(c, indicator, institution), CpiActuals(c), indicator=indicator
+        )
+
+    @router.get("/research/consensus", response_model=ConsensusOut, dependencies=deps)
+    def consensus_view(c: Conn, indicator: Indicator = None) -> ConsensusOut:
+        return consensus(claims(c, indicator, None))
 
     return router

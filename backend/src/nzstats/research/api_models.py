@@ -172,3 +172,200 @@ class ForecastComparisonOut(_Out):
     institutions: list[FacetOut]
     horizons: list[FacetOut]
     note: str = COMPARISON_NOTE
+
+
+# --- Phase 3D-B: forecast history, evaluation and consensus -------------------------------------------------------
+HISTORY_NOTE = (
+    "A vintage is one published document's forecast. A revision is a change of value for the same institution, measure,"
+    " horizon and kind; a change of measure (for example annual average to through the year) is shown separately and is"
+    " never a revision."
+)
+
+
+class ForecastVintageOut(_Out):
+    summary_id: int
+    published_on: str | None
+    document_title: str
+    value: float
+    indicator_label: str  # as the document states it
+    horizon: str  # as the document states it
+    qualification: str | None
+    evidence: list[EvidenceOut]
+    superseded: bool  # a later vintage of the same identity exists
+    revision: float | None  # value minus the previous vintage's value; None for the first
+
+
+class ForecastSeriesOut(_Out):
+    key: str  # institution plus the comparison group key
+    target_key: str  # the comparison group key: the same target for every institution
+    institution: InstitutionOut
+    indicator: str
+    indicator_name: str
+    unit: str
+    unit_label: str
+    basis: str
+    basis_label: str
+    horizon_key: str
+    horizon_label: str
+    kind: Kind
+    scenario: str | None
+    vintages: list[ForecastVintageOut]  # oldest first
+    latest: ForecastVintageOut
+    n_revisions: int
+    total_revision: float | None  # latest minus first; None with one vintage
+
+
+class MeasureChangeOut(_Out):
+    institution: InstitutionOut
+    indicator: str
+    indicator_name: str
+    horizon_key: str
+    horizon_label: str
+    kind: Kind
+    scenario: str | None
+    from_basis: str
+    from_basis_label: str
+    to_basis: str
+    to_basis_label: str
+    from_summary_id: int
+    from_published_on: str | None
+    to_summary_id: int
+    to_published_on: str | None
+    note: str
+
+
+class ForecastHistoryOut(_Out):
+    series: list[ForecastSeriesOut]
+    measure_changes: list[MeasureChangeOut]
+    excluded: list[ExcludedForecastOut]
+    note: str = HISTORY_NOTE
+
+
+EVALUATION_NOTE = (
+    "Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the"
+    " quarter it names, on the measure it states, and only if it was published before that quarter's figure was released."
+    " Summary statistics need at least four outcomes, and a ranking needs at least eight targets forecast by every"
+    " ranked institution at the same horizon. No significance test is run."
+)
+CONSENSUS_NOTE = (
+    "A descriptive summary of the latest published central forecasts from independent institutions. It is not"
+    " statistically calibrated and it is not an independent forecast."
+)
+Band = Literal["h0", "h1_2", "h3_4", "h5_8", "h9"]
+
+
+class ActualOut(_Out):
+    value: float
+    release: str  # the Stats NZ release title
+    released_on: str  # Pacific/Auckland date
+    first_release: bool  # False: the release that first published the quarter is not stored here
+
+
+class EvaluatedForecastOut(_Out):
+    forecast: ForecastOut
+    measure: str
+    measure_label: str
+    target_quarter: str  # YYYY-MM
+    target_label: str
+    horizon_quarters: int  # from the quarter of publication to the target quarter
+    band: Band
+    status: Literal["matched", "pending"]
+    first: ActualOut | None
+    latest: ActualOut | None
+    error_first: float | None
+    error_latest: float | None
+    outcome_revision: float | None  # latest minus first actual
+
+
+class AccuracySummaryOut(_Out):
+    institution: InstitutionOut
+    measure: str
+    measure_label: str
+    band: Band
+    n: int
+    sufficient: bool
+    mean_error: float | None
+    mae: float | None
+    rmse: float | None
+
+
+class RankingEntryOut(_Out):
+    institution: InstitutionOut
+    n: int
+    mae: float
+    rmse: float
+    mean_error: float
+
+
+class RankingOut(_Out):
+    measure: str
+    measure_label: str
+    available: bool
+    reason: str
+    matched_cells: int
+    entries: list[RankingEntryOut]
+
+
+class CoverageOut(_Out):
+    institution: InstitutionOut
+    matched: int
+    pending: int
+    excluded: int
+
+
+class ForecastEvaluationOut(_Out):
+    indicator: str
+    state: Literal["available", "no_official_series", "nothing_to_evaluate"]
+    official_series: str | None
+    actuals_as_of: str | None  # the newest stored CPI release's title
+    actuals_released_on: str | None  # its Pacific/Auckland publication date
+    vintages_from: str | None
+    vintages_to: str | None
+    evaluated: list[EvaluatedForecastOut]
+    excluded: list[ExcludedForecastOut]
+    summaries: list[AccuracySummaryOut]
+    rankings: list[RankingOut]
+    coverage: list[CoverageOut]
+    min_for_summary: int
+    min_for_ranking: int
+    note: str = EVALUATION_NOTE
+
+
+class ContributorOut(_Out):
+    key: str
+    name: str
+    value: float
+    published_on: str | None
+    summary_id: int
+
+
+class ConsensusGroupOut(_Out):
+    key: str
+    indicator: str
+    indicator_name: str
+    unit: str
+    unit_label: str
+    basis: str
+    basis_label: str
+    horizon_key: str
+    horizon_label: str
+    kind: Literal["central"] = "central"  # scenarios never form a consensus
+    status: Literal["available", "insufficient"]
+    n: int
+    mean: float | None
+    median: float | None
+    minimum: float | None
+    maximum: float | None
+    range: float | None
+    std_dev: float | None  # three or more institutions
+    outliers_assessed: bool  # five or more institutions
+    outliers: list[ContributorOut]
+    contributors: list[ContributorOut]
+    excluded: list[ExcludedForecastOut]
+    as_of: str | None
+    note: str = CONSENSUS_NOTE
+
+
+class ConsensusOut(_Out):
+    groups: list[ConsensusGroupOut]
+    note: str = CONSENSUS_NOTE
