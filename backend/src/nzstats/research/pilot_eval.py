@@ -151,10 +151,11 @@ def evaluate_stored(
         f" WHERE s.version_id IN ({marks}) ORDER BY s.id DESC",
         tuple(gold),
     ).fetchall()
+    # The model filter applies before grouping and before coverage, so one model never inherits another's.
+    rows = [r for r in rows if model is None or r["model"] == model]
     grouped: dict[tuple[str, str, str], list[sqlite3.Row]] = defaultdict(list)
     for r in rows:
-        if model is None or r["model"] == model:
-            grouped[(r["provider"], r["model"], r["prompt_version"])].append(r)
+        grouped[(r["provider"], r["model"], r["prompt_version"])].append(r)
     summarised = {r["version_id"] for r in rows if r["status"] != "provider_error"}
 
     groups = []

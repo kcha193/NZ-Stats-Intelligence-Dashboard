@@ -163,3 +163,87 @@ def test_provider_errors_are_counted_and_costed_but_not_scored(conn, tmp_path):
     assert group.documents == 1 and group.provider_errors == 2
     assert group.recorded_cost_usd == pytest.approx(0.014)
     assert group.report.metrics["mean_latency_ms"] == 900  # the scored summary's own calls
+
+
+def _provider_error(conn, version, model):
+    key = ss.SummaryKey(version, "fake", model, "outlook-v2", "3b-1", "b" * 64)
+    run = ss.start_run(conn, provider="fake", model=model, hosted=False, prompt_version="outlook-v2",
+                       processing_version="3b-1", limits={}, dry_run=False, now=NOW)  # fmt: skip
+    with transaction(conn):
+        return ss.insert_summary(conn, key, run_id=run, attempt=1, hosted=False, verifier_version="v",
+                                 parameters={}, raw_output=None, output_json=None, status="provider_error",
+                                 error_class="timeout", verification=None, now=NOW)  # fmt: skip
+
+
+def _two_models(conn, tmp_path):
+    """Model A summarises both annotated documents; model B only the first."""
+    first, second = seed_version(conn), seed_version(conn, doc="b")
+    for version in (first, second):
+        store_summary(conn, version, review=None, publish=False, model="model-a")
+    store_summary(conn, first, review=None, publish=False, model="model-b")
+    ann = annotations(tmp_path, {"version_id": first, **GOLD}, {"version_id": second, **GOLD})
+    return first, second, ann
+
+
+def test_coverage_is_calculated_for_the_requested_model_only(conn, tmp_path):
+    _, second, ann = _two_models(conn, tmp_path)
+    report = evaluate_stored(conn, ann, model="model-b")
+    (group,) = report.groups
+    assert group.model == "model-b" and group.documents == 1
+    assert report.unsummarised == (second,)  # model A's summary of it must not count
+    assert "Annotated but never summarised" in report.to_markdown()
+
+
+def test_the_model_that_summarised_everything_reports_complete_coverage(conn, tmp_path):
+    _, _, ann = _two_models(conn, tmp_path)
+    report = evaluate_stored(conn, ann, model="model-a")
+    assert report.groups[0].documents == 2 and report.unsummarised == ()
+
+
+def test_without_a_model_filter_coverage_is_the_union_across_models(conn, tmp_path):
+    first, second, ann = _two_models(conn, tmp_path)
+    report = evaluate_stored(conn, ann)
+    assert sorted((g.model, g.documents) for g in report.groups) == [("model-a", 2), ("model-b", 1)]
+    assert report.unsummarised == ()
+    bare = seed_version(conn, doc="c")  # summarised by nobody
+    ann = annotations(tmp_path, {"version_id": first, **GOLD}, {"version_id": bare, **GOLD})
+    assert evaluate_stored(conn, ann).unsummarised == (bare,)
+
+
+def test_an_unknown_model_does_not_inherit_coverage_from_another_model(conn, tmp_path):
+    first, second, ann = _two_models(conn, tmp_path)
+    report = evaluate_stored(conn, ann, model="never-ran")
+    assert report.groups == () and report.unsummarised == (first, second)
+
+
+def test_a_models_provider_error_only_rows_do_not_count_as_summarised(conn, tmp_path):
+    first, second, ann = _two_models(conn, tmp_path)
+    _provider_error(conn, second, "model-b")  # B tried the second document and failed
+    report = evaluate_stored(conn, ann, model="model-b")
+    (group,) = report.groups
+    assert group.documents == 1 and group.provider_errors == 1
+    assert report.unsummarised == (second,)
+    assert evaluate_stored(conn, ann).unsummarised == ()  # model A still covers it in aggregate
+
+
+def test_a_model_with_only_provider_errors_has_no_coverage(conn, tmp_path):
+    version = seed_version(conn)
+    _provider_error(conn, version, "model-x")
+    ann = annotations(tmp_path, {"version_id": version, **GOLD})
+    report = evaluate_stored(conn, ann, model="model-x")
+    (group,) = report.groups
+    assert group.documents == 0 and group.provider_errors == 1
+    assert report.unsummarised == (version,)
+
+
+def test_filtering_by_model_leaves_that_models_scoring_cost_and_latency_unchanged(conn, tmp_path):
+    first, second, ann = _two_models(conn, tmp_path)
+    sid = conn.execute(
+        "SELECT id FROM research_summary WHERE version_id = ? AND model = 'model-b'", (first,)
+    ).fetchone()[0]
+    usage(conn, sid, first, cost=0.02, latency=700)
+    filtered = evaluate_stored(conn, ann, model="model-b").groups[0]
+    unfiltered = next(g for g in evaluate_stored(conn, ann).groups if g.model == "model-b")
+    assert filtered.recorded_cost_usd == unfiltered.recorded_cost_usd == pytest.approx(0.02)
+    assert filtered.report.metrics == unfiltered.report.metrics
+    assert filtered.report.metrics["mean_latency_ms"] == 700
