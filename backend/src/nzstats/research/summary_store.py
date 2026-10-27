@@ -17,6 +17,7 @@ from typing import Any
 
 from nzstats.clock import to_utc_iso
 from nzstats.research.contract import ForecastClaim
+from nzstats.store.db import transaction
 
 _SUMMARY_COLUMNS = (
     "s.*, v.version_no, v.title AS document_title, v.superseded_at, p.canonical_url, p.published_on,"
@@ -30,6 +31,10 @@ _SUMMARY_JOIN = (
 
 
 class ReviewError(ValueError):
+    pass
+
+
+class PublicationError(ValueError):
     pass
 
 
@@ -224,6 +229,50 @@ def review(
         conn.execute("ROLLBACK")
         raise
     conn.execute("COMMIT")
+
+
+def record_publication(
+    conn: sqlite3.Connection,
+    summary_id: int,
+    *,
+    decision: str,
+    approver: str,
+    note: str,
+    now: datetime,
+) -> None:
+    """Record a publication decision. Publishing needs an approved, verified summary; both need a note."""
+    if decision not in ("publish", "withdraw"):
+        raise PublicationError("decision must be publish or withdraw")
+    approver, note = (approver or "").strip(), (note or "").strip()
+    if not approver:
+        raise PublicationError("an approver name is required")
+    if not note:
+        raise PublicationError("a publication decision needs a note saying why")
+    row = conn.execute(
+        "SELECT status, review_status FROM research_summary WHERE id=?", (summary_id,)
+    ).fetchone()
+    if row is None:
+        raise PublicationError(f"no summary {summary_id}")
+    if decision == "publish" and (row["status"], row["review_status"]) != ("verified", "approved"):
+        raise PublicationError(
+            "only an approved, verified summary can be published"
+            f" (this one is {row['status']}, {row['review_status']})"
+        )
+    with transaction(conn):
+        conn.execute(
+            "INSERT INTO research_summary_publication(summary_id, decision, approver, note, decided_at)"
+            " VALUES (?,?,?,?,?)",
+            (summary_id, decision, approver, note, to_utc_iso(now)),
+        )
+
+
+def publication_state(conn: sqlite3.Connection, summary_id: int) -> sqlite3.Row | None:
+    """The latest publication decision for a summary, or None if there has been none."""
+    return conn.execute(
+        "SELECT decision, approver, decided_at FROM research_summary_publication"
+        " WHERE summary_id=? ORDER BY id DESC LIMIT 1",
+        (summary_id,),
+    ).fetchone()
 
 
 def list_summaries(

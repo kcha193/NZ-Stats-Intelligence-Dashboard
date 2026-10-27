@@ -10,6 +10,10 @@ export const ROUTE_META: Record<string, PageMeta> = {
     description:
       "Prices, card spending and migration explained from official Stats NZ releases, with the published figures, definitions and sources behind every chart.",
   },
+  "/economic-outlook": {
+    title: "Economic outlook",
+    description: "Latest Stats NZ inflation, spending and migration figures beside institutional forecasts, each claim checked against its source document.",
+  },
   "/stories": {
     title: "Stories",
     description: "Every finding from the latest Stats NZ releases on inflation, card spending and migration, one story per page.",

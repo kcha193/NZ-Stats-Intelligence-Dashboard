@@ -24,6 +24,7 @@ from nzstats.research.providers import (
     build_provider,
     load_llm_settings,
 )
+from nzstats.research.public import why_not_public
 from nzstats.research.registry import Institution, RegistryError, load_registry
 from nzstats.research.summarise import summarise_versions
 from nzstats.research.verify import SCOPE
@@ -72,6 +73,14 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         p_rev.add_argument("id", type=_positive_int)
         p_rev.add_argument("--reviewer", required=True)
         p_rev.add_argument("--note", required=name == "reject")
+    for name, help_text in (
+        ("publish", "allow an approved summary to be shown publicly (Phase 3C)"),
+        ("withdraw", "stop showing a summary publicly"),
+    ):
+        p_pub = rsub.add_parser(name, help=help_text)
+        p_pub.add_argument("id", type=_positive_int)
+        p_pub.add_argument("--approver", required=True)
+        p_pub.add_argument("--note", required=True, help="why (private; never shown publicly)")
 
 
 def build_fetcher(inst: Institution, settings: Settings) -> ResearchFetcher:
@@ -95,12 +104,14 @@ def research_command(args: argparse.Namespace, settings: Settings) -> int:
     if args.research_command in _SUMMARY_COMMANDS:
         return _SUMMARY_COMMANDS[args.research_command](args, settings, registry)
     if args.research_command == "sources":
-        print(f"{'key':<12} {'review':<13} {'policy':<14} {'llm':<11} {'verified':<11} access")
+        print(f"{'key':<12} {'review':<13} {'policy':<14} {'llm':<11} {'display':<10} {'verified':<11}"
+              " access")  # fmt: skip
         for inst in registry.values():
             access = inst.refusal_reason() or "allowed"
             verified = inst.verified_on.isoformat() if inst.verified_on else "-"
             print(f"{inst.key:<12} {inst.review_status.value:<13} {inst.content_policy.value:<14}"
-                  f" {inst.llm_processing.value:<11} {verified:<11} {access}")  # fmt: skip
+                  f" {inst.llm_processing.value:<11} {inst.display_level().value:<10} {verified:<11}"
+                  f" {access}")  # fmt: skip
         return 0
     if args.research_command == "status":
         return _status(settings, registry)
@@ -226,13 +237,15 @@ def _summarise(
 
 
 def _list(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
-    rows = ss.list_summaries(_open(settings), status=args.status, review_status=args.review)
-    _emit(
-        f"{'id':>5} {'institution':<12} {'version':>7} {'status':<20} {'review':<11} model / prompt"
-    )
+    conn = _open(settings)
+    rows = ss.list_summaries(conn, status=args.status, review_status=args.review)
+    _emit(f"{'id':>5} {'institution':<12} {'version':>7} {'status':<20} {'review':<11} {'publication':<11}"
+          " model / prompt")  # fmt: skip
     for r in rows:
+        decision = ss.publication_state(conn, r["id"])
+        published = decision["decision"] if decision else "-"
         _emit(f"{r['id']:>5} {r['institution']:<12} {r['version_id']:>7} {r['status']:<20}"
-              f" {r['review_status']:<11} {_safe(r['model'])} / {_safe(r['prompt_version'])}")  # fmt: skip
+              f" {r['review_status']:<11} {published:<11} {_safe(r['model'])} / {_safe(r['prompt_version'])}")  # fmt: skip
     _emit(f"{len(rows)} summaries")
     return 0
 
@@ -263,6 +276,16 @@ def _show(args: argparse.Namespace, settings: Settings, registry: dict[str, Inst
     if row["reviewed_by"]:
         review += f" by {_safe(row['reviewed_by'])}: {_safe(row['review_note'] or '')}"
     _emit(f"  status {row['status']}{error}; review {review}")
+    decision = ss.publication_state(conn, row["id"])
+    if decision:
+        _emit(f"  publication {decision['decision']} by {_safe(decision['approver'])}"
+              f" ({to_akl_iso(decision['decided_at'])})")  # fmt: skip
+    reason = why_not_public(conn, registry, row["id"])
+    if reason is None:
+        inst = registry[row["institution"]]
+        _emit(f"  public: yes ({inst.display_level().value}) when NZSTATS_PUBLIC_RESEARCH=1")
+    else:
+        _emit(f"  public: no ({_safe(reason)})")
     _emit("  Not an official statistic: an interpretation of institutional commentary.")
     _emit(f"  {SCOPE}")
     if row["output_json"]:
@@ -315,5 +338,25 @@ def _review(args: argparse.Namespace, settings: Settings, registry: dict[str, In
     return 0
 
 
+def _publication(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    decision = args.research_command  # "publish" or "withdraw"
+    conn = _open(settings)
+    try:
+        ss.record_publication(conn, args.id, decision=decision, approver=args.approver, note=args.note,
+                              now=utc_now())  # fmt: skip
+    except ss.PublicationError as exc:
+        _emit(f"refused: {exc}")
+        return 1
+    _emit(f"summary {args.id}: {decision} recorded by {_safe(args.approver.strip())}")
+    if decision == "publish":
+        reason = why_not_public(conn, registry, args.id)
+        _emit("  shown publicly when NZSTATS_PUBLIC_RESEARCH=1" if reason is None
+              else f"  still not public: {_safe(reason)}")  # fmt: skip
+    return 0
+
+
 _SUMMARY_COMMANDS = {"summarise": _summarise, "summaries": _list, "summary": _show,
-                     "approve": _review, "reject": _review}  # fmt: skip
+                     "approve": _review, "reject": _review, "publish": _publication,
+                     "withdraw": _publication}  # fmt: skip

@@ -35,16 +35,18 @@ def test_serve_accepts_no_scheduler_flag(tmp_path, monkeypatch) -> None:
 
     import nzstats.api.app as app_module
 
-    captured: dict[str, bool] = {}
+    captured: dict[str, object] = {}
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         app_module,
         "create_app",
-        lambda settings, start_scheduler: captured.setdefault("s", start_scheduler),
+        lambda settings, start_scheduler, routers=(): captured.update(s=start_scheduler, r=routers),
     )
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
     assert main(["serve", "--no-scheduler", "--port", "9"]) == 0
     assert captured["s"] is False
+    # The research routes are always mounted by serve (off unless NZSTATS_PUBLIC_RESEARCH=1).
+    assert [r.routes[0].path for r in captured["r"]] == ["/research/feed"]
 
 
 def test_serve_starts_the_scheduler_by_default(tmp_path, monkeypatch) -> None:
@@ -52,12 +54,12 @@ def test_serve_starts_the_scheduler_by_default(tmp_path, monkeypatch) -> None:
 
     import nzstats.api.app as app_module
 
-    captured: dict[str, bool] = {}
+    captured: dict[str, object] = {}
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         app_module,
         "create_app",
-        lambda settings, start_scheduler: captured.setdefault("s", start_scheduler),
+        lambda settings, start_scheduler, routers=(): captured.update(s=start_scheduler, r=routers),
     )
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
     assert main(["serve", "--port", "9"]) == 0

@@ -37,6 +37,14 @@
   to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
+  from = "/economic-outlook"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/economic-outlook/research/*"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
   from = "/inflation"
   to = "/_pages/app-shell.html"
   status = 200

@@ -10,6 +10,8 @@ ROLLBACK = REPO / "scripts" / "rollback" / "004_research_down.sql"
 ROLLBACK_006 = REPO / "scripts" / "rollback" / "006_research_summaries_down.sql"
 TABLES_006 = {"research_llm_run", "research_summary", "research_forecast_claim", "research_llm_usage",
               "research_summary_review"}  # fmt: skip
+ROLLBACK_007 = REPO / "scripts" / "rollback" / "007_research_publication_down.sql"
+TABLES_007 = {"research_summary_publication"}
 
 
 def _schema(conn: sqlite3.Connection, *, research: bool) -> dict[str, str]:
@@ -172,9 +174,11 @@ def test_rollback_006_removes_only_its_objects(tmp_path):
     before = objects()
     conn.executescript(ROLLBACK_006.read_text(encoding="utf-8"))
     after = objects()
-    assert set(before) - set(after) == {n for n, t in before.items() if t in TABLES_006}
+    assert set(before) - set(after) == {
+        n for n, t in before.items() if t in TABLES_006 | TABLES_007
+    }  # 007 references research_summary, so it goes first
     assert {n: before[n] for n in after} == after and "research_document_version" in after
-    assert 6 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
+    assert not {6, 7} & {r[0] for r in conn.execute("SELECT version FROM schema_version")}
     assert migrate(conn) >= 6
 
 
@@ -196,4 +200,20 @@ def test_full_research_rollback_also_removes_the_006_tables(tmp_path):
     )
     conn.executescript(ROLLBACK.read_text(encoding="utf-8"))
     assert _schema(conn, research=True) == {}
-    assert not {r[0] for r in conn.execute("SELECT version FROM schema_version")} & {4, 5, 6}
+    assert not {r[0] for r in conn.execute("SELECT version FROM schema_version")} & {4, 5, 6, 7}
+
+
+def test_migration_007_is_additive_and_its_rollback_removes_only_its_objects(tmp_path):
+    conn = connect(tmp_path / "p.db")
+    migrate(conn)
+    conn.executescript(ROLLBACK_007.read_text(encoding="utf-8"))
+    before = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    assert not TABLES_007 & set(before)
+    assert 7 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
+    assert migrate(conn) >= 7
+    after = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    assert {k: v for k, v in after.items() if k in before} == before
+    assert TABLES_007 <= set(after)
+    for sql in _schema(conn, research=True).values():
+        for table in ("release", "series", "vintage", "observation", "ingest_run"):
+            assert f"REFERENCES {table} " not in sql and f"REFERENCES {table}(" not in sql

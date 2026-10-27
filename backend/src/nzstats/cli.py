@@ -203,8 +203,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "openapi":
         from nzstats.api.app import create_app
+        from nzstats.research.api import research_router
 
-        print(json.dumps(create_app(settings, start_scheduler=False).openapi(), indent=2))
+        app = create_app(settings, start_scheduler=False, routers=[research_router()])
+        print(json.dumps(app.openapi(), indent=2))
         return 0
     if args.command == "research":
         return research_command(args, settings)
@@ -216,9 +218,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         import uvicorn
 
         from nzstats.api.app import create_app
+        from nzstats.research.api import research_router  # off unless NZSTATS_PUBLIC_RESEARCH=1
 
         uvicorn.run(
-            create_app(settings, start_scheduler=not args.no_scheduler),
+            create_app(
+                settings, start_scheduler=not args.no_scheduler, routers=[research_router()]
+            ),
             host=args.host,
             port=args.port,
         )

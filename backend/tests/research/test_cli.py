@@ -250,3 +250,39 @@ def test_every_stored_field_from_the_model_is_escaped_including_units(llm_env, c
     assert main(["research", "summary", str(sid)]) == 0
     out = capsys.readouterr().out
     assert "\x1b" not in out and "\\x1b[31mpct" in out
+
+
+# --- Phase 3C: publication decisions ----------------------------------------------------------
+DISPLAY_REGISTRY = LLM_REGISTRY.replace(
+    'llm_processing_note = "synthetic"\n',
+    'llm_processing_note = "synthetic"\npublic_display = "summary"\npublic_display_approved_by = "T"\n'
+    'public_display_approved_on = "2026-10-26"\npublic_display_note = "synthetic"\n',
+)
+
+
+def test_publish_needs_approval_then_shows_why_and_withdraw_works(llm_env, tmp_path, capsys):
+    conn, *_ = llm_env
+    (tmp_path / "research.toml").write_text(textwrap.dedent(DISPLAY_REGISTRY), encoding="utf-8")
+    assert main(["research", "summarise", "example"]) == 0
+    sid = conn.execute("SELECT id FROM research_summary").fetchone()[0]
+    capsys.readouterr()
+    assert main(["research", "publish", str(sid), "--approver", "Kevin", "--note", "terms ok"]) == 1
+    assert "only an approved, verified summary" in capsys.readouterr().out
+    with pytest.raises(SystemExit):  # a note is required
+        main(["research", "publish", str(sid), "--approver", "Kevin"])
+    assert main(["research", "approve", str(sid), "--reviewer", "Kevin"]) == 0
+    assert main(["research", "publish", str(sid), "--approver", "Kevin", "--note", "terms ok"]) == 0
+    assert main(["research", "summaries"]) == 0
+    assert "publish" in capsys.readouterr().out
+    assert main(["research", "summary", str(sid)]) == 0
+    shown = capsys.readouterr().out
+    assert "publication publish by Kevin" in shown and "public: yes (summary)" in shown
+    assert main(["research", "withdraw", str(sid), "--approver", "Kevin", "--note", "query"]) == 0
+    assert main(["research", "summary", str(sid)]) == 0
+    assert "public: no (not publication-approved (withdrawn))" in capsys.readouterr().out
+
+
+def test_sources_shows_the_public_display_permission(env, capsys):
+    assert main(["research", "sources"]) == 0
+    out = capsys.readouterr().out
+    assert "display" in out.splitlines()[0] and "none" in out

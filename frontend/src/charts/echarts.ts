@@ -1,6 +1,6 @@
 import * as echarts from "echarts/core";
 import type { EChartsCoreOption } from "echarts/core";
-import { BarChart, LineChart } from "echarts/charts";
+import { BarChart, LineChart, ScatterChart } from "echarts/charts";
 import {
   AriaComponent, AxisPointerComponent, GridComponent, LegendComponent, MarkAreaComponent,
   MarkLineComponent, MarkPointComponent, TitleComponent, TooltipComponent,
@@ -8,7 +8,7 @@ import {
 import { CanvasRenderer } from "echarts/renderers";
 
 echarts.use([
-  LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, MarkPointComponent,
+  LineChart, BarChart, ScatterChart, GridComponent, TooltipComponent, LegendComponent, MarkPointComponent,
   MarkAreaComponent, MarkLineComponent, TitleComponent, AriaComponent, AxisPointerComponent,
   CanvasRenderer,
 ]);

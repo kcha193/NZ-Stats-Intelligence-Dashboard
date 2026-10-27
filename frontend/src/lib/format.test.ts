@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  aklMonth, formatAklDate, formatAklDateTime, formatNet, formatNumber, formatPercent, periodLabel,
+  aklMonth, formatAklDate, formatAklDateTime, formatCivilDate, formatNet, formatNumber, formatPercent, periodLabel,
 } from "./format";
 
 describe("formatNumber", () => {
@@ -59,5 +59,17 @@ describe("aklMonth", () => {
     expect(aklMonth(new Date("2026-10-31T12:00:00Z"))).toBe("2026-11"); // 1 Nov 01:00 NZDT
     expect(aklMonth(new Date("2026-10-31T10:59:59Z"))).toBe("2026-10"); // 31 Oct 23:59 NZDT
     expect(aklMonth(new Date("2026-12-31T11:30:00Z"))).toBe("2027-01"); // year boundary
+  });
+});
+
+describe("formatCivilDate", () => {
+  it("formats a published civil date without shifting it through a time zone", () => {
+    expect(formatCivilDate("2026-08-13")).toBe("13 Aug 2026");
+    expect(formatCivilDate("2026-01-01")).toBe("1 Jan 2026");
+  });
+  it("says so when the date is missing or malformed", () => {
+    expect(formatCivilDate(null)).toBe("date not stated");
+    expect(formatCivilDate("2026-13-01")).toBe("date not stated");
+    expect(formatCivilDate("<b>")).toBe("date not stated");
   });
 });

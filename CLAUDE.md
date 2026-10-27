@@ -10,8 +10,9 @@ is built; Phases 2 and 3 are in the spec. Resume from [docs/progress.md](docs/pr
   `validate/` · `stats/` (pure number functions) · `insights/` (deterministic findings with evidence) ·
   `store/` (SQL migrations, repositories) · `pipeline/` (discover, ingest, backfill) · `scheduler/` ·
   `api/` (read-only, serves the built SPA) · `cli.py` · `research/` (Phase 3A institutional commentary and Phase 3B
-  evidence-grounded LLM summaries: a separate domain that no Stats NZ package imports; LLM processing is disabled by
-  default and gated per source; see `docs/data-sources/research.md`).
+  evidence-grounded LLM summaries; Phase 3C public research API, `api.py`, off unless `NZSTATS_PUBLIC_RESEARCH=1` and
+  wired by `cli.py` only: a separate domain that no Stats NZ package imports; LLM processing and public display are
+  disabled by default and gated per source; see `docs/data-sources/research.md`).
 - `frontend/`: React 19, TypeScript, Vite, Tailwind 4, shadcn/ui (Base UI flavour), ECharts, TanStack Query.
   `src/charts/` holds option builders; pages in `src/pages/`; API types are generated.
 - `config/sources.toml`: Stats NZ endpoints, polling offsets, backfill window. `scripts/`: seed, fixtures, backup.
@@ -28,6 +29,7 @@ npm test && npm run typecheck && npm run build
 npm run gen:api                     # regenerate src/api/schema.d.ts after any API model change
 cd backend && python ../scripts/dump_frontend_fixtures.py   # regenerate frontend fixtures, review the diff
 cd frontend && npx playwright test  # needs the venv on PATH and a fresh build
+npx playwright test -c playwright.research.config.ts   # /economic-outlook with SYNTHETIC published research
 scripts/e2e_static.sh               # public Netlify build: fixture snapshot, static site, browser specs incl. visual parity
 nzstats export-snapshot ./snapshot && nzstats validate-snapshot ./snapshot --for-publish   # public JSON from the real DB
 ```
@@ -48,6 +50,8 @@ nzstats export-snapshot ./snapshot && nzstats validate-snapshot ./snapshot --for
 - Public site: never publish fixture data (`FIXTURE_DATA` marker; the exporter refuses it), never put the database, the
   ingestion log or error text in a snapshot, and never deploy without `PUBLISH_ENABLED=1`. Static mode must render exactly
   what live mode does (the parity spec). See `docs/netlify-deployment.md`.
+- Research is shown publicly only through `research/public.py` (one gate). Never change a source's access, LLM or
+  `public_display` settings without a documented, authorised review, and never add research to a snapshot.
 - Prefer small, TDD-driven changes. Watch each new test fail first.
 
 ## Design

@@ -26,7 +26,6 @@ _KEY = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 _HOST = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 _EVIDENCE = ("direct", "direct_blocked", "search", "none")
 _KINDS = ("central_bank", "government", "bank", "consultancy")
-_PUBLIC_DISPLAY = ("none", "link_only", "excerpt")
 
 
 class RegistryError(ValueError):
@@ -51,6 +50,22 @@ class LlmProcessing(StrEnum):
     DENIED = "denied"  # the default: never sent to any model
     LOCAL_ONLY = "local_only"  # a model running on this machine only (loopback), never a hosted API
     HOSTED = "hosted"  # a hosted provider as well; the terms must allow third-party processing
+
+
+class PublicDisplay(StrEnum):
+    """What this site may show about a source, to anyone (Phase 3C). Each level includes the one before."""
+
+    NONE = "none"  # the default: nothing about the source is shown
+    LINK_ONLY = "link_only"  # title, institution, publication date and a link to the original
+    SUMMARY = "summary"  # plus the AI interpretation, forecast claims and evidence locations
+    EXCERPT = "excerpt"  # plus the short verbatim quotes the verifier matched
+
+    @property
+    def rank(self) -> int:
+        return _DISPLAY_ORDER.index(self)
+
+
+_DISPLAY_ORDER = tuple(PublicDisplay)
 
 
 class Mechanism(StrEnum):
@@ -83,7 +98,7 @@ class Institution:
     discovery: tuple[Discovery, ...]
     review_status: ReviewStatus
     content_policy: ContentPolicy
-    public_display: str
+    public_display: PublicDisplay
     licence: str
     licence_url: str | None
     robots_evidence: str
@@ -102,6 +117,9 @@ class Institution:
     approval_note: str | None = None
     llm_processing: LlmProcessing = LlmProcessing.DENIED
     llm_processing_note: str | None = None
+    public_display_approved_by: str | None = None
+    public_display_approved_on: date | None = None
+    public_display_note: str | None = None
     extra: dict[str, Any] = field(default_factory=dict, compare=False)
 
     @property
@@ -129,6 +147,17 @@ class Institution:
             return "source permits local models only"
         return None
 
+    def display_level(self) -> PublicDisplay:
+        """What may be shown now. AI text needs the source's LLM permission too: revoking it withdraws the text."""
+        if not self.automated_access_allowed:
+            return PublicDisplay.NONE
+        if (
+            self.public_display.rank > PublicDisplay.LINK_ONLY.rank
+            and self.llm_processing is LlmProcessing.DENIED
+        ):
+            return PublicDisplay.LINK_ONLY
+        return self.public_display
+
     def licence_snapshot(self) -> dict[str, Any]:
         return {
             "institution": self.key,
@@ -139,7 +168,7 @@ class Institution:
             "review_status": self.review_status.value,
             "approved_by": self.approved_by,
             "approved_on": self.approved_on.isoformat() if self.approved_on else None,
-            "public_display": self.public_display,
+            "public_display": self.public_display.value,
             "llm_processing": self.llm_processing.value,
         }
 
@@ -248,10 +277,8 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
     kind = raw.get("kind")
     if kind not in _KINDS:
         raise RegistryError(f"{key}: invalid kind {kind!r}")
-    display = raw.get("public_display", "none")
-    if display not in _PUBLIC_DISPLAY:
-        raise RegistryError(f"{key}: invalid public_display {display!r}")
-    if display != "none" and review is not ReviewStatus.APPROVED:
+    display = _enum(PublicDisplay, raw.get("public_display", "none"), "public_display", key)
+    if display is not PublicDisplay.NONE and review is not ReviewStatus.APPROVED:
         raise RegistryError(f"{key}: public_display requires an approved source")
     hosts = _hosts(raw.get("allowed_hosts"), key)
     allowed_prefixes = _prefixes(raw.get("allowed_path_prefixes"), key)
@@ -298,11 +325,18 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         url_date_format=fmt, approved_by=raw.get("approved_by"), approved_on=approved_on,
         approval_note=raw.get("approval_note"), llm_processing=llm,
         llm_processing_note=raw.get("llm_processing_note"),
+        public_display_approved_by=raw.get("public_display_approved_by"),
+        public_display_approved_on=_date(
+            raw.get("public_display_approved_on"), "public_display_approved_on", key
+        ),
+        public_display_note=raw.get("public_display_note"),
     )  # fmt: skip
     if review is ReviewStatus.APPROVED:
         _check_approval(inst)
     if llm is not LlmProcessing.DENIED:
         _check_llm_permission(inst)
+    if display is not PublicDisplay.NONE:
+        _check_display_permission(inst)
     return inst
 
 
@@ -336,3 +370,19 @@ def _check_llm_permission(inst: Institution) -> None:
         raise RegistryError(f"{key}: llm_processing needs content_policy 'full_text'")
     if not inst.llm_processing_note:
         raise RegistryError(f"{key}: llm_processing needs llm_processing_note (what the terms say)")
+
+
+def _check_display_permission(inst: Institution) -> None:
+    key = inst.key
+    for name in ("public_display_approved_by", "public_display_approved_on", "public_display_note"):
+        if not getattr(inst, name):
+            raise RegistryError(
+                f"{key}: public_display needs {name} (a separate, recorded decision)"
+            )
+    if (
+        inst.public_display.rank > PublicDisplay.LINK_ONLY.rank
+        and inst.content_policy is not ContentPolicy.FULL_TEXT
+    ):
+        raise RegistryError(
+            f"{key}: public_display {inst.public_display.value!r} needs content_policy 'full_text'"
+        )

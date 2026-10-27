@@ -1,0 +1,207 @@
+{
+ "item": {
+  "id": 1,
+  "institution": {
+   "key": "harbourside",
+   "name": "Harbourside Bank (synthetic)",
+   "kind": "bank"
+  },
+  "document": {
+   "title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+   "url": "https://research.example.org/harbourside/quarterly-outlook",
+   "published_on": "2026-10-08",
+   "version_no": 1,
+   "fetched_at": "2026-10-26T14:00:00+13:00",
+   "format": "pdf",
+   "page_count": 5
+  },
+  "display": "excerpt",
+  "topics": [
+   "economic_outlook"
+  ],
+  "indicators": [
+   "cpi_inflation",
+   "gdp",
+   "ocr"
+  ],
+  "outlook": {
+   "text": "Inflation is expected to ease while household spending recovers slowly.",
+   "evidence": [
+    {
+     "section_ordinal": 0,
+     "page": 1,
+     "quote": "Annual CPI inflation is forecast to ease to 2.3% in the year to June 2027"
+    },
+    {
+     "section_ordinal": 1,
+     "page": 2,
+     "quote": "household spending recovering slowly"
+    }
+   ]
+  },
+  "drivers": [
+   {
+    "text": "Fuel prices are expected to settle.",
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "as fuel prices settle"
+     }
+    ]
+   }
+  ],
+  "risks": [
+   {
+    "text": "A sharper slowdown in China would weigh on dairy prices.",
+    "evidence": [
+     {
+      "section_ordinal": 4,
+      "page": 5,
+      "quote": "A sharper slowdown in China would weigh on dairy prices"
+     }
+    ]
+   }
+  ],
+  "uncertainty": {
+   "text": "Uncertainty about the housing market remains high.",
+   "evidence": [
+    {
+     "section_ordinal": 4,
+     "page": 5,
+     "quote": "Uncertainty about the housing market remains high"
+    }
+   ]
+  },
+  "n_forecasts": 4,
+  "processing": {
+   "ai_summary": true,
+   "evidence_verified": true,
+   "human_reviewed_on": "2026-10-26",
+   "published_here_on": "2026-10-26",
+   "verifier_version": "verify-2",
+   "warnings": 0,
+   "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
+  },
+  "interpretation_label": "AI interpretation of the document. Not an official statistic.",
+  "not_official_statistic": true
+ },
+ "forecasts": [
+  {
+   "summary_id": 1,
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+   "published_on": "2026-10-08",
+   "indicator": "cpi_inflation",
+   "indicator_label": "Annual CPI inflation",
+   "horizon": "year to June 2027",
+   "value": 2.3,
+   "unit": "percent",
+   "direction": "down",
+   "scenario": null,
+   "qualification": null,
+   "evidence": [
+    {
+     "section_ordinal": 0,
+     "page": 1,
+     "quote": "forecast to ease to 2.3% in the year to June 2027"
+    }
+   ]
+  },
+  {
+   "summary_id": 1,
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+   "published_on": "2026-10-08",
+   "indicator": "gdp",
+   "indicator_label": "Real GDP, annual average growth",
+   "horizon": "year to March 2027",
+   "value": 1.8,
+   "unit": "percent",
+   "direction": "up",
+   "scenario": null,
+   "qualification": null,
+   "evidence": [
+    {
+     "section_ordinal": 1,
+     "page": 2,
+     "quote": "We expect real GDP annual average growth of 1.8% in the year to March 2027"
+    }
+   ]
+  },
+  {
+   "summary_id": 1,
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+   "published_on": "2026-10-08",
+   "indicator": "ocr",
+   "indicator_label": "OCR",
+   "horizon": "December 2026",
+   "value": 2.75,
+   "unit": "percent",
+   "direction": "flat",
+   "scenario": null,
+   "qualification": null,
+   "evidence": [
+    {
+     "section_ordinal": 2,
+     "page": 3,
+     "quote": "The OCR is forecast to be 2.75% in December 2026"
+    }
+   ]
+  },
+  {
+   "summary_id": 1,
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+   "published_on": "2026-10-08",
+   "indicator": "cpi_inflation",
+   "indicator_label": "Annual CPI inflation",
+   "horizon": "year to June 2027",
+   "value": 1.6,
+   "unit": "percent",
+   "direction": "down",
+   "scenario": "Downside",
+   "qualification": "Weaker export prices",
+   "evidence": [
+    {
+     "section_ordinal": 3,
+     "page": 4,
+     "quote": "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in the year to June 2027"
+    }
+   ]
+  }
+ ],
+ "provenance": {
+  "provider": "fake",
+  "model": "fake-1",
+  "hosted": false,
+  "prompt_version": "outlook-v2",
+  "processing_version": "3b-1",
+  "verifier_version": "verify-2",
+  "created_at": "2026-10-26T14:00:00+13:00"
+ },
+ "versions": [
+  {
+   "version_no": 1,
+   "fetched_at": "2026-10-26T14:00:00+13:00",
+   "current": true
+  }
+ ]
+}

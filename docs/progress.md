@@ -1,8 +1,117 @@
 # Progress and verification record
 
-Last updated 2026-10-26. Phase 3B (evidence-grounded LLM summaries) is on `feat/phase-3b-llm-intelligence` (not merged).
-Phase 3A (institutional research sources) is merged to `main` (PR #11). The Netlify static publication is merged to
-`main` (PR #10) and not deployed. Earlier entries below are historical.
+Last updated 2026-10-27. Phase 3C (economic outlook) is on `feat/phase-3c-economic-outlook` (not merged). Phase 3B
+(PR #12), Phase 3A (PR #11) and the Netlify static publication (PR #10) are merged to `main`; the static site is not
+deployed. Earlier entries below are historical.
+
+## Phase 3C: economic outlook, 27 October 2026
+
+`/economic-outlook`: an economic pulse of the latest verified Stats NZ indicators, the institutional research feed,
+forecast comparison and a detail page per summary. **With the shipped settings no research is shown**: every source's
+`public_display` is `none` and the research API is off (`NZSTATS_PUBLIC_RESEARCH` unset), so the page shows the pulse and
+an explanation. Spec: [2026-10-27-phase-3c-economic-outlook-design.md](superpowers/specs/2026-10-27-phase-3c-economic-outlook-design.md).
+Plan: [2026-10-27-phase-3c-economic-outlook.md](superpowers/plans/2026-10-27-phase-3c-economic-outlook.md). Runbook:
+[data-sources/research.md](data-sources/research.md#public-display-and-the-economic-outlook-phase-3c).
+
+- **Permissions**: public display is a third, recorded decision per source (`public_display` none, link_only, summary,
+  excerpt, with its own approver, date and note), separate from fetching and LLM processing; then per summary, human
+  review (3B) and a separate publish/withdraw log (migration 007, append-only). No source setting changed.
+- **One gate** (`research/public.py`), re-run on every request: states, newest summary of the current non-duplicate
+  version, current registry display level, the crawler's URL policy for the document link, and re-verification with the
+  current verifier (missing, changed or injection-like sections fail closed). AI text drops to link-only while the
+  source's LLM permission would not allow the model that wrote it.
+- **API** (`research/api.py`): feed (search, filters, sort, pagination, facets), detail and forecasts; allowlist models;
+  read-only connection; registry reread per request (unreadable means nothing is shown); 404 like an unknown path while
+  off. Wired by `cli.py` only, so the snapshot exporter cannot serve it; OpenAPI changes are additions only.
+- **Comparison** (`research/compare.py`): grouped only by indicator, unit, statistical basis, horizon and kind (central or
+  the same named scenario). Ambiguous GDP growth wording, relative horizons, missing units and direction-only claims are
+  listed with a reason. The official CPI annual change is drawn as a reference beside CPI groups only.
+- **Frontend**: Outlook is a primary destination. Charts use the dataviz-validated navy (forecasts) and amber (official
+  observation) pair; validator results: light `#2b66a8,#c75f0c` and dark `#4a8ccb,#d47a36` pass every check (worst CVD
+  delta E 21.8 light, 21.0 dark). A grey reference colour failed the chroma and normal-vision checks and was not used.
+- **Found and fixed during the work**: string comparison of display levels ("excerpt" < "link_only"); the automated
+  security review found that the public URL check missed traversal and encoded or case-folded blocked paths, and that a
+  hosted model's text survived a change to local-only permission (both fixed with tests); a data directory with `?`,
+  `#` or `%` could change the read-only SQLite URI; the observation label collided with axis ticks; link-only entries
+  showed AI processing badges.
+
+### Verification
+
+| Command | Outcome |
+|---|---|
+| `cd backend && pytest` | **2012 passed** (142 new; main's 1870 pass, two `serve` test stubs updated to accept and check the new `routers` argument) |
+| `ruff check .` / `ruff format --check .` | Passed |
+| `cd frontend && npm test` / `npm run typecheck` / `npm run build` | 416 passed (42 files; 33 new) / passed / built |
+| `npm run gen:api` | `schema.d.ts` gains the research models and routes; no existing type changed |
+| `npx playwright test` (live app, research off) | 108 passed (15 new) |
+| `npx playwright test -c playwright.research.config.ts` (SYNTHETIC published research) | 15 passed at desktop 1440, tablet 768 and mobile 390; with `OUTLOOK_SCREENSHOTS=dir` the 3 screenshot captures run too (18 passed) |
+| `scripts/e2e_static.sh` (static site incl. visual parity of `/economic-outlook`) | 252 passed, 3 skipped (the API-only check) |
+| Snapshot exported from a database holding published synthetic research, with `NZSTATS_PUBLIC_RESEARCH=1` | 60 files, no research content (`grep` for research, synthetic and institution keys finds nothing) |
+| Visual review (light and dark, three sizes) | `docs/screenshots/phase-3c/`; no horizontal scroll at any size |
+| Live requests to any research source or LLM provider | **None** |
+
+Limitations: research comparison and feed are exercised only with synthetic data, because no source is approved; there
+is no authentication, so the API must stay off on any network-reachable deployment until display permissions exist;
+the dot plot starts at zero for every unit, which compresses close levels such as the OCR; the comparison does not equate
+"2026/27" with a June or March year; searching re-verifies every published summary per request (fine for tens, not
+thousands).
+
+### PR #13 review round 1 (Codex, head b4039c6): statistical basis of forecast comparison
+
+- P2, real vs nominal GDP: `Real GDP, annual average growth` and `Nominal GDP, annual average growth` produced one group key,
+  so institutions were compared across different statistics and one measure hid the other as an "earlier vintage". GDP now
+  needs a stated price basis (`real` / `nominal`, or constant / current prices) and carries it in the basis, the stable
+  group key and the label ("Real terms, annual average change"). "GDP growth" alone is no longer assumed real: it is
+  excluded with the reason. Contradictory wording and per-capita, potential and trend measures are excluded too.
+- P2, unemployment timing: every percentage was `rate`. Now `rate_average`, `rate_end`, `rate` (a quarter or month, which is
+  itself the point in time) and `rate_timing_unstated` (a longer span with no timing, flagged in the note); a peak or trough
+  is excluded, and an average and an end-of-period wording together has no basis.
+- Same defect class, adjacent indicators: CPI core / underlying / excluding-X / tradables series were grouped with headline
+  CPI and contradictory cadence wording silently took one reading; OCR average + end wording took "average". Both now have
+  no basis. Other indicators gain the `real_` / `nominal_` prefix when the label states it.
+- Group keys and `basis` values changed for GDP and unemployment; the only consumer that branches on a basis is the CPI
+  official-observation reference (`annual_change`, unchanged). The synthetic seed now states "real" in the quoted text and
+  label; frontend research fixtures were regenerated (the unrelated `cpi.json` regeneration noise was discarded).
+- No research permission, gate, registry, snapshot or LLM setting was touched.
+- Note: GitHub Actions for b4039c6 never started ("recent account payments have failed or your spending limit needs to be
+  increased"), so CI evidence for this PR is local until billing is fixed.
+
+### PR #13 review round 2 (Codex, head 8fa1784): the measure is part of the basis
+
+- P2, net vs gross debt: every `percent_of_gdp` claim became `share_of_gdp`, so `Net core Crown debt` and `Gross Crown debt`
+  shared a key. The same gap existed for any indicator that is only a topic (wages, house prices, fiscal balance). Those
+  indicators now carry the measure the label names in the basis and group key (`share_of_gdp:net-core-crown-debt`,
+  `annual_change:house-prices`); the measure is the label's words minus units, cadence, forecast and price-basis wording,
+  and a label naming no measure is excluded. GDP, CPI, OCR and unemployment name one series and are unchanged. The basis
+  label shows the measure as plain alphanumeric words only. Different phrasing of one measure still groups ("Net core Crown
+  debt (% of GDP)"); a differently worded but equivalent measure does not, which is the conservative direction.
+- Tightened in the same round: government debt must say net or gross (exactly once; `Crown debt`, `Core Crown debt` and
+  `Net and gross Crown debt` are excluded, and core vs total Crown stays in the key); a fiscal-balance label made only of
+  `fiscal`/`budget`/`balance`/`surplus`/`deficit` is excluded (OBEGAL, operating and cash balance stay separate groups);
+  a tenor ("2 year", "90-day") is one token of the measure so `2 year` and `2 month` never meet. Interest-rate levels
+  were already excluded (no stated change basis); a test now pins that. Wages, house prices and employment keep the
+  measure-in-key rule only: the label does not let us say more, and unequal wording is never grouped.
+
+### PR #13 review round 3 (Codex, head 53d24f3): the part of the series, and peaks
+
+- P2, headline vs youth unemployment (#4392887873): `Annual average unemployment rate` and `Annual average youth
+  unemployment rate` both became `rate_average`. P2, peak vs ordinary CPI (#4392887881): `Peak annual CPI inflation` took
+  the same `annual_change` as `Annual CPI inflation`; the extreme-wording guard existed only for unemployment and the OCR.
+- Root cause (the fifth finding of one kind): for GDP, CPI, OCR and unemployment the rules were a blacklist of variants we
+  had thought of (per capita, core, peak for two indicators), so any other qualifier was silently ignored. Now the rule is
+  a whitelist of generic wording: every word that is not a series name, cadence, timing, price-basis, unit or joining word
+  stays in the basis (`rate_average:youth`, `annual_change:auckland`), sorted and accent-folded ("Māori women" and
+  "women Maori" are one population). Wording that excludes, combines or leaves open the part measured (`excluding`, `non-`,
+  `and`, `or`, `/`, `other`) has no basis and is excluded with a reason. A peak, trough, high, low, maximum or minimum has
+  no basis for any indicator and is excluded with its own public reason, so it is never grouped and never hidden as an
+  earlier vintage. Unequal wording of one population ("youth (15-24)" vs "youth") is not grouped: the conservative side.
+- Comparison identity, as now enforced: indicator, unit, horizon and kind (central or named scenario) in the group key;
+  everything else in the basis: price basis, aggregation and timing, the measure (net or gross debt, which balance), the
+  part of the series (population, region) and point-versus-extreme (an extreme has none). Frontend: the chart and table
+  descriptions now include the basis label, because two groups can share an indicator and horizon.
+- Known limit: the free-text `qualification` of a claim is not read; only the indicator label and horizon are.
+- Tests: a parametrised false-match / false-split matrix (GDP, CPI, unemployment, OCR, debt, fiscal balance) checks groups,
+  keys, ordering, serialisation, exclusion reasons and vintage behaviour; it fails against the previous `compare.py`.
 
 ## Phase 3B: evidence-grounded LLM economic intelligence, 26 October 2026
 

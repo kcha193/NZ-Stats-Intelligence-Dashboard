@@ -8,6 +8,7 @@ from nzstats.research.registry import (
     ContentPolicy,
     LlmProcessing,
     Mechanism,
+    PublicDisplay,
     RegistryError,
     ReviewStatus,
     load_registry,
@@ -304,3 +305,72 @@ def test_llm_permission_needs_an_approved_full_text_source(tmp_path, swap, match
 def test_unknown_llm_processing_value_fails_closed(tmp_path):
     with pytest.raises(RegistryError, match="llm_processing"):
         _approved_full_text(tmp_path, 'llm_processing = "yes"\n llm_processing_note = "n"')
+
+
+# Public display (Phase 3C): a third decision, separate from ingestion and LLM processing.
+DISPLAY_APPROVAL = (
+    'public_display_approved_by = "K"\n public_display_approved_on = "2026-11-02"\n'
+    ' public_display_note = "Terms allow short quotes with attribution."\n'
+)
+LLM_LOCAL = 'llm_processing = "local_only"\n llm_processing_note = "n"\n'
+
+
+def test_every_shipped_source_displays_nothing():
+    assert {i.public_display for i in load_registry().values()} == {PublicDisplay.NONE}
+    assert {i.display_level() for i in load_registry().values()} == {PublicDisplay.NONE}
+
+
+@pytest.mark.parametrize("level", ["link_only", "summary", "excerpt"])
+def test_public_display_needs_its_own_approval_record(tmp_path, level):
+    for missing in (
+        "public_display_approved_by",
+        "public_display_approved_on",
+        "public_display_note",
+    ):
+        approval = "\n".join(
+            line for line in DISPLAY_APPROVAL.split("\n") if not line.strip().startswith(missing)
+        )
+        with pytest.raises(RegistryError, match=missing):
+            _approved_full_text(tmp_path, f'{LLM_LOCAL} public_display = "{level}"\n {approval}')
+
+
+def test_public_display_needs_an_approved_source(tmp_path):
+    body = BASE.format(extra=f'public_display = "link_only"\n {DISPLAY_APPROVAL}')
+    with pytest.raises(RegistryError, match="approved source"):
+        load_registry(_write(tmp_path, body))
+
+
+@pytest.mark.parametrize("level", ["summary", "excerpt"])
+def test_ai_text_display_needs_a_full_text_source(tmp_path, level):
+    body = BASE.format(
+        extra=APPROVED_FULL.format(llm=f'public_display = "{level}"\n {DISPLAY_APPROVAL}')
+    )
+    with pytest.raises(RegistryError, match="full_text"):
+        load_registry(_write(tmp_path, body.replace("needs_review", "approved")))
+
+
+def test_link_only_is_allowed_for_a_metadata_only_source(tmp_path):
+    body = BASE.format(
+        extra=APPROVED_FULL.format(llm=f'public_display = "link_only"\n {DISPLAY_APPROVAL}')
+    )
+    inst = load_registry(_write(tmp_path, body.replace("needs_review", "approved")))["ex"]
+    assert inst.public_display is PublicDisplay.LINK_ONLY
+    assert inst.display_level() is PublicDisplay.LINK_ONLY
+    assert inst.licence_snapshot()["public_display"] == "link_only"
+
+
+def test_unknown_public_display_value_fails_closed(tmp_path):
+    with pytest.raises(RegistryError, match="public_display"):
+        _approved_full_text(tmp_path, f'public_display = "everything"\n {DISPLAY_APPROVAL}')
+
+
+def test_ai_text_is_withdrawn_when_llm_processing_is_denied(tmp_path):
+    # The loader accepts it (permissions can be revoked independently), but nothing the model wrote is shown.
+    inst = _approved_full_text(tmp_path, f'public_display = "excerpt"\n {DISPLAY_APPROVAL}')
+    assert inst.public_display is PublicDisplay.EXCERPT
+    assert inst.display_level() is PublicDisplay.LINK_ONLY
+    inst = _approved_full_text(
+        tmp_path, f'{LLM_LOCAL} public_display = "excerpt"\n {DISPLAY_APPROVAL}'
+    )
+    assert inst.display_level() is PublicDisplay.EXCERPT
+    assert [d.rank for d in PublicDisplay] == [0, 1, 2, 3]  # each level includes the one before

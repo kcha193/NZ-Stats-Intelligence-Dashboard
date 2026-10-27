@@ -1,0 +1,318 @@
+{
+ "items": [
+  {
+   "id": 5,
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "document": {
+    "title": "Fiscal and Economic Update 2026 (synthetic)",
+    "url": "https://research.example.org/southern/fiscal-update",
+    "published_on": "2026-10-15",
+    "version_no": 1,
+    "fetched_at": "2026-10-26T14:00:00+13:00",
+    "format": "pdf",
+    "page_count": 4
+   },
+   "display": "summary",
+   "topics": [
+    "economic_outlook"
+   ],
+   "indicators": [
+    "cpi_inflation",
+    "gdp",
+    "government_debt"
+   ],
+   "outlook": {
+    "text": "Inflation is forecast to settle while government debt rises.",
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": null
+     },
+     {
+      "section_ordinal": 2,
+      "page": 3,
+      "quote": null
+     }
+    ]
+   },
+   "drivers": [],
+   "risks": [
+    {
+     "text": "Weaker growth would add to government debt.",
+     "evidence": [
+      {
+       "section_ordinal": 3,
+       "page": 4,
+       "quote": null
+      }
+     ]
+    }
+   ],
+   "uncertainty": null,
+   "n_forecasts": 3,
+   "processing": {
+    "ai_summary": true,
+    "evidence_verified": true,
+    "human_reviewed_on": "2026-10-26",
+    "published_here_on": "2026-10-26",
+    "verifier_version": "verify-2",
+    "warnings": 1,
+    "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
+   },
+   "interpretation_label": "AI interpretation of the document. Not an official statistic.",
+   "not_official_statistic": true
+  },
+  {
+   "id": 1,
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "document": {
+    "title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "url": "https://research.example.org/harbourside/quarterly-outlook",
+    "published_on": "2026-10-08",
+    "version_no": 1,
+    "fetched_at": "2026-10-26T14:00:00+13:00",
+    "format": "pdf",
+    "page_count": 5
+   },
+   "display": "excerpt",
+   "topics": [
+    "economic_outlook"
+   ],
+   "indicators": [
+    "cpi_inflation",
+    "gdp",
+    "ocr"
+   ],
+   "outlook": {
+    "text": "Inflation is expected to ease while household spending recovers slowly.",
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "Annual CPI inflation is forecast to ease to 2.3% in the year to June 2027"
+     },
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "household spending recovering slowly"
+     }
+    ]
+   },
+   "drivers": [
+    {
+     "text": "Fuel prices are expected to settle.",
+     "evidence": [
+      {
+       "section_ordinal": 0,
+       "page": 1,
+       "quote": "as fuel prices settle"
+      }
+     ]
+    }
+   ],
+   "risks": [
+    {
+     "text": "A sharper slowdown in China would weigh on dairy prices.",
+     "evidence": [
+      {
+       "section_ordinal": 4,
+       "page": 5,
+       "quote": "A sharper slowdown in China would weigh on dairy prices"
+      }
+     ]
+    }
+   ],
+   "uncertainty": {
+    "text": "Uncertainty about the housing market remains high.",
+    "evidence": [
+     {
+      "section_ordinal": 4,
+      "page": 5,
+      "quote": "Uncertainty about the housing market remains high"
+     }
+    ]
+   },
+   "n_forecasts": 4,
+   "processing": {
+    "ai_summary": true,
+    "evidence_verified": true,
+    "human_reviewed_on": "2026-10-26",
+    "published_here_on": "2026-10-26",
+    "verifier_version": "verify-2",
+    "warnings": 0,
+    "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
+   },
+   "interpretation_label": "AI interpretation of the document. Not an official statistic.",
+   "not_official_statistic": true
+  },
+  {
+   "id": 4,
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "document": {
+    "title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "url": "https://research.example.org/kauri/spring-forecasts",
+    "published_on": "2026-09-24",
+    "version_no": 1,
+    "fetched_at": "2026-10-26T14:00:00+13:00",
+    "format": "pdf",
+    "page_count": 6
+   },
+   "display": "excerpt",
+   "topics": [
+    "economic_outlook"
+   ],
+   "indicators": [
+    "cpi_inflation",
+    "gdp",
+    "unemployment",
+    "ocr"
+   ],
+   "outlook": {
+    "text": "Growth should improve as interest rates fall.",
+    "evidence": [
+     {
+      "section_ordinal": 5,
+      "page": 6,
+      "quote": "Growth should improve next year as interest rates fall"
+     }
+    ]
+   },
+   "drivers": [
+    {
+     "text": "Lower interest rates are expected to support growth.",
+     "evidence": [
+      {
+       "section_ordinal": 5,
+       "page": 6,
+       "quote": "as interest rates fall"
+      }
+     ]
+    }
+   ],
+   "risks": [],
+   "uncertainty": null,
+   "n_forecasts": 6,
+   "processing": {
+    "ai_summary": true,
+    "evidence_verified": true,
+    "human_reviewed_on": "2026-10-26",
+    "published_here_on": "2026-10-26",
+    "verifier_version": "verify-2",
+    "warnings": 1,
+    "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
+   },
+   "interpretation_label": "AI interpretation of the document. Not an official statistic.",
+   "not_official_statistic": true
+  },
+  {
+   "id": 6,
+   "institution": {
+    "key": "tasman",
+    "name": "Tasman Markets (synthetic)",
+    "kind": "bank"
+   },
+   "document": {
+    "title": "Weekly Market Commentary (synthetic)",
+    "url": "https://research.example.org/tasman/weekly-commentary",
+    "published_on": "2026-09-02",
+    "version_no": 1,
+    "fetched_at": "2026-10-26T14:00:00+13:00",
+    "format": "pdf",
+    "page_count": 1
+   },
+   "display": "link_only",
+   "topics": [
+    "economic_outlook"
+   ],
+   "indicators": [],
+   "outlook": null,
+   "drivers": [],
+   "risks": [],
+   "uncertainty": null,
+   "n_forecasts": 0,
+   "processing": {
+    "ai_summary": true,
+    "evidence_verified": true,
+    "human_reviewed_on": "2026-10-26",
+    "published_here_on": "2026-10-26",
+    "verifier_version": "verify-2",
+    "warnings": 1,
+    "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
+   },
+   "interpretation_label": "AI interpretation of the document. Not an official statistic.",
+   "not_official_statistic": true
+  }
+ ],
+ "total": 4,
+ "limit": 20,
+ "offset": 0,
+ "institutions": [
+  {
+   "value": "harbourside",
+   "label": "Harbourside Bank (synthetic)",
+   "count": 1
+  },
+  {
+   "value": "kauri",
+   "label": "Kauri Economics (synthetic)",
+   "count": 1
+  },
+  {
+   "value": "southern",
+   "label": "Southern Treasury Office (synthetic)",
+   "count": 1
+  },
+  {
+   "value": "tasman",
+   "label": "Tasman Markets (synthetic)",
+   "count": 1
+  }
+ ],
+ "topics": [
+  {
+   "value": "economic_outlook",
+   "label": "Economic outlook",
+   "count": 4
+  }
+ ],
+ "indicators": [
+  {
+   "value": "gdp",
+   "label": "GDP",
+   "count": 3
+  },
+  {
+   "value": "cpi_inflation",
+   "label": "CPI inflation",
+   "count": 3
+  },
+  {
+   "value": "ocr",
+   "label": "Official cash rate",
+   "count": 2
+  },
+  {
+   "value": "unemployment",
+   "label": "Unemployment",
+   "count": 1
+  },
+  {
+   "value": "government_debt",
+   "label": "Government debt",
+   "count": 1
+  }
+ ]
+}

@@ -1,9 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { getJson } from "./client";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { ApiError, getJson } from "./client";
 import { pollEvery } from "./mode";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
-  SeriesData, EctDashboard, CpiDashboard,
+  SeriesData, EctDashboard, CpiDashboard, ResearchFeed, ResearchDetail, ForecastComparison,
 } from "./types";
 
 const qs = (params: Record<string, string | number | undefined>): string => {
@@ -69,3 +69,44 @@ export const useCountries = (months = 12, top = 15) =>
 
 export const useHealth = () =>
   useQuery({ queryKey: ["health"], queryFn: ({ signal }) => getJson<Health>("/api/health", signal), refetchInterval: pollEvery(30_000) });
+
+/**
+ * Research is "not published" (null) when the API answers 404: public research is switched off, nothing is eligible
+ * for that address, or (static site) research is never in a snapshot. Every other failure is still an error.
+ */
+async function orUnpublished<T>(request: Promise<T>): Promise<T | null> {
+  try {
+    return await request;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+export type FeedParams = {
+  q?: string; institution?: string; topic?: string; indicator?: string;
+  sort?: "newest" | "oldest" | "institution"; limit?: number; offset?: number;
+};
+
+export const useResearchFeed = (params: FeedParams = {}) =>
+  useQuery({
+    queryKey: ["research-feed", params],
+    queryFn: ({ signal }) => orUnpublished(getJson<ResearchFeed>(`/api/research/feed${qs(params)}`, signal)),
+    placeholderData: keepPreviousData,
+  });
+
+export const useResearchSummary = (id: number) =>
+  useQuery({
+    queryKey: ["research-summary", id],
+    queryFn: ({ signal }) => orUnpublished(getJson<ResearchDetail>(`/api/research/summaries/${id}`, signal)),
+    enabled: Number.isInteger(id) && id > 0,
+  });
+
+export type ForecastParams = { indicator?: string; institution?: string; horizon?: string };
+
+export const useForecasts = (params: ForecastParams = {}) =>
+  useQuery({
+    queryKey: ["research-forecasts", params],
+    queryFn: ({ signal }) => orUnpublished(getJson<ForecastComparison>(`/api/research/forecasts${qs(params)}`, signal)),
+    placeholderData: keepPreviousData,
+  });

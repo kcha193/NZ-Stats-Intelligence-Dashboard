@@ -172,3 +172,22 @@ research_document_version + sections
 
 Triggers keep content immutable, approve only verified summaries and keep a rejection final. Rollback:
 `scripts/rollback/006_research_summaries_down.sql`.
+
+### Economic outlook (Phase 3C)
+
+`/economic-outlook` puts the overview's verified Stats NZ indicators (the pulse) beside published research. The research
+side is off by default and never reaches the static site.
+
+```
+research_summary (verified, approved)  + research_summary_publication (migration 007: publish | withdraw, append-only)
+  -> public.public_summaries           the one gate, per request: states, newest of the current version, registry
+                                       display level (none | link_only | summary | excerpt), URL policy, re-verification
+  -> api.research_router               /api/research/{feed, summaries/{id}, forecasts}; 404 unless NZSTATS_PUBLIC_RESEARCH=1;
+                                       read-only connection; allowlist models in api_models.py
+  -> compare.compare_forecasts         groups only by indicator, unit, basis, horizon and kind; reasons for the rest
+```
+
+The router lives in the research package; `create_app(routers=...)` takes it from `cli.py` (`serve`, `openapi`). The
+snapshot exporter calls `create_app` without it, so the AST isolation tests and the snapshot contract are unchanged.
+Frontend: `pages/EconomicOutlook.tsx`, `pages/ResearchDetail.tsx`, `components/outlook/`, `lib/pulse.ts`,
+`lib/research.ts`, `charts/forecasts.ts`; research 404s read as "not published".
