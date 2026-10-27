@@ -56,8 +56,47 @@ def dump_cpi_fixture() -> None:
         assert payload["analysis"]["release"]["id"] == ids["2026-06"] and CPI_NOW
 
 
+def dump_research_fixtures() -> None:
+    """SYNTHETIC research responses (fictional institutions) from scripts/seed_research_demo.py, served by the real API."""
+    from nzstats.research.api import research_router
+    from nzstats.research.registry import load_registry
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from seed_research_demo import main as seed_research
+
+    with tempfile.TemporaryDirectory() as tmp:
+        seed_research(Path(tmp))
+        registry = load_registry(Path(tmp) / "research_sources.synthetic.toml")
+        app = create_app(
+            load_settings({"NZSTATS_DATA_DIR": tmp}),
+            routers=[research_router(enabled=True, registry=lambda: registry)],
+        )
+        with TestClient(app) as c:
+            feed = c.get("/api/research/feed").json()
+            by_key = {i["institution"]["key"]: i["id"] for i in feed["items"]}
+            payloads = {
+                "research_synthetic_feed": feed,
+                "research_synthetic_forecasts": c.get("/api/research/forecasts").json(),
+                "research_synthetic_forecasts_gdp": c.get(
+                    "/api/research/forecasts", params={"indicator": "gdp"}
+                ).json(),
+                "research_synthetic_detail_excerpt": c.get(
+                    f"/api/research/summaries/{by_key['harbourside']}"
+                ).json(),
+                "research_synthetic_detail_summary": c.get(
+                    f"/api/research/summaries/{by_key['southern']}"
+                ).json(),
+                "research_synthetic_detail_link_only": c.get(
+                    f"/api/research/summaries/{by_key['tasman']}"
+                ).json(),
+            }
+        for name, payload in payloads.items():
+            (OUT / f"{name}.json").write_text(json.dumps(payload, indent=1) + "\n")
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
+    dump_research_fixtures()
     with tempfile.TemporaryDirectory() as tmp:
         seed_from_fixtures(tmp)
         settings = load_settings({"NZSTATS_DATA_DIR": tmp, "NZSTATS_BASE_URL": BASE})

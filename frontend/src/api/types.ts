@@ -23,3 +23,15 @@ export type CpiSeries = S["CpiSeriesOut"];
 export type CpiPoint = S["CpiPoint"];
 export type CpiContributionBlock = S["CpiContributionBlock"];
 export type CpiUnderlying = S["CpiUnderlyingOut"];
+
+// Phase 3C: public institutional research (only ever served when publication is enabled and approved).
+export type ResearchFeed = S["ResearchFeedOut"];
+export type ResearchItem = S["ResearchItemOut"];
+export type ResearchDetail = S["ResearchDetailOut"];
+export type ResearchStatement = S["StatementOut"];
+export type ResearchEvidence = S["EvidenceOut"];
+export type Facet = S["FacetOut"];
+export type ForecastComparison = S["ForecastComparisonOut"];
+export type ForecastGroup = S["ForecastGroupOut"];
+export type Forecast = S["ForecastOut"];
+export type ExcludedForecast = S["ExcludedForecastOut"];

@@ -1,0 +1,57 @@
+{
+ "item": {
+  "id": 6,
+  "institution": {
+   "key": "tasman",
+   "name": "Tasman Markets (synthetic)",
+   "kind": "bank"
+  },
+  "document": {
+   "title": "Synthetic outlook tasman/weekly-commentary",
+   "url": "https://research.example.org/tasman/weekly-commentary",
+   "published_on": "2026-09-02",
+   "version_no": 1,
+   "fetched_at": "2026-10-26T14:00:00+13:00",
+   "format": "pdf",
+   "page_count": 1
+  },
+  "display": "link_only",
+  "topics": [
+   "economic_outlook"
+  ],
+  "indicators": [],
+  "outlook": null,
+  "drivers": [],
+  "risks": [],
+  "uncertainty": null,
+  "n_forecasts": 0,
+  "processing": {
+   "ai_summary": true,
+   "evidence_verified": true,
+   "human_reviewed_on": "2026-10-26",
+   "published_here_on": "2026-10-26",
+   "verifier_version": "verify-2",
+   "warnings": 1,
+   "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
+  },
+  "interpretation_label": "AI interpretation of the document. Not an official statistic.",
+  "not_official_statistic": true
+ },
+ "forecasts": [],
+ "provenance": {
+  "provider": "fake",
+  "model": "fake-1",
+  "hosted": false,
+  "prompt_version": "outlook-v2",
+  "processing_version": "3b-1",
+  "verifier_version": "verify-2",
+  "created_at": "2026-10-26T14:00:00+13:00"
+ },
+ "versions": [
+  {
+   "version_no": 1,
+   "fetched_at": "2026-10-26T14:00:00+13:00",
+   "current": true
+  }
+ ]
+}

@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+    "/api/research/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Feed */
+        get: operations["feed_api_research_feed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/summaries/{summary_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["detail_api_research_summaries__summary_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/forecasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Forecasts */
+        get: operations["forecasts_api_research_forecasts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -481,6 +532,23 @@ export interface components {
             /** Total Change */
             total_change: number;
         };
+        /** DocumentOut */
+        DocumentOut: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+            /** Published On */
+            published_on: string | null;
+            /** Version No */
+            version_no: number;
+            /** Fetched At */
+            fetched_at: string;
+            /** Format */
+            format: string;
+            /** Page Count */
+            page_count: number | null;
+        };
         /** EctDashboardOut */
         EctDashboardOut: {
             analysis: components["schemas"]["ReleaseAnalysis"];
@@ -498,6 +566,30 @@ export interface components {
             /** Release Key */
             release_key: string;
         };
+        /** EvidenceOut */
+        EvidenceOut: {
+            /** Section Ordinal */
+            section_ordinal: number;
+            /** Page */
+            page: number | null;
+            /** Quote */
+            quote: string | null;
+        };
+        /** ExcludedForecastOut */
+        ExcludedForecastOut: {
+            forecast: components["schemas"]["ForecastOut"];
+            /** Reason */
+            reason: string;
+        };
+        /** FacetOut */
+        FacetOut: {
+            /** Value */
+            value: string;
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+        };
         /** FeaturedOut */
         FeaturedOut: {
             release: components["schemas"]["ReleaseSummary"];
@@ -505,6 +597,92 @@ export interface components {
             headline: string | null;
             /** First Insight */
             first_insight: string | null;
+        };
+        /** ForecastComparisonOut */
+        ForecastComparisonOut: {
+            /** Groups */
+            groups: components["schemas"]["ForecastGroupOut"][];
+            /** Excluded */
+            excluded: components["schemas"]["ExcludedForecastOut"][];
+            /** Indicators */
+            indicators: components["schemas"]["FacetOut"][];
+            /** Institutions */
+            institutions: components["schemas"]["FacetOut"][];
+            /** Horizons */
+            horizons: components["schemas"]["FacetOut"][];
+            /**
+             * Note
+             * @default Forecasts are compared only when the indicator, unit, statistical basis and horizon all match, and central forecasts are never mixed with scenarios. Each institution's latest published forecast is shown.
+             */
+            note: string;
+        };
+        /** ForecastGroupOut */
+        ForecastGroupOut: {
+            /** Key */
+            key: string;
+            /** Indicator */
+            indicator: string;
+            /** Indicator Name */
+            indicator_name: string;
+            /** Unit */
+            unit: string;
+            /** Unit Label */
+            unit_label: string;
+            /** Basis */
+            basis: string;
+            /** Basis Label */
+            basis_label: string;
+            /** Horizon Key */
+            horizon_key: string;
+            /** Horizon Label */
+            horizon_label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "central" | "scenario";
+            /** Scenario */
+            scenario: string | null;
+            /** Rows */
+            rows: components["schemas"]["ForecastRowOut"][];
+            /** Comparable */
+            comparable: boolean;
+            /** Note */
+            note: string;
+        };
+        /** ForecastOut */
+        ForecastOut: {
+            /** Summary Id */
+            summary_id: number;
+            institution: components["schemas"]["InstitutionOut"];
+            /** Document Title */
+            document_title: string;
+            /** Published On */
+            published_on: string | null;
+            /** Indicator */
+            indicator: string;
+            /** Indicator Label */
+            indicator_label: string;
+            /** Horizon */
+            horizon: string;
+            /** Value */
+            value: number | null;
+            /** Unit */
+            unit: string | null;
+            /** Direction */
+            direction: string;
+            /** Scenario */
+            scenario: string | null;
+            /** Qualification */
+            qualification: string | null;
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceOut"][];
+        };
+        /** ForecastRowOut */
+        ForecastRowOut: {
+            forecast: components["schemas"]["ForecastOut"];
+            /** Earlier Vintages */
+            earlier_vintages: components["schemas"]["ForecastOut"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -552,6 +730,15 @@ export interface components {
             evidence: components["schemas"]["Evidence"][];
             /** Caveat */
             caveat?: string | null;
+        };
+        /** InstitutionOut */
+        InstitutionOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Kind */
+            kind: string;
         };
         /** Kpi */
         Kpi: {
@@ -637,6 +824,51 @@ export interface components {
             /** Decompositions */
             decompositions: components["schemas"]["Decomposition"][];
         };
+        /** ProcessingOut */
+        ProcessingOut: {
+            /**
+             * Ai Summary
+             * @default true
+             * @constant
+             */
+            ai_summary: true;
+            /**
+             * Evidence Verified
+             * @default true
+             * @constant
+             */
+            evidence_verified: true;
+            /** Human Reviewed On */
+            human_reviewed_on: string;
+            /** Published Here On */
+            published_here_on: string;
+            /** Verifier Version */
+            verifier_version: string;
+            /** Warnings */
+            warnings: number;
+            /**
+             * Checks Scope
+             * @default Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here.
+             */
+            checks_scope: string;
+        };
+        /** ProvenanceOut */
+        ProvenanceOut: {
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Hosted */
+            hosted: boolean;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Processing Version */
+            processing_version: string;
+            /** Verifier Version */
+            verifier_version: string;
+            /** Created At */
+            created_at: string;
+        };
         /** ReleaseAnalysis */
         ReleaseAnalysis: {
             release: components["schemas"]["ReleaseSummary"];
@@ -688,6 +920,68 @@ export interface components {
             page_url: string | null;
             /** Has Analysis */
             has_analysis: boolean;
+        };
+        /** ResearchDetailOut */
+        ResearchDetailOut: {
+            item: components["schemas"]["ResearchItemOut"];
+            /** Forecasts */
+            forecasts: components["schemas"]["ForecastOut"][];
+            provenance: components["schemas"]["ProvenanceOut"];
+            /** Versions */
+            versions: components["schemas"]["VersionOut"][];
+        };
+        /** ResearchFeedOut */
+        ResearchFeedOut: {
+            /** Items */
+            items: components["schemas"]["ResearchItemOut"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Institutions */
+            institutions: components["schemas"]["FacetOut"][];
+            /** Topics */
+            topics: components["schemas"]["FacetOut"][];
+            /** Indicators */
+            indicators: components["schemas"]["FacetOut"][];
+        };
+        /** ResearchItemOut */
+        ResearchItemOut: {
+            /** Id */
+            id: number;
+            institution: components["schemas"]["InstitutionOut"];
+            document: components["schemas"]["DocumentOut"];
+            /**
+             * Display
+             * @enum {string}
+             */
+            display: "link_only" | "summary" | "excerpt";
+            /** Topics */
+            topics: string[];
+            /** Indicators */
+            indicators: string[];
+            outlook: components["schemas"]["StatementOut"] | null;
+            /** Drivers */
+            drivers: components["schemas"]["StatementOut"][];
+            /** Risks */
+            risks: components["schemas"]["StatementOut"][];
+            uncertainty: components["schemas"]["StatementOut"] | null;
+            /** N Forecasts */
+            n_forecasts: number;
+            processing: components["schemas"]["ProcessingOut"];
+            /**
+             * Interpretation Label
+             * @default AI interpretation of the document. Not an official statistic.
+             */
+            interpretation_label: string;
+            /**
+             * Not Official Statistic
+             * @default true
+             * @constant
+             */
+            not_official_statistic: true;
         };
         /** RevisionBlock */
         RevisionBlock: {
@@ -821,6 +1115,13 @@ export interface components {
             /** Detail */
             detail: string | null;
         };
+        /** StatementOut */
+        StatementOut: {
+            /** Text */
+            text: string;
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceOut"][];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -833,6 +1134,15 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VersionOut */
+        VersionOut: {
+            /** Version No */
+            version_no: number;
+            /** Fetched At */
+            fetched_at: string;
+            /** Current */
+            current: boolean;
         };
         /** VintageOut */
         VintageOut: {
@@ -860,6 +1170,107 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    feed_api_research_feed_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                institution?: string | null;
+                topic?: string | null;
+                indicator?: string | null;
+                sort?: "newest" | "oldest" | "institution";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchFeedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detail_api_research_summaries__summary_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                summary_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forecasts_api_research_forecasts_get: {
+        parameters: {
+            query?: {
+                indicator?: string | null;
+                institution?: string | null;
+                horizon?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastComparisonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_health_get: {
         parameters: {
             query?: never;

@@ -71,3 +71,10 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+/** A civil date as published (YYYY-MM-DD, no time zone), e.g. a report's publication date: "13 Aug 2026". */
+export function formatCivilDate(day: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day ?? "");
+  if (!m || Number(m[2]) < 1 || Number(m[2]) > 12) return "date not stated";
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}

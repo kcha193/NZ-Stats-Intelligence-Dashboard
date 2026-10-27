@@ -1,0 +1,162 @@
+{
+ "item": {
+  "id": 5,
+  "institution": {
+   "key": "southern",
+   "name": "Southern Treasury Office (synthetic)",
+   "kind": "government"
+  },
+  "document": {
+   "title": "Synthetic outlook southern/fiscal-update",
+   "url": "https://research.example.org/southern/fiscal-update",
+   "published_on": "2026-10-15",
+   "version_no": 1,
+   "fetched_at": "2026-10-26T14:00:00+13:00",
+   "format": "pdf",
+   "page_count": 4
+  },
+  "display": "summary",
+  "topics": [
+   "economic_outlook"
+  ],
+  "indicators": [
+   "cpi_inflation",
+   "gdp",
+   "government_debt"
+  ],
+  "outlook": {
+   "text": "Inflation is forecast to settle while government debt rises.",
+   "evidence": [
+    {
+     "section_ordinal": 0,
+     "page": 1,
+     "quote": null
+    },
+    {
+     "section_ordinal": 2,
+     "page": 3,
+     "quote": null
+    }
+   ]
+  },
+  "drivers": [],
+  "risks": [
+   {
+    "text": "Weaker growth would add to government debt.",
+    "evidence": [
+     {
+      "section_ordinal": 3,
+      "page": 4,
+      "quote": null
+     }
+    ]
+   }
+  ],
+  "uncertainty": null,
+  "n_forecasts": 3,
+  "processing": {
+   "ai_summary": true,
+   "evidence_verified": true,
+   "human_reviewed_on": "2026-10-26",
+   "published_here_on": "2026-10-26",
+   "verifier_version": "verify-2",
+   "warnings": 1,
+   "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
+  },
+  "interpretation_label": "AI interpretation of the document. Not an official statistic.",
+  "not_official_statistic": true
+ },
+ "forecasts": [
+  {
+   "summary_id": 5,
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "document_title": "Synthetic outlook southern/fiscal-update",
+   "published_on": "2026-10-15",
+   "indicator": "cpi_inflation",
+   "indicator_label": "Annual CPI inflation",
+   "horizon": "year to June 2027",
+   "value": 2.4,
+   "unit": "percent",
+   "direction": "down",
+   "scenario": null,
+   "qualification": null,
+   "evidence": [
+    {
+     "section_ordinal": 0,
+     "page": 1,
+     "quote": null
+    }
+   ]
+  },
+  {
+   "summary_id": 5,
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "document_title": "Synthetic outlook southern/fiscal-update",
+   "published_on": "2026-10-15",
+   "indicator": "gdp",
+   "indicator_label": "Economic growth",
+   "horizon": "year to March 2027",
+   "value": 1.2,
+   "unit": "percent",
+   "direction": "up",
+   "scenario": null,
+   "qualification": null,
+   "evidence": [
+    {
+     "section_ordinal": 1,
+     "page": 2,
+     "quote": null
+    }
+   ]
+  },
+  {
+   "summary_id": 5,
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "document_title": "Synthetic outlook southern/fiscal-update",
+   "published_on": "2026-10-15",
+   "indicator": "government_debt",
+   "indicator_label": "Net core Crown debt",
+   "horizon": "year to June 2027",
+   "value": 43.5,
+   "unit": "percent_of_gdp",
+   "direction": "up",
+   "scenario": null,
+   "qualification": null,
+   "evidence": [
+    {
+     "section_ordinal": 2,
+     "page": 3,
+     "quote": null
+    }
+   ]
+  }
+ ],
+ "provenance": {
+  "provider": "fake",
+  "model": "fake-1",
+  "hosted": false,
+  "prompt_version": "outlook-v2",
+  "processing_version": "3b-1",
+  "verifier_version": "verify-2",
+  "created_at": "2026-10-26T14:00:00+13:00"
+ },
+ "versions": [
+  {
+   "version_no": 1,
+   "fetched_at": "2026-10-26T14:00:00+13:00",
+   "current": true
+  }
+ ]
+}

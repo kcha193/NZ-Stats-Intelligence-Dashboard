@@ -1,0 +1,247 @@
+{
+ "groups": [
+  {
+   "key": "gdp|percent|annual_average_change|year_to:2027-03|central",
+   "indicator": "gdp",
+   "indicator_name": "GDP",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_average_change",
+   "basis_label": "Annual average change",
+   "horizon_key": "year_to:2027-03",
+   "horizon_label": "Year to March 2027",
+   "kind": "central",
+   "scenario": null,
+   "rows": [
+    {
+     "forecast": {
+      "summary_id": 1,
+      "institution": {
+       "key": "harbourside",
+       "name": "Harbourside Bank (synthetic)",
+       "kind": "bank"
+      },
+      "document_title": "Synthetic outlook harbourside/quarterly-outlook",
+      "published_on": "2026-10-08",
+      "indicator": "gdp",
+      "indicator_label": "GDP, annual average growth",
+      "horizon": "year to March 2027",
+      "value": 1.8,
+      "unit": "percent",
+      "direction": "up",
+      "scenario": null,
+      "qualification": null,
+      "evidence": [
+       {
+        "section_ordinal": 1,
+        "page": 2,
+        "quote": "We expect GDP annual average growth of 1.8% in the year to March 2027"
+       }
+      ]
+     },
+     "earlier_vintages": []
+    },
+    {
+     "forecast": {
+      "summary_id": 4,
+      "institution": {
+       "key": "kauri",
+       "name": "Kauri Economics (synthetic)",
+       "kind": "consultancy"
+      },
+      "document_title": "Synthetic outlook kauri/spring-forecasts",
+      "published_on": "2026-09-24",
+      "indicator": "gdp",
+      "indicator_label": "GDP, annual average growth",
+      "horizon": "year to March 2027",
+      "value": 1.5,
+      "unit": "percent",
+      "direction": "up",
+      "scenario": null,
+      "qualification": null,
+      "evidence": [
+       {
+        "section_ordinal": 2,
+        "page": 3,
+        "quote": "GDP growth is forecast at 1.5% in the year to March 2027"
+       }
+      ]
+     },
+     "earlier_vintages": []
+    }
+   ],
+   "comparable": true,
+   "note": "2 institutions, on the same basis and horizon."
+  },
+  {
+   "key": "gdp|percent|annual_change|year_to:2027-03|central",
+   "indicator": "gdp",
+   "indicator_name": "GDP",
+   "unit": "percent",
+   "unit_label": "%",
+   "basis": "annual_change",
+   "basis_label": "Annual change (through the year)",
+   "horizon_key": "year_to:2027-03",
+   "horizon_label": "Year to March 2027",
+   "kind": "central",
+   "scenario": null,
+   "rows": [
+    {
+     "forecast": {
+      "summary_id": 4,
+      "institution": {
+       "key": "kauri",
+       "name": "Kauri Economics (synthetic)",
+       "kind": "consultancy"
+      },
+      "document_title": "Synthetic outlook kauri/spring-forecasts",
+      "published_on": "2026-09-24",
+      "indicator": "gdp",
+      "indicator_label": "Real GDP growth (y/y)",
+      "horizon": "year to March 2027",
+      "value": 2.0,
+      "unit": "percent",
+      "direction": "up",
+      "scenario": null,
+      "qualification": null,
+      "evidence": [
+       {
+        "section_ordinal": 1,
+        "page": 2,
+        "quote": "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027"
+       }
+      ]
+     },
+     "earlier_vintages": []
+    }
+   ],
+   "comparable": false,
+   "note": "Only one institution has a published forecast on this basis."
+  }
+ ],
+ "excluded": [
+  {
+   "forecast": {
+    "summary_id": 4,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Synthetic outlook kauri/spring-forecasts",
+    "published_on": "2026-09-24",
+    "indicator": "gdp",
+    "indicator_label": "Economic growth",
+    "horizon": "next year",
+    "value": null,
+    "unit": null,
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 5,
+      "page": 6,
+      "quote": "Growth should improve next year"
+     }
+    ]
+   },
+   "reason": "States a direction only, with no number to compare."
+  },
+  {
+   "forecast": {
+    "summary_id": 5,
+    "institution": {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "kind": "government"
+    },
+    "document_title": "Synthetic outlook southern/fiscal-update",
+    "published_on": "2026-10-15",
+    "indicator": "gdp",
+    "indicator_label": "Economic growth",
+    "horizon": "year to March 2027",
+    "value": 1.2,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": null
+     }
+    ]
+   },
+   "reason": "The statistical basis is not stated clearly enough to compare: GDP growth can be an annual average or a change through the year."
+  }
+ ],
+ "indicators": [
+  {
+   "value": "gdp",
+   "label": "GDP",
+   "count": 5
+  },
+  {
+   "value": "cpi_inflation",
+   "label": "CPI inflation",
+   "count": 4
+  },
+  {
+   "value": "ocr",
+   "label": "Official cash rate",
+   "count": 2
+  },
+  {
+   "value": "unemployment",
+   "label": "Unemployment",
+   "count": 1
+  },
+  {
+   "value": "government_debt",
+   "label": "Government debt",
+   "count": 1
+  }
+ ],
+ "institutions": [
+  {
+   "value": "harbourside",
+   "label": "Harbourside Bank (synthetic)",
+   "count": 4
+  },
+  {
+   "value": "kauri",
+   "label": "Kauri Economics (synthetic)",
+   "count": 6
+  },
+  {
+   "value": "southern",
+   "label": "Southern Treasury Office (synthetic)",
+   "count": 3
+  }
+ ],
+ "horizons": [
+  {
+   "value": "month:2026-12",
+   "label": "December 2026",
+   "count": 2
+  },
+  {
+   "value": "quarter:2026-12",
+   "label": "December 2026 quarter",
+   "count": 1
+  },
+  {
+   "value": "year_to:2027-03",
+   "label": "Year to March 2027",
+   "count": 3
+  },
+  {
+   "value": "year_to:2027-06",
+   "label": "Year to June 2027",
+   "count": 5
+  }
+ ],
+ "note": "Forecasts are compared only when the indicator, unit, statistical basis and horizon all match, and central forecasts are never mixed with scenarios. Each institution's latest published forecast is shown."
+}
