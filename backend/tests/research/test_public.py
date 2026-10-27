@@ -141,3 +141,38 @@ def test_a_section_that_reads_like_instructions_to_a_model_is_never_published(co
 
 def test_unknown_summary_is_explained(conn):
     assert why_not_public(conn, registry(), 999) == "no summary 999"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://research.example.org/private/../a",  # traversal into a blocked path
+        "https://research.example.org/%2e%2e/private/a",
+        "https://research.example.org/PRIVATE/a",  # case and encoding cannot dodge the blocklist
+        "https://research.example.org/%70rivate/a",
+        "https://user@research.example.org/a",
+        "https://research.example.org:8443/a",
+        "http://research.example.org/a",
+    ],
+)
+def test_document_urls_use_the_crawler_url_policy(conn, url):
+    store_summary(conn, seed_version(conn))
+    conn.execute("UPDATE research_publication SET canonical_url = ?", (url,))
+    reg = registry(displayable(blocked_path_prefixes=["/private"]))
+    assert _ids(conn, reg) == []
+    conn.execute(
+        "UPDATE research_publication SET canonical_url = 'https://Research.Example.org./a'"
+    )
+    assert _ids(conn, reg) != []  # a trailing dot and upper case are the same host
+
+
+def test_ai_text_from_a_hosted_model_is_withdrawn_when_the_source_permits_local_models_only(conn):
+    sid = store_summary(conn, seed_version(conn))
+    conn.execute(
+        "DROP TRIGGER research_summary_content_immutable"
+    )  # simulate a hosted-model summary
+    conn.execute("UPDATE research_summary SET hosted = 1 WHERE id = ?", (sid,))
+    [item] = public_summaries(conn, registry())  # registry: local_only
+    assert item.display is PublicDisplay.LINK_ONLY
+    hosted = registry(displayable(llm_processing="hosted"))
+    assert public_summaries(conn, hosted)[0].display is PublicDisplay.EXCERPT

@@ -17,13 +17,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
-from urllib.parse import urlsplit
 
 from pydantic import ValidationError
 
 from nzstats.research.contract import OutlookSummary
 from nzstats.research.prompt import injection_findings
 from nzstats.research.registry import Institution, PublicDisplay
+from nzstats.research.safety import HostPolicy, UnsafeUrl
 from nzstats.research.summarise import load_sections
 from nzstats.research.verify import VerificationContext, verify
 
@@ -69,20 +69,14 @@ def _newest_published(conn: sqlite3.Connection) -> dict[int, int]:
 
 
 def _public_url(url: str | None, inst: Institution) -> bool:
+    """The crawler's own URL policy (https, allowed host, canonical path, allow and block lists); no DNS lookup."""
+    policy = HostPolicy(inst.allowed_hosts, allowed_path_prefixes=inst.allowed_path_prefixes,
+                        blocked_path_prefixes=inst.blocked_path_prefixes, resolver=None)  # fmt: skip
     try:
-        parts = urlsplit(url or "")
-        port = parts.port
-    except ValueError:
+        policy.check(url or "")
+    except (UnsafeUrl, ValueError):
         return False
-    if parts.scheme != "https" or parts.hostname not in inst.allowed_hosts or parts.username:
-        return False
-    if port not in (None, 443):
-        return False
-    prefixes = inst.allowed_path_prefixes
-    blocked = inst.blocked_path_prefixes
-    return (not prefixes or parts.path.startswith(prefixes)) and not parts.path.startswith(
-        blocked or ("\0",)
-    )
+    return True
 
 
 def _state_refusal(row: sqlite3.Row, newest: Mapping[int, int]) -> str | None:
@@ -116,6 +110,10 @@ def _assess(
     if inst is None:
         return "the institution is not in the research registry", None
     level = inst.display_level()
+    if level.rank > PublicDisplay.LINK_ONLY.rank and inst.llm_refusal(hosted=bool(row["hosted"])):
+        level = (
+            PublicDisplay.LINK_ONLY
+        )  # the model that wrote the text is no longer permitted for this source
     if level is PublicDisplay.NONE:
         return (
             "the registry displays nothing for this source (public_display or access not approved)",
