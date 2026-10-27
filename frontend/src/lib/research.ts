@@ -29,9 +29,27 @@ export function groupItems(items: ResearchItem[], by: GroupBy, topicLabels: Reco
   return [...groups].map(([label, list]) => ({ label, items: list }));
 }
 
-/** The official reference applies only to the same statistic: annual CPI change, in percent. */
+/**
+ * The latest month a horizon key can end in, as YYYY-MM: exact for a quarter, month or year to; the December of a calendar
+ * year; and for a split (fiscal) year "2026/27", no earlier than January of the second year. Null if not recognised.
+ */
+export function horizonEnd(key: string): string | null {
+  const [kind, value = ""] = key.split(":");
+  if (["quarter", "month", "year_to"].includes(kind) && /^\d{4}-\d{2}$/.test(value)) return value;
+  if (kind === "calendar" && /^\d{4}$/.test(value)) return `${value}-12`;
+  if (kind === "split" && /^\d{4}\/\d{2}$/.test(value)) return `${Number(value.slice(0, 4)) + 1}-01`;
+  return null;
+}
+
+/**
+ * The official reference applies only to the same statistic (annual CPI change, in percent) and only to a target that
+ * ends after the latest observed quarter: an earlier target has its own outcome, which the latest quarter never stands in
+ * for (the track record shows it).
+ */
 export function observationFor(group: ForecastGroup, cpi: Kpi | undefined): (Observation & { publishedAt: string; period: string }) | null {
   if (!cpi || group.indicator !== "cpi_inflation" || group.basis !== "annual_change" || group.unit !== "percent") return null;
+  const end = horizonEnd(group.horizon_key);
+  if (end === null || end <= cpi.metric.period) return null;
   const m = cpi.metric;
   return { value: m.value, label: "Latest Stats NZ", publishedAt: cpi.published_at, period: m.period_label };
 }

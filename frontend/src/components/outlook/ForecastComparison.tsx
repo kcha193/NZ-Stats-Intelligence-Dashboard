@@ -1,15 +1,15 @@
 import { useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useForecasts } from "@/api/hooks";
-import type { ForecastComparison as Comparison, ForecastGroup, Kpi } from "@/api/types";
+import { useConsensus, useForecasts } from "@/api/hooks";
+import type { ConsensusGroup, ForecastComparison as Comparison, ForecastGroup, Kpi } from "@/api/types";
 import { EChart } from "@/charts/EChart";
-import { forecastChartHeight, forecastOption, formatForecastValue } from "@/charts/forecasts";
+import { axisNote, forecastChartHeight, forecastOption, formatForecastValue, minSpanFor, valueRange } from "@/charts/forecasts";
 import { useChartTheme } from "@/charts/theme";
 import { ErrorState } from "@/components/QueryBoundary";
 import { Segmented } from "@/components/Segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatAklDate, formatCivilDate, formatNumber } from "@/lib/format";
-import { observationFor, researchPath } from "@/lib/research";
+import { horizonEnd, observationFor, researchPath } from "@/lib/research";
 
 /** The indicators the comparison always offers, then any others that published forecasts mention. */
 const CORE = [
@@ -18,9 +18,32 @@ const CORE = [
 ];
 type Kind = "central" | "scenario";
 
-function GroupView({ group, cpi }: { group: ForecastGroup; cpi?: Kpi }) {
+const leftOut = (reason: string) =>
+  /stale/.test(reason) ? "published over 180 days earlier" : /consensus or survey/.test(reason) ? "a survey of other forecasters" : "no publication date";
+
+/** Descriptive agreement among institutions: never a model, never calibrated, and only from two institutions. */
+function ConsensusLine({ c, unit }: { c: ConsensusGroup; unit: string }) {
+  const show = (v: number | null | undefined) => formatForecastValue(v ?? 0, unit);
+  if (c.status !== "available") return null;
+  const spread = c.std_dev !== null && c.std_dev !== undefined ? `, standard deviation ${show(c.std_dev).replace("%", " percentage points")}` : "";
+  const outliers = !c.outliers_assessed ? " Too few institutions to judge outliers."
+    : c.outliers.length ? ` Unusually far from the others: ${c.outliers.map((o) => `${o.name} (${show(o.value)})`).join(", ")}.` : " No institution is unusually far from the others.";
+  return (
+    <p className="mt-2 max-w-[72ch] text-xs leading-relaxed text-muted-foreground">
+      <span className="font-medium text-foreground">Agreement:</span> {c.n} institutions, median {show(c.median)}, range {show(c.minimum)} to {show(c.maximum)}{spread}.{outliers}
+      {c.excluded.length > 0 && ` Left out: ${c.excluded.map((x) => `${x.forecast.institution.name} (${leftOut(x.reason)})`).join(", ")}.`}
+      {" "}A description of the latest published forecasts, not a calibrated or independent forecast.
+    </p>
+  );
+}
+
+function GroupView({ group, cpi, consensus }: { group: ForecastGroup; cpi?: Kpi; consensus?: ConsensusGroup }) {
   const theme = useChartTheme();
   const obs = useMemo(() => observationFor(group, cpi), [group, cpi]);
+  const note = useMemo(() => {
+    const all = [...group.rows.map((r) => r.forecast.value ?? 0), ...(obs ? [obs.value] : [])];
+    return axisNote(valueRange(all, minSpanFor(group.unit_label, all)), group.unit_label);
+  }, [group, obs]);
   const option = useMemo(() => forecastOption(group, theme, obs), [group, theme, obs]);
   const titleId = useId();
   const kind = group.kind === "scenario" ? `Scenario: ${group.scenario}` : "Central forecasts";
@@ -46,6 +69,11 @@ function GroupView({ group, cpi }: { group: ForecastGroup; cpi?: Kpi }) {
           </li>
         )}
       </ul>
+      {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
+      {!obs && cpi && group.indicator === "cpi_inflation" && (horizonEnd(group.horizon_key) ?? "9999") <= cpi.metric.period && (
+        <p className="mt-1 text-xs text-muted-foreground">The official figure for this period is published: the track record below compares these forecasts with it.</p>
+      )}
+      {consensus && <ConsensusLine c={consensus} unit={group.unit_label} />}
       {obs && (
         <p className="mt-2 max-w-[72ch] text-xs leading-relaxed text-muted-foreground">
           Latest official observation: Stats NZ annual CPI inflation {formatNumber(obs.value, { decimals: 1 })}% for the{" "}
@@ -102,12 +130,14 @@ function NotCompared({ data, indicator }: { data: Comparison; indicator: string 
 }
 
 /** Section C: explicit institutional forecasts, compared only like with like. */
-export function ForecastComparison({ cpi }: { cpi?: Kpi }) {
-  const [indicator, setIndicator] = useState("cpi_inflation");
+export function ForecastComparison({ cpi, indicator, onIndicatorChange }: { cpi?: Kpi; indicator: string; onIndicatorChange: (v: string) => void }) {
+  const setIndicator = onIndicatorChange;
   const [kind, setKind] = useState<Kind>("central");
   const [horizon, setHorizon] = useState("");
   const [chosen, setChosen] = useState<string[]>([]);
   const query = useForecasts({ indicator, institution: chosen.length ? chosen.join(",") : undefined });
+  const consensus = useConsensus(indicator);
+  const agreement = new Map((consensus.data?.groups ?? []).map((c) => [c.key, c]));
   const horizonId = useId();
 
   const heading = (
@@ -175,7 +205,7 @@ export function ForecastComparison({ cpi }: { cpi?: Kpi }) {
           <p className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
             No {kind === "scenario" ? "scenario" : "central"} {name} forecasts can be compared{horizon ? " for this horizon" : ""} with the current selection.
           </p>
-        ) : groups.map((g) => <GroupView key={g.key} group={g} cpi={cpi} />)}
+        ) : groups.map((g) => <GroupView key={g.key} group={g} cpi={cpi} consensus={chosen.length ? undefined : agreement.get(g.key)} />)}
       </div>
       <NotCompared data={d} indicator={indicator} />
       <p className="mt-6 max-w-[72ch] text-xs text-muted-foreground">{d.note}</p>

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// SYNTHETIC research: four fictional institutions, served by the real API with public research switched on.
+// SYNTHETIC research: four fictional institutions (eight published documents), served by the real API with public
+// research switched on, over the real Stats NZ CPI fixture releases.
 const SHOTS = process.env.OUTLOOK_SCREENSHOTS; // a directory: also save full-page review screenshots there
 
 const noHorizontalScroll = async (page: Page) =>
@@ -20,7 +21,7 @@ test("published research appears with its labels; rejected and unreviewed summar
   page.on("response", async (r) => r.url().includes("/api/research/") && responses.push(await r.text()));
   const errors = await open(page);
   const research = page.getByRole("region", { name: "Institutional research" });
-  await expect(research.getByRole("article")).toHaveCount(4);
+  await expect(research.getByRole("article")).toHaveCount(8);
   await expect(research.getByRole("article", { name: "Quarterly Economic Outlook, October 2026 (synthetic)" }))
     .toContainText("AI interpretation of the document. Not an official statistic.");
   for (const hidden of ["REJECTED", "UNREVIEWED", "PRIVATE", "Private Reviewer", "RAW MODEL OUTPUT"]) {
@@ -35,15 +36,15 @@ test("filters, search and grouping narrow the feed", async ({ page }) => {
   await open(page);
   const research = page.getByRole("region", { name: "Institutional research" });
   await research.getByRole("combobox", { name: "Institution" }).selectOption("kauri");
-  await expect(research.getByRole("article")).toHaveCount(1);
-  await expect(research).toContainText("Showing 1 to 1 of 1");
+  await expect(research.getByRole("article")).toHaveCount(2);
+  await expect(research).toContainText("Showing 1 to 2 of 2");
   await research.getByRole("combobox", { name: "Institution" }).selectOption("");
   await research.getByRole("searchbox", { name: "Search titles and summaries" }).fill("dairy");
   await expect(research.getByRole("article")).toHaveCount(1);
   await research.getByRole("searchbox", { name: "Search titles and summaries" }).fill("nothing like this");
   await expect(research.getByText("No research matches these filters.")).toBeVisible();
   await research.getByRole("button", { name: "Clear search and filters" }).click();
-  await expect(research.getByRole("article")).toHaveCount(4);
+  await expect(research.getByRole("article")).toHaveCount(8);
   await research.getByRole("group", { name: "Group by" }).getByText("Institution").click();
   await expect(research.getByRole("region", { name: "Tasman Markets (synthetic)" })).toBeVisible();
 });
@@ -51,7 +52,7 @@ test("filters, search and grouping narrow the feed", async ({ page }) => {
 test("forecasts are compared like with like, with a table and the official observation", async ({ page }) => {
   await open(page);
   const section = page.getByRole("region", { name: "Forecast comparison" });
-  const cpi = section.getByRole("figure", { name: /CPI inflation, Year to June 2027/ });
+  const cpi = section.getByRole("figure", { name: /CPI inflation, Year to June 2027/ }).filter({ hasText: "through the year" });
   await expect(cpi.locator("canvas")).toHaveCount(1);
   await expect(cpi).toContainText("Latest official observation: Stats NZ annual CPI inflation 4.1%");
   await cpi.getByText("Table view").click();
@@ -64,6 +65,25 @@ test("forecasts are compared like with like, with a table and the official obser
   await section.getByText(/Not compared \(2\)/).click();
   await expect(section).toContainText("annual average or a change through the year");
   await noHorizontalScroll(page);
+});
+
+test("forecast history and the CPI track record, with explicit states", async ({ page }) => {
+  const errors = await open(page);
+  await expect(page.getByRole("region", { name: "Forecast comparison" })).toContainText("Agreement: 3 institutions, median 2.3%");
+  const track = page.getByRole("region", { name: "Forecast history and track record" });
+  const panels = track.getByRole("figure", { name: /Year to June 2027$/ });
+  await expect(panels).toHaveCount(3);
+  await expect(panels.locator("canvas")).toHaveCount(3);
+  await expect(track).toContainText("Changes of measure (not revisions)");
+  await expect(track).toContainText("5 forecasts matched to an official outcome");
+  await expect(track.getByRole("figure", { name: "Forecast minus first-published outcome" }).locator("canvas")).toHaveCount(1);
+  await expect(track).toContainText(/No ranking/);
+  await track.getByLabel("Target").selectOption("cpi_inflation|percent|annual_change|year_to:2026-06|central");
+  await expect(track).toContainText("Official outcome (first published)");
+  await page.getByRole("region", { name: "Forecast comparison" }).getByRole("group", { name: "Indicator" }).getByText("GDP", { exact: true }).click();
+  await expect(track).toContainText("No official GDP series is ingested here");
+  await noHorizontalScroll(page);
+  expect(errors).toEqual([]);
 });
 
 test("the keyboard reaches the disclosure and the research detail, which shows its evidence", async ({ page }) => {
@@ -98,6 +118,10 @@ test("review screenshots, light and dark", async ({ browser }, testInfo) => {
     await p.getByRole("figure").first().waitFor();
     await p.evaluate(() => document.fonts.ready);
     await p.screenshot({ path: `${SHOTS}/outlook-${testInfo.project.name}-${scheme}.png`, fullPage: true });
+    const track = p.getByRole("region", { name: "Forecast history and track record" });
+    await track.getByRole("figure", { name: "Forecast minus first-published outcome" }).locator("canvas").waitFor();
+    await track.screenshot({ path: `${SHOTS}/track-${testInfo.project.name}-${scheme}.png` });
+    await p.getByRole("region", { name: "Forecast comparison" }).screenshot({ path: `${SHOTS}/comparison-${testInfo.project.name}-${scheme}.png` });
     if (scheme === "light") {
       await p.getByRole("link", { name: "Evidence and 4 forecasts" }).click();
       await p.getByRole("heading", { level: 2, name: "Provenance" }).waitFor();

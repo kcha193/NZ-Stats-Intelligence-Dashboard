@@ -7,6 +7,10 @@ import overview from "@/test/fixtures/overview.json";
 import feed from "@/test/fixtures/research_synthetic_feed.json";
 import forecasts from "@/test/fixtures/research_synthetic_forecasts.json";
 import forecastsGdp from "@/test/fixtures/research_synthetic_forecasts_gdp.json";
+import consensus from "@/test/fixtures/research_synthetic_consensus.json";
+import evaluation from "@/test/fixtures/research_synthetic_evaluation.json";
+import evaluationGdp from "@/test/fixtures/research_synthetic_evaluation_gdp.json";
+import history from "@/test/fixtures/research_synthetic_history.json";
 import EconomicOutlook from "./EconomicOutlook";
 
 // jsdom has no canvas: the chart is replaced by its accessible image, which carries the same description.
@@ -113,7 +117,7 @@ describe("Economic outlook with published research (SYNTHETIC)", () => {
     expect(screen.getByRole("region", { name: "October 2026" })).toBeInTheDocument();
     await user.click(within(screen.getByRole("group", { name: "Group by" })).getByRole("radio", { name: "Institution" }));
     expect(screen.getByRole("region", { name: "Kauri Economics (synthetic)" })).toBeInTheDocument();
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    expect(screen.getAllByRole("article")).toHaveLength(8);
   });
 
   it("explains an empty filter result and clears it", async () => {
@@ -142,6 +146,7 @@ describe("Economic outlook with published research (SYNTHETIC)", () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), "http://localhost");
       if (url.pathname === "/api/research/feed") return new Response(JSON.stringify({ detail: "server error" }), { status: 500 });
+      if (!["/api/overview", "/api/research/forecasts"].includes(url.pathname)) return new Response(JSON.stringify({ detail: "not found" }), { status: 404 });
       const body = url.pathname === "/api/overview" ? withCpi : forecasts;
       return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     }));
@@ -150,6 +155,10 @@ describe("Economic outlook with published research (SYNTHETIC)", () => {
     expect(screen.queryByText("No institutional research is published here yet")).not.toBeInTheDocument();
   });
 });
+
+/** The central CPI group for the year to June 2027 on the through-the-year basis (an annual average group shares its horizon). */
+const cpiJune2027 = async () =>
+  (await screen.findAllByRole("figure", { name: /CPI inflation, Year to June 2027/ })).find((f) => /through the year/.test(f.textContent ?? ""))!;
 
 describe("forecast comparison (SYNTHETIC)", () => {
   // Query-specific mocks first: a key without "?" matches its path with any query.
@@ -162,7 +171,7 @@ describe("forecast comparison (SYNTHETIC)", () => {
   it("compares CPI forecasts beside the latest official observation, with a table view", async () => {
     mockApi(routes);
     renderWithProviders(<EconomicOutlook />);
-    const fig = await screen.findByRole("figure", { name: /CPI inflation, Year to June 2027/ });
+    const fig = await cpiJune2027();
     expect(within(fig).getByText(/Annual change \(through the year\), in percent\. Central forecasts\. 3 institutions/)).toBeInTheDocument();
     expect(within(fig).getByText(/Latest official observation: Stats NZ annual CPI inflation 4\.1%/)).toBeInTheDocument();
     expect(within(fig).getByText(/does not test any institution/)).toBeInTheDocument();
@@ -175,7 +184,7 @@ describe("forecast comparison (SYNTHETIC)", () => {
   it("names the measure in the chart and table descriptions, so groups sharing an indicator and horizon stay distinct", async () => {
     mockApi(routes);
     renderWithProviders(<EconomicOutlook />);
-    const fig = await screen.findByRole("figure", { name: /CPI inflation, Year to June 2027/ });
+    const fig = await cpiJune2027();
     expect(within(fig).getByRole("img")).toHaveAccessibleName(/Year to June 2027, Annual change \(through the year\), Central forecasts:/);
     expect(within(fig).getByRole("table")).toHaveAccessibleName(/CPI inflation, Year to June 2027, Annual change \(through the year\): forecasts by institution/);
   });
@@ -184,7 +193,7 @@ describe("forecast comparison (SYNTHETIC)", () => {
     mockApi(routes);
     const user = userEvent.setup();
     renderWithProviders(<EconomicOutlook />);
-    await screen.findByRole("figure", { name: /CPI inflation, Year to June 2027/ });
+    await cpiJune2027();
     expect(screen.queryByText(/Scenario: Downside/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "Scenarios" }));
     const fig = await screen.findByRole("figure", { name: /CPI inflation, Year to June 2027/ });
@@ -196,7 +205,7 @@ describe("forecast comparison (SYNTHETIC)", () => {
     mockApi(routes);
     const user = userEvent.setup();
     renderWithProviders(<EconomicOutlook />);
-    await screen.findByRole("figure", { name: /CPI inflation/ });
+    await cpiJune2027();
     await user.click(screen.getByRole("radio", { name: "GDP" }));
     const figs = await screen.findAllByRole("figure", { name: /GDP, Year to March 2027/ });
     expect(figs).toHaveLength(2);
@@ -215,8 +224,91 @@ describe("forecast comparison (SYNTHETIC)", () => {
     mockApi(routes);
     const user = userEvent.setup();
     renderWithProviders(<EconomicOutlook />);
-    await screen.findByRole("figure", { name: /CPI inflation/ });
+    await cpiJune2027();
     await user.click(screen.getByRole("radio", { name: "OCR" }));
     expect(await screen.findByText(/No central OCR forecasts can be compared/)).toBeInTheDocument();
+  });
+});
+
+describe("forecast history, track record and agreement (SYNTHETIC research, real Stats NZ CPI outcomes)", () => {
+  const routes = {
+    "/api/research/forecasts?indicator=gdp": forecastsGdp,
+    "/api/research/forecast-evaluation?indicator=gdp": evaluationGdp,
+    "/api/research/forecast-history?indicator=gdp": { series: [], measure_changes: [], excluded: [], note: "" },
+    "/api/research/consensus?indicator=gdp": { groups: [], note: "" },
+    "/api/overview": withCpi, "/api/research/feed": feed, "/api/research/forecasts": forecasts,
+    "/api/research/forecast-history": history, "/api/research/forecast-evaluation": evaluation, "/api/research/consensus": consensus,
+  };
+
+  it("describes agreement under a central group, and says it is not a forecast", async () => {
+    mockApi(routes);
+    renderWithProviders(<EconomicOutlook />);
+    const fig = await cpiJune2027();
+    // 2.3, 2.1 and 2.4: median 2.3, range 2.1 to 2.4, sample standard deviation 0.153.
+    expect(await within(fig).findByText(/3 institutions, median 2\.3%, range 2\.1% to 2\.4%, standard deviation 0\.15 percentage points/)).toBeInTheDocument();
+    expect(within(fig).getByText(/Too few institutions to judge outliers/)).toBeInTheDocument();
+    expect(within(fig).getByText(/not a calibrated or independent forecast/)).toBeInTheDocument();
+  });
+
+  it("points a group whose target has an outcome to the track record instead of drawing the latest quarter", async () => {
+    mockApi(routes);
+    renderWithProviders(<EconomicOutlook />);
+    const fig = await screen.findByRole("figure", { name: /CPI inflation, Year to June 2026/ });
+    expect(within(fig).getByText(/official figure for this period is published/)).toBeInTheDocument();
+    expect(within(fig).queryByText(/Latest official observation/)).not.toBeInTheDocument();
+  });
+
+  it("shows one panel per institution for the target with the most vintages, with revisions counted", async () => {
+    mockApi(routes);
+    renderWithProviders(<EconomicOutlook />);
+    const section = await screen.findByRole("region", { name: "Forecast history and track record" });
+    const panel = await within(section).findByRole("figure", { name: /Harbourside Bank \(synthetic\): Annual change \(through the year\), Year to June 2027$/ });
+    expect(within(panel).getByText(/3 vintages; 2 revisions/)).toBeInTheDocument();
+    expect(within(section).getAllByRole("figure", { name: /Year to June 2027$/ })).toHaveLength(3);
+    expect(within(section).getByText(/Kauri Economics \(synthetic\), Year to June 2027: annual average change/)).toBeInTheDocument();
+    expect(within(section).getByText(/not a revision/)).toBeInTheDocument();
+  });
+
+  it("draws the first-published outcome only for a target that has one", async () => {
+    mockApi(routes);
+    const user = userEvent.setup();
+    renderWithProviders(<EconomicOutlook />);
+    const section = await screen.findByRole("region", { name: "Forecast history and track record" });
+    await within(section).findAllByRole("figure", { name: /Year to June 2027$/ });
+    expect(within(section).queryByText(/Official outcome/)).not.toBeInTheDocument();
+    await user.selectOptions(within(section).getByLabelText("Target"), "cpi_inflation|percent|annual_change|year_to:2026-06|central");
+    expect(await within(section).findByText("Official outcome (first published)")).toBeInTheDocument();
+  });
+
+  it("checks CPI forecasts against outcomes and refuses to rank a small sample", async () => {
+    mockApi(routes);
+    const user = userEvent.setup();
+    renderWithProviders(<EconomicOutlook />);
+    const section = await screen.findByRole("region", { name: "Forecast history and track record" });
+    expect(await within(section).findByText(/5 forecasts matched to an official outcome/)).toBeInTheDocument();
+    expect(within(section).getByRole("figure", { name: "Forecast minus first-published outcome" })).toBeInTheDocument();
+    expect(within(section).getAllByText(/Too few outcomes \(\d of 4 needed\)/).length).toBeGreaterThan(0);
+    expect(within(section).getByText(/No ranking \(annual change \(through the year\)\)/)).toBeInTheDocument();
+    await user.click(within(section).getByText(/Matched forecasts \(5\)/));
+    const rows = within(within(section).getByRole("table", { name: "Forecasts matched to official outcomes" })).getAllByRole("row").slice(1);
+    expect(rows.some((r) => /June 2026 quarter/.test(r.textContent ?? "") && /4\.1%/.test(r.textContent ?? ""))).toBe(true);
+    expect(within(section).getByText(/Not evaluated/)).toBeInTheDocument(); // the scenario, with its reason
+  });
+
+  it("says plainly that GDP has no official series here and invents nothing", async () => {
+    mockApi(routes);
+    const user = userEvent.setup();
+    renderWithProviders(<EconomicOutlook />);
+    await cpiJune2027();
+    await user.click(screen.getByRole("radio", { name: "GDP" }));
+    expect(await screen.findByText(/No official GDP series is ingested here/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing is estimated in its place/)).toBeInTheDocument();
+  });
+
+  it("is absent when research is not published", async () => {
+    mockApi({ "/api/overview": withCpi });
+    renderWithProviders(<EconomicOutlook />);
+    await screen.findByText(/No forecasts are published here yet/);
+    expect(screen.queryByRole("region", { name: "Forecast history and track record" })).not.toBeInTheDocument();
   });
 });
