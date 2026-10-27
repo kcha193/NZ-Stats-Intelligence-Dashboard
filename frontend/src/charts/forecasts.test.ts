@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ForecastGroup } from "@/api/types";
-import { forecastChartHeight, forecastOption, valueRange } from "./forecasts";
+import { axisNote, forecastChartHeight, forecastOption, valueRange } from "./forecasts";
 import { TEST_THEME } from "./theme";
 
 // SYNTHETIC FIXTURE: fictional institutions and values.
@@ -30,13 +30,41 @@ describe("forecast dot plot", () => {
     expect(o.series[0].data).toHaveLength(2);
   });
 
-  it("starts the value axis at zero and keeps negative values in view", () => {
-    expect(valueRange([2.1, 2.4]).min).toBe(0);
-    expect(valueRange([2.1, 2.4]).max).toBeGreaterThan(2.4);
+  it("separates close levels instead of starting every axis at zero", () => {
+    // OCR 2.5 and 2.75: padded to [2.25, 3.0], widened to the one-point minimum [2.125, 3.125], rounded out to quarters.
+    expect(valueRange([2.5, 2.75])).toEqual({ min: 2, max: 3.25, step: 0.25, zero: false });
+    // CPI 2.1 and 2.4: [1.85, 2.65] widened to [1.75, 2.75]; zero is more than one span away, so it is left out.
+    expect(valueRange([2.1, 2.4])).toEqual({ min: 1.75, max: 2.75, step: 0.25, zero: false });
+  });
+
+  it("keeps zero when the data come within one span of it, and when they cross it", () => {
+    // 2.1 to 4.06 padded to [1.81, 4.35]: the start is within one span (2.55) of zero, so the axis starts there; a
+    // 4.35-point span takes a step of 1 (at most six intervals), so the axis ends at 5.
+    expect(valueRange([2.1, 2.4, 4.06])).toEqual({ min: 0, max: 5, step: 1, zero: true });
     const r = valueRange([-1.2, 0.8]);
+    expect(r.zero).toBe(true);
     expect(r.min).toBeLessThan(-1.2);
     expect(r.max).toBeGreaterThan(0.8);
-    expect(valueRange([]).max).toBeGreaterThan(0);
+    expect(valueRange([])).toEqual({ min: 0, max: 1, step: 0.25, zero: true });
+  });
+
+  it("puts both ends on the tick step, so every gap between ticks is equal", () => {
+    for (const values of [[2.25, 3.4], [43.5], [-0.3, 2.9], [1.6, 2.8, 4.06]]) {
+      const r = valueRange(values);
+      expect(Math.abs(r.min / r.step - Math.round(r.min / r.step))).toBeLessThan(1e-9);
+      expect(Math.abs(r.max / r.step - Math.round(r.max / r.step))).toBeLessThan(1e-9);
+      expect((r.max - r.min) / r.step).toBeLessThanOrEqual(7);
+    }
+  });
+
+  it("never lets a small difference fill the axis", () => {
+    const r = valueRange([2.5, 2.55]);
+    expect(r.max - r.min).toBeGreaterThanOrEqual(1);
+  });
+
+  it("says when the axis does not start at zero", () => {
+    expect(axisNote(valueRange([2.1, 2.4, 4.06]), "%")).toBeNull();
+    expect(axisNote(valueRange([2.5, 2.75]), "%")).toMatch(/runs from 2%, not zero/);
   });
 
   it("draws central forecasts filled and scenarios hollow, in the one forecast colour", () => {

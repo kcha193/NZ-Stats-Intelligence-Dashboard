@@ -317,6 +317,43 @@ playwright.research.config.ts`. Never point a deployment at that registry.
 `sqlite3 data/nzstats.db < scripts/rollback/007_research_publication_down.sql` removes the publication log (nothing is
 then publication-approved). The 006 and full research rollbacks drop it first.
 
+## Forecast history, evaluation and consensus (Phase 3D-B)
+
+Design and statistical decisions: [Phase 3D-B spec](../superpowers/specs/2026-10-28-phase-3d-b-forecast-evaluation.md).
+Everything is derived on request from published summaries (the `public.py` gate) and the stored Stats NZ CPI vintages:
+no migration, no stored results, nothing in the snapshot. With the shipped settings all three routes are off.
+
+| Route (behind `NZSTATS_PUBLIC_RESEARCH=1`) | Module | What it returns |
+|---|---|---|
+| `/api/research/forecast-history?indicator=&institution=` | `history.py` | vintages per institution and comparison group, revisions, changes of measure, excluded claims |
+| `/api/research/forecast-evaluation?indicator=` | `outcomes.py`, `accuracy.py` | CPI forecasts matched to first-published and latest outcomes, errors, summaries from 4 outcomes, matched-sample ranking from 8 targets, coverage; `no_official_series` for GDP, unemployment and the OCR |
+| `/api/research/consensus?indicator=` | `consensus.py` | per central group: independent institutions' latest forecasts, mean, median, range, standard deviation (3+), outliers (5+) |
+
+Rules worth knowing before reading the numbers:
+
+- A revision is a change of value for one institution, measure, horizon and kind. A change of basis between consecutive
+  documents is listed as a change of measure. Two values for one measure in one document are withheld as a conflict
+  (the Phase 3C comparison now does the same, instead of showing the repeat as an earlier vintage).
+- Outcomes: annual and annual average change from the unadjusted all-groups index, quarterly change only with its
+  seasonal adjustment stated, always for the quarter the claim names, rounded like Stats NZ (half away from zero, one
+  decimal). The first-published value comes from that quarter's own release, or is labelled "earliest stored". A forecast
+  published on or after that release is excluded; a target not yet released is pending. "That quarter's own release" is
+  read from its earliest stored bundle, so a later correction or re-ingest never replaces the first-published baseline:
+  the correction shows as the outcome's revision (latest minus first), and the latest value comes from the newest
+  release's current bundle.
+- Accuracy summaries (mean error, MAE, RMSE) count distinct official target quarters. Per institution, measure, horizon
+  band and target quarter only the latest-published central vintage is in the sample (ties: highest summary id), so
+  repeated updates neither lift a quarter over the four-outcome minimum nor weight it more. Every vintage still appears in
+  the evaluated list. The ranking keeps its own unit, a (target quarter, exact horizon) cell, with at least eight common to
+  every ranked institution; the latest vintage in a cell is used there too.
+- The revision charts take the official outcome line from the evaluation through an explicit map from the history's
+  comparison basis to the evaluation measure (`lib/research.ts`). The history's basis does not record seasonal adjustment, so
+  an unqualified quarterly change gets an outcome only where the evaluation matched that series' own forecast on the
+  seasonally adjusted measure.
+- Scenarios are never scored and never form a consensus; a document titled as a consensus or survey of other
+  forecasters is not an independent contributor; contributions more than 180 days older than the newest are left out.
+- Synthetic data only so far: these results describe the fictional fixture institutions, not any real forecaster.
+
 ## Pilot readiness (Phase 3D-A)
 
 **Status on 2026-10-28: no source can be activated.** The Treasury is the pilot candidate, but its licence page

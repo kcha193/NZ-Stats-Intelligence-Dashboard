@@ -1,8 +1,36 @@
 # Progress and verification record
 
-Last updated 2026-10-28. Phase 3D-A (real-research pilot readiness) is on `feat/phase-3d-a-research-pilot` (not
-merged). Phases 3A to 3C (PRs #11 to #13) and the Netlify static publication (PR #10) are merged to `main`; the static
-site is not deployed. Earlier entries below are historical.
+Last updated 2026-10-28. Phase 3D-B (historical forecast intelligence) is on `feat/phase-3d-b-forecast-evaluation`
+(PR #15, not merged). Phases 3A to 3C (PRs #11 to #13), Phase 3D-A (pilot readiness, PR #14) and the Netlify static
+publication (PR #10) are merged to `main`; the static site is not deployed. Earlier entries below are historical.
+
+## Phase 3D-B: forecast history, evaluation and consensus, 28 October 2026
+
+Spec: [2026-10-28-phase-3d-b-forecast-evaluation.md](superpowers/specs/2026-10-28-phase-3d-b-forecast-evaluation.md).
+Runbook: [data-sources/research.md](data-sources/research.md#forecast-history-evaluation-and-consensus-phase-3d-b).
+
+- **Backend** (`research/history.py`, `outcomes.py`, `accuracy.py`, `consensus.py`; three read-only routes behind the
+  existing switch and gate): forecast vintages and revisions, changes of measure kept apart from revisions, same-document
+  conflicts withheld; CPI outcome matching on stated measures with first-published versus latest vintages and look-ahead
+  exclusion; errors, MAE and RMSE from 4 outcomes, ranking only on a matched sample of 8; descriptive consensus with
+  independence, staleness and scenario exclusions. No migration; nothing in the snapshot.
+- **Checked against Stats NZ's own figures**: annual CPI March, June and September 2026 (3.1, 4.1, 3.7) and quarterly
+  (0.9, 1.5, 0.7) from the release pages' chart data; a real revision in the seasonally adjusted series (June 2026
+  quarter, 1.5% first published, 1.6% in the September 2026 release); annual average change hand-computed from the index.
+- **Fixed on the way**: Phase 3C drew the latest CPI figure beside every annual CPI group, including targets whose own
+  outcome was already published (now only for later targets, with a pointer otherwise); a same-document repeat showed as
+  an "earlier vintage"; the dot-plot axis always started at zero, compressing close rates (now positions on a round step,
+  with a one-point minimum span and a note when zero is left out); a new model named `VintageOut` replaced the Stats NZ
+  schema of the same name in OpenAPI (renamed, and a test now forbids any clash); the fixture dump picked each
+  institution's oldest document for the detail fixtures.
+- **Chart colours**: a categorical line per institution was rejected after the validator failed navy and violet together
+  (CVD ΔE 2.7 light, 0.7 dark); revision charts are small multiples in the validated navy and amber pair.
+- **Review fixes (Codex, PR #15)**: the first-published CPI outcome reads each release's earliest stored bundle (a correction
+  had replaced it); accuracy summaries count distinct target quarters, one latest vintage per quarter and band (four updates of
+  one quarter had passed the four-outcome minimum); the revision charts map history bases to evaluation measures explicitly
+  (`quarterly_change:unadjusted` never matched `quarterly_change_nsa`). Regression tests for each.
+- **Synthetic only**: the seed adds four earlier documents from the fictional institutions. No real research exists, so
+  no real forecaster's accuracy is reported anywhere.
 
 ## Phase 3D-A: real-research pilot readiness, 28 October 2026
 
@@ -36,6 +64,10 @@ Design and audit: [2026-10-28-phase-3d-design.md](superpowers/specs/2026-10-28-p
 |---|---|
 | `pytest` (backend) | see the PR description for the final run |
 | `ruff check .`, `ruff format --check .` | clean |
+| `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` | 458 passed; clean; existing warnings only; built |
+| `npx playwright test` | 108 passed |
+| `npx playwright test -c playwright.research.config.ts` | 21 passed (desktop, tablet, mobile; screenshots light and dark) |
+| `scripts/e2e_static.sh` | 252 passed, 3 skipped (unchanged: no research in the static site) |
 | `nzstats research readiness` on the shipped registry | 10 sources, 0 of 4 gates each; Treasury blocked on terms evidence |
 
 ## Phase 3C: economic outlook, 27 October 2026

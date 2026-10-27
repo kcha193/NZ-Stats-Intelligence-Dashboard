@@ -11,14 +11,44 @@ const AXIS_BAND = 72;
 
 export const forecastChartHeight = (rows: number) => Math.max(140, rows * ROW_HEIGHT + AXIS_BAND);
 
-/** A value axis that always includes zero, with a little room past the furthest mark for its label. */
-export function valueRange(values: number[]): { min: number; max: number } {
-  const lo = Math.min(0, ...values);
-  const hi = Math.max(0, ...values);
-  const pad = Math.max((hi - lo) * 0.15, 0.5);
-  const step = (v: number, dir: 1 | -1) => (dir > 0 ? Math.ceil(v * 2) / 2 : Math.floor(v * 2) / 2);
-  return { min: lo < 0 ? step(lo - pad, -1) : 0, max: hi > 0 || lo === 0 ? step(hi + pad, 1) : 0 };
+export type ValueRange = { min: number; max: number; step: number; zero: boolean };
+
+/**
+ * A value axis for positions (dots and lines), not lengths. Zero is kept when the values cross it or the axis would start
+ * within one span of it; otherwise the axis starts near the data so close levels (OCR 2.5% and 2.75%) separate. The span
+ * never shrinks below `minSpan` (one percentage point for rates), so a small difference never fills the whole width.
+ */
+export function valueRange(values: number[], minSpan = 1): ValueRange {
+  if (values.length === 0) return { min: 0, max: 1, step: 0.25, zero: true };
+  let lo = Math.min(...values);
+  let hi = Math.max(...values);
+  const pad = Math.max((hi - lo) * 0.15, 0.25);
+  lo -= pad;
+  hi += pad;
+  if (hi - lo < minSpan) {
+    const mid = (lo + hi) / 2;
+    lo = mid - minSpan / 2;
+    hi = mid + minSpan / 2;
+  }
+  const span = hi - lo;
+  if (lo > 0 && lo <= span) lo = 0;
+  if (hi < 0 && -hi <= span) hi = 0;
+  // Ticks on a round step (at most six intervals), with the ends on the step so every gap is equal.
+  const step = STEPS.find((st) => (hi - lo) / st <= 6) ?? 10 ** Math.ceil(Math.log10((hi - lo) / 6));
+  const min = Math.floor(lo / step + 1e-9) * step;
+  const max = Math.ceil(hi / step - 1e-9) * step;
+  return { min, max, step, zero: min <= 0 && max >= 0 };
 }
+
+const STEPS = [0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100];
+
+/** The smallest honest span for a unit: one point for rates and shares, a tenth of the magnitude otherwise. */
+export const minSpanFor = (unitLabel: string, values: number[]) =>
+  unitLabel.startsWith("%") || unitLabel.includes("percentage") ? 1 : Math.max(Math.max(...values.map(Math.abs), 0) * 0.1, 1e-6);
+
+/** Said beside any chart whose value axis does not include zero. */
+export const axisNote = (r: ValueRange, unitLabel: string): string | null =>
+  r.zero ? null : `The axis runs from ${formatNumber(r.min, { decimals: Number.isInteger(r.min) ? 0 : Number.isInteger(r.min * 2) ? 1 : 2 })}${unitLabel === "%" ? "%" : ` ${unitLabel}`}, not zero: marks show positions to compare, not amounts.`;
 
 export const formatForecastValue = (value: number, unitLabel: string): string =>
   unitLabel === "%" ? `${formatNumber(value, { decimals: 2 }).replace(/0$/, "")}%` : `${formatNumber(value, { decimals: 2 }).replace(/\.?0+$/, "")} ${unitLabel}`;
@@ -26,7 +56,8 @@ export const formatForecastValue = (value: number, unitLabel: string): string =>
 export function forecastOption(group: ForecastGroup, theme: ChartTheme, observation?: Observation | null): EChartsCoreOption {
   const rows = group.rows.map((r) => r.forecast);
   const values = rows.map((f) => f.value ?? 0);
-  const range = valueRange(observation ? [...values, observation.value] : values);
+  const all = observation ? [...values, observation.value] : values;
+  const range = valueRange(all, minSpanFor(group.unit_label, all));
   const hollow = group.kind === "scenario";
   const ink = theme.series[0];
   const show = (v: number) => formatForecastValue(v, group.unit_label);
@@ -34,8 +65,8 @@ export function forecastOption(group: ForecastGroup, theme: ChartTheme, observat
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
     grid: { left: 8, right: 56, top: observation ? 32 : 16, bottom: 40, containLabel: true },
     xAxis: {
-      type: "value", min: range.min, max: range.max,
-      axisLabel: { color: theme.muted, formatter: (v: number) => `${formatNumber(v, { decimals: Number.isInteger(v) ? 0 : 1 })}${group.unit_label === "%" ? "%" : ""}` },
+      type: "value", min: range.min, max: range.max, interval: range.step,
+      axisLabel: { color: theme.muted, formatter: (v: number) => `${formatNumber(v, { decimals: Number.isInteger(v) ? 0 : Number.isInteger(v * 2) ? 1 : 2 })}${group.unit_label === "%" ? "%" : ""}` },
       splitLine: { lineStyle: { color: theme.grid } }, axisLine: { lineStyle: { color: theme.grid } },
     },
     yAxis: {

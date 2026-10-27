@@ -1,0 +1,666 @@
+{
+ "indicator": "cpi_inflation",
+ "state": "available",
+ "official_series": "cpi.index.nsa.all_groups",
+ "actuals_as_of": "Consumers price index: June 2026 quarter",
+ "actuals_released_on": "2026-07-21",
+ "vintages_from": "2026-02-12",
+ "vintages_to": "2026-10-15",
+ "evaluated": [
+  {
+   "forecast": {
+    "summary_id": 9,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Economic Forecasts, Winter 2026 (synthetic)",
+    "published_on": "2026-06-18",
+    "indicator": "cpi_inflation",
+    "indicator_label": "CPI inflation, annual average",
+    "horizon": "year to June 2027",
+    "value": 2.8,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "Annual average CPI inflation is forecast to be 2.8% in the year to June 2027"
+     }
+    ]
+   },
+   "measure": "annual_average_change",
+   "measure_label": "Annual average change",
+   "target_quarter": "2027-06",
+   "target_label": "June 2027 quarter",
+   "horizon_quarters": 4,
+   "band": "h3_4",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  },
+  {
+   "forecast": {
+    "summary_id": 7,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, February 2026 (synthetic)",
+    "published_on": "2026-02-12",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to March 2026",
+    "value": 3.2,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 2,
+      "page": 3,
+      "quote": "Annual CPI inflation is forecast to be 3.2% in the year to March 2026"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2026-03",
+   "target_label": "March 2026 quarter",
+   "horizon_quarters": 0,
+   "band": "h0",
+   "status": "matched",
+   "first": {
+    "value": 3.1,
+    "release": "Consumers price index: March 2026 quarter",
+    "released_on": "2026-04-21",
+    "first_release": true
+   },
+   "latest": {
+    "value": 3.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": false
+   },
+   "error_first": 0.1,
+   "error_latest": 0.1,
+   "outcome_revision": 0.0
+  },
+  {
+   "forecast": {
+    "summary_id": 7,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, February 2026 (synthetic)",
+    "published_on": "2026-02-12",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2026",
+    "value": 3.0,
+    "unit": "percent",
+    "direction": "flat",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "We expect annual CPI inflation of 3.0% in the year to June 2026"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2026-06",
+   "target_label": "June 2026 quarter",
+   "horizon_quarters": 1,
+   "band": "h1_2",
+   "status": "matched",
+   "first": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "latest": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "error_first": -1.1,
+   "error_latest": -1.1,
+   "outcome_revision": 0.0
+  },
+  {
+   "forecast": {
+    "summary_id": 8,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, May 2026 (synthetic)",
+    "published_on": "2026-05-14",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2026",
+    "value": 3.6,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "We now expect annual CPI inflation of 3.6% in the year to June 2026"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2026-06",
+   "target_label": "June 2026 quarter",
+   "horizon_quarters": 0,
+   "band": "h0",
+   "status": "matched",
+   "first": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "latest": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "error_first": -0.5,
+   "error_latest": -0.5,
+   "outcome_revision": 0.0
+  },
+  {
+   "forecast": {
+    "summary_id": 9,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Economic Forecasts, Winter 2026 (synthetic)",
+    "published_on": "2026-06-18",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2026",
+    "value": 3.9,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "We forecast annual CPI inflation of 3.9% in the year to June 2026"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2026-06",
+   "target_label": "June 2026 quarter",
+   "horizon_quarters": 0,
+   "band": "h0",
+   "status": "matched",
+   "first": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "latest": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "error_first": -0.2,
+   "error_latest": -0.2,
+   "outcome_revision": 0.0
+  },
+  {
+   "forecast": {
+    "summary_id": 10,
+    "institution": {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "kind": "government"
+    },
+    "document_title": "Budget Economic Update 2026 (synthetic)",
+    "published_on": "2026-05-21",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2026",
+    "value": 3.4,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": null
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2026-06",
+   "target_label": "June 2026 quarter",
+   "horizon_quarters": 0,
+   "band": "h0",
+   "status": "matched",
+   "first": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "latest": {
+    "value": 4.1,
+    "release": "Consumers price index: June 2026 quarter",
+    "released_on": "2026-07-21",
+    "first_release": true
+   },
+   "error_first": -0.7,
+   "error_latest": -0.7,
+   "outcome_revision": 0.0
+  },
+  {
+   "forecast": {
+    "summary_id": 7,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, February 2026 (synthetic)",
+    "published_on": "2026-02-12",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "value": 2.5,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "Annual CPI inflation is forecast to be 2.5% in the year to June 2027"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2027-06",
+   "target_label": "June 2027 quarter",
+   "horizon_quarters": 5,
+   "band": "h5_8",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  },
+  {
+   "forecast": {
+    "summary_id": 8,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, May 2026 (synthetic)",
+    "published_on": "2026-05-14",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "value": 2.7,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "Annual CPI inflation is forecast to be 2.7% in the year to June 2027"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2027-06",
+   "target_label": "June 2027 quarter",
+   "horizon_quarters": 4,
+   "band": "h3_4",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  },
+  {
+   "forecast": {
+    "summary_id": 1,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "published_on": "2026-10-08",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "value": 2.3,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "forecast to ease to 2.3% in the year to June 2027"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2027-06",
+   "target_label": "June 2027 quarter",
+   "horizon_quarters": 2,
+   "band": "h1_2",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  },
+  {
+   "forecast": {
+    "summary_id": 4,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "published_on": "2026-09-24",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "value": 2.1,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": "We forecast annual CPI inflation of 2.1% in the year to June 2027"
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2027-06",
+   "target_label": "June 2027 quarter",
+   "horizon_quarters": 3,
+   "band": "h3_4",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  },
+  {
+   "forecast": {
+    "summary_id": 10,
+    "institution": {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "kind": "government"
+    },
+    "document_title": "Budget Economic Update 2026 (synthetic)",
+    "published_on": "2026-05-21",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "value": 2.6,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": null
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2027-06",
+   "target_label": "June 2027 quarter",
+   "horizon_quarters": 4,
+   "band": "h3_4",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  },
+  {
+   "forecast": {
+    "summary_id": 5,
+    "institution": {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "kind": "government"
+    },
+    "document_title": "Fiscal and Economic Update 2026 (synthetic)",
+    "published_on": "2026-10-15",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "value": 2.4,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 0,
+      "page": 1,
+      "quote": null
+     }
+    ]
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "target_quarter": "2027-06",
+   "target_label": "June 2027 quarter",
+   "horizon_quarters": 2,
+   "band": "h1_2",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  }
+ ],
+ "excluded": [
+  {
+   "forecast": {
+    "summary_id": 1,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "published_on": "2026-10-08",
+    "indicator": "cpi_inflation",
+    "indicator_label": "Annual CPI inflation",
+    "horizon": "year to June 2027",
+    "value": 1.6,
+    "unit": "percent",
+    "direction": "down",
+    "scenario": "Downside",
+    "qualification": "Weaker export prices",
+    "evidence": [
+     {
+      "section_ordinal": 3,
+      "page": 4,
+      "quote": "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in the year to June 2027"
+     }
+    ]
+   },
+   "reason": "A scenario is conditional on its own assumptions, so it is not scored against the outcome."
+  }
+ ],
+ "summaries": [
+  {
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "band": "h0",
+   "n": 2,
+   "sufficient": false,
+   "mean_error": null,
+   "mae": null,
+   "rmse": null
+  },
+  {
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "band": "h1_2",
+   "n": 1,
+   "sufficient": false,
+   "mean_error": null,
+   "mae": null,
+   "rmse": null
+  },
+  {
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "band": "h0",
+   "n": 1,
+   "sufficient": false,
+   "mean_error": null,
+   "mae": null,
+   "rmse": null
+  },
+  {
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "band": "h0",
+   "n": 1,
+   "sufficient": false,
+   "mean_error": null,
+   "mae": null,
+   "rmse": null
+  }
+ ],
+ "rankings": [
+  {
+   "measure": "annual_change",
+   "measure_label": "Annual change (through the year)",
+   "available": false,
+   "reason": "Only 1 target was forecast by every institution at the same horizon; a ranking needs at least 8.",
+   "matched_cells": 1,
+   "entries": []
+  }
+ ],
+ "coverage": [
+  {
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "matched": 3,
+   "pending": 3,
+   "excluded": 1
+  },
+  {
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "matched": 1,
+   "pending": 2,
+   "excluded": 0
+  },
+  {
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "matched": 1,
+   "pending": 2,
+   "excluded": 0
+  }
+ ],
+ "min_for_summary": 4,
+ "min_for_ranking": 8,
+ "note": "Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
+}

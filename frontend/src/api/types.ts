@@ -35,3 +35,14 @@ export type ForecastComparison = S["ForecastComparisonOut"];
 export type ForecastGroup = S["ForecastGroupOut"];
 export type Forecast = S["ForecastOut"];
 export type ExcludedForecast = S["ExcludedForecastOut"];
+// Phase 3D-B: forecast history, evaluation against official CPI, and descriptive consensus.
+export type ForecastHistory = S["ForecastHistoryOut"];
+export type ForecastSeries = S["ForecastSeriesOut"];
+export type ForecastVintage = S["ForecastVintageOut"];
+export type MeasureChange = S["MeasureChangeOut"];
+export type ForecastEvaluation = S["ForecastEvaluationOut"];
+export type EvaluatedForecast = S["EvaluatedForecastOut"];
+export type AccuracySummary = S["AccuracySummaryOut"];
+export type Ranking = S["RankingOut"];
+export type Consensus = S["ConsensusOut"];
+export type ConsensusGroup = S["ConsensusGroupOut"];
