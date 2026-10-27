@@ -177,7 +177,7 @@ def _exclusion(f: ForecastOut) -> str | None:
     return None
 
 
-def _indicator_rank(indicator: str) -> tuple[int, str]:
+def indicator_rank(indicator: str) -> tuple[int, str]:
     order = (
         INDICATOR_ORDER.index(indicator) if indicator in INDICATOR_ORDER else len(INDICATOR_ORDER)
     )
@@ -232,14 +232,14 @@ def compare_forecasts(forecasts: list[ForecastOut]) -> ForecastComparisonOut:
         )  # fmt: skip
     out.sort(
         key=lambda g: (
-            _indicator_rank(g.indicator),
+            indicator_rank(g.indicator),
             g.basis,
             g.horizon_key,
             g.kind,
             g.scenario or "",
         )
     )
-    excluded.sort(key=lambda e: (_indicator_rank(e.forecast.indicator), e.forecast.institution.key,
+    excluded.sort(key=lambda e: (indicator_rank(e.forecast.indicator), e.forecast.institution.key,
                                  _vintage(e.forecast), e.forecast.horizon))  # fmt: skip
 
     indicator_counts = Counter(f.indicator for f in forecasts)
@@ -251,7 +251,7 @@ def compare_forecasts(forecasts: list[ForecastOut]) -> ForecastComparisonOut:
         groups=out,
         excluded=excluded,
         indicators=[FacetOut(value=k, label=INDICATOR_NAMES.get(k, k), count=indicator_counts[k])
-                    for k in sorted(indicator_counts, key=_indicator_rank)],
+                    for k in sorted(indicator_counts, key=indicator_rank)],
         institutions=[FacetOut(value=k, label=institution_names[k], count=institution_counts[k])
                       for k in sorted(institution_counts)],
         horizons=[FacetOut(value=k, label=horizons[k], count=horizon_counts[k]) for k in sorted(horizons)],

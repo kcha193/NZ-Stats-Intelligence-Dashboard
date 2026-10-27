@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -34,7 +35,10 @@ def create_app(
     *,
     start_scheduler: bool = False,
     runtime: Runtime | None = None,
+    routers: Sequence[APIRouter] = (),
 ) -> FastAPI:
+    """The API and built UI. `routers` are extra `/api` routes (the CLI adds research); they come before the
+    catch-all, so the snapshot exporter, which passes none, can never serve them."""
     settings = settings or load_settings()
     migrate(connect(settings.db_path))
 
@@ -56,6 +60,8 @@ def create_app(
     app = FastAPI(title="NZ Stats Intelligence Dashboard", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.analysable_slugs = set(build_adapters(settings))
+    for extra in routers:
+        app.include_router(extra, prefix="/api")
     app.include_router(router, prefix="/api")
 
     static = settings.static_dir
