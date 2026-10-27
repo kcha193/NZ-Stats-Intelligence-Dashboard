@@ -1,0 +1,31 @@
+{
+  "id": "revised-forecast",
+  "description": "Two versions of one publication: a forecast later revised, with the old number quoted beside the new one.",
+  "published_on": "2026-10-01",
+  "versions": {
+    "v1": [{"page": 1, "text": "SYNTHETIC FIXTURE. We forecast GDP growth of 2.5% in 2027."}],
+    "v2": [{"page": 1, "text": "SYNTHETIC FIXTURE. We have revised our forecast: GDP growth of 2.1% in 2027, down from 2.5% previously."}]
+  },
+  "gold": {
+    "v1": {"indicators": ["gdp"], "forecasts": [{"indicator": "gdp", "horizon": "2027", "value": 2.5, "unit": "percent", "scenario": null}], "key_points": [["growth"]]},
+    "v2": {"indicators": ["gdp"], "forecasts": [{"indicator": "gdp", "horizon": "2027", "value": 2.1, "unit": "percent", "scenario": null}], "key_points": [["growth", "revised"]]}
+  },
+  "candidates": [
+    {"id": "model-v1", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "GDP growth is forecast to be moderate.", "evidence": [[0, 1, "We forecast GDP growth of 2.5% in 2027"]]},
+      "indicators": ["gdp"],
+      "forecasts": [{"indicator": "gdp", "label": "GDP growth", "horizon": "2027", "value": 2.5, "unit": "percent", "direction": "up",
+                     "evidence": [[0, 1, "We forecast GDP growth of 2.5% in 2027"]]}]}},
+    {"id": "model-v2", "version": "v2", "role": "model", "output": {
+      "outlook": {"text": "The growth forecast has been revised.", "evidence": [[0, 1, "We have revised our forecast: GDP growth of 2.1% in 2027"]]},
+      "indicators": ["gdp"],
+      "forecasts": [{"indicator": "gdp", "label": "GDP growth", "horizon": "2027", "value": 2.1, "unit": "percent", "direction": "unclear",
+                     "evidence": [[0, 1, "GDP growth of 2.1% in 2027"]]}]}},
+    {"id": "old-number-from-new-version", "version": "v2", "expected_errors": ["superseded_value"], "output": {"forecasts": [
+      {"indicator": "gdp", "label": "GDP growth", "horizon": "2027", "value": 2.5, "unit": "percent", "direction": "unclear",
+       "evidence": [[0, 1, "GDP growth of 2.1% in 2027, down from 2.5% previously"]]}]}},
+    {"id": "cites-the-earlier-version", "version": "v2", "expected_errors": ["wrong_version"], "output": {"forecasts": [
+      {"indicator": "gdp", "label": "GDP growth", "horizon": "2027", "value": 2.1, "unit": "percent", "direction": "unclear",
+       "evidence": [[0, 1, "GDP growth of 2.1% in 2027", "v1"]]}]}}
+  ]
+}

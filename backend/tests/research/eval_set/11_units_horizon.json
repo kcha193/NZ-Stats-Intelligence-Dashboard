@@ -1,0 +1,29 @@
+{
+  "id": "units-horizon",
+  "description": "A forecast with a relative horizon ('next year') and words around the number; the simulated model drops the unit.",
+  "published_on": "2026-10-20",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. House price inflation is expected to slow next year, to around 3 per cent."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["house_prices"],
+    "forecasts": [{"indicator": "house_prices", "horizon": "next year", "value": 3, "unit": "percent", "scenario": null}],
+    "key_points": [["house"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "House price inflation is expected to slow.", "evidence": [[0, 1, "House price inflation is expected to slow next year"]]},
+      "indicators": ["house_prices"],
+      "forecasts": [{"indicator": "house_prices", "label": "House price inflation", "horizon": "next year", "value": 3, "direction": "down",
+                     "qualification": "around", "evidence": [[0, 1, "expected to slow next year, to around 3 per cent"]]}]}},
+    {"id": "invented-year", "version": "v1", "expected_errors": ["horizon_not_supported"], "output": {"forecasts": [
+      {"indicator": "house_prices", "label": "House price inflation", "horizon": "2027", "value": 3, "unit": "percent", "direction": "down",
+       "evidence": [[0, 1, "expected to slow next year, to around 3 per cent"]]}]}},
+    {"id": "wrong-unit", "version": "v1", "expected_errors": ["unit_mismatch"], "output": {"forecasts": [
+      {"indicator": "house_prices", "label": "House price inflation", "horizon": "next year", "value": 3, "unit": "basis_points", "direction": "down",
+       "evidence": [[0, 1, "expected to slow next year, to around 3 per cent"]]}]}},
+    {"id": "faithful-relative-horizon", "version": "v1", "expected_errors": [], "expected_warnings": ["horizon_without_period"], "output": {"forecasts": [
+      {"indicator": "house_prices", "label": "House price inflation", "horizon": "next year", "value": 3, "unit": "percent", "direction": "down",
+       "qualification": "around", "evidence": [[0, 1, "expected to slow next year, to around 3 per cent"]]}]}}
+  ]
+}

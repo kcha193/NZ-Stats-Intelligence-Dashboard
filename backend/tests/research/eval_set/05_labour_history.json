@@ -1,0 +1,37 @@
+{
+  "id": "labour-history",
+  "description": "A recent unemployment outturn beside the forecast path; the simulated model wrongly reports the outturn as a forecast.",
+  "published_on": "2026-08-06",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Unemployment rose to 5.2% in the June 2026 quarter."},
+    {"page": 2, "text": "We expect it to peak at 5.5% in the March 2027 quarter before falling to 4.9% by the end of 2028."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["unemployment"],
+    "forecasts": [
+      {"indicator": "unemployment", "horizon": "March 2027 quarter", "value": 5.5, "unit": "percent", "scenario": null},
+      {"indicator": "unemployment", "horizon": "end of 2028", "value": 4.9, "unit": "percent", "scenario": null}
+    ],
+    "key_points": [["unemployment", "peak"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "Unemployment is expected to peak in early 2027 and then fall.", "evidence": [[1, 2, "We expect it to peak at 5.5% in the March 2027 quarter"]]},
+      "indicators": ["unemployment"],
+      "forecasts": [
+        {"indicator": "unemployment", "label": "Unemployment rate", "horizon": "June 2026 quarter", "value": 5.2, "unit": "percent", "direction": "up",
+         "evidence": [[0, 1, "Unemployment rose to 5.2% in the June 2026 quarter"]]},
+        {"indicator": "unemployment", "label": "Unemployment rate", "horizon": "March 2027 quarter", "value": 5.5, "unit": "percent", "direction": "up",
+         "evidence": [[1, 2, "We expect it to peak at 5.5% in the March 2027 quarter"]]},
+        {"indicator": "unemployment", "label": "Unemployment rate", "horizon": "end of 2028", "value": 4.9, "unit": "percent", "direction": "down",
+         "evidence": [[1, 2, "falling to 4.9% by the end of 2028"]]}]}},
+    {"id": "outturn-only", "version": "v1", "expected_errors": ["historical_not_forecast"], "output": {"forecasts": [
+      {"indicator": "unemployment", "label": "Unemployment rate", "horizon": "June 2026 quarter", "value": 5.2, "unit": "percent", "direction": "up",
+       "evidence": [[0, 1, "Unemployment rose to 5.2% in the June 2026 quarter"]]}]}},
+    {"id": "forecasts-only", "version": "v1", "expected_errors": [], "output": {"forecasts": [
+      {"indicator": "unemployment", "label": "Unemployment rate", "horizon": "March 2027 quarter", "value": 5.5, "unit": "percent", "direction": "up",
+       "evidence": [[1, 2, "We expect it to peak at 5.5% in the March 2027 quarter"]]},
+      {"indicator": "unemployment", "label": "Unemployment rate", "horizon": "end of 2028", "value": 4.9, "unit": "percent", "direction": "down",
+       "evidence": [[1, 2, "falling to 4.9% by the end of 2028"]]}]}}
+  ]
+}

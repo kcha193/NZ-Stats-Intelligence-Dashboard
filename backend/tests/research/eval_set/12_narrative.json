@@ -1,0 +1,27 @@
+{
+  "id": "narrative",
+  "description": "Drivers, risks and uncertainty with no numeric forecast; the simulated model misses one driver.",
+  "published_on": "2026-10-25",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Household spending is weak because mortgage rates remain high."},
+    {"page": 2, "text": "Tourism and dairy exports support growth."},
+    {"page": 3, "text": "The main risk is a sharper slowdown in China, which would reduce export demand."},
+    {"page": 4, "text": "Uncertainty about global trade policy is unusually high."}
+  ]},
+  "gold": {"v1": {
+    "indicators": [],
+    "forecasts": [],
+    "key_points": [["household", "spending"], ["tourism"], ["china"], ["trade", "uncertain"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "Household spending is weak because mortgage rates are high.", "evidence": [[0, 1, "Household spending is weak because mortgage rates remain high"]]},
+      "risks": [{"text": "A sharper slowdown in China would reduce export demand.", "evidence": [[2, 3, "a sharper slowdown in China, which would reduce export demand"]]}],
+      "uncertainty": {"text": "Uncertainty about global trade policy is unusually high.", "evidence": [[3, 4, "Uncertainty about global trade policy is unusually high"]]},
+      "indicators": []}},
+    {"id": "invented-impact", "version": "v1", "expected_errors": ["number_not_in_evidence"], "output": {
+      "risks": [{"text": "A China slowdown would cut growth by 1.5%.", "evidence": [[2, 3, "a sharper slowdown in China, which would reduce export demand"]]}]}},
+    {"id": "unsupported-certainty", "version": "v1", "expected_errors": [], "expected_warnings": ["certainty_escalation", "weak_lexical_support"], "output": {
+      "outlook": {"text": "A recession is certain.", "evidence": [[0, 1, "Household spending is weak because mortgage rates remain high"]]}}}
+  ]
+}

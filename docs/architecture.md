@@ -144,3 +144,31 @@ contract.py: Phase 3B output schema and deterministic evidence verifier (no LLM 
 | `research_source_health` | per institution: state, last checked/success, consecutive failures |
 
 Runbook: [data-sources/research.md](data-sources/research.md). Rollback: `scripts/rollback/004_research_down.sql`.
+
+### LLM summaries (Phase 3B)
+
+Disabled by default: a provider must be configured (`NZSTATS_LLM_*`) and the source must permit it
+(`llm_processing`, default `denied`). Nothing is scheduled.
+
+```
+research_document_version + sections
+  -> summarise.eligible_versions     source permits the provider's locality (hosted / local loopback)
+  -> contract.build_request          never truncated: over the cap is refused
+  -> prompt.render                   versioned rules + schema; sections between random-boundary delimiters
+  -> providers.*                     anthropic | openai_compatible over httpx (no SDK); budget, timeout, retries
+  -> contract.parse_draft            strict JSON
+  -> verify.verify                   deterministic errors and warnings; scope: not a check of economic accuracy
+  -> summary_store (one transaction) summary, usage per call, claims (verified only); audit run
+  -> research approve | reject       human review; verified only; append-only log
+```
+
+| Table (migration 006) | Purpose |
+|---|---|
+| `research_llm_run` | one `summarise` invocation: provider, model, prompt and processing version, limits, counts, spend |
+| `research_summary` | append-only: version, provider, model, versions, parameters, input and output hashes, raw output, validated JSON, status, error class, verification report, review status |
+| `research_forecast_claim` | explicit forecasts from verified summaries with evidence (version, section, page, quote) |
+| `research_llm_usage` | one row per provider call, retries included: tokens, estimated flag, latency, cost |
+| `research_summary_review` | every approve/reject decision with reviewer and note |
+
+Triggers keep content immutable, approve only verified summaries and keep a rejection final. Rollback:
+`scripts/rollback/006_research_summaries_down.sql`.

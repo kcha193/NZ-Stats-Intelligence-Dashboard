@@ -1,0 +1,45 @@
+{
+  "id": "fiscal-calendar",
+  "description": "Treasury-style June-year (fiscal) and calendar-year GDP, and debt as a share of GDP for 2026/27.",
+  "published_on": "2026-12-10",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Half-year economic and fiscal update (synthetic). Real GDP is forecast to grow 2.9% in the June 2027 year."},
+    {"page": 2, "text": "On a calendar-year basis, growth is forecast to be 2.6% in 2027."},
+    {"page": 3, "text": "Net core Crown debt is projected to be 43.1% of GDP in 2026/27."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["gdp", "government_debt"],
+    "forecasts": [
+      {"indicator": "gdp", "horizon": "June 2027 year", "value": 2.9, "unit": "percent", "scenario": null},
+      {"indicator": "gdp", "horizon": "calendar 2027", "value": 2.6, "unit": "percent", "scenario": null},
+      {"indicator": "government_debt", "horizon": "2026/27", "value": 43.1, "unit": "percent_of_gdp", "scenario": null}
+    ],
+    "key_points": [["growth"], ["debt"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "Growth is forecast to pick up while net core Crown debt rises as a share of GDP.", "evidence": [
+        [0, 1, "Real GDP is forecast to grow 2.9% in the June 2027 year"],
+        [2, 3, "Net core Crown debt is projected to be 43.1% of GDP in 2026/27"]]},
+      "indicators": ["gdp", "government_debt"],
+      "forecasts": [
+        {"indicator": "gdp", "label": "Real GDP", "horizon": "June 2027 year", "value": 2.9, "unit": "percent", "direction": "up",
+         "evidence": [[0, 1, "Real GDP is forecast to grow 2.9% in the June 2027 year"]]},
+        {"indicator": "gdp", "label": "Real GDP", "horizon": "calendar 2027", "value": 2.6, "unit": "percent", "direction": "up",
+         "evidence": [[1, 2, "growth is forecast to be 2.6% in 2027"]]},
+        {"indicator": "government_debt", "label": "Net core Crown debt", "horizon": "2026/27", "value": 43.1, "unit": "percent_of_gdp", "direction": "up",
+         "evidence": [[2, 3, "Net core Crown debt is projected to be 43.1% of GDP in 2026/27"]]}]}},
+    {"id": "june-year-as-calendar", "version": "v1", "expected_errors": ["fiscal_calendar_mismatch"], "output": {"forecasts": [
+      {"indicator": "gdp", "label": "Real GDP", "horizon": "2027", "value": 2.9, "unit": "percent", "direction": "up",
+       "evidence": [[0, 1, "Real GDP is forecast to grow 2.9% in the June 2027 year"]]}]}},
+    {"id": "calendar-as-june-year", "version": "v1", "expected_errors": ["fiscal_calendar_mismatch"], "output": {"forecasts": [
+      {"indicator": "gdp", "label": "Real GDP", "horizon": "year to June 2027", "value": 2.6, "unit": "percent", "direction": "up",
+       "evidence": [[1, 2, "growth is forecast to be 2.6% in 2027"]]}]}},
+    {"id": "fiscal-pair-as-calendar", "version": "v1", "expected_errors": ["fiscal_calendar_mismatch"], "output": {"forecasts": [
+      {"indicator": "government_debt", "label": "Net core Crown debt", "horizon": "2027", "value": 43.1, "unit": "percent_of_gdp", "direction": "up",
+       "evidence": [[2, 3, "Net core Crown debt is projected to be 43.1% of GDP in 2026/27"]]}]}},
+    {"id": "share-of-gdp-as-percent", "version": "v1", "expected_errors": ["unit_mismatch"], "output": {"forecasts": [
+      {"indicator": "government_debt", "label": "Net core Crown debt", "horizon": "2026/27", "value": 43.1, "unit": "percent", "direction": "up",
+       "evidence": [[2, 3, "Net core Crown debt is projected to be 43.1% of GDP in 2026/27"]]}]}}
+  ]
+}

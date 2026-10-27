@@ -1,0 +1,39 @@
+{
+  "id": "ocr-path",
+  "description": "Central-bank style OCR call and annual CPI forecast (fiscal-looking 'year to June' used for CPI).",
+  "published_on": "2026-08-20",
+  "versions": {"v1": [
+    {"page": 1, "text": "SYNTHETIC FIXTURE. Monetary Policy Statement (synthetic). We expect the OCR to be cut to 2.25% by February 2027 and to stay there through 2027."},
+    {"page": 2, "text": "Annual CPI inflation is projected to return to 2.0% in the year to June 2027. The risks to the inflation outlook are balanced."}
+  ]},
+  "gold": {"v1": {
+    "indicators": ["ocr", "cpi_inflation"],
+    "forecasts": [
+      {"indicator": "ocr", "horizon": "February 2027", "value": 2.25, "unit": "percent", "scenario": null},
+      {"indicator": "cpi_inflation", "horizon": "year to June 2027", "value": 2.0, "unit": "percent", "scenario": null}
+    ],
+    "key_points": [["ocr", "cut"], ["inflation"]]
+  }},
+  "candidates": [
+    {"id": "model", "version": "v1", "role": "model", "output": {
+      "outlook": {"text": "The OCR is expected to be cut and inflation to return to target.", "evidence": [
+        [0, 1, "We expect the OCR to be cut to 2.25% by February 2027"],
+        [1, 2, "Annual CPI inflation is projected to return to 2.0% in the year to June 2027"]]},
+      "risks": [{"text": "Risks to the inflation outlook are balanced.", "evidence": [[1, 2, "The risks to the inflation outlook are balanced"]]}],
+      "indicators": ["ocr", "cpi_inflation"],
+      "forecasts": [
+        {"indicator": "ocr", "label": "OCR", "horizon": "February 2027", "value": 2.25, "unit": "percent", "direction": "down",
+         "evidence": [[0, 1, "We expect the OCR to be cut to 2.25% by February 2027"]]},
+        {"indicator": "cpi_inflation", "label": "Annual CPI inflation", "horizon": "year to June 2027", "value": 2.0, "unit": "percent", "direction": "down",
+         "evidence": [[1, 2, "Annual CPI inflation is projected to return to 2.0% in the year to June 2027"]]}]}},
+    {"id": "direction-reversed", "version": "v1", "expected_errors": ["direction_contradiction"], "output": {"forecasts": [
+      {"indicator": "ocr", "label": "OCR", "horizon": "February 2027", "value": 2.25, "unit": "percent", "direction": "up",
+       "evidence": [[0, 1, "We expect the OCR to be cut to 2.25% by February 2027"]]}]}},
+    {"id": "ocr-as-market-rates", "version": "v1", "expected_errors": ["indicator_mismatch"], "output": {"forecasts": [
+      {"indicator": "interest_rates", "label": "OCR", "horizon": "February 2027", "value": 2.25, "unit": "percent", "direction": "down",
+       "evidence": [[0, 1, "We expect the OCR to be cut to 2.25% by February 2027"]]}]}},
+    {"id": "invented-value", "version": "v1", "expected_errors": ["value_not_in_evidence"], "output": {"forecasts": [
+      {"indicator": "ocr", "label": "OCR", "horizon": "February 2027", "value": 2.5, "unit": "percent", "direction": "down",
+       "evidence": [[0, 1, "We expect the OCR to be cut to 2.25% by February 2027"]]}]}}
+  ]
+}

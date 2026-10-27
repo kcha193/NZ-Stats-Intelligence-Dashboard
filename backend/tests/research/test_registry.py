@@ -6,6 +6,7 @@ import pytest
 from nzstats.research.registry import (
     PRIORITY,
     ContentPolicy,
+    LlmProcessing,
     Mechanism,
     RegistryError,
     ReviewStatus,
@@ -240,3 +241,66 @@ def test_any_approval_requires_the_terms_to_have_been_read_directly(tmp_path, po
 def test_malformed_numeric_settings_are_registry_errors_not_raw_exceptions(tmp_path, extra):
     with pytest.raises(RegistryError):
         load_registry(_write(tmp_path, BASE.format(extra=extra)))
+
+
+# --- Phase 3B: third-party (LLM) processing permission, default denied --------------------------
+APPROVED_FULL = (
+    'approved_by = "K"\n approved_on = "2026-11-01"\n approval_note = "n"\n terms_evidence = "direct"\n'
+    " {llm}"
+)
+
+
+def _approved_full_text(tmp_path: Path, llm: str):
+    body = BASE.format(extra=APPROVED_FULL.format(llm=llm)).replace("needs_review", "approved")
+    return load_registry(_write(tmp_path, body.replace("metadata_only", "full_text")))["ex"]
+
+
+def test_llm_processing_defaults_to_denied_for_every_shipped_source():
+    assert {i.llm_processing for i in load_registry().values()} == {LlmProcessing.DENIED}
+    inst = load_registry()["treasury"]
+    assert inst.llm_refusal(hosted=False) == "llm processing denied for this source"
+    assert inst.llm_refusal(hosted=True) == "llm processing denied for this source"
+
+
+def test_local_only_permits_local_models_but_never_a_hosted_provider(tmp_path):
+    inst = _approved_full_text(
+        tmp_path,
+        'llm_processing = "local_only"\n llm_processing_note = "Terms allow internal use."',
+    )
+    assert inst.llm_processing is LlmProcessing.LOCAL_ONLY
+    assert inst.llm_refusal(hosted=False) is None
+    assert inst.llm_refusal(hosted=True) == "source permits local models only"
+
+
+def test_hosted_permits_both(tmp_path):
+    inst = _approved_full_text(
+        tmp_path, 'llm_processing = "hosted"\n llm_processing_note = "CC BY 4.0, read directly."'
+    )
+    assert inst.llm_refusal(hosted=True) is None and inst.llm_refusal(hosted=False) is None
+
+
+def test_llm_permission_needs_a_note(tmp_path):
+    with pytest.raises(RegistryError, match="llm_processing_note"):
+        _approved_full_text(tmp_path, 'llm_processing = "hosted"')
+
+
+@pytest.mark.parametrize(
+    ("swap", "match"),
+    [
+        (("approved", "needs_review"), "approved"),
+        (("full_text", "metadata_only"), "full_text"),
+    ],
+)
+def test_llm_permission_needs_an_approved_full_text_source(tmp_path, swap, match):
+    body = BASE.format(
+        extra=APPROVED_FULL.format(llm='llm_processing = "hosted"\n llm_processing_note = "n"')
+    )
+    body = body.replace("needs_review", "approved").replace("metadata_only", "full_text")
+    body = body.replace(f'"{swap[0]}"', f'"{swap[1]}"')
+    with pytest.raises(RegistryError, match=match):
+        load_registry(_write(tmp_path, body))
+
+
+def test_unknown_llm_processing_value_fails_closed(tmp_path):
+    with pytest.raises(RegistryError, match="llm_processing"):
+        _approved_full_text(tmp_path, 'llm_processing = "yes"\n llm_processing_note = "n"')

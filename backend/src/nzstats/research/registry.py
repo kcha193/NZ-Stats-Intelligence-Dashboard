@@ -45,6 +45,14 @@ class ContentPolicy(StrEnum):
     NONE = "none"  # no automated access at all
 
 
+class LlmProcessing(StrEnum):
+    """Whether this source's text may be sent to a language model (third-party processing)."""
+
+    DENIED = "denied"  # the default: never sent to any model
+    LOCAL_ONLY = "local_only"  # a model running on this machine only (loopback), never a hosted API
+    HOSTED = "hosted"  # a hosted provider as well; the terms must allow third-party processing
+
+
 class Mechanism(StrEnum):
     RSS = "rss"
     SITEMAP = "sitemap"
@@ -92,6 +100,8 @@ class Institution:
     approved_by: str | None = None
     approved_on: date | None = None
     approval_note: str | None = None
+    llm_processing: LlmProcessing = LlmProcessing.DENIED
+    llm_processing_note: str | None = None
     extra: dict[str, Any] = field(default_factory=dict, compare=False)
 
     @property
@@ -111,6 +121,14 @@ class Institution:
             return "content policy none: automated access is not permitted"
         return None
 
+    def llm_refusal(self, *, hosted: bool) -> str | None:
+        """Why this source's text may not go to a (hosted or local) model, in fixed wording."""
+        if not self.automated_access_allowed or self.llm_processing is LlmProcessing.DENIED:
+            return "llm processing denied for this source"
+        if hosted and self.llm_processing is not LlmProcessing.HOSTED:
+            return "source permits local models only"
+        return None
+
     def licence_snapshot(self) -> dict[str, Any]:
         return {
             "institution": self.key,
@@ -122,6 +140,7 @@ class Institution:
             "approved_by": self.approved_by,
             "approved_on": self.approved_on.isoformat() if self.approved_on else None,
             "public_display": self.public_display,
+            "llm_processing": self.llm_processing.value,
         }
 
 
@@ -264,6 +283,7 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
                 f"{key}: url_date_regex needs exactly one group and url_date_format"
             )
     approved_on = _date(raw.get("approved_on"), "approved_on", key)
+    llm = _enum(LlmProcessing, raw.get("llm_processing", "denied"), "llm_processing", key)
     inst = Institution(
         key=key, name=str(raw.get("name") or key), kind=kind, allowed_hosts=hosts,
         allowed_path_prefixes=allowed_prefixes, blocked_path_prefixes=blocked, landing_urls=landing,
@@ -276,10 +296,13 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         crawl_delay_seconds=delay, max_documents_per_run=max_docs,
         min_text_chars=min_chars, url_date_regex=pattern,
         url_date_format=fmt, approved_by=raw.get("approved_by"), approved_on=approved_on,
-        approval_note=raw.get("approval_note"),
+        approval_note=raw.get("approval_note"), llm_processing=llm,
+        llm_processing_note=raw.get("llm_processing_note"),
     )  # fmt: skip
     if review is ReviewStatus.APPROVED:
         _check_approval(inst)
+    if llm is not LlmProcessing.DENIED:
+        _check_llm_permission(inst)
     return inst
 
 
@@ -303,3 +326,13 @@ def _check_approval(inst: Institution) -> None:
         raise RegistryError(f"{key}: approved source needs allowed hosts and a start url")
     if inst.terms_evidence != "direct":
         raise RegistryError(f"{key}: an approved source requires terms_evidence = 'direct'")
+
+
+def _check_llm_permission(inst: Institution) -> None:
+    key = inst.key
+    if inst.review_status is not ReviewStatus.APPROVED:
+        raise RegistryError(f"{key}: llm_processing needs an approved source")
+    if inst.content_policy is not ContentPolicy.FULL_TEXT:
+        raise RegistryError(f"{key}: llm_processing needs content_policy 'full_text'")
+    if not inst.llm_processing_note:
+        raise RegistryError(f"{key}: llm_processing needs llm_processing_note (what the terms say)")
