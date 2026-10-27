@@ -11,6 +11,12 @@
 #                   | hosted (a hosted LLM provider too). Sending text to a hosted model is processing by a third
 #                   party: set it only after reading that the terms allow it, and record what they say in
 #                   llm_processing_note. Requires an approved full_text source. Phase 3B; none is set.
+#   public_display  none (default: nothing shown) | link_only (title, date, link) | summary (plus the AI
+#                   interpretation and forecasts, no verbatim text) | excerpt (plus short verified quotes). What anyone
+#                   may see on this site: a third decision, separate from fetching and LLM processing. Any level but
+#                   none needs an approved source and public_display_approved_by, public_display_approved_on and
+#                   public_display_note (what the terms say about republishing); summary and excerpt need full_text,
+#                   and their AI text is withheld while llm_processing is denied. Phase 3C; none is set.
 #
 # Probed 2026-10-25 with a generic client, not the project User-Agent. A 403 is recorded as
 # direct_blocked and does NOT prove the project's descriptive User-Agent would be refused.
