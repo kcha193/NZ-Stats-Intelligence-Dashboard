@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 
 from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
@@ -18,6 +19,7 @@ from nzstats.research import summary_store as ss
 from nzstats.research.contract import Provider
 from nzstats.research.fetch import ResearchFetcher, build_research_client, research_pacer
 from nzstats.research.ingest import RunResult, refusal_for, run_institution
+from nzstats.research.pilot_eval import AnnotationError, evaluate_stored, load_annotations
 from nzstats.research.providers import (
     LlmConfigError,
     LlmSettings,
@@ -25,6 +27,8 @@ from nzstats.research.providers import (
     load_llm_settings,
 )
 from nzstats.research.public import why_not_public
+from nzstats.research.quality import version_quality
+from nzstats.research.readiness import assess, pipeline_state
 from nzstats.research.registry import Institution, RegistryError, load_registry
 from nzstats.research.summarise import summarise_versions
 from nzstats.research.verify import SCOPE
@@ -50,6 +54,24 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_ing.add_argument("--limit", type=_positive_int, help="at most this many documents")
     p_ing.add_argument("--dry-run", action="store_true", help="discover only; write nothing")
     rsub.add_parser("status", help="show research source health")
+    p_ready = rsub.add_parser(
+        "readiness", help="the four pilot permissions per source (Phase 3D-A)"
+    )
+    p_ready.add_argument(
+        "key", nargs="?", help="one institution in detail (default: all, one line each)"
+    )
+    p_eval = rsub.add_parser(
+        "evaluate", help="score stored real summaries against an annotation file (3D-A)"
+    )
+    p_eval.add_argument(
+        "--annotations", required=True, help="JSON annotation file (keep it under data/)"
+    )
+    p_eval.add_argument("--model", help="only summaries from this model")
+    p_qual = rsub.add_parser(
+        "quality", help="extraction quality of stored document versions (Phase 3D-A)"
+    )
+    p_qual.add_argument("version", type=_positive_int, nargs="*",
+                        help="version ids (default: every current version)")  # fmt: skip
     p_sum = rsub.add_parser("summarise", help="summarise stored versions with the configured LLM")
     p_sum.add_argument("key", nargs="?", help="one institution (default: every permitted one)")
     p_sum.add_argument("--version", type=_positive_int, action="append", default=[],
@@ -357,6 +379,86 @@ def _publication(
     return 0
 
 
+def _readiness(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    try:
+        llm = load_llm_settings(os.environ)
+    except LlmConfigError as exc:
+        _emit(f"LLM configuration error: {exc}")
+        return 2
+    if args.key is None:
+        _emit(f"{'key':<12} {'gates':<16} first blocker")
+        for inst in registry.values():
+            report = assess(inst, llm, env=os.environ)
+            granted = sum(g.granted for g in report.gates)
+            _emit(f"{inst.key:<12} {f'granted {granted} of 4':<16} {report.first_blocker or '-'}")
+        return 0
+    inst = registry.get(args.key)
+    if inst is None:
+        _emit(f"unknown institution {args.key!r}; see `nzstats research sources`")
+        return 2
+    report = assess(inst, llm, env=os.environ)
+    _emit(
+        f"{inst.name} ({inst.key}): pilot readiness. Read-only: nothing was requested or changed."
+    )
+    for number, gate in enumerate(report.gates, 1):
+        _emit(
+            f"{number}. {gate.title}: {'granted' if gate.granted else 'not granted'} ({gate.detail})"
+        )
+        for line in gate.evidence:
+            _emit(f"     {line}")
+        for line in gate.warnings:
+            _emit(f"     warning: {line}")
+        if gate.blocker:
+            _emit(f"     blocked: {gate.blocker}")
+    _emit(f"first blocker: {report.first_blocker or 'none'}")
+    state = pipeline_state(_open(settings), inst, registry)
+    statuses = ", ".join(f"{k} {v}" for k, v in sorted(state.summaries.items())) or "none"
+    _emit(f"stored: {state.publications} publications, {state.current_versions} current versions;"
+          f" summaries: {statuses}; approved {state.approved}; public now {state.public}")  # fmt: skip
+    return 0
+
+
+def _evaluate(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    try:
+        annotations = load_annotations(Path(args.annotations))
+    except AnnotationError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    _emit(
+        evaluate_stored(_open(settings), annotations, model=args.model).to_markdown().rstrip("\n")
+    )
+    return 0
+
+
+def _quality(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
+    conn = _open(settings)
+    ids = list(args.version) or [
+        r[0] for r in conn.execute(
+            "SELECT current_version_id FROM research_publication WHERE current_version_id IS NOT NULL ORDER BY id")
+    ]  # fmt: skip
+    missing = False
+    for version_id in ids:
+        report = version_quality(conn, version_id)
+        if report is None:
+            _emit(f"no version {version_id}")
+            missing = True
+            continue
+        m = report.metrics
+        _emit(f"version {version_id}: {report.grade} ({m['sections']} sections, {m['characters']} characters,"
+              f" pages {m['page_count'] or '-'}, letters {m['letter_ratio']:.0%}, digits {m['digit_ratio']:.0%})")  # fmt: skip
+        for f in report.findings:
+            _emit(f"  {f.severity}: {f.code}: {f.message}")
+    if not ids:
+        _emit("no stored document versions")
+    _emit("Heuristic checks: read any version graded review or poor before summarising it.")
+    return 1 if missing else 0
+
+
 _SUMMARY_COMMANDS = {"summarise": _summarise, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
-                     "withdraw": _publication}  # fmt: skip
+                     "withdraw": _publication, "readiness": _readiness,
+                     "quality": _quality, "evaluate": _evaluate}  # fmt: skip
