@@ -8,7 +8,7 @@ import { useChartTheme } from "@/charts/theme";
 import { ErrorState } from "@/components/QueryBoundary";
 import { Segmented } from "@/components/Segmented";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatAklDate, formatCivilDate } from "@/lib/format";
+import { formatAklDate, formatCivilDate, formatNumber } from "@/lib/format";
 import { observationFor, researchPath } from "@/lib/research";
 
 /** The indicators the comparison always offers, then any others that published forecasts mention. */
@@ -48,7 +48,7 @@ function GroupView({ group, cpi }: { group: ForecastGroup; cpi?: Kpi }) {
       </ul>
       {obs && (
         <p className="mt-2 max-w-[72ch] text-xs leading-relaxed text-muted-foreground">
-          Latest official observation: Stats NZ annual CPI inflation {formatForecastValue(obs.value, "%")} for the{" "}
+          Latest official observation: Stats NZ annual CPI inflation {formatNumber(obs.value, { decimals: 1 })}% for the{" "}
           {obs.period.charAt(0).toLowerCase() + obs.period.slice(1)}, published {formatAklDate(obs.publishedAt)}. It is
           an observation of an earlier period, not a forecast, and it does not test any institution&rsquo;s explanation.
         </p>

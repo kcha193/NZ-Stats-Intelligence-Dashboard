@@ -42,7 +42,7 @@ export function ResearchEntry({ item, headingLevel = 3 }: { item: ResearchItem; 
           {item.document.title}
         </Link>
       </H>
-      <ProcessingBadges item={item} />
+      {item.display !== "link_only" && <ProcessingBadges item={item} />}
       {item.outlook ? (
         <div className="mt-3 max-w-[72ch]">
           <AiLabel />
@@ -71,7 +71,8 @@ export function ResearchEntry({ item, headingLevel = 3 }: { item: ResearchItem; 
       )}
       <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
         <Link className="font-medium text-accent-ink underline-offset-4 hover:underline" to={researchPath(item.id)}>
-          Evidence{item.n_forecasts > 0 ? ` and ${item.n_forecasts} forecast${item.n_forecasts === 1 ? "" : "s"}` : ""}
+          {item.display === "link_only" ? "Publication details"
+            : `Evidence${item.n_forecasts > 0 ? ` and ${item.n_forecasts} forecast${item.n_forecasts === 1 ? "" : "s"}` : ""}`}
         </Link>
         <ExternalLink className="text-muted-foreground" href={item.document.url}>Original document</ExternalLink>
       </p>

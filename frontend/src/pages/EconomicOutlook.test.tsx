@@ -56,8 +56,7 @@ describe("Economic outlook with published research (SYNTHETIC)", () => {
   it("lists each summary with its institution, date, AI label, review steps and links", async () => {
     mockApi(routes);
     renderWithProviders(<EconomicOutlook />);
-    const entry = (await screen.findByRole("article", { name: "Quarterly outlook" }).catch(() => null))
-      ?? (await screen.findAllByRole("article")).find((a) => a.textContent?.includes("Harbourside Bank"))!;
+    const entry = await screen.findByRole("article", { name: "Quarterly Economic Outlook, October 2026 (synthetic)" });
     expect(within(entry).getByText("Harbourside Bank (synthetic)")).toBeInTheDocument();
     expect(within(entry).getByText("Published 8 Oct 2026")).toBeInTheDocument();
     expect(within(entry).getByText(/AI interpretation of the document\. Not an official statistic\./)).toBeInTheDocument();
@@ -75,6 +74,8 @@ describe("Economic outlook with published research (SYNTHETIC)", () => {
     expect(within(tasman).getByText(/permits a link and its publication details only/)).toBeInTheDocument();
     expect(within(tasman).queryByText(/AI interpretation/)).not.toBeInTheDocument();
     expect(within(tasman).queryByText(/keep easing/)).not.toBeInTheDocument();
+    expect(within(tasman).queryByText("AI summary")).not.toBeInTheDocument();
+    expect(within(tasman).getByRole("link", { name: "Publication details" })).toBeInTheDocument();
   });
 
   it("expands drivers, risks and uncertainty from the keyboard", async () => {
@@ -163,7 +164,7 @@ describe("forecast comparison (SYNTHETIC)", () => {
     renderWithProviders(<EconomicOutlook />);
     const fig = await screen.findByRole("figure", { name: /CPI inflation, Year to June 2027/ });
     expect(within(fig).getByText(/Annual change \(through the year\), in percent\. Central forecasts\. 3 institutions/)).toBeInTheDocument();
-    expect(within(fig).getByText(/Latest official observation: Stats NZ annual CPI inflation 4\.06%/)).toBeInTheDocument();
+    expect(within(fig).getByText(/Latest official observation: Stats NZ annual CPI inflation 4\.1%/)).toBeInTheDocument();
     expect(within(fig).getByText(/does not test any institution/)).toBeInTheDocument();
     const rows = within(within(fig).getByRole("table")).getAllByRole("row").slice(1);
     expect(rows.map((r) => within(r).getByRole("rowheader").textContent)).toEqual([

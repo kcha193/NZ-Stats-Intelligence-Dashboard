@@ -7,7 +7,7 @@
    "kind": "government"
   },
   "document": {
-   "title": "Synthetic outlook southern/fiscal-update",
+   "title": "Fiscal and Economic Update 2026 (synthetic)",
    "url": "https://research.example.org/southern/fiscal-update",
    "published_on": "2026-10-15",
    "version_no": 1,
@@ -74,7 +74,7 @@
     "name": "Southern Treasury Office (synthetic)",
     "kind": "government"
    },
-   "document_title": "Synthetic outlook southern/fiscal-update",
+   "document_title": "Fiscal and Economic Update 2026 (synthetic)",
    "published_on": "2026-10-15",
    "indicator": "cpi_inflation",
    "indicator_label": "Annual CPI inflation",
@@ -99,7 +99,7 @@
     "name": "Southern Treasury Office (synthetic)",
     "kind": "government"
    },
-   "document_title": "Synthetic outlook southern/fiscal-update",
+   "document_title": "Fiscal and Economic Update 2026 (synthetic)",
    "published_on": "2026-10-15",
    "indicator": "gdp",
    "indicator_label": "Economic growth",
@@ -124,7 +124,7 @@
     "name": "Southern Treasury Office (synthetic)",
     "kind": "government"
    },
-   "document_title": "Synthetic outlook southern/fiscal-update",
+   "document_title": "Fiscal and Economic Update 2026 (synthetic)",
    "published_on": "2026-10-15",
    "indicator": "government_debt",
    "indicator_label": "Net core Crown debt",

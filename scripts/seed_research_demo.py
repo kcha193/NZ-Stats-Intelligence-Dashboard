@@ -184,6 +184,25 @@ def tasman(conn) -> None:
     })  # fmt: skip
 
 
+TITLES = {
+    "harbourside/quarterly-outlook": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "harbourside/rejected": "Inflation Update, rejected draft (synthetic)",
+    "harbourside/unreviewed": "Growth Update, unreviewed draft (synthetic)",
+    "kauri/spring-forecasts": "Economic Forecasts, Spring 2026 (synthetic)",
+    "southern/fiscal-update": "Fiscal and Economic Update 2026 (synthetic)",
+    "tasman/weekly-commentary": "Weekly Market Commentary (synthetic)",
+}
+
+
+def retitle(conn) -> None:
+    """Readable titles; the shared test helper names documents after their path."""
+    for doc, title in TITLES.items():
+        url = f"https://{HOST}/{doc}"
+        conn.execute("UPDATE research_publication SET title = ? WHERE canonical_url = ?", (title, url))
+        conn.execute("UPDATE research_document_version SET title = ? WHERE publication_id ="
+                     " (SELECT id FROM research_publication WHERE canonical_url = ?)", (title, url))  # fmt: skip
+
+
 def main(target: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     registry_file = target / "research_sources.synthetic.toml"
@@ -193,6 +212,7 @@ def main(target: Path) -> None:
     migrate(conn)
     for seed in (harbourside, kauri, southern, tasman):
         seed(conn)
+    retitle(conn)
     statuses = [(r["institution"], r["status"], r["review_status"]) for r in ss.list_summaries(conn)]
     failed = [s for s in statuses if s[1] != "verified"]
     if failed:

@@ -21,7 +21,7 @@
        "name": "Harbourside Bank (synthetic)",
        "kind": "bank"
       },
-      "document_title": "Synthetic outlook harbourside/quarterly-outlook",
+      "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
       "published_on": "2026-10-08",
       "indicator": "gdp",
       "indicator_label": "GDP, annual average growth",
@@ -49,7 +49,7 @@
        "name": "Kauri Economics (synthetic)",
        "kind": "consultancy"
       },
-      "document_title": "Synthetic outlook kauri/spring-forecasts",
+      "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
       "published_on": "2026-09-24",
       "indicator": "gdp",
       "indicator_label": "GDP, annual average growth",
@@ -94,7 +94,7 @@
        "name": "Kauri Economics (synthetic)",
        "kind": "consultancy"
       },
-      "document_title": "Synthetic outlook kauri/spring-forecasts",
+      "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
       "published_on": "2026-09-24",
       "indicator": "gdp",
       "indicator_label": "Real GDP growth (y/y)",
@@ -128,7 +128,7 @@
      "name": "Kauri Economics (synthetic)",
      "kind": "consultancy"
     },
-    "document_title": "Synthetic outlook kauri/spring-forecasts",
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
     "published_on": "2026-09-24",
     "indicator": "gdp",
     "indicator_label": "Economic growth",
@@ -156,7 +156,7 @@
      "name": "Southern Treasury Office (synthetic)",
      "kind": "government"
     },
-    "document_title": "Synthetic outlook southern/fiscal-update",
+    "document_title": "Fiscal and Economic Update 2026 (synthetic)",
     "published_on": "2026-10-15",
     "indicator": "gdp",
     "indicator_label": "Economic growth",

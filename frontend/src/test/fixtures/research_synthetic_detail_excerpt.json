@@ -7,7 +7,7 @@
    "kind": "bank"
   },
   "document": {
-   "title": "Synthetic outlook harbourside/quarterly-outlook",
+   "title": "Quarterly Economic Outlook, October 2026 (synthetic)",
    "url": "https://research.example.org/harbourside/quarterly-outlook",
    "published_on": "2026-10-08",
    "version_no": 1,
@@ -94,7 +94,7 @@
     "name": "Harbourside Bank (synthetic)",
     "kind": "bank"
    },
-   "document_title": "Synthetic outlook harbourside/quarterly-outlook",
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
    "published_on": "2026-10-08",
    "indicator": "cpi_inflation",
    "indicator_label": "Annual CPI inflation",
@@ -119,7 +119,7 @@
     "name": "Harbourside Bank (synthetic)",
     "kind": "bank"
    },
-   "document_title": "Synthetic outlook harbourside/quarterly-outlook",
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
    "published_on": "2026-10-08",
    "indicator": "gdp",
    "indicator_label": "GDP, annual average growth",
@@ -144,7 +144,7 @@
     "name": "Harbourside Bank (synthetic)",
     "kind": "bank"
    },
-   "document_title": "Synthetic outlook harbourside/quarterly-outlook",
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
    "published_on": "2026-10-08",
    "indicator": "ocr",
    "indicator_label": "OCR",
@@ -169,7 +169,7 @@
     "name": "Harbourside Bank (synthetic)",
     "kind": "bank"
    },
-   "document_title": "Synthetic outlook harbourside/quarterly-outlook",
+   "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
    "published_on": "2026-10-08",
    "indicator": "cpi_inflation",
    "indicator_label": "Annual CPI inflation",

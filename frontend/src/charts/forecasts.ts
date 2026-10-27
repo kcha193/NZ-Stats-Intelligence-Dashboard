@@ -32,7 +32,7 @@ export function forecastOption(group: ForecastGroup, theme: ChartTheme, observat
   const show = (v: number) => formatForecastValue(v, group.unit_label);
   return {
     aria: { enabled: true }, animation: false, textStyle: { color: theme.text },
-    grid: { left: 8, right: 56, top: 16, bottom: 40, containLabel: true },
+    grid: { left: 8, right: 56, top: observation ? 32 : 16, bottom: 40, containLabel: true },
     xAxis: {
       type: "value", min: range.min, max: range.max,
       axisLabel: { color: theme.muted, formatter: (v: number) => `${formatNumber(v, { decimals: Number.isInteger(v) ? 0 : 1 })}${group.unit_label === "%" ? "%" : ""}` },
@@ -40,7 +40,7 @@ export function forecastOption(group: ForecastGroup, theme: ChartTheme, observat
     },
     yAxis: {
       type: "category", inverse: true, data: rows.map((f) => f.institution.name),
-      axisTick: { show: false }, axisLine: { show: false }, axisLabel: { color: theme.text, width: 160, overflow: "truncate" },
+      axisTick: { show: false }, axisLine: { show: false }, axisLabel: { color: theme.text, width: 132, overflow: "break", lineHeight: 14 },
     },
     tooltip: {
       trigger: "item",
@@ -63,7 +63,7 @@ export function forecastOption(group: ForecastGroup, theme: ChartTheme, observat
           silent: true, symbol: "none",
           lineStyle: { color: theme.series[1], width: 2, type: "solid" },
           // Canvas text, not HTML: drawn as written, so it is not escaped (escaping would show the entities).
-          label: { color: theme.text, formatter: `${observation.label}: ${show(observation.value)}`, position: "insideEndTop" },
+          label: { color: theme.text, formatter: `${observation.label}: ${formatNumber(observation.value, { decimals: 1 })}${group.unit_label === "%" ? "%" : ""}`, position: "start" }, // the top: the category axis is inverted
           data: [{ xAxis: observation.value }],
         },
       } : {}),

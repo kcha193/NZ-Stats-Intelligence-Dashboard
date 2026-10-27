@@ -78,7 +78,7 @@ function DetailView({ d }: { d: Detail }) {
           <div><dt className="text-xs text-muted-foreground">Format</dt><dd>{item.document.format.toUpperCase()}{item.document.page_count ? `, ${item.document.page_count} pages` : ""}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Original</dt><dd><ExternalLink href={item.document.url}>Read the original document</ExternalLink></dd></div>
         </dl>
-        <div className="mt-4"><ProcessingBadges item={item} /></div>
+        {ai && <div className="mt-4"><ProcessingBadges item={item} /></div>}
       </header>
 
       {ai ? (

@@ -8,7 +8,7 @@
     "kind": "government"
    },
    "document": {
-    "title": "Synthetic outlook southern/fiscal-update",
+    "title": "Fiscal and Economic Update 2026 (synthetic)",
     "url": "https://research.example.org/southern/fiscal-update",
     "published_on": "2026-10-15",
     "version_no": 1,
@@ -75,7 +75,7 @@
     "kind": "bank"
    },
    "document": {
-    "title": "Synthetic outlook harbourside/quarterly-outlook",
+    "title": "Quarterly Economic Outlook, October 2026 (synthetic)",
     "url": "https://research.example.org/harbourside/quarterly-outlook",
     "published_on": "2026-10-08",
     "version_no": 1,
@@ -162,7 +162,7 @@
     "kind": "consultancy"
    },
    "document": {
-    "title": "Synthetic outlook kauri/spring-forecasts",
+    "title": "Economic Forecasts, Spring 2026 (synthetic)",
     "url": "https://research.example.org/kauri/spring-forecasts",
     "published_on": "2026-09-24",
     "version_no": 1,
@@ -225,7 +225,7 @@
     "kind": "bank"
    },
    "document": {
-    "title": "Synthetic outlook tasman/weekly-commentary",
+    "title": "Weekly Market Commentary (synthetic)",
     "url": "https://research.example.org/tasman/weekly-commentary",
     "published_on": "2026-09-02",
     "version_no": 1,
