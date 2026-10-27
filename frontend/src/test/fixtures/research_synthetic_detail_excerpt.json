@@ -122,7 +122,7 @@
    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
    "published_on": "2026-10-08",
    "indicator": "gdp",
-   "indicator_label": "GDP, annual average growth",
+   "indicator_label": "Real GDP, annual average growth",
    "horizon": "year to March 2027",
    "value": 1.8,
    "unit": "percent",
@@ -133,7 +133,7 @@
     {
      "section_ordinal": 1,
      "page": 2,
-     "quote": "We expect GDP annual average growth of 1.8% in the year to March 2027"
+     "quote": "We expect real GDP annual average growth of 1.8% in the year to March 2027"
     }
    ]
   },

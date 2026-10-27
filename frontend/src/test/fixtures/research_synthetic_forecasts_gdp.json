@@ -1,13 +1,13 @@
 {
  "groups": [
   {
-   "key": "gdp|percent|annual_average_change|year_to:2027-03|central",
+   "key": "gdp|percent|real_annual_average_change|year_to:2027-03|central",
    "indicator": "gdp",
    "indicator_name": "GDP",
    "unit": "percent",
    "unit_label": "%",
-   "basis": "annual_average_change",
-   "basis_label": "Annual average change",
+   "basis": "real_annual_average_change",
+   "basis_label": "Real terms, annual average change",
    "horizon_key": "year_to:2027-03",
    "horizon_label": "Year to March 2027",
    "kind": "central",
@@ -24,7 +24,7 @@
       "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
       "published_on": "2026-10-08",
       "indicator": "gdp",
-      "indicator_label": "GDP, annual average growth",
+      "indicator_label": "Real GDP, annual average growth",
       "horizon": "year to March 2027",
       "value": 1.8,
       "unit": "percent",
@@ -35,7 +35,7 @@
        {
         "section_ordinal": 1,
         "page": 2,
-        "quote": "We expect GDP annual average growth of 1.8% in the year to March 2027"
+        "quote": "We expect real GDP annual average growth of 1.8% in the year to March 2027"
        }
       ]
      },
@@ -52,7 +52,7 @@
       "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
       "published_on": "2026-09-24",
       "indicator": "gdp",
-      "indicator_label": "GDP, annual average growth",
+      "indicator_label": "Real GDP, annual average growth",
       "horizon": "year to March 2027",
       "value": 1.5,
       "unit": "percent",
@@ -63,7 +63,7 @@
        {
         "section_ordinal": 2,
         "page": 3,
-        "quote": "GDP growth is forecast at 1.5% in the year to March 2027"
+        "quote": "real GDP growth is forecast at 1.5% in the year to March 2027"
        }
       ]
      },
@@ -74,13 +74,13 @@
    "note": "2 institutions, on the same basis and horizon."
   },
   {
-   "key": "gdp|percent|annual_change|year_to:2027-03|central",
+   "key": "gdp|percent|real_annual_change|year_to:2027-03|central",
    "indicator": "gdp",
    "indicator_name": "GDP",
    "unit": "percent",
    "unit_label": "%",
-   "basis": "annual_change",
-   "basis_label": "Annual change (through the year)",
+   "basis": "real_annual_change",
+   "basis_label": "Real terms, annual change (through the year)",
    "horizon_key": "year_to:2027-03",
    "horizon_label": "Year to March 2027",
    "kind": "central",
@@ -174,7 +174,7 @@
      }
     ]
    },
-   "reason": "The statistical basis is not stated clearly enough to compare: GDP growth can be an annual average or a change through the year."
+   "reason": "The statistical basis is not stated clearly enough to compare: GDP growth can be real or nominal, and an annual average or a change through the year."
   }
  ],
  "indicators": [

@@ -75,7 +75,7 @@ public_display_note = "synthetic test source: display permitted"
 def harbourside(conn) -> None:
     s = [
         SYN + "Annual CPI inflation is forecast to ease to 2.3% in the year to June 2027 as fuel prices settle.",
-        "We expect GDP annual average growth of 1.8% in the year to March 2027, with household spending recovering slowly.",
+        "We expect real GDP annual average growth of 1.8% in the year to March 2027, with household spending recovering slowly.",
         "The OCR is forecast to be 2.75% in December 2026, with little room for further cuts.",
         "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in the year to June 2027.",
         "A sharper slowdown in China would weigh on dairy prices. Uncertainty about the housing market remains high.",
@@ -94,8 +94,8 @@ def harbourside(conn) -> None:
         "forecasts": [
             claim(v, 0, "forecast to ease to 2.3% in the year to June 2027", "cpi_inflation", "Annual CPI inflation",
                   "year to June 2027", 2.3, "down"),
-            claim(v, 1, "We expect GDP annual average growth of 1.8% in the year to March 2027", "gdp",
-                  "GDP, annual average growth", "year to March 2027", 1.8, "up"),
+            claim(v, 1, "We expect real GDP annual average growth of 1.8% in the year to March 2027", "gdp",
+                  "Real GDP, annual average growth", "year to March 2027", 1.8, "up"),
             claim(v, 2, "The OCR is forecast to be 2.75% in December 2026", "ocr", "OCR", "December 2026", 2.75, "flat"),
             claim(v, 3, "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in"
                   " the year to June 2027", "cpi_inflation", "Annual CPI inflation", "year to June 2027", 1.6, "down",
@@ -119,7 +119,7 @@ def kauri(conn) -> None:
     s = [
         SYN + "We forecast annual CPI inflation of 2.1% in the year to June 2027.",
         "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027.",
-        "On an annual average basis, GDP growth is forecast at 1.5% in the year to March 2027.",
+        "On an annual average basis, real GDP growth is forecast at 1.5% in the year to March 2027.",
         "The unemployment rate is forecast to be 5.4% in the December 2026 quarter.",
         "We expect the OCR to be 2.5% in December 2026.",
         "Growth should improve next year as interest rates fall.",
@@ -136,7 +136,8 @@ def kauri(conn) -> None:
                   "Annual CPI inflation", "year to June 2027", 2.1, "down"),
             claim(v, 1, "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027", "gdp",
                   "Real GDP growth (y/y)", "year to March 2027", 2.0, "up"),
-            claim(v, 2, "GDP growth is forecast at 1.5% in the year to March 2027", "gdp", "GDP, annual average growth",
+            claim(v, 2, "real GDP growth is forecast at 1.5% in the year to March 2027", "gdp",
+                  "Real GDP, annual average growth",
                   "year to March 2027", 1.5, "up"),
             claim(v, 3, "The unemployment rate is forecast to be 5.4% in the December 2026 quarter", "unemployment",
                   "Unemployment rate", "December 2026 quarter", 5.4, "up"),

@@ -103,10 +103,16 @@ deterministic and conservative; anything unrecognised is listed as not comparabl
 
 - **Unit**: the verifier's fixed vocabulary (`percent`, `percentage_points`, `percent_of_gdp`, ...). Missing unit or
   value: not comparable ("states a direction only" / "no unit stated").
-- **Basis** from the indicator label (and horizon wording): CPI `annual_change` (annual / year to) or
-  `quarterly_change`; GDP `annual_average_change`, `annual_change`, `quarterly_change`; unemployment `rate`; OCR
-  `level_end` (end of / by), `level_average` (average) or `level` (as stated); other indicators only when the label
-  names a basis. No basis: "statistical basis not stated clearly enough to compare".
+- **Basis** from the indicator label (and horizon wording). A basis is stated, never assumed; contradictory wording
+  (two change cadences, an average and an end-of-period figure, real and nominal) has no basis. CPI `annual_change`
+  (annual / year to), `annual_average_change` or `quarterly_change`; core, underlying, excluding-X and tradables
+  measures are other series and not compared. GDP is `real_` or `nominal_` plus `annual_average_change`,
+  `annual_change` or `quarterly_change`, and only when the label says real / nominal (or constant / current prices):
+  "GDP growth" alone is not compared, and per-capita, potential and trend measures are excluded. Unemployment
+  `rate_average`, `rate_end`, or `rate` (a quarter or month, which is itself the point in time) / `rate_timing_unstated`
+  (a longer span with no stated timing); a peak or trough is excluded. OCR `level_end` (end of / by), `level_average`
+  (average) or `level` (as stated). Other indicators only when the label names a basis, with `real_` / `nominal_`
+  when stated. No basis: "statistical basis not stated clearly enough to compare".
 - **Horizon key**: `year_to:2027-03` (year to / ended / ending March 2027), `quarter:2027-03` (March 2027 quarter,
   Q1 2027), `calendar:2027` (2027, calendar 2027), `month:2026-12` (December 2026, end of 2026). Split years such as
   "2026/27" stay as written (`split:2026/27`) because June and March years are both called that; relative horizons

@@ -56,6 +56,26 @@ the dot plot starts at zero for every unit, which compresses close levels such a
 "2026/27" with a June or March year; searching re-verifies every published summary per request (fine for tens, not
 thousands).
 
+### PR #13 review round 1 (Codex, head b4039c6): statistical basis of forecast comparison
+
+- P2, real vs nominal GDP: `Real GDP, annual average growth` and `Nominal GDP, annual average growth` produced one group key,
+  so institutions were compared across different statistics and one measure hid the other as an "earlier vintage". GDP now
+  needs a stated price basis (`real` / `nominal`, or constant / current prices) and carries it in the basis, the stable
+  group key and the label ("Real terms, annual average change"). "GDP growth" alone is no longer assumed real: it is
+  excluded with the reason. Contradictory wording and per-capita, potential and trend measures are excluded too.
+- P2, unemployment timing: every percentage was `rate`. Now `rate_average`, `rate_end`, `rate` (a quarter or month, which is
+  itself the point in time) and `rate_timing_unstated` (a longer span with no timing, flagged in the note); a peak or trough
+  is excluded, and an average and an end-of-period wording together has no basis.
+- Same defect class, adjacent indicators: CPI core / underlying / excluding-X / tradables series were grouped with headline
+  CPI and contradictory cadence wording silently took one reading; OCR average + end wording took "average". Both now have
+  no basis. Other indicators gain the `real_` / `nominal_` prefix when the label states it.
+- Group keys and `basis` values changed for GDP and unemployment; the only consumer that branches on a basis is the CPI
+  official-observation reference (`annual_change`, unchanged). The synthetic seed now states "real" in the quoted text and
+  label; frontend research fixtures were regenerated (the unrelated `cpi.json` regeneration noise was discarded).
+- No research permission, gate, registry, snapshot or LLM setting was touched.
+- Note: GitHub Actions for b4039c6 never started ("recent account payments have failed or your spending limit needs to be
+  increased"), so CI evidence for this PR is local until billing is fixed.
+
 ## Phase 3B: evidence-grounded LLM economic intelligence, 26 October 2026
 
 Structured summaries (outlook, drivers, risks, uncertainty, indicators) and explicit forecast claims for stored research

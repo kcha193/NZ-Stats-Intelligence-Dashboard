@@ -192,7 +192,10 @@ describe("forecast comparison (SYNTHETIC)", () => {
     await user.click(screen.getByRole("radio", { name: "GDP" }));
     const figs = await screen.findAllByRole("figure", { name: /GDP, Year to March 2027/ });
     expect(figs).toHaveLength(2);
-    expect(figs.map((f) => f.textContent)).toEqual([expect.stringContaining("Annual average change"), expect.stringContaining("Annual change (through the year)")]);
+    expect(figs.map((f) => f.textContent)).toEqual([
+      expect.stringContaining("Real terms, annual average change"),
+      expect.stringContaining("Real terms, annual change (through the year)"),
+    ]);
     expect(within(figs[1]).getByText(/Only one institution/)).toBeInTheDocument();
     expect(screen.queryByText(/Latest official observation/)).not.toBeInTheDocument(); // no official GDP series here
     const not = screen.getByText(/Not compared \(2\)/).closest("details")!;
