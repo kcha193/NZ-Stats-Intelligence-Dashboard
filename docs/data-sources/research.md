@@ -1,4 +1,4 @@
-# Institutional research sources: registry and runbook (Phases 3A, 3B and 3C)
+# Institutional research sources: registry and runbook (Phases 3A to 3D)
 
 Economic commentary from banks, the Reserve Bank, the Treasury and research consultancies is a **separate domain**
 from the Stats NZ statistics. It lives in `backend/src/nzstats/research/` and the `research_*` tables. The Stats NZ
@@ -316,6 +316,73 @@ playwright.research.config.ts`. Never point a deployment at that registry.
 
 `sqlite3 data/nzstats.db < scripts/rollback/007_research_publication_down.sql` removes the publication log (nothing is
 then publication-approved). The 006 and full research rollbacks drop it first.
+
+## Pilot readiness (Phase 3D-A)
+
+**Status on 2026-10-28: no source can be activated.** The Treasury is the pilot candidate, but its licence page
+refused a direct read (HTTP 403, 2026-10-28), so its terms are still known only from a search summary and nothing is
+approved. Design and evidence: [Phase 3D design](../superpowers/specs/2026-10-28-phase-3d-design.md).
+
+Four permissions, each a separate recorded decision, in this order:
+
+| # | Decision | Registry fields | Granted when |
+|---|---|---|---|
+| 1 | Automated discovery and fetching | `review_status`, `terms_evidence`, `approved_*` | approved, terms read directly |
+| 2 | Extraction and local storage | `content_policy` | `full_text` (1 granted) |
+| 3 | LLM processing | `llm_processing`, `llm_processing_note`, plus `NZSTATS_LLM_*` | the source permits the configured provider's locality (2 granted) |
+| 4 | Public display | `public_display`, `public_display_approved_*` | a level other than `none` (1 granted); shown only with `NZSTATS_PUBLIC_RESEARCH=1` |
+
+### Tools (offline: no request, no change)
+
+| Command | What it tells you |
+|---|---|
+| `research readiness` | every source, gates granted out of 4 and the first blocker |
+| `research readiness KEY` | each gate with its evidence fields, warnings (unverified discovery) and blocker; what is stored, summarised, approved and public |
+| `research quality [VERSION …]` | extraction quality of stored versions (default: every current one): `ok`, `review` or `poor`, with findings |
+| `research evaluate --annotations FILE [--model M]` | stored real summaries scored against a human annotation; calls no model |
+
+`quality` findings: `missing_pages`, `empty_sections` (scanned or chart pages), `undecodable_characters` (replacement
+or private-use characters from an incomplete PDF font map; `poor` above 0.5% of characters), `control_characters`,
+`symbol_soup` (`poor`), `glued_words`, `spaced_letters`, and the informational `repeated_lines` (running headers),
+`hyphen_breaks` and `numeric_heavy` (tables). Thresholds are judgement; read any version graded `review` or `poor`
+before summarising it.
+
+### Pilot runbook (once Kevin authorises each step)
+
+1. **Terms.** Read the licence and terms pages in a browser. Record what they say about automated access, storage,
+   third-party processing and republication in `licence` and `access_notes`; set `terms_evidence = "direct"`.
+2. **Discovery probe.** `scripts/run.sh research discover treasury` (robots.txt and one listing page, nothing stored).
+   Fix `link_pattern`, set the discovery `verified = true`. Stop if the probe is refused.
+3. **Approve fetching and storage** (decisions 1 and 2): `review_status = "approved"`, `content_policy = "full_text"`,
+   `approved_by`, `approved_on`, `approval_note`. Keep `max_documents_per_run` small (2 to 5).
+4. **Limited ingestion.** `scripts/run.sh research ingest treasury --limit 2`, then `research status` and
+   `research quality`. Stop on `blocked`, or on any version graded `poor`.
+5. **LLM permission** (decision 3): `llm_processing = "local_only"` first, with `llm_processing_note`. A hosted model
+   needs `hosted` **and** explicit permission for paid calls; set `NZSTATS_LLM_MAX_RUN_USD` and run `research summarise
+   treasury --dry-run` to see the worst case before any real call.
+6. **Summarise and verify.** `research summarise treasury --limit 2`; read each with `research summary ID`.
+7. **Annotate and evaluate.** Annotate the same documents by hand in `data/annotations/treasury.json` (format below;
+   never commit it: it is derived from the documents) and run `research evaluate --annotations …`. Record the metrics,
+   model, prompt version, cost and latency in `docs/progress.md`, labelled real-model results.
+8. **Human review.** `research approve ID --reviewer …` or `research reject ID --reviewer … --note …`.
+9. **Publication** (decision 4): set `public_display = "link_only"` first, with its approval fields, then
+   `research publish ID --approver … --note …`. `research summary ID` must say `public: yes`. The API stays off
+   (`NZSTATS_PUBLIC_RESEARCH` unset) on any reachable deployment until authentication or a separate decision exists.
+
+Annotation file (one entry per stored version; the fields are the replay set's gold fields):
+
+```json
+{"annotator": "Your Name", "annotated_on": "2026-11-01", "documents": [
+  {"version_id": 12, "indicators": ["gdp", "cpi_inflation"],
+   "forecasts": [{"indicator": "cpi_inflation", "horizon": "year to June 2027", "value": 2.1, "unit": "percent",
+                  "scenario": null}],
+   "key_points": [["inflation", "target"]]}]}
+```
+
+The evaluation re-verifies each stored summary with the current verifier, scores it with the replay's metric functions
+(precision, recall, numerical fidelity, scenario accuracy, indicator F1, citation correctness, unsupported items,
+verified rate) and reports the recorded cost and latency of every attempt, failed calls included. It is a different
+measurement from the synthetic replay (`RECORDED_BASELINE`) and must never be merged with it.
 
 ## Rollback
 

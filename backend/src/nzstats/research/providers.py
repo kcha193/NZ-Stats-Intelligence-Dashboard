@@ -69,6 +69,13 @@ class LlmSettings:
         return repr(self)
 
 
+def is_hosted(settings: LlmSettings) -> bool:
+    """True when text sent to this provider leaves the machine; only a loopback base URL counts as local."""
+    if settings.provider == "anthropic":
+        return True
+    return urlsplit(settings.base_url or "").hostname not in _LOOPBACK
+
+
 def estimate_tokens(chars: int) -> int:
     """A deliberately high token estimate (3 characters per token) for budget checks."""
     return max(1, math.ceil(chars / 3))
@@ -260,7 +267,7 @@ class OpenAICompatibleProvider(_HttpProvider):
 
     def __init__(self, settings: LlmSettings, client: httpx.Client) -> None:
         super().__init__(settings, client)
-        self.hosted = urlsplit(settings.base_url or "").hostname not in _LOOPBACK
+        self.hosted = is_hosted(settings)
 
     def parameters(self) -> dict[str, str | int | float | bool]:
         return {"max_tokens": self._settings.limits.max_output_tokens, "temperature": 0}

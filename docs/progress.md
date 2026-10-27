@@ -1,8 +1,42 @@
 # Progress and verification record
 
-Last updated 2026-10-27. Phase 3C (economic outlook) is on `feat/phase-3c-economic-outlook` (not merged). Phase 3B
-(PR #12), Phase 3A (PR #11) and the Netlify static publication (PR #10) are merged to `main`; the static site is not
-deployed. Earlier entries below are historical.
+Last updated 2026-10-28. Phase 3D-A (real-research pilot readiness) is on `feat/phase-3d-a-research-pilot` (not
+merged). Phases 3A to 3C (PRs #11 to #13) and the Netlify static publication (PR #10) are merged to `main`; the static
+site is not deployed. Earlier entries below are historical.
+
+## Phase 3D-A: real-research pilot readiness, 28 October 2026
+
+Design and audit: [2026-10-28-phase-3d-design.md](superpowers/specs/2026-10-28-phase-3d-design.md). Runbook:
+[data-sources/research.md](data-sources/research.md#pilot-readiness-phase-3d-a).
+
+- **CI**: every GitHub Actions run since 2026-10-24 00:33 UTC failed before any job started ("recent account payments
+  have failed or your spending limit needs to be increased"; zero steps, no runner). Infrastructure, not code. All
+  verification below is local.
+- **Pilot source: blocked.** The Treasury's licence page returned HTTP 403 to a direct read on 2026-10-28, as its
+  publications listing did to the Phase 3A probe. Its terms are therefore still known only from a search summary, and
+  no approval was inferred from the CC BY 4.0 summary. No permission setting changed; the only registry edit is the
+  evidence note. RBNZ stays `restricted`. No live collection and no model call happened.
+- **Readiness report** (`research/readiness.py`, `nzstats research readiness [KEY]`): the four permissions judged
+  separately (fetching, storage, LLM processing with the configured provider's locality, public display with the API
+  switch), each with its evidence fields and first blocker; later gates say which decision they wait on. Shipped
+  registry: all ten sources 0 of 4.
+- **Extraction quality** (`research/quality.py`, `nzstats research quality`): deterministic findings on stored
+  sections (missing and empty pages, undecodable and control characters, symbol soup, glued or spaced-out words,
+  running headers, hyphen breaks, numeric density), graded ok, review or poor. Advisory only.
+- **Real-model evaluation** (`research/pilot_eval.py`, `nzstats research evaluate --annotations FILE`): scores stored
+  summaries of real documents against a human annotation file kept under `data/`, re-verifying each with the current
+  verifier and reusing the replay's metric functions (`evaluate.score`, `evaluate.aggregate`, extracted from the
+  existing code without changing any metric); cost and latency are the recorded usage of every attempt. Labelled real
+  and never merged with the synthetic `RECORDED_BASELINE`. No real result exists yet: there is no approved source.
+- `providers.is_hosted` is now the one definition of a hosted provider (the adapter and the readiness report share it).
+
+### Verification
+
+| Command | Outcome |
+|---|---|
+| `pytest` (backend) | see the PR description for the final run |
+| `ruff check .`, `ruff format --check .` | clean |
+| `nzstats research readiness` on the shipped registry | 10 sources, 0 of 4 gates each; Treasury blocked on terms evidence |
 
 ## Phase 3C: economic outlook, 27 October 2026
 
