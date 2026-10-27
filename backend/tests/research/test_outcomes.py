@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import pytest
 
+from nzstats.pipeline.ingest import ingest_release
 from nzstats.research.outcomes import CpiActuals, cpi_target, look_ahead
-from tests.cpi_support import ingest_cpi
+from tests.cpi_support import NOW, ingest_cpi, seed_cpi
 
 from .test_compare import claim
 
@@ -125,6 +126,58 @@ def test_look_ahead_excludes_forecasts_published_on_or_after_the_release(actuals
 def test_without_a_release_date_only_forecasts_made_within_the_quarter_count():
     assert look_ahead("2026-06-30", "2026-06", None) is None
     assert "release date" in look_ahead("2026-07-01", "2026-06", None)
+
+
+def correct_june_sa_index(rt, site, key, value):
+    """Re-ingest the June 2026 release with its seasonally adjusted all-groups index for the June quarter set to
+    `value`. (The unadjusted all-groups index is cross-checked against the contributions, so a bare edit is refused.)"""
+    row_start = '"CPIQ.SE9SA","2026.06"'
+    for url, (status, body, ctype) in list(site.routes.items()):
+        text = body.decode() if isinstance(body, bytes) and url.endswith(".csv") else ""
+        row = next((ln for ln in text.splitlines() if ln.startswith(row_start)), None)
+        if row is not None:
+            corrected = row.replace(row.split(",")[2], f'"{value}"')
+            site.routes[url] = (status, text.replace(row, corrected).encode(), ctype)
+    outcome = ingest_release(rt, key, now_fn=lambda: NOW)
+    assert outcome.outcome == "ingested", outcome.detail
+
+
+@pytest.fixture()
+def june(rt, site):
+    """Only the June 2026 release, ingested as first published (seasonally adjusted quarterly change 1.5), and its routes."""
+    _, key, _, downloads = seed_cpi(rt, site)
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    return key, dict(site.routes)
+
+
+def june_target():
+    return cpi_target(cpi("CPI, quarterly change, seasonally adjusted", "June 2026 quarter"))
+
+
+def test_a_corrected_release_keeps_the_original_as_first_published(rt, site, june):
+    key, _ = june
+    correct_june_sa_index(rt, site, key, 1362.0)  # 1362.0 / 1339.6379152 -> 1.67 -> 1.7
+    out = CpiActuals(rt.conn).outcome(june_target())
+    assert out.first.value == 1.5 and out.first.first_release
+    assert out.latest.value == 1.7 and out.latest.first_release
+    assert out.revision == pytest.approx(0.2)
+
+
+def test_several_corrections_keep_the_first_bundle_and_use_the_last_as_latest(rt, site, june):
+    key, _ = june
+    correct_june_sa_index(rt, site, key, 1362.0)
+    correct_june_sa_index(rt, site, key, 1365.0)  # 1365.0 / 1339.6379152 -> 1.89 -> 1.9
+    out = CpiActuals(rt.conn).outcome(june_target())
+    assert (out.first.value, out.latest.value) == (1.5, 1.9)
+
+
+def test_a_reverted_correction_still_has_the_original_as_first_and_latest(rt, site, june):
+    key, original = june
+    correct_june_sa_index(rt, site, key, 1362.0)
+    site.routes.update(original)
+    assert ingest_release(rt, key, now_fn=lambda: NOW).outcome == "ingested"
+    out = CpiActuals(rt.conn).outcome(june_target())
+    assert (out.first.value, out.latest.value, out.revision) == (1.5, 1.5, 0)
 
 
 def quarter_name(quarter: str) -> str:

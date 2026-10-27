@@ -42,6 +42,11 @@ NO_SERIES = (
 _SA = re.compile(r"\bseasonally[- ]adjusted\b|\bs\.?a\.?\b", re.IGNORECASE)
 
 
+_Vintage = tuple[
+    VintageInfo, str | None, dict[str, float]
+]  # vintage, its release's reference period, points
+
+
 @dataclass(frozen=True)
 class Target:
     measure: str
@@ -143,7 +148,13 @@ def look_ahead(published_on: str | None, quarter: str, release_utc: str | None) 
 
 
 class CpiActuals:
-    """The stored CPI releases, loaded once per request: each release's current bundle only."""
+    """The stored CPI releases, loaded once per request.
+
+    Two views of the same vintages, both deterministic: the first-published baseline reads each release's earliest
+    stored bundle (lowest vintage id), which a later correction or re-ingest never replaces; the latest outcome reads
+    each release's current bundle (the one `list_vintages` orders last). A release reverted to an earlier bundle has
+    that bundle as its current one, and its earliest bundle is unchanged.
+    """
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._releases = {
@@ -154,18 +165,34 @@ class CpiActuals:
         }  # fmt: skip
         reference = {r["release_key"]: r["reference_period"] for r in conn.execute(
             "SELECT release_key, reference_period FROM release WHERE series_slug = ?", (CPI_SLUG,))}  # fmt: skip
-        self._vintages: dict[str, list[tuple[VintageInfo, str | None, dict[str, float]]]] = {}
+        self._first: dict[str, list[_Vintage]] = {}
+        self._latest: dict[str, list[_Vintage]] = {}
         for key in (NSA, SA):
             current: dict[str, VintageInfo] = {}
+            earliest: dict[str, VintageInfo] = {}
             for info in list_vintages(
                 conn, key
             ):  # release order; later bundles of a release replace earlier
                 current[info.release_key] = info
-            self._vintages[key] = [
-                (info, reference.get(info.release_key),
-                 {p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()})
-                for info in current.values()
-            ]  # fmt: skip
+                held = earliest.get(info.release_key)
+                if held is None or info.vintage_id < held.vintage_id:
+                    earliest[info.release_key] = info
+            loaded: dict[int, _Vintage] = {}
+
+            def load(info: VintageInfo, _loaded=loaded, _key=key) -> _Vintage:
+                if info.vintage_id not in _loaded:
+                    _loaded[info.vintage_id] = (
+                        info,
+                        reference.get(info.release_key),
+                        {p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()},
+                    )
+                return _loaded[info.vintage_id]
+
+            self._latest[key] = [load(i) for i in current.values()]
+            self._first[key] = [
+                load(i)
+                for i in sorted(earliest.values(), key=lambda v: (v.published_at, v.vintage_id))
+            ]
 
     def release_date(self, quarter: str) -> str | None:
         """When the release for this reference quarter was (or is scheduled to be) published, UTC."""
@@ -173,18 +200,22 @@ class CpiActuals:
         return found[1] if found else None
 
     def newest_release(self) -> tuple[str, str] | None:
-        stored = self._vintages[NSA]
+        stored = self._latest[NSA]
         return (stored[-1][0].title, stored[-1][0].published_at) if stored else None
 
     def outcome(self, target: Target) -> Outcome | None:
         _, series, _ = MEASURES[target.measure]
-        found = []
-        for info, reference, points in self._vintages[series]:
+        first = self._actual(self._first[series], target, earliest=True)
+        latest = self._actual(self._latest[series], target, earliest=False)
+        if first is None or latest is None:
+            return None
+        return Outcome(first, latest)
+
+    @staticmethod
+    def _actual(vintages: list[_Vintage], target: Target, *, earliest: bool) -> Actual | None:
+        """The first (earliest=True) or last release in `vintages` that holds enough of the series for the target."""
+        for info, reference, points in vintages if earliest else reversed(vintages):
             value = compute(target.measure, points, target.quarter)
             if value is not None:
-                found.append(
-                    Actual(value, info.title, info.published_at, reference == target.quarter)
-                )
-        if not found:
-            return None
-        return Outcome(found[0], found[-1])
+                return Actual(value, info.title, info.published_at, reference == target.quarter)
+        return None
