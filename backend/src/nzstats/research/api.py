@@ -56,7 +56,9 @@ def public_research_enabled(env: Mapping[str, str] | None = None) -> bool:
 
 
 def _read_only(path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=30, check_same_thread=False)
+    # as_uri() percent-encodes the path, so "?", "#" or "%" in a data directory cannot change the URI's meaning.
+    uri = f"{Path(path).resolve().as_uri()}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 

@@ -293,3 +293,16 @@ def test_research_routes_are_read_only(make):
     for route in ROUTES:
         for method in ("post", "put", "patch", "delete"):
             assert getattr(client, method)(route).status_code in (404, 405)
+
+
+def test_the_database_is_opened_read_only_even_from_an_awkward_directory(tmp_path, monkeypatch):
+    from nzstats.research.api import _read_only
+
+    odd = tmp_path / "data ?#%"
+    settings = load_settings({"NZSTATS_DATA_DIR": str(odd)})
+    TestClient(create_app(settings))  # migrates
+    c = _read_only(settings.db_path)
+    assert c.execute("SELECT COUNT(*) FROM research_summary").fetchone()[0] == 0
+    with pytest.raises(Exception, match="readonly"):
+        c.execute("INSERT INTO research_llm_run(provider, model, hosted, prompt_version, processing_version,"
+                  " started_at) VALUES ('p','m',0,'v','x','t')")  # fmt: skip

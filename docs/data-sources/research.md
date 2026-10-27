@@ -1,4 +1,4 @@
-# Institutional research sources: registry and runbook (Phases 3A and 3B)
+# Institutional research sources: registry and runbook (Phases 3A, 3B and 3C)
 
 Economic commentary from banks, the Reserve Bank, the Treasury and research consultancies is a **separate domain**
 from the Stats NZ statistics. It lives in `backend/src/nzstats/research/` and the `research_*` tables. The Stats NZ
@@ -115,7 +115,9 @@ cooldown for that institution.
 ## Licensing and publication rules
 
 - Raw documents and extracted text are stored only locally, and only for `full_text` sources. Nothing from the research
-  tables is published: the snapshot exporter does not read them, and the validator rejects any unknown file kind.
+  tables is published to the static site: the snapshot exporter builds the app without the research routes, and the
+  validator rejects any unknown file kind. The live API can serve publication-approved summaries only when switched on
+  (Phase 3C, below).
 - Test fixtures are synthetic and marked `SYNTHETIC FIXTURE`. Never commit third-party report text.
 - All extracted text is untrusted data. It is never rendered as HTML and never followed as instructions; Phase 3B
   prompts frame it as quoted data.
@@ -255,13 +257,73 @@ floors in `nzstats.research.evaluate.RECORDED_BASELINE`.
 `sqlite3 data/nzstats.db < scripts/rollback/006_research_summaries_down.sql` removes the summary tables and keeps the
 Phase 3A research tables (back up first, as below). The full research rollback below also removes them.
 
+## Public display and the economic outlook (Phase 3C)
+
+`/economic-outlook` shows the latest verified Stats NZ indicators beside institutional research. With the shipped
+settings it shows the indicators and an explanation that no research is published, because nothing is eligible and the
+research API is off. Design: [Phase 3C spec](../superpowers/specs/2026-10-27-phase-3c-economic-outlook-design.md).
+
+### Three separate permissions, then two per-summary decisions
+
+| Decision | Where | Default |
+|---|---|---|
+| May we fetch and store it? | `review_status`, `content_policy`, `approved_*` | not approved |
+| May its text go to a model? | `llm_processing`, `llm_processing_note` | `denied` |
+| What may anyone see? | `public_display` (`none`, `link_only`, `summary`, `excerpt`), `public_display_approved_by`, `public_display_approved_on`, `public_display_note` | `none` |
+| Does the summary reflect its evidence? | `research approve ID --reviewer` (Phase 3B) | unreviewed |
+| May this summary be shown publicly? | `research publish ID --approver --note` / `research withdraw ID --approver --note` | not published |
+
+`link_only` shows the title, institution, date and link. `summary` adds the AI interpretation, forecasts and evidence
+locations (section and page). `excerpt` adds the verified quotes. The loader refuses any level without its three approval
+fields, and `summary` or `excerpt` without `full_text`. AI text is withheld (the item drops to `link_only`) while the
+source's current `llm_processing` would not permit the model that wrote it.
+
+**Do not set `public_display` without a documented, authorised review of the source's terms**: republishing summaries
+and quotes is a different use from reading them. Record in `public_display_note` what the terms say about it.
+
+### Switching the API on
+
+The FastAPI service has no authentication, so a route is public to anyone who can reach the port. The research routes
+(`/api/research/feed`, `/api/research/summaries/{id}`, `/api/research/forecasts`) are therefore off unless the process
+starts with `NZSTATS_PUBLIC_RESEARCH=1` (exactly `1`); while off they answer exactly like an unknown path. When on, every
+response passes `research/public.py`, re-checked on each request: verified, reviewer-approved and publication-approved;
+the newest such summary of the current, non-duplicate document version; the current registry's display level; an https
+document address on the institution's allowed hosts (the crawler's URL policy); and the current verifier passing on the
+stored text with no section that reads like instructions to a model. Raw output, document text, reviewer and approver
+names, notes, parameters, usage and cost are never in a response. `research summary ID` tells the operator why a summary
+is not public.
+
+```sh
+nzstats research publish 12 --approver "Your Name" --note "terms section 4 permit summaries with attribution"
+nzstats research summary 12      # shows 'public: yes (summary)' or the reason it is not
+nzstats research withdraw 12 --approver "Your Name" --note "licence query from the publisher"
+```
+
+### Static site
+
+Research is never in a snapshot. The static `/economic-outlook` shows the same "not published" state as the live app
+with research off, and the parity spec checks they match. A future opt-in would need its own snapshot kinds, an explicit
+export flag, a per-source allowlist and the same eligibility function.
+
+### UI tests
+
+`scripts/seed_research_demo.py DIR` stores four fictional institutions' summaries (all `SYNTHETIC FIXTURE`, through the
+real verifier, review and publication functions) and a matching registry file in `DIR`. It feeds the frontend fixtures
+(`research_synthetic_*.json`, from `scripts/dump_frontend_fixtures.py`) and `npx playwright test -c
+playwright.research.config.ts`. Never point a deployment at that registry.
+
+### Rollback (Phase 3C only)
+
+`sqlite3 data/nzstats.db < scripts/rollback/007_research_publication_down.sql` removes the publication log (nothing is
+then publication-approved). The 006 and full research rollbacks drop it first.
+
 ## Rollback
 
 The tables are additive and nothing outside `research_*` references them. To remove them (this deletes stored commentary):
 
 ```sh
 scripts/backup.sh                       # Docker deployment; without Docker: scripts/run.sh backup data/backups/before-rollback.db
-sqlite3 data/nzstats.db < scripts/rollback/004_research_down.sql   # also drops the Phase 3B tables (006)
+sqlite3 data/nzstats.db < scripts/rollback/004_research_down.sql   # also drops the Phase 3B and 3C tables (006, 007)
 ```
 
 Stop (or downgrade) every process that runs the new code first: starting it again re-applies migration 004 and recreates
