@@ -494,6 +494,106 @@ def test_a_horizon_ending_before_publication_is_historical():
     assert "historical_not_forecast" not in codes(run(GOOD, published_on=None))
 
 
+def _under_heading(
+    heading, sentence, quote, *, horizon="2027", published_on=date(2026, 8, 13), **kw
+):
+    """Verify a GDP claim whose only evidence is `sentence`, stored in a section headed `heading`."""
+    sections = {**SECTIONS, 9: SectionText(sentence, 10, 10, heading)}
+    base = dict(value=2.5, horizon=horizon, direction="up")
+    base.update(kw)
+    s = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("gdp",),
+                       forecasts=[claim(quote, 9, **base)])  # fmt: skip
+    return verify(s, sections, VerificationContext(published_on=published_on))
+
+
+FORECAST_BODY = "GDP growth of 2.5% in 2027."
+FORECAST_QUOTE = "GDP growth of 2.5% in 2027"
+
+
+@pytest.mark.parametrize(
+    ("heading", "sentence", "quote", "horizon", "ok"),
+    [
+        # forecast wording in the heading qualifies a verbless figure
+        ("GDP forecasts", FORECAST_BODY, FORECAST_QUOTE, "2027", True),
+        ("Economic outlook", FORECAST_BODY, FORECAST_QUOTE, "2027", True),
+        # forecast wording in the body is enough on its own, with or without a heading
+        ("Background", "GDP is forecast to grow 2.5% in 2027.", "forecast to grow 2.5% in 2027", "2027", True),
+        (None, "GDP is forecast to grow 2.5% in 2027.", "forecast to grow 2.5% in 2027", "2027", True),
+        # neither the heading nor the body looks forward
+        ("Recent developments", FORECAST_BODY, FORECAST_QUOTE, "2027", False),
+        (None, FORECAST_BODY, FORECAST_QUOTE, "2027", False),
+        ("Recent developments", "GDP growth was 2.5% in 2025.", "GDP growth was 2.5% in 2025", "2025", False),
+    ],
+)  # fmt: skip
+def test_forecast_wording_in_the_section_heading_qualifies_a_verbless_figure(
+    heading, sentence, quote, horizon, ok
+):
+    report = _under_heading(heading, sentence, quote, horizon=horizon)
+    assert ("historical_not_forecast" not in codes(report)) is ok, report.errors
+    if ok:
+        assert report.errors == (), report.errors
+
+
+@pytest.mark.parametrize(
+    ("sentence", "quote", "horizon"),
+    [
+        # a past-tense outturn is history even in a section that is mostly about the forecast
+        ("GDP growth was 2.5% in the year to March 2026.", "GDP growth was 2.5% in the year to March 2026",
+         "year to March 2026"),
+        ("GDP grew 2.5% in the year to March 2026.", "GDP grew 2.5% in the year to March 2026",
+         "year to March 2026"),
+        ("The actual outturn for GDP growth of 2.5% in 2026.", "GDP growth of 2.5% in 2026", "2026"),
+    ],
+)  # fmt: skip
+def test_a_historical_observation_in_a_forecast_section_is_not_accepted_for_its_heading(
+    sentence, quote, horizon
+):
+    report = _under_heading("GDP forecasts", sentence, quote, horizon=horizon)
+    assert "historical_not_forecast" in codes(report), report.errors
+
+
+def test_a_heading_cannot_make_a_horizon_before_publication_a_forecast():
+    report = _under_heading("GDP forecasts", "GDP growth of 2.5% in 2025.",
+                            "GDP growth of 2.5% in 2025", horizon="2025")  # fmt: skip
+    assert "historical_not_forecast" in codes(report)
+
+
+def test_a_heading_cannot_qualify_a_figure_whose_horizon_or_publication_date_is_unknown():
+    unknown_date = _under_heading("GDP forecasts", FORECAST_BODY, FORECAST_QUOTE, published_on=None)
+    assert "historical_not_forecast" in codes(unknown_date)
+    no_year = _under_heading("GDP forecasts", "GDP growth of 2.5% next year.",
+                             "GDP growth of 2.5% next year", horizon="next year")  # fmt: skip
+    assert "historical_not_forecast" in codes(no_year)
+
+
+def test_only_the_heading_of_the_cited_section_counts():
+    sections = {
+        **SECTIONS,
+        9: SectionText(FORECAST_BODY, 10, 10, "Background"),
+        10: SectionText(FORECAST_BODY, 11, 11, "GDP forecasts"),
+    }
+
+    def verdict(ordinal):
+        s = OutlookSummary(version_id=V, outlook=OUTLOOK, provenance=PROV, indicators=("gdp",),
+                           forecasts=[claim(FORECAST_QUOTE, ordinal, value=2.5, horizon="2027")])  # fmt: skip
+        return verify(s, sections, VerificationContext(published_on=date(2026, 8, 13)))
+
+    assert "historical_not_forecast" in codes(
+        verdict(9)
+    )  # the forecast heading belongs to section 10
+    assert "historical_not_forecast" not in codes(verdict(10))
+
+
+def test_a_scenario_heading_still_marks_the_figure_as_an_alternative_path():
+    heading = "Downside scenario forecasts"
+    sentence, quote = "GDP contracts 1.0% in 2027.", "GDP contracts 1.0% in 2027"
+    base = dict(value=-1.0, direction="down")
+    unnamed = _under_heading(heading, sentence, quote, **base)
+    assert "scenario_as_baseline" in codes(unnamed)
+    named = _under_heading(heading, sentence, quote, scenario="downside scenario", **base)
+    assert named.errors == (), named.errors
+
+
 def test_a_scenario_reported_as_the_baseline_is_an_error():
     quote = "GDP contracts 1.0% in 2027"
     base = dict(value=-1.0, horizon="2027", direction="down")

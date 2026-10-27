@@ -46,6 +46,12 @@ _FORWARD = re.compile(
     r"|pick up|recover|contract|improve|edge|lift)\b",
     re.IGNORECASE,
 )
+# Past-tense or outturn wording: a heading's forecast context must not turn these into forecasts.
+_HISTORICAL = re.compile(
+    r"\b(?:was|were|had|rose|fell|grew|dropped|climbed|declined|increased|decreased|contracted"
+    r"|recorded|reached|averaged|totall?ed|stood|came in|reported|actual|outturn|provisional)\b",
+    re.IGNORECASE,
+)
 _SCENARIO = re.compile(
     r"scenario|alternative (?:path|projection|forecast)|sensitivity|illustrative|stress test",
     re.IGNORECASE,
@@ -533,13 +539,28 @@ class _Checker:
                 self.error("period_basis_mismatch", path,
                            f"evidence describes a {stated} change; horizon {horizon!r} does not")  # fmt: skip
 
+    def _looks_forward(self, claim: ForecastClaim, loc: _Located) -> bool:
+        """Forward-looking by its own sentence, or by the heading of the section it was quoted from.
+
+        A heading ("GDP forecasts") only qualifies a figure the sentence itself leaves unqualified, so it
+        is accepted when the sentence is free of past-tense/outturn wording and the horizon is a stated
+        year not before publication. Limit: a verbless historical figure for the publication year, under
+        a forecast heading, cannot be told from a forecast; the human review requirement covers it.
+        """
+        sentence = loc.sentence_text()
+        if _FORWARD.search(sentence):
+            return True
+        if not _FORWARD.search(loc.heading) or _HISTORICAL.search(sentence):
+            return False
+        years, published = _horizon_years(claim.horizon), self.ctx.published_on
+        return bool(years) and published is not None and max(years) >= published.year
+
     def history_and_scenario(
         self, path: str, claim: ForecastClaim, found: list[tuple[EvidenceRef, _Located]]
     ) -> None:
-        sentences = " ".join(loc.sentence_text() for _, loc in found)
-        if not _FORWARD.search(sentences):
+        if not any(self._looks_forward(claim, loc) for _, loc in found):
             self.error("historical_not_forecast", path,
-                       "no forward-looking language in the cited sentence (a historical observation?)")  # fmt: skip
+                       "no forward-looking language in the cited sentence or its section heading (a historical observation?)")  # fmt: skip
         else:
             years = _horizon_years(claim.horizon)
             published = self.ctx.published_on
