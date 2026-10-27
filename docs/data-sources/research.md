@@ -337,7 +337,19 @@ Rules worth knowing before reading the numbers:
 - Outcomes: annual and annual average change from the unadjusted all-groups index, quarterly change only with its
   seasonal adjustment stated, always for the quarter the claim names, rounded like Stats NZ (half away from zero, one
   decimal). The first-published value comes from that quarter's own release, or is labelled "earliest stored". A forecast
-  published on or after that release is excluded; a target not yet released is pending.
+  published on or after that release is excluded; a target not yet released is pending. "That quarter's own release" is
+  read from its earliest stored bundle, so a later correction or re-ingest never replaces the first-published baseline:
+  the correction shows as the outcome's revision (latest minus first), and the latest value comes from the newest
+  release's current bundle.
+- Accuracy summaries (mean error, MAE, RMSE) count distinct official target quarters. Per institution, measure, horizon
+  band and target quarter only the latest-published central vintage is in the sample (ties: highest summary id), so
+  repeated updates neither lift a quarter over the four-outcome minimum nor weight it more. Every vintage still appears in
+  the evaluated list. The ranking keeps its own unit, a (target quarter, exact horizon) cell, with at least eight common to
+  every ranked institution; the latest vintage in a cell is used there too.
+- The revision charts take the official outcome line from the evaluation through an explicit map from the history's
+  comparison basis to the evaluation measure (`lib/research.ts`). The history's basis does not record seasonal adjustment, so
+  an unqualified quarterly change gets an outcome only where the evaluation matched that series' own forecast on the
+  seasonally adjusted measure.
 - Scenarios are never scored and never form a consensus; a document titled as a consensus or survey of other
   forecasters is not an independent contributor; contributions more than 180 days older than the newest are left out.
 - Synthetic data only so far: these results describe the fictional fixture institutions, not any real forecaster.
