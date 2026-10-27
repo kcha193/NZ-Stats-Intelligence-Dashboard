@@ -207,3 +207,93 @@ def test_scenarios_are_never_scored_against_the_outcome(cpi_actuals):
     assert out.evaluated == []
     (x,) = out.excluded
     assert "scenario" in x.reason.lower()
+
+
+# Annual CPI per target quarter (Stats NZ): Dec 2025 3.1 (1327/1287), Mar 2026 3.1, Jun 2026 4.1, Sep 2026 3.7. Each
+# target is forecast one quarter ahead (h1_2 band) by a latest vintage and an earlier one published in the same
+# quarter, so both share an exact horizon and a ranking cell. (published_on, value)
+LATEST_VINTAGE = {
+    "year to December 2025": ("2025-08-15", 3.0),
+    "year to March 2026": ("2025-11-15", 3.5),
+    "year to June 2026": ("2026-02-15", 3.6),
+    "year to September 2026": ("2026-05-15", 3.9),
+}
+EARLIER_VINTAGE = {
+    "year to December 2025": ("2025-07-10", 9.0),
+    "year to March 2026": ("2025-10-05", 9.0),
+    "year to June 2026": ("2026-01-15", 9.0),
+    "year to September 2026": ("2026-04-10", 9.0),
+}
+
+
+def vintages(horizons, *, earlier=True, institution="a"):
+    rows = []
+    for horizon in horizons:
+        for table in (EARLIER_VINTAGE, LATEST_VINTAGE) if earlier else (LATEST_VINTAGE,):
+            published_on, value = table[horizon]
+            rows.append(claim(institution=institution, summary_id=len(rows) + 1, published_on=published_on,
+                              horizon=horizon, value=value))  # fmt: skip
+    return rows
+
+
+def a_summary(out, institution="a"):
+    (s,) = [s for s in out.summaries if s.institution.key == institution]
+    return s
+
+
+def test_four_vintages_of_one_quarter_are_one_outcome_not_four(cpi_actuals):
+    june = "year to June 2026"
+    forecasts = [
+        claim(institution="a", summary_id=i, published_on=d, horizon=june, value=3.6)
+        for i, d in enumerate(("2025-10-01", "2025-12-10", "2026-01-20", "2026-02-20"), start=1)
+    ]
+    out = evaluate_forecasts(forecasts, cpi_actuals, indicator="cpi_inflation")
+    assert (
+        len([e for e in out.evaluated if e.status == "matched"]) == 4
+    )  # every vintage stays visible
+    s = a_summary(out)
+    assert s.n == 1 and not s.sufficient and s.mae is None
+
+
+def test_three_distinct_outcomes_are_insufficient_however_many_vintages(cpi_actuals):
+    horizons = list(LATEST_VINTAGE)[:3]
+    out = evaluate_forecasts(vintages(horizons), cpi_actuals, indicator="cpi_inflation")
+    assert len(out.evaluated) == 6
+    s = a_summary(out)
+    assert (s.band, s.n, s.sufficient, s.mae) == ("h1_2", 3, False, None)
+
+
+def test_four_distinct_outcomes_are_scored_on_each_quarters_latest_vintage_only(cpi_actuals):
+    out = evaluate_forecasts(vintages(list(LATEST_VINTAGE)), cpi_actuals, indicator="cpi_inflation")
+    s = a_summary(out)
+    # Errors from the latest vintage per quarter: 3.0-3.1, 3.5-3.1, 3.6-4.1, 3.9-3.7 = -0.1, 0.4, -0.5, 0.2.
+    # (The 9.0 earlier vintages would give MAE above 5 if they were counted.)
+    assert s.n == 4 and s.sufficient
+    assert s.mean_error == pytest.approx(0.0) and s.mae == pytest.approx(0.3)
+    assert s.rmse == pytest.approx(math.sqrt(0.115), abs=1e-6)
+
+
+def test_the_selected_vintage_does_not_depend_on_input_order(cpi_actuals):
+    forecasts = vintages(list(LATEST_VINTAGE))
+    forward = evaluate_forecasts(forecasts, cpi_actuals, indicator="cpi_inflation")
+    backward = evaluate_forecasts(forecasts[::-1], cpi_actuals, indicator="cpi_inflation")
+    assert a_summary(forward) == a_summary(backward)
+
+
+def test_vintages_of_a_quarter_in_different_bands_are_separate_samples(cpi_actuals):
+    june = "year to June 2026"
+    out = evaluate_forecasts([
+        claim(institution="a", summary_id=1, published_on="2026-02-15", horizon=june, value=3.6),  # h1_2
+        claim(institution="a", summary_id=2, published_on="2026-06-15", horizon=june, value=4.0),  # h0
+    ], cpi_actuals, indicator="cpi_inflation")  # fmt: skip
+    assert sorted((s.band, s.n) for s in out.summaries) == [("h0", 1), ("h1_2", 1)]
+
+
+def test_ranking_counts_cells_not_vintages(cpi_actuals):
+    forecasts = vintages(list(LATEST_VINTAGE)) + vintages(list(LATEST_VINTAGE), institution="b")
+    for i, f in enumerate(forecasts, start=1):
+        forecasts[i - 1] = f.model_copy(update={"summary_id": i})
+    out = evaluate_forecasts(forecasts, cpi_actuals, indicator="cpi_inflation")
+    (ranking,) = out.rankings
+    assert len(out.evaluated) == 16
+    assert ranking.matched_cells == 4 and not ranking.available  # four cells, not sixteen vintages

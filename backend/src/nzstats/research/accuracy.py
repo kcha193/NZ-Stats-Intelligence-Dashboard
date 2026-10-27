@@ -4,7 +4,9 @@ Every comparable central vintage of a CPI forecast is matched to the official ou
 states (`outcomes`). Scenarios are not scored, nor is anything published on or after that outcome's release
 (look-ahead). The error is forecast minus actual: positive means the forecast was too high. It is computed against the
 first-published actual and, separately, the latest. Summaries (mean error, MAE, RMSE) are given per institution,
-measure and horizon band from four outcomes. A ranking is given only on a matched sample: the (target quarter,
+measure and horizon band from four outcomes, counted as distinct official target quarters: when an institution has
+several vintages for one quarter in one band, only its latest-published one (ties: highest summary id) is in the
+sample, so repeated updates neither lift a quarter over the minimum nor weight it more than another. A ranking is given only on a matched sample: the (target quarter,
 horizon) cells that every institution with matched forecasts covered, at least eight of them; otherwise the reason is
 shown. No significance test is run. Forecast revisions are a separate analysis (`history`).
 """
@@ -203,9 +205,16 @@ def evaluate_forecasts(
     matched = [e for e in evaluated if e.status == "matched"]
     institutions = {f.institution.key: f.institution for f in chosen}
 
+    sample: dict[
+        tuple[str, str, str, str], EvaluatedForecastOut
+    ] = {}  # one vintage per outcome quarter
+    for e in sorted(matched, key=lambda e: (e.forecast.published_on or "", e.forecast.summary_id)):
+        sample[(e.forecast.institution.key, e.measure, e.band, e.target_quarter)] = (
+            e  # the latest vintage wins
+        )
     groups: dict[tuple[str, str, str], list[float]] = defaultdict(list)
-    for e in matched:
-        groups[(e.forecast.institution.key, e.measure, e.band)].append(e.error_first)  # type: ignore[arg-type]
+    for (inst, measure, band, _), e in sorted(sample.items()):
+        groups[(inst, measure, band)].append(e.error_first)  # type: ignore[arg-type]
     summaries = []
     for (inst, measure, band), errors in sorted(groups.items()):
         s = error_stats(errors)
