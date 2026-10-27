@@ -64,7 +64,7 @@ licence = "Crown copyright, Creative Commons Attribution 4.0 International unles
 licence_url = "https://www.treasury.govt.nz/copyright-and-licensing"
 verified_on = "2026-10-25"
 polling = "Budget, HYEFU and Monthly Economic Indicators follow the Treasury's published calendar."
-access_notes = "robots.txt read directly (Drupal rules; disallows /publications/search, /admin, /user/*; no Sitemap, no Crawl-delay). /publications, /sitemap.xml and /copyright returned 403 to the probe. Next step: one throttled probe with the project User-Agent (nzstats research discover treasury), then read the licence page directly before approving."
+access_notes = "robots.txt read directly (Drupal rules; disallows /publications/search, /admin, /user/*; no Sitemap, no Crawl-delay). /publications, /sitemap.xml and /copyright returned 403 to the probe. A direct read of /copyright-and-licensing on 2026-10-28 (Phase 3D-A audit) also returned 403, so the licence is still known only from a search summary. Next step: read the licence page in a browser and record what it says (terms_evidence = direct), then one throttled probe with the project User-Agent (nzstats research discover treasury), authorised by the owner. See docs/superpowers/specs/2026-10-28-phase-3d-design.md."
 
 [[institutions.treasury.discovery]]
 mechanism = "html_links"
