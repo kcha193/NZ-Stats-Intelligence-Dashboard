@@ -33,7 +33,7 @@ function GroupView({ group, cpi }: { group: ForecastGroup; cpi?: Kpi }) {
           {group.basis_label}, in {group.unit_label === "%" ? "percent" : group.unit_label}. {kind}. {group.note}
         </p>
       </figcaption>
-      <EChart option={option} height={forecastChartHeight(group.rows.length)} ariaLabel={`${group.indicator_name}, ${group.horizon_label}, ${kind}: ${describe}.`} />
+      <EChart option={option} height={forecastChartHeight(group.rows.length)} ariaLabel={`${group.indicator_name}, ${group.horizon_label}, ${group.basis_label}, ${kind}: ${describe}.`} />
       <ul aria-label="Legend" className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <li className="inline-flex items-center gap-1.5">
           <span aria-hidden className={`inline-block size-2.5 rounded-full border-2 border-[var(--chart-1)] ${group.kind === "scenario" ? "" : "bg-[var(--chart-1)]"}`} />
@@ -57,7 +57,7 @@ function GroupView({ group, cpi }: { group: ForecastGroup; cpi?: Kpi }) {
         <summary className="cursor-pointer text-xs font-medium text-accent-ink">Table view</summary>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full min-w-[34rem] text-left text-sm">
-            <caption className="sr-only">{group.indicator_name}, {group.horizon_label}: forecasts by institution</caption>
+            <caption className="sr-only">{group.indicator_name}, {group.horizon_label}, {group.basis_label}: forecasts by institution</caption>
             <thead className="text-xs text-muted-foreground">
               <tr><th scope="col" className="py-1.5 pr-3 font-medium">Institution</th><th scope="col" className="py-1.5 pr-3 font-medium">Forecast</th><th scope="col" className="py-1.5 pr-3 font-medium">As stated</th><th scope="col" className="py-1.5 pr-3 font-medium">Vintage</th><th scope="col" className="py-1.5 font-medium">Earlier vintages</th></tr>
             </thead>

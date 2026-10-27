@@ -172,6 +172,14 @@ describe("forecast comparison (SYNTHETIC)", () => {
     expect(within(fig).getByRole("img")).toHaveAccessibleName(/Harbourside Bank \(synthetic\) 2\.3%/);
   });
 
+  it("names the measure in the chart and table descriptions, so groups sharing an indicator and horizon stay distinct", async () => {
+    mockApi(routes);
+    renderWithProviders(<EconomicOutlook />);
+    const fig = await screen.findByRole("figure", { name: /CPI inflation, Year to June 2027/ });
+    expect(within(fig).getByRole("img")).toHaveAccessibleName(/Year to June 2027, Annual change \(through the year\), Central forecasts:/);
+    expect(within(fig).getByRole("table")).toHaveAccessibleName(/CPI inflation, Year to June 2027, Annual change \(through the year\): forecasts by institution/);
+  });
+
   it("keeps scenarios apart from central forecasts", async () => {
     mockApi(routes);
     const user = userEvent.setup();

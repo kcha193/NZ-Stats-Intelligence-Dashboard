@@ -689,3 +689,358 @@ def test_the_distinction_survives_serialisation_and_is_deterministic():
     )
     assert by_basis["share_of_gdp:gross-crown-debt"]["comparable"] is True
     assert by_basis["share_of_gdp:net-core-crown-debt"]["comparable"] is False
+
+
+# --- PR #13 review round 3: the population an unemployment rate covers, and peaks versus ordinary forecasts ---
+
+
+def cpi(institution="alpha", label="Annual CPI inflation", horizon="year to June 2027", **kw):
+    return claim(institution=institution, indicator_label=label, horizon=horizon, **kw)
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        # Headline wording, however it is dressed, is one population.
+        ("Annual average unemployment rate", "rate_average"),
+        ("Annual average unemployment rate, seasonally adjusted", "rate_average"),
+        ("Headline unemployment rate, annual average", "rate_average"),
+        ("Annual average unemployment rate for New Zealand", "rate_average"),
+        # A stated subgroup is part of the basis, in any word order.
+        ("Annual average youth unemployment rate", "rate_average:youth"),
+        ("Annual average unemployment rate for youth", "rate_average:youth"),
+        ("Annual average Māori unemployment rate", "rate_average:maori"),
+        ("Annual average female unemployment rate", "rate_average:female"),
+        ("Annual average Auckland unemployment rate", "rate_average:auckland"),
+        ("Annual average Māori women unemployment rate", "rate_average:maori-women"),
+        ("Annual average women Māori unemployment rate", "rate_average:maori-women"),
+        ("End of year youth unemployment rate", "rate_end:youth"),
+        # The population wording is never assumed away, and never guessed at.
+        ("Annual average unemployment rate excluding youth", None),
+        ("Annual average non-youth unemployment rate", None),
+        ("Annual average youth and female unemployment rate", None),
+        ("Annual average youth/female unemployment rate", None),
+        ("Annual average other unemployment rate", None),
+    ],
+)
+def test_unemployment_population_is_part_of_the_basis(label, expected):
+    assert basis_of("unemployment", label, "2027", "percent") == expected
+
+
+def test_headline_and_youth_unemployment_are_separate_groups_across_institutions():
+    out = compare_forecasts([
+        unemployment("alpha", "Annual average unemployment rate", "2027", value=5.2),
+        unemployment("beta", "Annual average youth unemployment rate", "2027", value=11.0),
+    ])  # fmt: skip
+    assert out.excluded == [] and len(out.groups) == 2
+    assert all(not g.comparable and len(g.rows) == 1 for g in out.groups)
+    assert {g.basis for g in out.groups} == {"rate_average", "rate_average:youth"}
+    assert len({g.key for g in out.groups}) == 2
+
+
+def test_one_institution_headline_and_youth_unemployment_are_not_vintages_of_each_other():
+    out = compare_forecasts([
+        unemployment("alpha", "Annual average unemployment rate", "2027", value=5.2, published_on="2026-08-01", summary_id=1),
+        unemployment("alpha", "Annual average youth unemployment rate", "2027", value=11.0, published_on="2026-08-02", summary_id=2),
+    ])  # fmt: skip
+    assert len(out.groups) == 2 and all(g.rows[0].earlier_vintages == [] for g in out.groups)
+
+
+def test_the_same_unemployment_subgroup_is_compared_across_institutions_whatever_the_wording():
+    out = compare_forecasts([
+        unemployment("alpha", "Annual average youth unemployment rate", "2027", value=11.0),
+        unemployment("beta", "Youth unemployment rate, annual average", "2027", value=11.4),
+        unemployment("gamma", "Annual average unemployment rate for youth", "2027", value=10.8),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert g.comparable and len(g.rows) == 3 and g.basis == "rate_average:youth"
+    assert "youth" in g.basis_label.lower() and "Average rate" in g.basis_label
+
+
+def test_unemployment_subgroup_vintages_still_deduplicate():
+    out = compare_forecasts([
+        unemployment("alpha", "Youth unemployment rate, annual average", "2027", value=10.5, published_on="2026-05-01", summary_id=1),
+        unemployment("alpha", "Annual average youth unemployment rate", "2027", value=11.0, published_on="2026-08-01", summary_id=2),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert g.rows[0].forecast.value == 11.0 and [e.value for e in g.rows[0].earlier_vintages] == [
+        10.5
+    ]
+
+
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        ("Annual average youth unemployment rate", "Annual average female unemployment rate"),
+        (
+            "Annual average Auckland unemployment rate",
+            "Annual average Canterbury unemployment rate",
+        ),
+        ("Annual average male unemployment rate", "Annual average female unemployment rate"),
+        ("Annual average Māori unemployment rate", "Annual average Pacific unemployment rate"),
+    ],
+)
+def test_different_unemployment_subgroups_are_never_grouped(a, b):
+    out = compare_forecasts([unemployment("alpha", a, "2027"), unemployment("beta", b, "2027")])
+    assert len(out.groups) == 2 and all(not g.comparable for g in out.groups)
+
+
+def test_ambiguous_unemployment_population_is_excluded_with_a_reason():
+    out = compare_forecasts(
+        [unemployment("alpha", "Annual average unemployment rate excluding youth", "2027")]
+    )
+    assert out.groups == [] and len(out.excluded) == 1
+    assert "population" in out.excluded[0].reason.lower()
+
+
+def test_unemployment_subgroup_survives_serialisation_and_ordering():
+    claims = [
+        unemployment("alpha", "Annual average unemployment rate", "2027"),
+        unemployment("beta", "Annual average youth unemployment rate", "2027"),
+        unemployment("gamma", "Youth unemployment rate, annual average", "2027"),
+    ]
+    body = compare_forecasts(claims).model_dump(mode="json")
+    assert compare_forecasts(list(reversed(claims))).model_dump(mode="json") == body
+    by_basis = {g["basis"]: g for g in body["groups"]}
+    assert set(by_basis) == {"rate_average", "rate_average:youth"}
+    assert (
+        by_basis["rate_average:youth"]["key"]
+        == "unemployment|percent|rate_average:youth|calendar:2027|central"
+    )
+    assert by_basis["rate_average:youth"]["basis_label"] == "Average rate over the period (youth)"
+    assert by_basis["rate_average"]["basis_label"] == "Average rate over the period"
+    assert [g["basis"] for g in body["groups"]] == ["rate_average", "rate_average:youth"]
+
+
+# --- peaks, troughs and other extremes are not the ordinary forecast for the period ---
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "Peak annual CPI inflation",
+        "Annual CPI inflation peak",
+        "Annual CPI inflation, trough",
+        "Maximum annual CPI inflation",
+        "Minimum annual CPI inflation",
+        "Highest annual CPI inflation",
+        "Lowest annual CPI inflation",
+        "Annual CPI inflation at its peak",
+    ],
+)
+def test_extreme_cpi_forecasts_have_no_ordinary_basis(label):
+    assert basis_of("cpi_inflation", label, "year to June 2027", "percent") is None
+
+
+def test_a_peak_cpi_forecast_is_excluded_with_a_public_reason_not_grouped():
+    out = compare_forecasts([cpi("alpha", "Peak annual CPI inflation")])
+    assert out.groups == [] and len(out.excluded) == 1
+    reason = out.excluded[0].reason.lower()
+    assert "peak" in reason and "trough" in reason and "not compared" in reason
+
+
+def test_peak_and_ordinary_cpi_with_the_same_horizon_never_share_a_group():
+    out = compare_forecasts(
+        [cpi("alpha", "Peak annual CPI inflation", value=3.1), cpi("beta", value=2.1)]
+    )
+    assert len(out.groups) == 1 and len(out.excluded) == 1
+    assert [r.forecast.institution.key for r in out.groups[0].rows] == ["beta"]
+    assert out.groups[0].comparable is False
+
+
+def test_same_institution_peak_and_ordinary_cpi_are_not_vintages_of_each_other():
+    out = compare_forecasts([
+        cpi("alpha", value=2.1, published_on="2026-08-01", summary_id=1),
+        cpi("alpha", "Peak annual CPI inflation", value=3.1, published_on="2026-08-02", summary_id=2),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert g.rows[0].earlier_vintages == [] and g.rows[0].forecast.value == 2.1
+    assert [e.forecast.value for e in out.excluded] == [3.1]
+
+
+def test_ordinary_cpi_still_compares_across_institutions_and_keeps_core_separate():
+    out = compare_forecasts([
+        cpi("alpha", value=2.1), cpi("beta", "CPI inflation, annual", value=2.3),
+        cpi("gamma", "Core annual CPI inflation", value=2.6),
+    ])  # fmt: skip
+    (g,) = out.groups
+    assert g.comparable and len(g.rows) == 2 and len(out.excluded) == 1
+
+
+@pytest.mark.parametrize(
+    ("indicator", "label", "unit"),
+    [
+        ("gdp", "Peak real GDP growth, annual average", "percent"),
+        ("ocr", "Peak OCR", "percent"),
+        ("unemployment", "Peak annual average unemployment rate", "percent"),
+        ("government_debt", "Peak net core Crown debt", "percent_of_gdp"),
+        ("fiscal_balance", "Lowest OBEGAL", "percent_of_gdp"),
+    ],
+)
+def test_extremes_are_excluded_for_every_indicator(indicator, label, unit):
+    assert basis_of(indicator, label, "year to June 2027", unit) is None
+    out = compare_forecasts([claim(indicator=indicator, indicator_label=label, unit=unit)])
+    assert out.groups == [] and "peak, trough" in out.excluded[0].reason.lower()
+
+
+# --- root cause: a qualifier the rules do not know must never be silently ignored by a single-series indicator ---
+
+
+@pytest.mark.parametrize(
+    ("indicator", "ordinary", "qualified", "unit"),
+    [
+        ("cpi_inflation", "Annual CPI inflation", "Annual CPI inflation, Auckland", "percent"),
+        (
+            "cpi_inflation",
+            "Annual CPI inflation",
+            "Annual CPI inflation (downside scenario)",
+            "percent",
+        ),
+        ("gdp", "Real GDP growth (y/y)", "Real GDP growth (y/y), Canterbury", "percent"),
+        ("ocr", "OCR", "Wholesale OCR", "percent"),
+    ],
+)
+def test_unrecognised_qualifiers_on_a_single_series_indicator_do_not_merge_with_the_plain_measure(
+    indicator, ordinary, qualified, unit
+):
+    horizon = "year to March 2027" if indicator != "ocr" else "December 2026"
+    a, b = (claim(institution=n, indicator=indicator, indicator_label=lbl, horizon=horizon, unit=unit)
+            for n, lbl in (("alpha", ordinary), ("beta", qualified)))  # fmt: skip
+    out = compare_forecasts([a, b])
+    assert len(out.groups) == 2 and all(not g.comparable for g in out.groups)
+
+
+@pytest.mark.parametrize(
+    ("indicator", "plain", "label", "horizon", "unit"),
+    [
+        ("cpi_inflation", "Annual CPI inflation", "Headline CPI inflation, annual", "year to June 2027", "percent"),
+        ("cpi_inflation", "Annual CPI inflation", "CPI inflation (annual % change, y/y)", "year to June 2027", "percent"),
+        ("cpi_inflation", "Annual CPI inflation", "Annual CPI inflation, per cent", "year to June 2027", "percent"),
+        ("gdp", "Real GDP growth (y/y)", "Real GDP growth, y/y (%)", "year to March 2027", "percent"),
+        ("gdp", "Real GDP, annual average growth", "Real GDP, annual average growth, %", "year to March 2027", "percent"),
+        ("gdp", "Real GDP, annual average growth", "Real GDP growth, annual average (March year)", "year to March 2027", "percent"),
+        ("ocr", "OCR at the end of the year", "OCR (end of period)", "2026", "percent"),
+        ("ocr", "OCR", "Official Cash Rate", "December 2026", "percent"),
+    ],
+)  # fmt: skip
+def test_ordinary_wording_is_not_split_from_the_plain_measure(
+    indicator, plain, label, horizon, unit
+):
+    basis = basis_of(indicator, label, horizon, unit)
+    assert basis is not None and ":" not in basis, basis
+    assert basis == basis_of(indicator, plain, horizon, unit)
+
+
+# --- Adversarial matrix: every pair is either one measurement (must group) or two (must never group) ---
+
+Y2027, FY, QTR, DEC = "2027", "year to March 2027", "December 2026 quarter", "December 2026"
+PAIRS = [
+    # (indicator, unit, horizon, label a, label b, same measurement?)
+    # GDP
+    ("gdp", "percent", FY, "Real GDP, annual average growth", "Real GDP growth, annual average", True),
+    ("gdp", "percent", FY, "Real GDP growth (y/y)", "Real GDP growth, year-on-year", True),
+    ("gdp", "percent", FY, "Real GDP, annual average growth", "Nominal GDP, annual average growth", False),
+    ("gdp", "percent", FY, "Real GDP, annual average growth", "Real GDP growth (y/y)", False),
+    ("gdp", "percent", FY, "Real GDP growth (y/y)", "Real GDP growth (y/y), Canterbury", False),
+    ("gdp", "percent", QTR, "Real quarterly GDP growth", "Real GDP growth (y/y)", False),
+    # CPI
+    ("cpi_inflation", "percent", "year to June 2027", "Annual CPI inflation", "CPI inflation, annual", True),
+    ("cpi_inflation", "percent", "year to June 2027", "Annual CPI inflation", "Headline CPI inflation (y/y)", True),
+    ("cpi_inflation", "percent", "year to June 2027", "Annual CPI inflation", "CPI, annual average", False),
+    ("cpi_inflation", "percent", "year to June 2027", "Annual CPI inflation", "Annual CPI inflation, Auckland", False),
+    ("cpi_inflation", "percent", "June 2027 quarter", "Quarterly CPI inflation", "Annual CPI inflation", False),
+    ("cpi_inflation", "percent", "year to June 2027", "Annual CPI inflation", "Annual CPI inflation, all groups", True),
+    ("cpi_inflation", "percent", "year to June 2027", "Annual CPI inflation", "Annual percentage change in CPI", True),
+    ("unemployment", "percent", QTR, "Unemployment rate", "Unemployment rate (HLFS)", True),
+    # Unemployment
+    ("unemployment", "percent", Y2027, "Annual average unemployment rate", "Unemployment rate, annual average", True),
+    ("unemployment", "percent", Y2027, "Annual average unemployment rate", "Annual average unemployment rate, seasonally adjusted", True),
+    ("unemployment", "percent", Y2027, "Annual average youth unemployment rate", "Youth unemployment rate, annual average", True),
+    ("unemployment", "percent", Y2027, "Annual average unemployment rate", "Annual average youth unemployment rate", False),
+    ("unemployment", "percent", Y2027, "Annual average unemployment rate", "End of year unemployment rate", False),
+    ("unemployment", "percent", Y2027, "Annual average Auckland unemployment rate", "Annual average Wellington unemployment rate", False),
+    ("unemployment", "percent", QTR, "Unemployment rate", "Female unemployment rate", False),
+    # OCR
+    ("ocr", "percent", DEC, "OCR", "Official Cash Rate", True),
+    ("ocr", "percent", DEC, "OCR", "OCR at the end of the year", False),
+    ("ocr", "percent", DEC, "OCR, quarterly average", "OCR at the end of the year", False),
+    # Government debt and fiscal balance
+    ("government_debt", "percent_of_gdp", "year to June 2027", "Net core Crown debt", "Net core Crown debt (% of GDP)", True),
+    ("government_debt", "percent_of_gdp", "year to June 2027", "Net core Crown debt", "Gross Crown debt", False),
+    ("government_debt", "percent_of_gdp", "year to June 2027", "Net core Crown debt", "Net total Crown debt", False),
+    ("fiscal_balance", "percent_of_gdp", "year to June 2027", "OBEGAL", "OBEGAL (% of GDP)", True),
+    ("fiscal_balance", "percent_of_gdp", "year to June 2027", "OBEGAL", "Core Crown operating balance", False),
+]  # fmt: skip
+
+
+def _pair(
+    indicator,
+    unit,
+    horizon,
+    a,
+    b,
+    *,
+    inst=("alpha", "beta"),
+    ids=(1, 2),
+    dates=("2026-08-01", "2026-08-02"),
+):
+    return [
+        claim(institution=inst[i], indicator=indicator, unit=unit, horizon=horizon, indicator_label=lbl,
+              value=1.0 + i, summary_id=ids[i], published_on=dates[i])
+        for i, lbl in enumerate((a, b))
+    ]  # fmt: skip
+
+
+@pytest.mark.parametrize(("indicator", "unit", "horizon", "a", "b", "same"), PAIRS)
+def test_matrix_false_matches_and_false_splits_across_institutions(
+    indicator, unit, horizon, a, b, same
+):
+    claims = _pair(indicator, unit, horizon, a, b)
+    out = compare_forecasts(claims)
+    assert out.excluded == [], (a, b)
+    if same:
+        (g,) = out.groups
+        assert g.comparable and len(g.rows) == 2, (a, b, g.basis)
+    else:
+        assert len(out.groups) == 2 and all(not g.comparable for g in out.groups), (a, b)
+        assert len({g.key for g in out.groups}) == 2 and len({g.basis for g in out.groups}) == 2
+    # Stable group keys, ordering and serialisation whatever the input order.
+    body = out.model_dump(mode="json")
+    assert compare_forecasts(list(reversed(claims))).model_dump(mode="json") == body
+
+
+@pytest.mark.parametrize(("indicator", "unit", "horizon", "a", "b", "same"), PAIRS)
+def test_matrix_one_institution_only_hides_a_genuine_earlier_vintage(
+    indicator, unit, horizon, a, b, same
+):
+    out = compare_forecasts(_pair(indicator, unit, horizon, a, b, inst=("alpha", "alpha")))
+    if same:
+        (g,) = out.groups
+        assert len(g.rows) == 1 and len(g.rows[0].earlier_vintages) == 1, (a, b)
+    else:
+        assert len(out.groups) == 2, (a, b)
+        assert all(r.earlier_vintages == [] for g in out.groups for r in g.rows)
+
+
+@pytest.mark.parametrize(
+    ("indicator", "unit", "label"),
+    [
+        ("cpi_inflation", "percent", "Peak annual CPI inflation"),
+        ("gdp", "percent", "Minimum real GDP growth, annual average"),
+        ("unemployment", "percent", "Peak annual average unemployment rate"),
+        ("ocr", "percent", "Peak OCR"),
+        ("government_debt", "percent_of_gdp", "Peak net core Crown debt"),
+        ("fiscal_balance", "percent_of_gdp", "Lowest OBEGAL"),
+    ],
+)
+def test_matrix_an_extreme_never_joins_or_hides_an_ordinary_forecast(indicator, unit, label):
+    plain = {"cpi_inflation": "Annual CPI inflation", "gdp": "Real GDP, annual average growth",
+             "unemployment": "Annual average unemployment rate", "ocr": "OCR",
+             "government_debt": "Net core Crown debt", "fiscal_balance": "OBEGAL"}[indicator]  # fmt: skip
+    horizon = "year to March 2027" if indicator in ("gdp", "unemployment") else "year to June 2027"
+    if indicator == "ocr":
+        horizon = "December 2026"
+    out = compare_forecasts(_pair(indicator, unit, horizon, plain, label, inst=("alpha", "alpha")))
+    (g,) = out.groups
+    assert g.rows[0].earlier_vintages == [] and len(out.excluded) == 1
+    assert "peak, trough" in out.excluded[0].reason.lower()

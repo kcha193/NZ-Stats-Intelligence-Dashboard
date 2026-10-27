@@ -5,11 +5,19 @@ forecast, or the same named scenario). Every rule is deterministic and deliberat
 mean two different things (GDP "growth in the year to March" can be an annual average or a change through the year)
 is not compared, and the reason is shown instead. Nothing is converted, rebased or inferred: GDP is real or nominal only
 when the label says so, and an unemployment rate keeps whether it is an average, an end-of-period figure or neither.
+
+The statistical basis is the measurement identity. Beyond indicator, unit, horizon and kind it carries, where the label
+states them: the price basis (real or nominal), the aggregation and timing (annual average, through the year, end of
+period), the measure itself (net or gross debt, which balance) and the part of the series measured (a population, a
+region). A peak, trough or other extreme is not a forecast for the period and has no basis at all. For GDP, CPI, OCR and
+unemployment, any word the rules do not recognise as generic is kept in the basis instead of being ignored, so a
+qualifier nobody anticipated separates forecasts rather than merging them.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter, defaultdict
 
 from nzstats.research.api_models import (
@@ -77,7 +85,11 @@ _THROUGH_YEAR = re.compile(
 _ANNUAL = re.compile(r"\bannual\b", re.IGNORECASE)
 _AVERAGE = re.compile(r"\baverage\b", re.IGNORECASE)
 _END = re.compile(r"\bend\b", re.IGNORECASE)
-_EXTREME = re.compile(r"\b(?:peak|trough|high|low)\b", re.IGNORECASE)
+# A peak, trough or other extreme over a period is a different statistic from the forecast for the period itself.
+_EXTREME = re.compile(
+    r"\b(?:peaks?|peaking|peaked|troughs?|high|highest|low|lowest|max|maximum|min|minimum)\b",
+    re.IGNORECASE,
+)
 _REAL = re.compile(r"\breal\b(?!\s+estate)|\bconstant[- ]prices?\b", re.IGNORECASE)
 _NOMINAL = re.compile(r"\bnominal\b|\bcurrent[- ]prices?\b", re.IGNORECASE)
 # Different series from the headline measure, even when the cadence and unit match.
@@ -90,6 +102,26 @@ _CPI_VARIANT = re.compile(
     re.IGNORECASE,
 )
 _POINT_IN_TIME = ("quarter:", "month:")
+# Words a single-series label may carry without naming a different part of the series: how the number is stated (cadence,
+# timing, price basis, units) and what the series is called. Anything else (youth, Auckland, "downside") is kept.
+_SERIES_WORDS = {
+    "cpi_inflation": "cpi consumer consumers price prices index inflation headline all groups",
+    "gdp": "gdp gross domestic product economic",
+    "ocr": "ocr official cash",
+    "unemployment": "unemployment rate rates headline total overall hlfs household labour force survey",
+}
+_STATED_WORDS = frozenset(
+    "y q end period level rate rates basis seasonally adjusted sa nz new zealand national calendar current prices "
+    "price percentage pa p for among amongst aged "
+    "jan feb mar apr jun jul aug sep sept oct nov dec".split()
+)
+_PAIR_CADENCE = re.compile(r"\b[yq]\s*/\s*[yq]\b")
+_YEARISH = re.compile(r"(?:19|20|21)\d{2}|q[1-4]")
+# Wording that excludes, combines or leaves open the part of the series measured: it is never guessed at.
+_SCOPE_AMBIGUOUS = re.compile(
+    r"\b(?:and|or|non|not|other|others|excl\w*|ex|except|without|versus|vs|than)\b|[/&+]",
+    re.IGNORECASE,
+)
 # GDP, CPI, OCR and unemployment each name one series. Every other indicator is only a topic ("wages", "house prices",
 # "government debt"), so the measure the label names ("Net core Crown debt") is part of its basis.
 _SINGLE_SERIES = frozenset(INDICATOR_ORDER)
@@ -196,7 +228,25 @@ def measure_words(label: str) -> list[str]:
     return [w for w in words if w.lower() not in _NOT_THE_MEASURE]
 
 
-def basis_label(basis: str, label: str = "") -> str:
+def _qualifiers(indicator: str, label: str) -> tuple[list[str], bool]:
+    """The words of a GDP, CPI, OCR or unemployment label that say which part of the series it is, and whether unclear.
+
+    Sorted and accent-folded so "Māori women" and "women Maori" are one population. A label that excludes, combines or
+    leaves open the part measured ("excluding youth", "youth and women", "other") is unclear and never compared.
+    """
+    folded = "".join(
+        c for c in unicodedata.normalize("NFKD", label) if not unicodedata.combining(c)
+    ).lower()
+    folded = _PAIR_CADENCE.sub(" ", folded)
+    known = _NOT_THE_MEASURE | _STATED_WORDS | {m.lower() for m in _MONTH_NAMES}
+    known |= frozenset(_SERIES_WORDS.get(indicator, "").split())
+    words = sorted(
+        {w for w in _MEASURE_WORD.findall(folded) if w not in known and not _YEARISH.fullmatch(w)}
+    )
+    return words, bool(words) and bool(_SCOPE_AMBIGUOUS.search(folded))
+
+
+def basis_label(basis: str, label: str = "", indicator: str = "") -> str:
     """Plain-English basis; `label` is any member's indicator label, used only for the words naming the measure."""
     base, _, measure = basis.partition(":")
     price = next((p for p in PRICE_LABELS if base.startswith(f"{p}_")), None)
@@ -206,7 +256,13 @@ def basis_label(basis: str, label: str = "") -> str:
         cadence = BASIS_LABELS[base.removeprefix(f"{price}_")]
         text = f"{PRICE_LABELS[price]}, {cadence[0].lower()}{cadence[1:]}"
     if measure:
-        text = f"{text} ({' '.join(measure_words(label)) or measure.replace('-', ' ')})"
+        # A single-series qualifier is already plain words in the basis; other measures keep the label's own wording.
+        words = (
+            measure.replace("-", " ")
+            if indicator in _SINGLE_SERIES
+            else " ".join(measure_words(label))
+        )
+        text = f"{text} ({words or measure.replace('-', ' ')})"
     return text
 
 
@@ -214,10 +270,19 @@ def basis_of(indicator: str, label: str, horizon: str, unit: str | None) -> str 
     """The statistical basis the label states, or None when it does not say clearly enough to compare.
 
     A basis is stated, never assumed: contradictory wording (an average and an end-of-period figure, two change
-    cadences, real and nominal) gives None, and so does a different series (core CPI, GDP per capita, a peak).
+    cadences, real and nominal) gives None, and so does a different series (core CPI, GDP per capita) or a peak, trough
+    or other extreme. Words naming a part of a single series (a population, a region) become part of the basis.
     """
+    if _EXTREME.search(label):
+        return None
     text = f"{label} {horizon}"
     key = (horizon_of(horizon) or ("",))[0]
+    qualifiers, unclear = (
+        _qualifiers(indicator, label) if indicator in _SINGLE_SERIES else ([], False)
+    )
+    if unclear:
+        return None
+    suffix = f":{'-'.join(qualifiers)}" if qualifiers else ""
     if indicator == "cpi_inflation":
         if _CPI_VARIANT.search(label):
             return None
@@ -225,29 +290,29 @@ def basis_of(indicator: str, label: str, horizon: str, unit: str | None) -> str 
         if len(found) > 1:
             return None
         if found:
-            return found[0]
+            return found[0] + suffix
         if _ANNUAL.search(text) or key.startswith("year_to:"):
-            return "annual_change"
+            return "annual_change" + suffix
         return None
     if indicator == "unemployment":
-        if unit != "percent" or _EXTREME.search(label):
+        if unit != "percent":
             return None
         average, end = bool(_AVERAGE.search(label)), bool(_END.search(label))
         if average and end:
             return None
         if average or end:
-            return "rate_average" if average else "rate_end"
+            return ("rate_average" if average else "rate_end") + suffix
         # A quarter or a month is itself the point in time; a longer span without a stated timing is not.
-        return "rate" if key.startswith(_POINT_IN_TIME) else "rate_timing_unstated"
+        return ("rate" if key.startswith(_POINT_IN_TIME) else "rate_timing_unstated") + suffix
     if indicator == "ocr":
-        if unit != "percent" or _EXTREME.search(label):
+        if unit != "percent":
             return None
         average, end = bool(_AVERAGE.search(label)), bool(_END.search(label))
         if average and end:
             return None
         if average:
-            return "level_average"
-        return "level_end" if end else "level"
+            return "level_average" + suffix
+        return ("level_end" if end else "level") + suffix
     if indicator == "gdp" and _GDP_VARIANT.search(label):
         return None
     if unit == "percent_of_gdp":
@@ -258,7 +323,7 @@ def basis_of(indicator: str, label: str, horizon: str, unit: str | None) -> str 
     if basis is None:
         return None
     if indicator in _SINGLE_SERIES and unit != "percent_of_gdp":
-        return basis
+        return basis + suffix
     # Net and gross debt, or average earnings and the labour cost index, are different statistics under one indicator.
     words = [w.lower() for w in measure_words(label)]
     # Debt must say net or gross (once): "Crown debt" alone could be either, and the two are different statistics.
@@ -277,6 +342,18 @@ def _exclusion(f: ForecastOut) -> str | None:
     if horizon_of(f.horizon) is None:
         return "The horizon is relative or not in a recognised form, so it cannot be lined up with others."
     if basis_of(f.indicator, f.indicator_label, f.horizon, f.unit) is None:
+        if _EXTREME.search(f.indicator_label):
+            return (
+                "States a peak, trough or other extreme over a period, not the forecast for the period itself,"
+                " so it is not compared with ordinary forecasts."
+            )
+        if f.indicator in _SINGLE_SERIES and _qualifiers(f.indicator, f.indicator_label)[1]:
+            what = (
+                "population the rate covers"
+                if f.indicator == "unemployment"
+                else "part of the series measured"
+            )
+            return f"The {what} is excluded, combined or unclear, so it is not compared with other forecasts."
         if f.indicator == "gdp":
             return (
                 "The statistical basis is not stated clearly enough to compare: GDP growth can be real or nominal,"
@@ -332,7 +409,7 @@ def compare_forecasts(forecasts: list[ForecastOut]) -> ForecastComparisonOut:
             ForecastGroupOut(
                 key="|".join((indicator, unit, basis, horizon_key, scenario or "central")),
                 indicator=indicator, indicator_name=INDICATOR_NAMES.get(indicator, indicator),
-                unit=unit, unit_label=UNIT_LABELS[unit], basis=basis, basis_label=basis_label(basis, first.indicator_label),
+                unit=unit, unit_label=UNIT_LABELS[unit], basis=basis, basis_label=basis_label(basis, first.indicator_label, indicator),
                 horizon_key=horizon_key, horizon_label=horizon_of(first.horizon)[1],  # type: ignore[index]
                 kind="scenario" if scenario else "central",
                 scenario=" ".join(first.scenario.split()) if scenario and first.scenario else None,

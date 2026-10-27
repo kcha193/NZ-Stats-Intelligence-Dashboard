@@ -92,6 +92,27 @@ thousands).
   were already excluded (no stated change basis); a test now pins that. Wages, house prices and employment keep the
   measure-in-key rule only: the label does not let us say more, and unequal wording is never grouped.
 
+### PR #13 review round 3 (Codex, head 53d24f3): the part of the series, and peaks
+
+- P2, headline vs youth unemployment (#4392887873): `Annual average unemployment rate` and `Annual average youth
+  unemployment rate` both became `rate_average`. P2, peak vs ordinary CPI (#4392887881): `Peak annual CPI inflation` took
+  the same `annual_change` as `Annual CPI inflation`; the extreme-wording guard existed only for unemployment and the OCR.
+- Root cause (the fifth finding of one kind): for GDP, CPI, OCR and unemployment the rules were a blacklist of variants we
+  had thought of (per capita, core, peak for two indicators), so any other qualifier was silently ignored. Now the rule is
+  a whitelist of generic wording: every word that is not a series name, cadence, timing, price-basis, unit or joining word
+  stays in the basis (`rate_average:youth`, `annual_change:auckland`), sorted and accent-folded ("Māori women" and
+  "women Maori" are one population). Wording that excludes, combines or leaves open the part measured (`excluding`, `non-`,
+  `and`, `or`, `/`, `other`) has no basis and is excluded with a reason. A peak, trough, high, low, maximum or minimum has
+  no basis for any indicator and is excluded with its own public reason, so it is never grouped and never hidden as an
+  earlier vintage. Unequal wording of one population ("youth (15-24)" vs "youth") is not grouped: the conservative side.
+- Comparison identity, as now enforced: indicator, unit, horizon and kind (central or named scenario) in the group key;
+  everything else in the basis: price basis, aggregation and timing, the measure (net or gross debt, which balance), the
+  part of the series (population, region) and point-versus-extreme (an extreme has none). Frontend: the chart and table
+  descriptions now include the basis label, because two groups can share an indicator and horizon.
+- Known limit: the free-text `qualification` of a claim is not read; only the indicator label and horizon are.
+- Tests: a parametrised false-match / false-split matrix (GDP, CPI, unemployment, OCR, debt, fiscal balance) checks groups,
+  keys, ordering, serialisation, exclusion reasons and vintage behaviour; it fails against the previous `compare.py`.
+
 ## Phase 3B: evidence-grounded LLM economic intelligence, 26 October 2026
 
 Structured summaries (outlook, drivers, risks, uncertainty, indicators) and explicit forecast claims for stored research
