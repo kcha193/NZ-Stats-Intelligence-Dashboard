@@ -3,7 +3,8 @@
 Two forecasts are compared only when they share the indicator, unit, statistical basis, horizon and kind (the central
 forecast, or the same named scenario). Every rule is deterministic and deliberately conservative: wording that could
 mean two different things (GDP "growth in the year to March" can be an annual average or a change through the year)
-is not compared, and the reason is shown instead. Nothing is converted, rebased or inferred.
+is not compared, and the reason is shown instead. Nothing is converted, rebased or inferred: GDP is real or nominal only
+when the label says so, and an unemployment rate keeps whether it is an average, an end-of-period figure or neither.
 """
 
 from __future__ import annotations
@@ -39,11 +40,15 @@ BASIS_LABELS = {
     "annual_average_change": "Annual average change",
     "quarterly_change": "Quarterly change",
     "rate": "Rate",
+    "rate_average": "Average rate over the period",
+    "rate_end": "Rate at the end of the period",
+    "rate_timing_unstated": "Rate (timing within the period not stated)",
     "level": "Level (timing within the period not stated)",
     "level_average": "Average over the period",
     "level_end": "End of period",
     "share_of_gdp": "Share of GDP",
 }
+PRICE_LABELS = {"real": "Real terms", "nominal": "Nominal terms"}
 
 _MONTH = (
     r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?"
@@ -73,6 +78,18 @@ _ANNUAL = re.compile(r"\bannual\b", re.IGNORECASE)
 _AVERAGE = re.compile(r"\baverage\b", re.IGNORECASE)
 _END = re.compile(r"\bend\b", re.IGNORECASE)
 _EXTREME = re.compile(r"\b(?:peak|trough|high|low)\b", re.IGNORECASE)
+_REAL = re.compile(r"\breal\b(?!\s+estate)|\bconstant[- ]prices?\b", re.IGNORECASE)
+_NOMINAL = re.compile(r"\bnominal\b|\bcurrent[- ]prices?\b", re.IGNORECASE)
+# Different series from the headline measure, even when the cadence and unit match.
+_GDP_VARIANT = re.compile(
+    r"\bper[- ](?:capita|head)\b|\bpotential\b|\btrend\b|\boutput\s+gap\b", re.IGNORECASE
+)
+_CPI_VARIANT = re.compile(
+    r"\bcore\b|\bunderlying\b|\bexcl(?:uding|uded|\.)?\b|\bex[- ](?:food|fuel|energy|housing)\b"
+    r"|\btradables?\b|\btrimmed\b|\bweighted\s+median\b|\bsectoral\b",
+    re.IGNORECASE,
+)
+_POINT_IN_TIME = ("quarter:", "month:")
 
 
 def _month(token: str) -> int:
@@ -129,35 +146,84 @@ def unit_of(unit: str | None) -> str | None:
     return unit if unit in UNITS else None
 
 
+def _cadences(text: str) -> list[str]:
+    """Every change cadence the wording states; more than one means the wording contradicts itself."""
+    return [
+        name
+        for name, pattern in (
+            ("quarterly_change", _QUARTERLY),
+            ("annual_average_change", _ANNUAL_AVERAGE),
+            ("annual_change", _THROUGH_YEAR),
+        )
+        if pattern.search(text)
+    ]
+
+
+def _priced(label: str, cadence: str | None, *, required: bool) -> str | None:
+    """Prefix the cadence with the price basis the label states ("real" or "nominal"), never one it merely implies."""
+    if cadence is None:
+        return None
+    real, nominal = bool(_REAL.search(label)), bool(_NOMINAL.search(label))
+    if real and nominal:
+        return None
+    if real or nominal:
+        return f"{'real' if real else 'nominal'}_{cadence}"
+    return None if required else cadence
+
+
+def basis_label(basis: str) -> str:
+    for price, name in PRICE_LABELS.items():
+        if basis.startswith(f"{price}_"):
+            cadence = BASIS_LABELS[basis.removeprefix(f"{price}_")]
+            return f"{name}, {cadence[0].lower()}{cadence[1:]}"
+    return BASIS_LABELS[basis]
+
+
 def basis_of(indicator: str, label: str, horizon: str, unit: str | None) -> str | None:
-    """The statistical basis the label states, or None when it does not say clearly enough to compare."""
+    """The statistical basis the label states, or None when it does not say clearly enough to compare.
+
+    A basis is stated, never assumed: contradictory wording (an average and an end-of-period figure, two change
+    cadences, real and nominal) gives None, and so does a different series (core CPI, GDP per capita, a peak).
+    """
     text = f"{label} {horizon}"
     key = (horizon_of(horizon) or ("",))[0]
     if indicator == "cpi_inflation":
-        if _QUARTERLY.search(text):
-            return "quarterly_change"
-        if _ANNUAL_AVERAGE.search(text):
-            return "annual_average_change"
-        if _ANNUAL.search(text) or _THROUGH_YEAR.search(text) or key.startswith("year_to:"):
+        if _CPI_VARIANT.search(label):
+            return None
+        found = _cadences(text)
+        if len(found) > 1:
+            return None
+        if found:
+            return found[0]
+        if _ANNUAL.search(text) or key.startswith("year_to:"):
             return "annual_change"
         return None
     if indicator == "unemployment":
-        return "rate" if unit == "percent" else None
+        if unit != "percent" or _EXTREME.search(label):
+            return None
+        average, end = bool(_AVERAGE.search(label)), bool(_END.search(label))
+        if average and end:
+            return None
+        if average or end:
+            return "rate_average" if average else "rate_end"
+        # A quarter or a month is itself the point in time; a longer span without a stated timing is not.
+        return "rate" if key.startswith(_POINT_IN_TIME) else "rate_timing_unstated"
     if indicator == "ocr":
         if unit != "percent" or _EXTREME.search(label):
             return None
-        if _AVERAGE.search(label):
+        average, end = bool(_AVERAGE.search(label)), bool(_END.search(label))
+        if average and end:
+            return None
+        if average:
             return "level_average"
-        return "level_end" if _END.search(label) else "level"
+        return "level_end" if end else "level"
     if unit == "percent_of_gdp":
         return "share_of_gdp"
-    if _QUARTERLY.search(text):
-        return "quarterly_change"
-    if _ANNUAL_AVERAGE.search(text):
-        return "annual_average_change"
-    if _THROUGH_YEAR.search(text):
-        return "annual_change"
-    return None
+    if indicator == "gdp" and _GDP_VARIANT.search(label):
+        return None
+    found = _cadences(text)
+    cadence = found[0] if len(found) == 1 else None
+    return _priced(label, cadence, required=indicator == "gdp")
 
 
 def _exclusion(f: ForecastOut) -> str | None:
@@ -170,8 +236,8 @@ def _exclusion(f: ForecastOut) -> str | None:
     if basis_of(f.indicator, f.indicator_label, f.horizon, f.unit) is None:
         if f.indicator == "gdp":
             return (
-                "The statistical basis is not stated clearly enough to compare: GDP growth can be an annual"
-                " average or a change through the year."
+                "The statistical basis is not stated clearly enough to compare: GDP growth can be real or nominal,"
+                " and an annual average or a change through the year."
             )
         return "The statistical basis is not stated clearly enough to compare."
     return None
@@ -191,7 +257,7 @@ def _vintage(f: ForecastOut) -> tuple[str, int]:
 def _note(basis: str, institutions: int) -> str:
     if institutions < 2:
         return "Only one institution has a published forecast on this basis."
-    if basis == "level":
+    if basis in ("level", "rate_timing_unstated"):
         return "Timing within the period is not stated: an average and an end-of-period level can differ."
     return f"{institutions} institutions, on the same basis and horizon."
 
@@ -223,7 +289,7 @@ def compare_forecasts(forecasts: list[ForecastOut]) -> ForecastComparisonOut:
             ForecastGroupOut(
                 key="|".join((indicator, unit, basis, horizon_key, scenario or "central")),
                 indicator=indicator, indicator_name=INDICATOR_NAMES.get(indicator, indicator),
-                unit=unit, unit_label=UNIT_LABELS[unit], basis=basis, basis_label=BASIS_LABELS[basis],
+                unit=unit, unit_label=UNIT_LABELS[unit], basis=basis, basis_label=basis_label(basis),
                 horizon_key=horizon_key, horizon_label=horizon_of(first.horizon)[1],  # type: ignore[index]
                 kind="scenario" if scenario else "central",
                 scenario=" ".join(first.scenario.split()) if scenario and first.scenario else None,
