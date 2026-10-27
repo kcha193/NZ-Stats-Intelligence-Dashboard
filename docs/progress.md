@@ -1,8 +1,60 @@
 # Progress and verification record
 
-Last updated 2026-10-26. Phase 3B (evidence-grounded LLM summaries) is on `feat/phase-3b-llm-intelligence` (not merged).
-Phase 3A (institutional research sources) is merged to `main` (PR #11). The Netlify static publication is merged to
-`main` (PR #10) and not deployed. Earlier entries below are historical.
+Last updated 2026-10-27. Phase 3C (economic outlook) is on `feat/phase-3c-economic-outlook` (not merged). Phase 3B
+(PR #12), Phase 3A (PR #11) and the Netlify static publication (PR #10) are merged to `main`; the static site is not
+deployed. Earlier entries below are historical.
+
+## Phase 3C: economic outlook, 27 October 2026
+
+`/economic-outlook`: an economic pulse of the latest verified Stats NZ indicators, the institutional research feed,
+forecast comparison and a detail page per summary. **With the shipped settings no research is shown**: every source's
+`public_display` is `none` and the research API is off (`NZSTATS_PUBLIC_RESEARCH` unset), so the page shows the pulse and
+an explanation. Spec: [2026-10-27-phase-3c-economic-outlook-design.md](superpowers/specs/2026-10-27-phase-3c-economic-outlook-design.md).
+Plan: [2026-10-27-phase-3c-economic-outlook.md](superpowers/plans/2026-10-27-phase-3c-economic-outlook.md). Runbook:
+[data-sources/research.md](data-sources/research.md#public-display-and-the-economic-outlook-phase-3c).
+
+- **Permissions**: public display is a third, recorded decision per source (`public_display` none, link_only, summary,
+  excerpt, with its own approver, date and note), separate from fetching and LLM processing; then per summary, human
+  review (3B) and a separate publish/withdraw log (migration 007, append-only). No source setting changed.
+- **One gate** (`research/public.py`), re-run on every request: states, newest summary of the current non-duplicate
+  version, current registry display level, the crawler's URL policy for the document link, and re-verification with the
+  current verifier (missing, changed or injection-like sections fail closed). AI text drops to link-only while the
+  source's LLM permission would not allow the model that wrote it.
+- **API** (`research/api.py`): feed (search, filters, sort, pagination, facets), detail and forecasts; allowlist models;
+  read-only connection; registry reread per request (unreadable means nothing is shown); 404 like an unknown path while
+  off. Wired by `cli.py` only, so the snapshot exporter cannot serve it; OpenAPI changes are additions only.
+- **Comparison** (`research/compare.py`): grouped only by indicator, unit, statistical basis, horizon and kind (central or
+  the same named scenario). Ambiguous GDP growth wording, relative horizons, missing units and direction-only claims are
+  listed with a reason. The official CPI annual change is drawn as a reference beside CPI groups only.
+- **Frontend**: Outlook is a primary destination. Charts use the dataviz-validated navy (forecasts) and amber (official
+  observation) pair; validator results: light `#2b66a8,#c75f0c` and dark `#4a8ccb,#d47a36` pass every check (worst CVD
+  delta E 21.8 light, 21.0 dark). A grey reference colour failed the chroma and normal-vision checks and was not used.
+- **Found and fixed during the work**: string comparison of display levels ("excerpt" < "link_only"); the automated
+  security review found that the public URL check missed traversal and encoded or case-folded blocked paths, and that a
+  hosted model's text survived a change to local-only permission (both fixed with tests); a data directory with `?`,
+  `#` or `%` could change the read-only SQLite URI; the observation label collided with axis ticks; link-only entries
+  showed AI processing badges.
+
+### Verification
+
+| Command | Outcome |
+|---|---|
+| `cd backend && pytest` | **2012 passed** (142 new; main's 1870 pass, two `serve` test stubs updated to accept and check the new `routers` argument) |
+| `ruff check .` / `ruff format --check .` | Passed |
+| `cd frontend && npm test` / `npm run typecheck` / `npm run build` | 416 passed (42 files; 33 new) / passed / built |
+| `npm run gen:api` | `schema.d.ts` gains the research models and routes; no existing type changed |
+| `npx playwright test` (live app, research off) | 108 passed (15 new) |
+| `npx playwright test -c playwright.research.config.ts` (SYNTHETIC published research) | 15 passed at desktop 1440, tablet 768 and mobile 390; with `OUTLOOK_SCREENSHOTS=dir` the 3 screenshot captures run too (18 passed) |
+| `scripts/e2e_static.sh` (static site incl. visual parity of `/economic-outlook`) | 252 passed, 3 skipped (the API-only check) |
+| Snapshot exported from a database holding published synthetic research, with `NZSTATS_PUBLIC_RESEARCH=1` | 60 files, no research content (`grep` for research, synthetic and institution keys finds nothing) |
+| Visual review (light and dark, three sizes) | `docs/screenshots/phase-3c/`; no horizontal scroll at any size |
+| Live requests to any research source or LLM provider | **None** |
+
+Limitations: research comparison and feed are exercised only with synthetic data, because no source is approved; there
+is no authentication, so the API must stay off on any network-reachable deployment until display permissions exist;
+the dot plot starts at zero for every unit, which compresses close levels such as the OCR; the comparison does not equate
+"2026/27" with a June or March year; searching re-verifies every published summary per request (fine for tens, not
+thousands).
 
 ## Phase 3B: evidence-grounded LLM economic intelligence, 26 October 2026
 

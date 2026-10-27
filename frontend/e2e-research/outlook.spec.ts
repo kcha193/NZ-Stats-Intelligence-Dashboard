@@ -89,7 +89,7 @@ test("a summary-level source shows evidence locations without quotes", async ({ 
   await expect(page.locator("blockquote")).toHaveCount(0);
 });
 
-test("review screenshots, light and dark", async ({ page, browser }, testInfo) => {
+test("review screenshots, light and dark", async ({ browser }, testInfo) => {
   test.skip(!SHOTS, "set OUTLOOK_SCREENSHOTS to a directory to save them");
   for (const scheme of ["light", "dark"] as const) {
     const ctx = await browser.newContext({ ...testInfo.project.use, colorScheme: scheme, deviceScaleFactor: 1 });

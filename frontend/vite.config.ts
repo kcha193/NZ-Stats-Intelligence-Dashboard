@@ -12,6 +12,6 @@ export default defineConfig({
     globals: true,
     setupFiles: "./src/test/setup.ts",
     css: false,
-    exclude: ["e2e/**", "e2e-static/**", "node_modules/**"],
+    exclude: ["e2e/**", "e2e-static/**", "e2e-research/**", "node_modules/**"],
   },
 });
