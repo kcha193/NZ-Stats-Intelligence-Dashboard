@@ -862,7 +862,7 @@ export interface components {
             min_for_ranking: number;
             /**
              * Note
-             * @default Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four outcomes, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
+             * @default Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
              */
             note: string;
         };
