@@ -354,6 +354,38 @@ def test_a_quote_that_stops_at_the_number_cannot_hide_a_following_unit_qualifier
 
 
 @pytest.mark.parametrize(
+    ("sentence", "quote", "value", "unit", "ok"),
+    [
+        # a GDP share stated before the number is not an ordinary percentage
+        ("The debt-to-GDP ratio is forecast to rise to 43.1% in 2027.",
+         "The debt-to-GDP ratio is forecast to rise to 43.1%", 43.1, "percent", False),
+        ("The debt-to-GDP ratio is forecast to rise to 43.1% in 2027.",
+         "The debt-to-GDP ratio is forecast to rise to 43.1%", 43.1, "percent_of_gdp", True),
+        # a quote that starts after the qualifier cannot hide it
+        ("The debt-to-GDP ratio is forecast to rise to 43.1% in 2027.",
+         "forecast to rise to 43.1%", 43.1, "percent", False),
+        ("The debt-to-GDP ratio is forecast to rise to 43.1% in 2027.",
+         "forecast to rise to 43.1%", 43.1, "percent_of_gdp", True),
+        # a qualifier on a different clause or sentence does not belong to this number
+        ("Net debt to GDP is forecast at 40%, and inflation is forecast to rise to 2.5% in 2027.",
+         "inflation is forecast to rise to 2.5%", 2.5, "percent", True),
+        ("Debt is stable relative to GDP. Inflation is forecast to rise to 2.5% in 2027.",
+         "Inflation is forecast to rise to 2.5%", 2.5, "percent", True),
+        # "to GDP growth" is a growth rate, not a share of GDP
+        ("The contribution to GDP growth is forecast to rise to 0.4% in 2027.",
+         "The contribution to GDP growth is forecast to rise to 0.4%", 0.4, "percent", True),
+        ("The contribution to GDP growth is forecast to rise to 0.4% in 2027.",
+         "The contribution to GDP growth is forecast to rise to 0.4%", 0.4, "percent_of_gdp", False),
+    ],
+)  # fmt: skip
+def test_a_gdp_share_stated_before_the_number_cannot_pass_as_a_plain_percent(
+    sentence, quote, value, unit, ok
+):
+    report = _one_section(sentence, quote, unit=unit, value=value)
+    assert ("unit_mismatch" not in codes(report)) is ok, report.errors
+
+
+@pytest.mark.parametrize(
     ("sentence", "heading", "scenario", "flagged"),
     [
         ("Under our baseline scenario, GDP is forecast to grow 2.5% in 2027.", None, None, False),

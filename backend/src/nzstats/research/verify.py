@@ -66,8 +66,10 @@ _LEVEL_AFTER_TO = re.compile(
     re.IGNORECASE,
 )
 # A share of GDP stated before the number: "debt-to-GDP ratio of 43.1%", "net debt to GDP is 43.1%".
+# "contribution to GDP growth" is a growth rate, not a share.
 _GDP_RATIO_BEFORE = re.compile(
-    r"(?:\bto[-\s]+|/\s*|\b(?:share|percentage|proportion)\s+of\s+)(?:nominal\s+)?gdp\b",
+    r"(?:\bto[-\s]+|/\s*|\b(?:share|percentage|proportion)\s+of\s+)(?:nominal\s+)?gdp\b"
+    r"(?!\s+(?:growth|per\s+capita|deflator))",
     re.IGNORECASE,
 )
 _FISCAL = re.compile(
@@ -202,16 +204,23 @@ class _Located:
         lo, hi = max(self.first - 1, 0), min(self.last + 1, len(self.sentences) - 1)
         return f"{self.heading} {self.text[self.sentences[lo][0] : self.sentences[hi][1]]}"
 
-    def clause_at(self, offset: int) -> str:
-        """The clause of the quote's sentence that contains `offset` (section coordinates)."""
+    def _clause_span(self, offset: int) -> tuple[int, int]:
         a, b = self.sentences[self.first][0], self.sentences[self.last][1]
-        sentence, start = self.text[a:b], a
-        for sep in _CLAUSE.finditer(sentence):
+        start = a
+        for sep in _CLAUSE.finditer(self.text[a:b]):
             end = a + sep.start()
             if offset < end:
-                return self.text[start:end]
+                return start, end
             start = a + sep.end()
-        return self.text[start:b]
+        return start, b
+
+    def clause_at(self, offset: int) -> str:
+        """The clause of the quote's sentence that contains `offset` (section coordinates)."""
+        return self.text[slice(*self._clause_span(offset))]
+
+    def lead_to(self, offset: int) -> str:
+        """The text of `offset`'s clause up to `offset`: what the section says before a number."""
+        return self.text[self._clause_span(offset)[0] : offset]
 
 
 def _norm(text: str) -> str:
@@ -453,13 +462,14 @@ class _Checker:
             for s, e in _value_spans(claim.value, quote):
                 # the section may carry on past a quote that stops at the number: "$25" | " billion"
                 beyond = loc.text[loc.start + e : loc.start + e + 30]
-                checked.append(self._unit_matches(claim.unit, quote[:s], quote[e:], beyond))
+                lead = loc.lead_to(loc.start + s)  # the quote may start after "debt-to-GDP ratio"
+                checked.append(self._unit_matches(claim.unit, quote[:s], quote[e:], beyond, lead))
         if checked and not any(checked):
             self.error("unit_mismatch", path,
                        f"unit {claim.unit!r} is not what the evidence states next to {claim.value:g}")  # fmt: skip
 
     @staticmethod
-    def _unit_matches(unit: str, before: str, after: str, beyond: str = "") -> bool:
+    def _unit_matches(unit: str, before: str, after: str, beyond: str = "", lead: str = "") -> bool:
         def stated(name: str, text: str = after) -> bool:
             return bool(_UNIT_SUFFIX[name].match(text))
 
@@ -475,10 +485,11 @@ class _Checker:
                 stated("percent")
                 and not other_percentish
                 and not any(_OF_GDP.match(text) for text in following)
+                and not _GDP_RATIO_BEFORE.search(lead)
             )
         if unit == "percent_of_gdp":  # the GDP qualifier must belong to this number
             share = any(_OF_GDP.match(text) for text in following) or bool(
-                _GDP_RATIO_BEFORE.search(before[-80:])
+                _GDP_RATIO_BEFORE.search(before[-80:]) or _GDP_RATIO_BEFORE.search(lead)
             )
             return stated("percent") and not other_percentish and share
         if unit in ("percentage_points", "basis_points"):
