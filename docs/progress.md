@@ -1,8 +1,33 @@
 # Progress and verification record
 
-Last updated 2026-10-28. Phase 3D-B (historical forecast intelligence) is on `feat/phase-3d-b-forecast-evaluation`
-(PR #15, not merged). Phases 3A to 3C (PRs #11 to #13), Phase 3D-A (pilot readiness, PR #14) and the Netlify static
-publication (PR #10) are merged to `main`; the static site is not deployed. Earlier entries below are historical.
+Last updated 2026-10-28. Phase 3E (production readiness) is on `feat/phase-3e-production-readiness` (not merged).
+Phases 3A to 3D (PRs #11 to #15) and the Netlify static publication (PR #10) are merged to `main`; the static site is
+not deployed and no research source is approved. Earlier entries below are historical.
+
+## Phase 3E: production readiness, 28 October 2026
+
+Report, matrix, blocker register and go/no-go: [Phase 3E](superpowers/specs/2026-10-28-phase-3e-production-readiness.md).
+Nothing was activated, deployed, spent or published; no request was made to any institution or to stats.govt.nz.
+
+Built (offline, test-first): permission-gated manual document import with migration 008 (version `acquisition`,
+append-only `research_manual_import` audit) and approvals scoped to how each version was obtained; `research health`
+(staleness, queues, withheld publications, spend; exit 1 on attention); a rolling 30-day model budget
+(`NZSTATS_LLM_MAX_PERIOD_USD`); `research cpi-vintages`; `nzstats verify-backup` and a self-verifying `backup`; runbooks.
+
+Findings: GitHub Actions still blocked by account billing (latest `main` run 40605431393, zero steps). The production
+database holds one CPI release vintage (September 2026 quarter): earlier quarters are "earliest stored", which equals the
+first-published figure for the unadjusted index (not revised across the four real release files) but not for the
+seasonally adjusted one. Compose publishes port 8000 on all interfaces, so the research switch must stay off on any
+reachable host. An automated security review found that a manual-import approval would have kept crawled versions usable
+after the crawler approval was revoked; fixed in `bf1996d` with failing-first tests.
+
+Verification (this machine): backend 2402+ tests (Python 3.14 venv), Ruff and format clean; frontend 458 tests,
+typecheck, lint (existing warnings), build, no API type change; Playwright live 108 passed, research 18 passed and 3
+screenshot captures skipped, static site 252 passed; on a copy of the real database, migration 7 to 8 applied,
+`verify-backup --raw-dir data/raw` ok (54,012 rows, 23 tables), `research health` ok (all sources gated); real-DB
+snapshot byte-identical between `main` and the branch (`7be455c2b866`, 216 files) and valid for publication; live
+database SHA-256 unchanged. Not run: Docker build and smoke (no container runtime here), hosted CI (billing), any
+real-model evaluation (no authorised document, provider or budget).
 
 ## Phase 3D-B: forecast history, evaluation and consensus, 28 October 2026
 

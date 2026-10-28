@@ -53,9 +53,17 @@ docker compose logs -f nzstats
 scripts/backup.sh              # consistent online copy -> data/backups/nzstats-<date>.db
 ```
 
-To restore: `docker compose stop`, replace `data/nzstats.db` with the backup (delete any
-`data/nzstats.db-wal` and `-shm` files), then `docker compose up -d`. Raw downloaded files in
-`data/raw/` are content-addressed and can be re-fetched, but copy them too if you want a full archive.
+`nzstats backup` checks its own copy. Before restoring, verify the file you will restore (read-only; it also checks
+that the append-only research guards are present and, with `--raw-dir`, that every raw file it references exists):
+
+```sh
+docker compose exec nzstats nzstats verify-backup /data/backups/nzstats-<date>.db --raw-dir /data/raw --live /data/nzstats.db
+```
+
+To restore: `docker compose stop`, replace `data/nzstats.db` with the verified backup (delete any
+`data/nzstats.db-wal` and `-shm` files), then `docker compose up -d` and run `verify-backup` on `data/nzstats.db`.
+Raw Stats NZ files in `data/raw/` are content-addressed and can be re-fetched, but manually imported research documents
+cannot: copy `data/raw/` with every backup.
 
 ### Public website (optional)
 
