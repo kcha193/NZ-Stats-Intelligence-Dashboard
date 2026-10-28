@@ -1,8 +1,21 @@
 # Progress and verification record
 
-Last updated 2026-10-28. Phase 3D-B (historical forecast intelligence) is on `feat/phase-3d-b-forecast-evaluation`
-(PR #15, not merged). Phases 3A to 3C (PRs #11 to #13), Phase 3D-A (pilot readiness, PR #14) and the Netlify static
-publication (PR #10) are merged to `main`; the static site is not deployed. Earlier entries below are historical.
+Last updated 2026-10-28. Phases 3A to 3C (PRs #11 to #13), Phase 3D-A (PR #14), Phase 3D-B
+(PR #15) and the Netlify static publication (PR #10) are merged to `main`. Phase 4B dashboard UX
+remediation is prepared for review on `fix/phase-4b-dashboard-ux-integrated`, based on `8e4aa8b`;
+it is not merged or deployed. The static site is not deployed. Earlier entries below are historical.
+
+## Phase 4B: targeted dashboard UX remediation, 28 October 2026
+
+Local, uncommitted on `fix/phase-4b-dashboard-ux`, based on verified integration tip `93d114e` (PR #14 merged).
+B1/B3: all selected chart rows available, visible range caption, readable CPI display columns with raw CSV preserved.
+B2: persistent Inflation h1 across loading, 404, error, retry and success. C1: measured mobile targets at least 44×44,
+with compact desktop sizes retained. Existing research checkout and capability reports preserved.
+
+Verification: 423 frontend unit tests, 126 live and 51 targeted static/parity Playwright checks pass; typecheck, lint,
+production/static builds pass with existing warnings. Chromium at 390/768/1440 px; synthetic CPI responses, both themes,
+reduced motion, keyboard/focus, CSV/PNG, state identity and no target overlap/document overflow. No real-device,
+screen-reader or WCAG conformance claim. Full evidence, file list and limitations: [Phase 4B report](phase-4b-dashboard-ux.md).
 
 ## Phase 3D-B: forecast history, evaluation and consensus, 28 October 2026
 
@@ -888,6 +901,8 @@ Run 2026-10-12 against a scratch data directory, 10 s between requests, User-Age
 - Every one of the 26 releases has an analysis page through the API.
 
 ## Chart and design review
+
+- At mobile widths, measure interactive hit regions: aim for at least 44×44 CSS pixels without overlapping neighbouring controls; preserve keyboard focus and desktop density, and record justified exceptions.
 
 - Palette validated with the `dataviz` validator (categorical chart-1 to chart-4): light on `#ffffff` `#2b66a8, #c75f0c,
   #2a8a6c, #7b52b5` and dark on `#1c1917` `#4a8ccb, #d47a36, #3a9c7e, #8e78cf`, all checks pass (worst adjacent
