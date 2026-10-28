@@ -153,6 +153,12 @@ class LlmLimits:
     timeout_seconds: float = 120.0
     max_retries: int = 2  # further attempts after a retryable provider error
     max_run_usd: float = 1.0  # worst-case spend allowed in one run, retries included
+    max_period_usd: float = (
+        10.0  # all recorded spend in any rolling PERIOD_DAYS, every run included (Phase 3E)
+    )
+
+
+PERIOD_DAYS = 30  # the window `max_period_usd` applies to
 
 
 @dataclass(frozen=True)

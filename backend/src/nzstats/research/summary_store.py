@@ -58,6 +58,13 @@ class SummaryKey:
         )  # fmt: skip
 
 
+def spent_since(conn: sqlite3.Connection, since: datetime) -> float:
+    """Recorded model spend (USD, failed calls included) from `since` onwards, across every run."""
+    row = conn.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM research_llm_usage WHERE created_at >= ?",
+                       (to_utc_iso(since),)).fetchone()  # fmt: skip
+    return float(row[0])
+
+
 def start_run(
     conn: sqlite3.Connection,
     *,

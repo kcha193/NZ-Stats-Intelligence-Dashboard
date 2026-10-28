@@ -1,3 +1,4 @@
+import json
 import textwrap
 
 import pytest
@@ -358,3 +359,76 @@ def test_evaluate_scores_stored_summaries_without_calling_a_model(
     assert "Real documents" in out and "fake/fake-1" in out
     path.write_text("{}")
     assert main(["research", "evaluate", "--annotations", str(path)]) == 2
+
+
+MANUAL_REGISTRY = """
+[institutions.manualonly]
+name = "Manual Only"
+kind = "government"
+allowed_hosts = ["docs.example.org"]
+categories = ["economic_outlook"]
+review_status = "needs_review"
+content_policy = "full_text"
+terms_evidence = "direct"
+licence = "Synthetic test licence"
+min_text_chars = 200
+manual_import = "approved"
+manual_import_approved_by = "Test Owner"
+manual_import_approved_on = "2026-10-28"
+manual_import_note = "synthetic: copies obtained by a person may be stored"
+"""
+
+
+def _doc(tmp_path, name="outlook.html"):
+    path = tmp_path / name
+    path.write_text(f"<html><body><main><h1>Outlook</h1><p>{PARA * 6}</p></main></body></html>",
+                    encoding="utf-8")  # fmt: skip
+    return path
+
+
+def test_import_stores_an_owner_supplied_copy_without_any_request(
+    env, tmp_path, monkeypatch, capsys
+):
+    web, built = env
+    registry = tmp_path / "research.toml"
+    registry.write_text(registry.read_text() + textwrap.dedent(MANUAL_REGISTRY), encoding="utf-8")
+    doc = _doc(tmp_path)
+    args = ["research", "import", "manualonly", str(doc), "--url", "https://docs.example.org/outlook",
+            "--importer", "Test Owner", "--note", "saved from a browser", "--published-on", "2026-10-01"]  # fmt: skip
+    assert main(args) == 0
+    out = capsys.readouterr().out
+    assert "manualonly: new" in out and "version" in out
+    assert str(tmp_path) not in out  # no local path is echoed back
+    assert web.requests == [] and built == []
+    assert main(args) == 0
+    assert "manualonly: unchanged" in capsys.readouterr().out
+    assert main(["research", "ingest", "manualonly"]) == 1  # the crawler stays refused
+    assert "needs review" in capsys.readouterr().out
+
+
+def test_import_is_refused_for_a_source_without_the_permission(env, tmp_path, capsys):
+    doc = _doc(tmp_path)
+    assert main(["research", "import", "locked", str(doc), "--url", "https://locked.example.org/x",
+                 "--importer", "Owner", "--note", "n"]) == 1  # fmt: skip
+    assert "refused (manual import not approved for this source)" in capsys.readouterr().out
+
+
+def test_import_infers_the_format_from_the_file_suffix_and_refuses_others(env, tmp_path, capsys):
+    registry = tmp_path / "research.toml"
+    registry.write_text(registry.read_text() + textwrap.dedent(MANUAL_REGISTRY), encoding="utf-8")
+    doc = _doc(tmp_path, "outlook.docx")
+    assert main(["research", "import", "manualonly", str(doc), "--url", "https://docs.example.org/o",
+                 "--importer", "Owner", "--note", "n"]) == 2  # fmt: skip
+    assert "html or pdf" in capsys.readouterr().out
+
+
+def test_health_reports_each_source_and_exits_1_when_attention_is_needed(env, capsys):
+    assert main(["research", "health"]) == 1  # the approved example source has nothing stored yet
+    out = capsys.readouterr().out
+    assert "example" in out and "no_publications" in out and "locked" in out and "gated" in out
+    assert main(["research", "health", "--json"]) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert data["needs_attention"] is True and {s["key"] for s in data["sources"]} == {
+        "example",
+        "locked",
+    }
