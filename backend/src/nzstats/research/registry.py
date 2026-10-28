@@ -1,9 +1,10 @@
 """The institutional source registry: what may be fetched, from where, and under whose approval.
 
 Fail closed: a source is fetched automatically only when it is `approved`, with a named approver, a
-date and a note, a non-empty host allowlist and a content policy other than `none`. Everything the
-file records about a source (mechanism, terms, evidence) is data for that human decision; nothing in
-this module reaches the network.
+date and a note, a non-empty host allowlist and a content policy other than `none`. Storing an
+owner-supplied copy (`manual_import`, Phase 3E) is a separate recorded approval that never grants
+automated access. Everything the file records about a source (mechanism, terms, evidence) is data for
+that human decision; nothing in this module reaches the network.
 """
 
 from __future__ import annotations
@@ -50,6 +51,13 @@ class LlmProcessing(StrEnum):
     DENIED = "denied"  # the default: never sent to any model
     LOCAL_ONLY = "local_only"  # a model running on this machine only (loopback), never a hosted API
     HOSTED = "hosted"  # a hosted provider as well; the terms must allow third-party processing
+
+
+class ManualImport(StrEnum):
+    """Whether an owner-supplied copy of a document may be stored (Phase 3E). Separate from automated access."""
+
+    DENIED = "denied"  # the default
+    APPROVED = "approved"  # the terms, read directly, permit storing a copy obtained by a person
 
 
 class PublicDisplay(StrEnum):
@@ -110,6 +118,9 @@ class Institution:
     crawl_delay_seconds: float = MIN_RESEARCH_DELAY_SECONDS
     max_documents_per_run: int = 5
     min_text_chars: int = 500
+    expected_publication_days: int | None = (
+        None  # health only: a new publication is due at least this often
+    )
     url_date_regex: str | None = None
     url_date_format: str | None = None
     approved_by: str | None = None
@@ -120,6 +131,10 @@ class Institution:
     public_display_approved_by: str | None = None
     public_display_approved_on: date | None = None
     public_display_note: str | None = None
+    manual_import: ManualImport = ManualImport.DENIED
+    manual_import_approved_by: str | None = None
+    manual_import_approved_on: date | None = None
+    manual_import_note: str | None = None
     extra: dict[str, Any] = field(default_factory=dict, compare=False)
 
     @property
@@ -128,6 +143,19 @@ class Institution:
             self.review_status is ReviewStatus.APPROVED
             and self.content_policy is not ContentPolicy.NONE
         )
+
+    @property
+    def manual_import_allowed(self) -> bool:
+        return self.manual_import is ManualImport.APPROVED
+
+    @property
+    def source_permitted(self) -> bool:
+        """Material from this source may be held here: fetched by the crawler or stored from a manual import."""
+        return self.automated_access_allowed or self.manual_import_allowed
+
+    def import_refusal(self) -> str | None:
+        """Why an owner-supplied copy may not be stored, in fixed wording (None when allowed)."""
+        return None if self.manual_import_allowed else "manual import not approved for this source"
 
     def refusal_reason(self) -> str | None:
         """Why automated access is refused, in fixed wording (None when allowed)."""
@@ -141,7 +169,7 @@ class Institution:
 
     def llm_refusal(self, *, hosted: bool) -> str | None:
         """Why this source's text may not go to a (hosted or local) model, in fixed wording."""
-        if not self.automated_access_allowed or self.llm_processing is LlmProcessing.DENIED:
+        if not self.source_permitted or self.llm_processing is LlmProcessing.DENIED:
             return "llm processing denied for this source"
         if hosted and self.llm_processing is not LlmProcessing.HOSTED:
             return "source permits local models only"
@@ -149,7 +177,7 @@ class Institution:
 
     def display_level(self) -> PublicDisplay:
         """What may be shown now. AI text needs the source's LLM permission too: revoking it withdraws the text."""
-        if not self.automated_access_allowed:
+        if not self.source_permitted:
             return PublicDisplay.NONE
         if (
             self.public_display.rank > PublicDisplay.LINK_ONLY.rank
@@ -170,6 +198,13 @@ class Institution:
             "approved_on": self.approved_on.isoformat() if self.approved_on else None,
             "public_display": self.public_display.value,
             "llm_processing": self.llm_processing.value,
+            "manual_import": self.manual_import.value,
+            "manual_import_approved_by": self.manual_import_approved_by,
+            "manual_import_approved_on": (
+                self.manual_import_approved_on.isoformat()
+                if self.manual_import_approved_on
+                else None
+            ),
         }
 
 
@@ -278,8 +313,15 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
     if kind not in _KINDS:
         raise RegistryError(f"{key}: invalid kind {kind!r}")
     display = _enum(PublicDisplay, raw.get("public_display", "none"), "public_display", key)
-    if display is not PublicDisplay.NONE and review is not ReviewStatus.APPROVED:
-        raise RegistryError(f"{key}: public_display requires an approved source")
+    manual = _enum(ManualImport, raw.get("manual_import", "denied"), "manual_import", key)
+    if (
+        display is not PublicDisplay.NONE
+        and review is not ReviewStatus.APPROVED
+        and manual is not ManualImport.APPROVED
+    ):
+        raise RegistryError(
+            f"{key}: public_display requires an approved source or an approved manual import"
+        )
     hosts = _hosts(raw.get("allowed_hosts"), key)
     allowed_prefixes = _prefixes(raw.get("allowed_path_prefixes"), key)
     blocked = _prefixes(raw.get("blocked_path_prefixes"), key)
@@ -299,6 +341,11 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         raise RegistryError(f"{key}: crawl_delay_seconds must be >= {MIN_RESEARCH_DELAY_SECONDS:g}")
     max_docs = _bounded_int(raw, "max_documents_per_run", 5, 1, 100, key)
     min_chars = _bounded_int(raw, "min_text_chars", 500, 1, 100_000, key)
+    cadence = (
+        _bounded_int(raw, "expected_publication_days", 0, 1, 730, key)
+        if "expected_publication_days" in raw
+        else None
+    )
     pattern, fmt = raw.get("url_date_regex"), raw.get("url_date_format")
     if pattern is not None:
         try:
@@ -321,7 +368,7 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         verified_on=_date(raw.get("verified_on"), "verified_on", key),
         polling=str(raw.get("polling", "")), access_notes=str(raw.get("access_notes", "")),
         crawl_delay_seconds=delay, max_documents_per_run=max_docs,
-        min_text_chars=min_chars, url_date_regex=pattern,
+        min_text_chars=min_chars, expected_publication_days=cadence, url_date_regex=pattern,
         url_date_format=fmt, approved_by=raw.get("approved_by"), approved_on=approved_on,
         approval_note=raw.get("approval_note"), llm_processing=llm,
         llm_processing_note=raw.get("llm_processing_note"),
@@ -329,10 +376,17 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         public_display_approved_on=_date(
             raw.get("public_display_approved_on"), "public_display_approved_on", key
         ),
-        public_display_note=raw.get("public_display_note"),
+        public_display_note=raw.get("public_display_note"), manual_import=manual,
+        manual_import_approved_by=raw.get("manual_import_approved_by"),
+        manual_import_approved_on=_date(
+            raw.get("manual_import_approved_on"), "manual_import_approved_on", key
+        ),
+        manual_import_note=raw.get("manual_import_note"),
     )  # fmt: skip
     if review is ReviewStatus.APPROVED:
         _check_approval(inst)
+    if manual is ManualImport.APPROVED:
+        _check_manual_import(inst)
     if llm is not LlmProcessing.DENIED:
         _check_llm_permission(inst)
     if display is not PublicDisplay.NONE:
@@ -362,10 +416,33 @@ def _check_approval(inst: Institution) -> None:
         raise RegistryError(f"{key}: an approved source requires terms_evidence = 'direct'")
 
 
+def _check_manual_import(inst: Institution) -> None:
+    key = inst.key
+    for name in ("manual_import_approved_by", "manual_import_approved_on", "manual_import_note"):
+        if not getattr(inst, name):
+            raise RegistryError(
+                f"{key}: manual_import needs {name} (a separate, recorded decision)"
+            )
+    if inst.review_status is ReviewStatus.RESTRICTED:
+        # Restricted means the institution's terms refuse use without permission: record the permission and
+        # move the source to needs_review first, so the change is a reviewable edit.
+        raise RegistryError(f"{key}: manual_import is not allowed for a restricted source")
+    if inst.content_policy is not ContentPolicy.FULL_TEXT:
+        raise RegistryError(f"{key}: manual_import needs content_policy 'full_text'")
+    if inst.terms_evidence != "direct":
+        raise RegistryError(f"{key}: manual_import requires terms_evidence = 'direct'")
+    if not inst.allowed_hosts:
+        raise RegistryError(
+            f"{key}: manual_import needs allowed hosts (the document's address is checked)"
+        )
+
+
 def _check_llm_permission(inst: Institution) -> None:
     key = inst.key
-    if inst.review_status is not ReviewStatus.APPROVED:
-        raise RegistryError(f"{key}: llm_processing needs an approved source")
+    if not inst.source_permitted:
+        raise RegistryError(
+            f"{key}: llm_processing needs an approved source or an approved manual import"
+        )
     if inst.content_policy is not ContentPolicy.FULL_TEXT:
         raise RegistryError(f"{key}: llm_processing needs content_policy 'full_text'")
     if not inst.llm_processing_note:

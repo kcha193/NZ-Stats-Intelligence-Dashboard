@@ -1,7 +1,7 @@
 """Pilot readiness (Phase 3D-A): the four permissions a real source needs, each judged on its own.
 
-1. automated discovery and fetching, 2. extraction and local storage of the text, 3. processing by a language model
-(local or hosted), 4. public display. Each gate reports what the registry records, the evidence behind it, and the
+1. automated discovery and fetching, 2. extraction and local storage of the text (through the crawler, or through a
+separately approved manual import, Phase 3E), 3. processing by a language model (local or hosted), 4. public display. Each gate reports what the registry records, the evidence behind it, and the
 first thing that blocks it. The report reads the registry, the environment and (optionally) the database only: it
 makes no request, changes no setting and never prints a credential. Granting a gate is always a human edit to
 `config/research_sources.toml`, recorded in git.
@@ -81,18 +81,27 @@ def _fetch(inst: Institution) -> Gate:
 
 
 def _store(inst: Institution, fetch: Gate) -> Gate:
+    """Granted through the crawler (decision 1 and `full_text`) or a separately approved manual import (3E)."""
     policy = inst.content_policy.value
     evidence = (
         f"content_policy: {policy}",
         f"licence: {inst.licence or '-'}",
         f"licence_url: {inst.licence_url or '-'}",
+        f"manual_import: {inst.manual_import.value}",
+        f"manual import approved: {inst.manual_import_approved_by or '-'} on"
+        f" {inst.manual_import_approved_on or '-'}",
     )
+    title = "Extraction and local storage"
+    if inst.manual_import_allowed:
+        routes = "crawler and manual import" if fetch.granted else "manual import only"
+        return Gate("store", title, True, f"{policy}; {routes}", evidence)
     if not fetch.granted:
-        return Gate("store", "Extraction and local storage", False, policy, evidence, _waiting(1))
+        return Gate("store", title, False, policy, evidence,
+                    f"{_waiting(1)}, or a separately approved manual import (manual_import)")  # fmt: skip
     if inst.content_policy is not ContentPolicy.FULL_TEXT:
-        return Gate("store", "Extraction and local storage", False, policy, evidence,
+        return Gate("store", title, False, policy, evidence,
                     f"content_policy is {policy}: no document text is stored, so nothing can be summarised")  # fmt: skip
-    return Gate("store", "Extraction and local storage", True, policy, evidence)
+    return Gate("store", title, True, f"{policy}; crawler", evidence)
 
 
 def _llm(inst: Institution, store: Gate, llm: LlmSettings) -> Gate:
@@ -108,7 +117,7 @@ def _llm(inst: Institution, store: Gate, llm: LlmSettings) -> Gate:
         f"llm_processing: {level}",
         f"llm_processing_note: {inst.llm_processing_note or '-'}",
         f"provider: {where}",
-        f"run budget: ${llm.limits.max_run_usd:.2f}",
+        f"run budget: ${llm.limits.max_run_usd:.2f}; 30-day cap ${llm.limits.max_period_usd:.2f}",
     )
     detail = f"{level}; provider {where}"
     if not store.granted:
@@ -134,8 +143,8 @@ def _publish(inst: Institution, env: Mapping[str, str]) -> Gate:
     detail = f"{level.value}; {ENABLE_ENV} {switch}"
     if level is PublicDisplay.NONE:
         reason = (
-            _waiting(1)
-            if not inst.automated_access_allowed
+            _waiting(2)
+            if not inst.source_permitted
             else "public_display is none: a separate, recorded decision is needed"
         )
         return Gate("publish", "Public display", False, detail, evidence, reason)

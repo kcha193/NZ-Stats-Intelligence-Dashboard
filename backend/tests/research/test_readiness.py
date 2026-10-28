@@ -93,3 +93,29 @@ def test_pipeline_state_counts_versions_summaries_and_public_items(conn):
     assert state.publications == 2 and state.current_versions == 2
     assert state.summaries == {"verified": 2}
     assert state.approved == 1 and state.public == 1
+
+
+MANUAL = {"review_status": "needs_review", "approved_by": None, "approved_on": None, "approval_note": None,
+          "manual_import": "approved", "manual_import_approved_by": "Test Owner",
+          "manual_import_approved_on": "2026-10-28", "manual_import_note": "synthetic"}  # fmt: skip
+
+
+def test_a_manual_import_approval_grants_storage_while_automated_fetching_stays_refused():
+    g = gates(assess(institution("treasury", **MANUAL), LlmSettings(), env={}))
+    assert not g["fetch"].granted and g["store"].granted
+    assert "manual import" in g["store"].detail
+    assert any("manual_import: approved" in e for e in g["store"].evidence)
+    assert any("Test Owner" in e for e in g["store"].evidence)
+
+
+def test_without_either_route_storage_names_both_ways_to_unblock_it():
+    g = gates(assess(institution("treasury", **UNREVIEWED), LlmSettings(), env={}))
+    assert "decision 1" in g["store"].blocker and "manual import" in g["store"].blocker
+
+
+def test_a_manual_import_source_can_be_processed_locally_and_shown_link_only():
+    inst = institution("treasury", **MANUAL, llm_processing="local_only", llm_processing_note="synthetic",
+                       public_display="link_only", public_display_approved_by="Owner",
+                       public_display_approved_on="2026-10-28", public_display_note="synthetic")  # fmt: skip
+    g = gates(assess(inst, LOCAL, env={}))
+    assert g["llm"].granted and g["publish"].granted
