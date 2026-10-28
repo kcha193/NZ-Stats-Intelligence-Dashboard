@@ -555,3 +555,56 @@ def test_the_heading_is_part_of_the_input_cost_estimate(conn):
     seed_version(conn, text, doc="b")
     with_heading, without = run(conn, FakeProvider("{}"), dry_run=True).items
     assert with_heading.estimated_usd > without.estimated_usd
+
+
+# --- Phase 3E: a rolling 30-day spending cap on top of the per-run budget --------------------------------------
+
+
+def test_the_rolling_period_budget_counts_earlier_runs_spend(conn):
+    from datetime import timedelta
+
+    seed_version(conn, doc="a")
+    seed_version(conn, doc="b")
+    fake = FakeProvider(lambda req: draft_json(req.version_id), usage=(10_000, 4_000))
+    one_call = PRICING.cost(10_000, 4_000)
+    first = run(conn, fake, limit=1, limits=LlmLimits(max_period_usd=10.0))
+    assert [i.outcome for i in first.items] == ["verified"]
+    # The second run's own budget is ample, but the 30-day cap has only a fraction of one call left.
+    second = summarise_versions(conn, registry(), fake, pricing=PRICING, sleep=Sleeps(),
+                                limits=LlmLimits(max_run_usd=5.0, max_period_usd=one_call * 1.5),
+                                now_fn=lambda: NOW + timedelta(days=29))  # fmt: skip
+    assert [i.outcome for i in second.items] == ["exists", "budget_exhausted"] and len(
+        fake.calls
+    ) == 1
+    run_row = rows(conn, "research_llm_run")[-1]
+    assert json.loads(run_row["limits"])["period_remaining_usd"] == pytest.approx(
+        one_call * 0.5, abs=1e-6
+    )
+    # Thirty-one days later the first call has left the window.
+    third = summarise_versions(conn, registry(), fake, pricing=PRICING, sleep=Sleeps(),
+                               limits=LlmLimits(max_run_usd=5.0, max_period_usd=one_call * 1.5),
+                               now_fn=lambda: NOW + timedelta(days=31))  # fmt: skip
+    assert [i.outcome for i in third.items] == ["exists", "verified"]
+
+
+def test_a_dry_run_reports_the_period_budget_without_spending(conn):
+    seed_version(conn)
+    result = run(conn, FakeProvider("{}"), dry_run=True, limits=LlmLimits(max_period_usd=0.0001))
+    assert [i.outcome for i in result.items] == ["would_summarise"]
+    assert result.period_remaining_usd == pytest.approx(0.0001)
+
+
+def test_spend_recorded_only_on_an_aborted_run_still_counts_toward_the_period_cap(conn):
+    # An abort after billed calls records the spend on the run, not as usage rows (review finding).
+    from datetime import timedelta
+
+    seed_version(conn)
+    run_id = ss.start_run(conn, provider="fake", model="m", hosted=False, prompt_version="p",
+                          processing_version="3b-1", limits={}, dry_run=False, now=NOW - timedelta(days=1))  # fmt: skip
+    ss.finish_run(
+        conn, run_id, outcome="aborted", counts={}, spent_usd=9.99, now=NOW - timedelta(days=1)
+    )
+    assert ss.spent_since(conn, NOW - timedelta(days=30)) == pytest.approx(9.99)
+    fake = FakeProvider(lambda req: draft_json(req.version_id))
+    result = run(conn, fake, limits=LlmLimits(max_run_usd=5.0, max_period_usd=10.0))
+    assert [i.outcome for i in result.items] == ["budget_exhausted"] and fake.calls == []

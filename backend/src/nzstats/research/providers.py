@@ -157,6 +157,7 @@ def load_llm_settings(env: Mapping[str, str]) -> LlmSettings:
         timeout_seconds=_number(env, "NZSTATS_LLM_TIMEOUT_SECONDS", defaults.timeout_seconds, 1, 1_800),
         max_retries=_whole(env, "NZSTATS_LLM_MAX_RETRIES", defaults.max_retries, 0, 5),
         max_run_usd=_number(env, "NZSTATS_LLM_MAX_RUN_USD", defaults.max_run_usd, 0.0001, 1_000),
+        max_period_usd=_number(env, "NZSTATS_LLM_MAX_PERIOD_USD", defaults.max_period_usd, 0.0001, 10_000),
     )  # fmt: skip
     return LlmSettings(provider, model, key, base, pricing, limits)
 

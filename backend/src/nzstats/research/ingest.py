@@ -33,7 +33,7 @@ from nzstats.research.validate import PreviousVersion, safe_detail, validate_doc
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.sources.fetcher import FetchResult
 from nzstats.store.db import transaction
-from nzstats.store.repo import record_artifact
+from nzstats.store.repo import ArtifactRecord, record_artifact
 
 log = logging.getLogger(__name__)
 
@@ -192,8 +192,8 @@ def _one(
     published, date_warnings = _published(inst, extracted.published_hint, candidate, now_fn())
     warnings += date_warnings
     try:
-        return _store(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
-                      tuple(warnings), artifacts, now_fn())  # fmt: skip
+        return store_document(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
+                              tuple(warnings), artifacts, now_fn())  # fmt: skip
     except Exception as exc:  # the transaction rolled back; the previous version is still current
         log.exception("storing %s failed", url)
         return _failed(url, exc)
@@ -297,7 +297,7 @@ def _link_only(
     return ItemOutcome(candidate.url, outcome, publication_id=pub_id, warnings=tuple(warnings))
 
 
-def _store(
+def store_document(
     conn: sqlite3.Connection,
     inst: Institution,
     inst_id: int,
@@ -309,34 +309,63 @@ def _store(
     warnings: tuple[str, ...],
     artifacts: ArtifactStore | None,
     now: datetime,
+    acquisition: str = "crawler",
+    audit: Callable[[ItemOutcome], None] | None = None,
 ) -> ItemOutcome:
+    """Store one validated document in one transaction (shared by the crawler and the manual import).
+
+    `audit`, when given, writes its record of the outcome inside the same transaction.
+    """
     raw = artifacts.save(fetched) if artifacts is not None else None  # content-addressed file
     with transaction(conn):
-        pub_id, created = store.upsert_publication(
-            conn, inst_id, doc_key=doc_key, url=candidate.url,
-            title=_title(extracted.title, candidate.title, url=candidate.url),
-            series=candidate.series, categories=inst.categories, content_status="link_only",
-            now=now, **_date_fields(published),
-        )  # fmt: skip
-        if store.current_version(conn, pub_id) is None:
-            original = store.find_text_elsewhere(
-                conn, extracted.text_sha256, exclude_publication_id=pub_id
-            )
-            if original is not None:
-                store.mark_duplicate(conn, pub_id, *original)
-                return ItemOutcome(candidate.url, "duplicate", publication_id=pub_id,
-                                   warnings=warnings)  # fmt: skip
-        version_id, change = store.add_version(
-            conn, pub_id, content_sha256=hashlib.sha256(fetched.body).hexdigest(), text_sha256=extracted.text_sha256,
-            fmt=extracted.format, fetched_at=fetched.fetched_at,
-            extractor_version=extracted.extractor_version,
-            raw_artifact_id=record_artifact(conn, raw) if raw is not None else None,
-            title=_title(extracted.title, candidate.title, url=candidate.url),
-            sections=[store.SectionRow(s.ordinal, s.heading, s.text, s.page_start, s.page_end,
-                                       s.char_start, s.char_end) for s in extracted.sections],
-            page_count=extracted.page_count,
-            licence_snapshot=json.dumps(inst.licence_snapshot(), sort_keys=True), now=now,
-        )  # fmt: skip
+        item = _store_locked(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
+                             warnings, raw, now, acquisition)  # fmt: skip
+        if audit is not None:
+            audit(item)
+    return item
+
+
+def _store_locked(
+    conn: sqlite3.Connection,
+    inst: Institution,
+    inst_id: int,
+    candidate: Candidate,
+    doc_key: str,
+    fetched: FetchResult,
+    extracted: Extracted,
+    published: PublishedDate | None,
+    warnings: tuple[str, ...],
+    raw: ArtifactRecord | None,
+    now: datetime,
+    acquisition: str,
+) -> ItemOutcome:
+    """The body of `store_document`; the caller holds the transaction."""
+    pub_id, created = store.upsert_publication(
+        conn, inst_id, doc_key=doc_key, url=candidate.url,
+        title=_title(extracted.title, candidate.title, url=candidate.url),
+        series=candidate.series, categories=inst.categories, content_status="link_only",
+        now=now, **_date_fields(published),
+    )  # fmt: skip
+    if store.current_version(conn, pub_id) is None:
+        original = store.find_text_elsewhere(
+            conn, extracted.text_sha256, exclude_publication_id=pub_id
+        )
+        if original is not None:
+            store.mark_duplicate(conn, pub_id, *original)
+            return ItemOutcome(candidate.url, "duplicate", publication_id=pub_id,
+                               warnings=warnings)  # fmt: skip
+    version_id, change = store.add_version(
+        conn, pub_id, content_sha256=hashlib.sha256(fetched.body).hexdigest(), text_sha256=extracted.text_sha256,
+        fmt=extracted.format, fetched_at=fetched.fetched_at,
+        extractor_version=extracted.extractor_version,
+        raw_artifact_id=record_artifact(conn, raw) if raw is not None else None,
+        title=_title(extracted.title, candidate.title, url=candidate.url),
+        sections=[store.SectionRow(s.ordinal, s.heading, s.text, s.page_start, s.page_end,
+                                   s.char_start, s.char_end) for s in extracted.sections],
+        page_count=extracted.page_count,
+        licence_snapshot=json.dumps(inst.licence_snapshot(), sort_keys=True), now=now,
+        acquisition=acquisition,
+    )  # fmt: skip
     outcome = {"new": "new" if created else "updated"}.get(change, change)
     return ItemOutcome(candidate.url, outcome, publication_id=pub_id, version_id=version_id,
                        warnings=warnings)  # fmt: skip

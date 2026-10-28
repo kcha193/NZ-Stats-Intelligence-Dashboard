@@ -11,14 +11,23 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import date
 from pathlib import Path
 
 from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
 from nzstats.research import summary_store as ss
 from nzstats.research.contract import Provider
-from nzstats.research.fetch import ResearchFetcher, build_research_client, research_pacer
+from nzstats.research.fetch import (
+    DEFAULT_MAX_BYTES,
+    ResearchFetcher,
+    build_research_client,
+    research_pacer,
+)
+from nzstats.research.health import research_health
 from nzstats.research.ingest import RunResult, refusal_for, run_institution
+from nzstats.research.manual_import import ImportRefused, import_document
+from nzstats.research.outcomes import stored_cpi_releases
 from nzstats.research.pilot_eval import AnnotationError, evaluate_stored, load_annotations
 from nzstats.research.providers import (
     LlmConfigError,
@@ -54,6 +63,25 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_ing.add_argument("--limit", type=_positive_int, help="at most this many documents")
     p_ing.add_argument("--dry-run", action="store_true", help="discover only; write nothing")
     rsub.add_parser("status", help="show research source health")
+    p_health = rsub.add_parser(
+        "health", help="pipeline health, staleness, queues and withheld publications (Phase 3E)"
+    )
+    p_health.add_argument("--json", action="store_true", help="machine-readable output")
+    rsub.add_parser(
+        "cpi-vintages", help="which CPI quarters have a genuine first-published vintage stored (3E)"
+    )
+    p_imp = rsub.add_parser(
+        "import", help="store an owner-supplied copy of one document (Phase 3E; no request is made)"
+    )
+    p_imp.add_argument("key")
+    p_imp.add_argument("file", help="the saved document (.html, .htm or .pdf)")
+    p_imp.add_argument("--url", required=True, help="the document's address on an allowed host")
+    p_imp.add_argument("--importer", required=True, help="who obtained and is importing the copy")
+    p_imp.add_argument("--note", required=True, help="where and how it was obtained (private)")
+    p_imp.add_argument("--title", help="fallback title when the document states none")
+    p_imp.add_argument("--published-on", type=date.fromisoformat,
+                       help="the institution's publication date (YYYY-MM-DD)")  # fmt: skip
+    p_imp.add_argument("--series", help="the report series, e.g. HYEFU")
     p_ready = rsub.add_parser(
         "readiness", help="the four pilot permissions per source (Phase 3D-A)"
     )
@@ -130,6 +158,8 @@ def research_command(args: argparse.Namespace, settings: Settings) -> int:
               " access")  # fmt: skip
         for inst in registry.values():
             access = inst.refusal_reason() or "allowed"
+            if inst.manual_import_allowed:
+                access += "; manual import approved"
             verified = inst.verified_on.isoformat() if inst.verified_on else "-"
             print(f"{inst.key:<12} {inst.review_status.value:<13} {inst.content_policy.value:<14}"
                   f" {inst.llm_processing.value:<11} {inst.display_level().value:<10} {verified:<11}"
@@ -254,7 +284,8 @@ def _summarise(
               f" estimated ${item.estimated_usd:.4f}")  # fmt: skip
     where = "dry run" if args.dry_run else f"run {result.run_id}"
     _emit(f"{provider.name}/{provider.model} {where}: {result.outcome} {result.counts};"
-          f" spent ${result.spent_usd:.4f} of ${llm.limits.max_run_usd:.2f}")  # fmt: skip
+          f" spent ${result.spent_usd:.4f} of ${llm.limits.max_run_usd:.2f}; 30-day cap"
+          f" ${llm.limits.max_period_usd:.2f}, ${result.period_remaining_usd:.4f} left at start")  # fmt: skip
     return 0 if result.outcome == "ok" else 1
 
 
@@ -458,7 +489,96 @@ def _quality(args: argparse.Namespace, settings: Settings, registry: dict[str, I
     return 1 if missing else 0
 
 
-_SUMMARY_COMMANDS = {"summarise": _summarise, "summaries": _list, "summary": _show,
+def _health(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
+    """Exit 1 when anything needs attention, so a scheduled check can alert on it."""
+    try:
+        limits = load_llm_settings(os.environ).limits
+    except LlmConfigError as exc:
+        _emit(f"LLM configuration error: {exc}")
+        return 2
+    report = research_health(
+        _open(settings), registry, now=utc_now(), limits=limits, env=os.environ
+    )
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+        return 1 if report.needs_attention else 0
+    _emit(f"Research health at {report.checked_at}. Read-only: nothing was requested or changed.")
+    _emit(f"{'key':<12} {'routes':<14} {'crawler':<10} {'newest':<11} {'pubs':>5} {'todo':>5} {'review':>6}"
+          f" {'to pub':>6} {'public':>6}")  # fmt: skip
+    for src in report.sources:
+        _emit(f"{src.key:<12} {src.routes:<14} {src.crawler_state or '-':<10} {src.newest_publication_on or '-':<11}"
+              f" {src.publications:>5} {src.unsummarised:>5} {src.awaiting_review:>6} {src.awaiting_publication:>6}"
+              f" {src.public:>6}")  # fmt: skip
+        for f in src.findings:
+            _emit(f"  {f.severity}: {f.code}: {f.message}")
+    _emit(f"model spend, last 30 days: ${report.spent_period_usd:.4f} of ${report.period_cap_usd:.2f};"
+          f" public research API {report.public_switch}")  # fmt: skip
+    for f in report.findings:
+        _emit(f"{f.severity}: {f.code}: {f.message}")
+    _emit("needs attention" if report.needs_attention else "ok")
+    return 1 if report.needs_attention else 0
+
+
+def _cpi_vintages(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    rows = stored_cpi_releases(_open(settings))
+    if not rows:
+        _emit("no CPI release is stored: no forecast can be matched to an outcome yet")
+        return 0
+    _emit(f"{'quarter':<8} {'published (NZ)':<26} {'bundles':>7}  first stored")
+    for r in rows:
+        _emit(
+            f"{r.reference_period:<8} {to_akl_iso(r.published_at):<26} {r.bundles:>7}  {to_akl_iso(r.earliest_captured_at)}"
+        )
+    _emit(f"Quarters listed have their own release stored: their first-published values are genuine. Every quarter"
+          f" before {rows[0].reference_period} uses the earliest stored value, from {_safe(rows[0].title)}, and is"
+          " labelled earliest stored. Backfilling older releases (a throttled real-site run) needs approval:"
+          " docs/cpi-release-runbook.md.")  # fmt: skip
+    return 0
+
+
+_SUFFIXES = {".html": "html", ".htm": "html", ".pdf": "pdf"}
+
+
+def _import(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
+    inst = registry.get(args.key)
+    if inst is None:
+        _emit(f"unknown institution {args.key!r}; see `nzstats research sources`")
+        return 2
+    refusal = inst.import_refusal()
+    if refusal is not None:  # before the file is read
+        _emit(f"{inst.key}: refused ({refusal})")
+        return 1
+    path = Path(args.file)
+    file_format = _SUFFIXES.get(path.suffix.lower())
+    if file_format is None:
+        _emit("refused: the file must be .html, .htm or .pdf (html or pdf)")
+        return 2
+    if not path.is_file():
+        _emit("refused: the file does not exist")
+        return 2
+    if path.stat().st_size > DEFAULT_MAX_BYTES:
+        _emit(f"refused: the file is larger than {DEFAULT_MAX_BYTES} bytes")
+        return 1
+    conn = _open(settings)
+    try:
+        result = import_document(
+            conn, inst, body=path.read_bytes(), file_format=file_format, url=args.url,
+            importer=args.importer, note=args.note, now=utc_now(), artifacts=ArtifactStore(settings.raw_dir),
+            title=args.title, published_on=args.published_on, series=args.series,
+        )  # fmt: skip
+    except ImportRefused as exc:
+        _emit(f"{inst.key}: refused ({exc})")
+        return 1
+    warnings = f" warnings: {', '.join(result.warnings)}" if result.warnings else ""
+    _emit(f"{inst.key}: {result.outcome} publication {result.publication_id} version"
+          f" {result.version_id or '-'} sha256 {result.content_sha256[:12]}{warnings}")  # fmt: skip
+    _emit("Stored locally only. LLM processing, review and publication are separate decisions.")
+    return 0
+
+
+_SUMMARY_COMMANDS = {"summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
                      "quality": _quality, "evaluate": _evaluate}  # fmt: skip

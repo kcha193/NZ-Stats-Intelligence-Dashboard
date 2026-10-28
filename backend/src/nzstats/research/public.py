@@ -35,7 +35,7 @@ _SELECT = (
     " s.hosted, s.prompt_version, s.processing_version, s.created_at,"
     f" ({_LATEST_DECISION.format(col='decision')}) AS decision,"
     f" ({_LATEST_DECISION.format(col='decided_at')}) AS decided_at,"
-    " v.version_no, v.title, v.fetched_at, v.format, v.page_count, v.superseded_at,"
+    " v.version_no, v.title, v.fetched_at, v.format, v.page_count, v.superseded_at, v.acquisition,"
     " p.id AS publication_id, p.canonical_url, p.published_on, p.categories, p.current_version_id,"
     " p.duplicate_of_id, i.key AS institution"
     " FROM research_summary s JOIN research_document_version v ON v.id = s.version_id"
@@ -109,8 +109,10 @@ def _assess(
     inst = registry.get(row["institution"])
     if inst is None:
         return "the institution is not in the research registry", None
-    level = inst.display_level()
-    if level.rank > PublicDisplay.LINK_ONLY.rank and inst.llm_refusal(hosted=bool(row["hosted"])):
+    level = inst.display_level(row["acquisition"])
+    if level.rank > PublicDisplay.LINK_ONLY.rank and inst.llm_refusal(
+        hosted=bool(row["hosted"]), acquisition=row["acquisition"]
+    ):
         level = (
             PublicDisplay.LINK_ONLY
         )  # the model that wrote the text is no longer permitted for this source

@@ -15,6 +15,7 @@ from nzstats.pipeline.discover import discover, discovery_months
 from nzstats.pipeline.ingest import backfill, ingest_release
 from nzstats.runtime import build_runtime
 from nzstats.scheduler.planner import releases_needing_ingest
+from nzstats.store.backup_check import verify_backup
 from nzstats.store.db import connect, migrate
 
 log = logging.getLogger("nzstats")
@@ -123,6 +124,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub.add_parser("health", help="print source health as JSON")
     p_backup = sub.add_parser("backup", help="write a consistent copy of the database")
     p_backup.add_argument("dest")
+    p_verify = sub.add_parser("verify-backup", help="check that a backup restores (read-only)")
+    p_verify.add_argument("path")
+    p_verify.add_argument("--live", help="compare row counts with this database")
+    p_verify.add_argument(
+        "--raw-dir", help="require every referenced raw artifact under this directory"
+    )
     sub.add_parser("openapi", help="print the OpenAPI document")
     p_export = sub.add_parser(
         "export-snapshot", help="write a validated public JSON snapshot of the database"
@@ -199,8 +206,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         dest = sqlite3.connect(args.dest)
         conn.backup(dest)
         dest.close()
-        print(f"backup written to {args.dest}")
+        report = verify_backup(args.dest)
+        if not report.ok:
+            print(
+                f"backup written to {args.dest} but it FAILED verification: {'; '.join(report.problems)}"
+            )
+            return 1
+        print(f"backup written to {args.dest} and verified (schema {report.schema_version})")
         return 0
+    if args.command == "verify-backup":
+        report = verify_backup(args.path, live=args.live, raw_dir=args.raw_dir)
+        for problem in report.problems:
+            print(f"problem: {problem}")
+        for table, (copy, live) in sorted(report.count_differences.items()):
+            print(f"rows differ from live: {table} {copy} in the backup, {live} live")
+        print(f"{'ok' if report.ok else 'FAILED'}: schema {report.schema_version}"
+              f" (expected {report.expected_schema_version}), {sum(report.counts.values())} rows"
+              f" in {len(report.counts)} tables")  # fmt: skip
+        return 0 if report.ok else 1
     if args.command == "openapi":
         from nzstats.api.app import create_app
         from nzstats.research.api import research_router

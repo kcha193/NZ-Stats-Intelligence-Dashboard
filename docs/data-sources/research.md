@@ -1,4 +1,4 @@
-# Institutional research sources: registry and runbook (Phases 3A to 3D)
+# Institutional research sources: registry and runbook (Phases 3A to 3E)
 
 Economic commentary from banks, the Reserve Bank, the Treasury and research consultancies is a **separate domain**
 from the Stats NZ statistics. It lives in `backend/src/nzstats/research/` and the `research_*` tables. The Stats NZ
@@ -421,13 +421,116 @@ The evaluation re-verifies each stored summary with the current verifier, scores
 verified rate) and reports the recorded cost and latency of every attempt, failed calls included. It is a different
 measurement from the synthetic replay (`RECORDED_BASELINE`) and must never be merged with it.
 
+## Production operations (Phase 3E)
+
+Readiness report, blocker register and go/no-go: [Phase 3E](../superpowers/specs/2026-10-28-phase-3e-production-readiness.md).
+**Status on 2026-10-28: still nothing approved.** Every source has `manual_import = "denied"` too.
+
+### Manual document import (a fifth, separate permission)
+
+When a site refuses automated readers but its terms, **read directly**, permit storing a copy, a person can save the
+document in a browser and import it. Possession of a file is not permission: the import is refused unless the registry
+records the decision, and it never grants automated access (the crawler stays refused).
+
+| Field | Meaning |
+|---|---|
+| `manual_import` | `denied` (default) or `approved` |
+| `manual_import_approved_by`, `manual_import_approved_on`, `manual_import_note` | required with `approved`: who decided, when, and what the terms say about storing a copy |
+
+The loader refuses `approved` without `content_policy = "full_text"`, `terms_evidence = "direct"` and allowed hosts, and
+for a `restricted` source (record the institution's permission and move it to `needs_review` first, as a reviewable
+edit). With it approved, `llm_processing` and `public_display` may be set as separate decisions.
+
+```sh
+scripts/run.sh research import treasury data/imports/hyefu-2026.pdf \
+  --url https://www.treasury.govt.nz/publications/efu/half-year-economic-and-fiscal-update-2026 \
+  --importer "Kevin Chang" --note "downloaded in a browser on 2026-11-01 from the publication page" \
+  --published-on 2026-12-10 --series HYEFU
+```
+
+No request is made. The address must pass the institution's URL policy (https, allowed host and path, not blocked); it is
+the link shown if the item is ever displayed. The file (`.html`, `.htm` or `.pdf`, at most 20 MB) goes through the same
+extraction, wall and challenge detection, minimum length and shrink guard as a crawled one, and the same store: raw
+bytes under `data/raw` (content-addressed), a new version only when the text changes, sections with pages. Each import
+that reaches the store adds a row to `research_manual_import` (append-only: who, when, file and text hashes, outcome,
+the permissions in force, the private note) in the same transaction, and the version's `acquisition` is `manual`.
+
+Each approval covers only what it let in. A crawled version needs the crawler approval and an imported one the
+manual-import approval, for summarising and for display; revoking one route is never undone by the other. Keep imported
+files outside git (`data/imports/` is under the ignored data directory). Imported raw files cannot be re-fetched, so
+back up `data/raw` with the database.
+
+### Health monitoring
+
+```sh
+scripts/run.sh research health          # table plus findings; exit 1 when anything needs attention
+scripts/run.sh research health --json   # the same for a scheduled check or a log
+```
+
+| Finding | Severity | Meaning and action |
+|---|---|---|
+| `gated` | info | no route permits the source; nothing to do |
+| `no_publications` | attention | permitted but nothing stored: run the first ingest or import |
+| `crawler_blocked`, `crawler_failing`, `repeated_failures` | attention | see `research status`; do not retry in a loop |
+| `stale` | attention | the newest stored publication is older than `expected_publication_days` (optional registry field, 1 to 730): look for a missed release |
+| `poor_extraction` | attention | read the version (`research quality ID`) before summarising |
+| `published_but_withheld` | attention | a published summary the gate now withholds: a permission was revoked, its institution was removed from the registry (listed with routes `unregistered`), a newer document version exists, or the evidence no longer verifies. `research summary ID` gives the reason; withdraw it or summarise the new version |
+| `budget_near_cap` | attention | 80% of the rolling model budget is spent |
+| `public_api_on` | info | `NZSTATS_PUBLIC_RESEARCH=1`: the routes are served without authentication |
+
+The report contains no reviewer, approver or importer names, notes or document text.
+
+### Bounded processing budgets
+
+Two limits, both checked before every call against the worst case: `NZSTATS_LLM_MAX_RUN_USD` per run (default $1) and
+`NZSTATS_LLM_MAX_PERIOD_USD` over any rolling 30 days (default $10), counting every recorded call, failed ones included.
+A run may spend only the smaller of its own budget and what the window has left; the run record stores both. A dry run
+prints the remainder and spends nothing.
+
+### Reviewer workflow
+
+1. `research summaries --status verified --review unreviewed` lists the queue (`research health` counts it).
+2. For each: `research summary ID`. Read every quote in context in the stored document (version, section, page); check
+   value, unit, horizon and basis, outturn versus forecast, baseline versus scenario, and whether a newer version exists.
+3. Compare with the independent annotation where one exists (annotate before reading the model output).
+4. `research approve ID --reviewer NAME` or `research reject ID --reviewer NAME --note WHAT_WAS_WRONG`. A rejection is
+   final; summarise again for a new attempt.
+5. Publication is a separate, later decision by an approver: `research publish ID --approver NAME --note WHY`, then
+   `research summary ID` must say `public: yes`.
+
+### Withdrawal and republication
+
+`research withdraw ID --approver NAME --note WHY` takes effect on the next request (the gate reads the log every time).
+To withdraw everything from a source at once, set its `public_display = "none"` (clear its approval fields) and restart
+the service if the registry is baked into an image. Republishing is a new `publish` decision. Nothing from research is in
+the static snapshot, so no redeploy is needed.
+
+### Onboarding a new source
+
+1. Record the institution in `config/research_sources.toml` as `needs_review` with hosts, prefixes and evidence fields.
+2. Read the terms directly; record them (`licence`, `access_notes`, `terms_evidence = "direct"`).
+3. Choose the route: crawler (the checklist above) or manual import (this section). Approve only that route.
+4. Ingest or import two or three documents; check `research health` and `research quality`.
+5. Decide `llm_processing`, then `public_display`, each with its own note. Commit each change separately.
+6. Optionally set `expected_publication_days` so staleness is reported.
+
+### Revocation
+
+Set the field back (`review_status = "needs_review"`, `manual_import = "denied"`, `llm_processing = "denied"` or
+`public_display = "none"`, clearing dependent fields as the loader requires). Processing and display stop on the next
+command or request; stored text is not deleted (see Rollback for deletion). `research health` lists any published
+summary that is now withheld.
+
 ## Rollback
+
+Phase 3E only: `sqlite3 data/nzstats.db < scripts/rollback/008_research_manual_import_down.sql` removes the import
+audit log and the `acquisition` column; imported versions stay stored (use the full rollback below to delete them).
 
 The tables are additive and nothing outside `research_*` references them. To remove them (this deletes stored commentary):
 
 ```sh
 scripts/backup.sh                       # Docker deployment; without Docker: scripts/run.sh backup data/backups/before-rollback.db
-sqlite3 data/nzstats.db < scripts/rollback/004_research_down.sql   # also drops the Phase 3B and 3C tables (006, 007)
+sqlite3 data/nzstats.db < scripts/rollback/004_research_down.sql   # also drops the 3B, 3C and 3E tables (006 to 008)
 ```
 
 Stop (or downgrade) every process that runs the new code first: starting it again re-applies migration 004 and recreates

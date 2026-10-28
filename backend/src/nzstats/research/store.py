@@ -117,8 +117,12 @@ def add_version(
     page_count: int | None,
     licence_snapshot: str,
     now: datetime,
+    acquisition: str = "crawler",
 ) -> tuple[int, str]:
-    """Make this text the publication's current version: `new`, `reactivated` (a revert) or `unchanged`."""
+    """Make this text the publication's current version: `new`, `reactivated` (a revert) or `unchanged`.
+
+    `acquisition` (`crawler` or `manual`) records how a new version was obtained; an existing one keeps its own.
+    """
     stamp = to_utc_iso(now)
     current = current_version(conn, publication_id)
     same = conn.execute(
@@ -142,10 +146,10 @@ def add_version(
     cur = conn.execute(
         "INSERT INTO research_document_version(publication_id, version_no, content_sha256, text_sha256,"
         " format, fetched_at, extracted_at, extractor_version, raw_artifact_id, title, page_count,"
-        " char_count, licence_snapshot) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " char_count, licence_snapshot, acquisition) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (publication_id, version_no, content_sha256, text_sha256, fmt, to_utc_iso(fetched_at), stamp,
          extractor_version, raw_artifact_id, title, page_count, sum(len(s.text) for s in sections),
-         licence_snapshot),
+         licence_snapshot, acquisition),
     )  # fmt: skip
     version_id = int(cur.lastrowid)
     conn.executemany(

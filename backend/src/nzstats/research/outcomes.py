@@ -219,3 +219,31 @@ class CpiActuals:
             if value is not None:
                 return Actual(value, info.title, info.published_at, reference == target.quarter)
         return None
+
+
+@dataclass(frozen=True)
+class StoredRelease:
+    reference_period: str
+    title: str
+    published_at: str  # UTC ISO
+    bundles: (
+        int  # distinct stored bundles of the all-groups index (a correction or re-ingest adds one)
+    )
+    earliest_captured_at: str
+
+
+def stored_cpi_releases(conn: sqlite3.Connection) -> list[StoredRelease]:
+    """CPI releases with a stored all-groups vintage, oldest first (Phase 3E vintage audit; read-only).
+
+    Only these quarters can have a genuine first-published value; every earlier quarter's "first" value is the
+    earliest stored one, read from the oldest release listed here.
+    """
+    rows = conn.execute(
+        "SELECT r.reference_period, r.title, r.published_at, COUNT(v.id) AS bundles,"
+        " MIN(v.captured_at) AS earliest FROM release r JOIN vintage v ON v.release_id = r.id"
+        " JOIN series s ON s.id = v.series_id WHERE r.series_slug = ? AND s.key = ?"
+        " AND r.reference_period IS NOT NULL GROUP BY r.id ORDER BY r.reference_period",
+        (CPI_SLUG, NSA),
+    ).fetchall()
+    return [StoredRelease(r["reference_period"], r["title"], r["published_at"], r["bundles"], r["earliest"])
+            for r in rows]  # fmt: skip

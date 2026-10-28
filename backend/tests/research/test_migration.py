@@ -217,3 +217,29 @@ def test_migration_007_is_additive_and_its_rollback_removes_only_its_objects(tmp
     for sql in _schema(conn, research=True).values():
         for table in ("release", "series", "vintage", "observation", "ingest_run"):
             assert f"REFERENCES {table} " not in sql and f"REFERENCES {table}(" not in sql
+
+
+ROLLBACK_008 = REPO / "scripts" / "rollback" / "008_research_manual_import_down.sql"
+
+
+def test_migration_008_is_additive_and_its_rollback_removes_only_its_objects(tmp_path):
+    from .llm_support import seed_version
+
+    conn = connect(tmp_path / "m.db")
+    migrate(conn)
+    version = seed_version(conn)
+    conn.executescript(ROLLBACK_008.read_text(encoding="utf-8"))
+    before = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    assert "research_manual_import" not in before
+    assert "acquisition" not in before["research_document_version"]
+    assert conn.execute("SELECT id FROM research_document_version").fetchone()[0] == version
+    assert 8 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
+    assert migrate(conn) >= 8
+    assert (
+        conn.execute("SELECT acquisition FROM research_document_version").fetchone()[0] == "crawler"
+    )
+    after = _schema(conn, research=True)
+    assert "research_manual_import" in after
+    for sql in after.values():
+        for table in ("release", "series", "vintage", "observation", "ingest_run"):
+            assert f"REFERENCES {table} " not in sql and f"REFERENCES {table}(" not in sql

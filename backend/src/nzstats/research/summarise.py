@@ -16,14 +16,15 @@ import sqlite3
 import time
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
-from datetime import date, datetime
+from dataclasses import dataclass, field, replace
+from datetime import date, datetime, timedelta
 
 from pydantic import ValidationError
 
 from nzstats.clock import utc_now
 from nzstats.research import summary_store as ss
 from nzstats.research.contract import (
+    PERIOD_DAYS,
     DisabledProvider,
     LlmLimits,
     ModelProvenance,
@@ -82,6 +83,7 @@ class SummariseResult:
     items: list[ItemResult] = field(default_factory=list)
     refusals: list[tuple[str, str]] = field(default_factory=list)
     spent_usd: float = 0.0
+    period_remaining_usd: float = 0.0  # what the rolling cap allowed when the run started
 
     @property
     def counts(self) -> dict[str, int]:
@@ -110,7 +112,8 @@ def eligible_versions(
 ) -> tuple[list[Candidate], list[tuple[str, str]]]:
     """Versions this provider may process, and (institution, reason) for every refusal."""
     sql = (
-        "SELECT v.id, v.title, v.licence_snapshot, p.published_on, i.key FROM research_document_version v"
+        "SELECT v.id, v.title, v.licence_snapshot, v.acquisition, p.published_on, i.key"
+        " FROM research_document_version v"
         " JOIN research_publication p ON p.id = v.publication_id"
         " JOIN research_institution i ON i.id = p.institution_id"
     )
@@ -128,7 +131,11 @@ def eligible_versions(
     for row in conn.execute(sql, params):
         key = row["key"]
         inst = registry.get(key)
-        reason = "not in the research registry" if inst is None else inst.llm_refusal(hosted=hosted)
+        reason = (
+            "not in the research registry"
+            if inst is None
+            else inst.llm_refusal(hosted=hosted, acquisition=row["acquisition"])
+        )
         if reason is None and _stored_policy(row["licence_snapshot"]) not in (
             None,
             ContentPolicy.FULL_TEXT,
@@ -182,15 +189,24 @@ def summarise_versions(
     )
     cap = min(limit or limits.max_documents_per_run, limits.max_documents_per_run)
     result = SummariseResult(refusals=refusals)
+    # The rolling cap: this run may spend no more than the period has left, so repeated runs stay bounded.
+    started = now_fn()
+    remaining = max(
+        0.0, limits.max_period_usd - ss.spent_since(conn, started - timedelta(days=PERIOD_DAYS))
+    )
+    result.period_remaining_usd = remaining
+    run_limits = limits
+    limits = replace(limits, max_run_usd=min(limits.max_run_usd, remaining))
     parameters = dict(provider.parameters())
     if not dry_run:
         result.run_id = ss.start_run(
             conn, provider=provider.name, model=provider.model, hosted=provider.hosted,
             prompt_version=PROMPT_VERSION, processing_version=PROCESSING_VERSION,
             limits={"max_input_chars": limits.max_input_chars, "max_output_tokens": limits.max_output_tokens,
-                    "max_retries": limits.max_retries, "max_run_usd": limits.max_run_usd,
-                    "timeout_seconds": limits.timeout_seconds},
-            dry_run=False, now=now_fn(),
+                    "max_retries": limits.max_retries, "max_run_usd": run_limits.max_run_usd,
+                    "max_period_usd": limits.max_period_usd, "period_days": PERIOD_DAYS,
+                    "period_remaining_usd": round(remaining, 6), "timeout_seconds": limits.timeout_seconds},
+            dry_run=False, now=started,
         )  # fmt: skip
     stopped = False
     slots = 0  # the cap bounds work still to do; finished and oversize versions never use a slot

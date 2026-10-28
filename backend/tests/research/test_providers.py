@@ -79,7 +79,8 @@ def test_a_real_provider_needs_model_key_and_prices(missing):
     [("NZSTATS_LLM_INPUT_USD_PER_MTOK", "nan"), ("NZSTATS_LLM_OUTPUT_USD_PER_MTOK", "-1"),
      ("NZSTATS_LLM_MAX_RUN_USD", "0"), ("NZSTATS_LLM_MAX_RUN_USD", "inf"),
      ("NZSTATS_LLM_MAX_OUTPUT_TOKENS", "0"), ("NZSTATS_LLM_MAX_RETRIES", "9"),
-     ("NZSTATS_LLM_TIMEOUT_SECONDS", "x"), ("NZSTATS_LLM_MAX_DOCUMENTS", "0")],
+     ("NZSTATS_LLM_TIMEOUT_SECONDS", "x"), ("NZSTATS_LLM_MAX_DOCUMENTS", "0"),
+     ("NZSTATS_LLM_MAX_PERIOD_USD", "0"), ("NZSTATS_LLM_MAX_PERIOD_USD", "nan")],
 )  # fmt: skip
 def test_limits_and_prices_must_be_finite_and_in_range(name, value):
     with pytest.raises(pv.LlmConfigError, match=name):
@@ -260,3 +261,9 @@ def test_a_truncated_or_refused_response_carries_its_billed_usage():
     with pytest.raises(ProviderError) as exc:
         provider.summarise(REQUEST)
     assert (exc.value.input_tokens, exc.value.output_tokens) == (900, 4000)
+
+
+def test_the_rolling_period_cap_defaults_to_ten_dollars_and_comes_from_the_environment():
+    assert pv.load_llm_settings(REAL).limits.max_period_usd == 10.0
+    s = pv.load_llm_settings({**REAL, "NZSTATS_LLM_MAX_PERIOD_USD": "2.5"})
+    assert s.limits.max_period_usd == 2.5

@@ -111,3 +111,24 @@ The offline rehearsal (`backend/tests/scheduler/test_cpi_release_day.py`) replay
 tests (`backend/tests/pipeline/test_cpi_september_2026.py`) replay the captured September files. Neither is a live ingestion of
 the September quarter into the running database. After the recovery above, check Data health and `/inflation`, and record the
 outcome in `docs/progress.md`.
+
+## Historical vintages and backfill (Phase 3E)
+
+`scripts/run.sh research cpi-vintages` lists the CPI releases stored with their own vintage. On 2026-10-28 the production
+database held one, the September 2026 quarter, so every earlier quarter's first-published value is the earliest stored
+(read from that release) and is labelled so. For the unadjusted index this equals the original figure (Stats NZ does not
+revise it); for the seasonally adjusted index it does not.
+
+The December 2025, March 2026 and June 2026 release files parse with the current adapter (they are the test fixtures).
+Backfilling them contacts stats.govt.nz (about 26 sequential requests, at least four and a half minutes at the 10 second
+floor), so run it only with the owner's approval:
+
+```sh
+scripts/backup.sh
+scripts/run.sh backfill --series-slug consumers-price-index --since 2025-12 --until 2026-06
+scripts/run.sh research cpi-vintages
+```
+
+Release order, not ingestion order, decides first-published and latest, so ingesting older releases after September is
+safe (tested on the real files). Do not go before December 2025 without a vintage-depth probe of the file layout first.
+
