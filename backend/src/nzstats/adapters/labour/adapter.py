@@ -41,6 +41,7 @@ MAX_ARCHIVE = 64 * 1024 * 1024  # the real archive is 18.6 MB
 MAX_MEMBER = 1024 * 1024 * 1024  # declared uncompressed size; the real HLFS member is 423 MB
 MAX_MEMBERS = 8  # files, not folders; the real archive has 4
 MAX_ROWS = 2_500_000  # per member; the real HLFS member has 1,278,057
+MAX_LINE = 64 * 1024  # characters per physical line; real lines are under 1 KB
 # Measured on the March (revised) and June 2026 releases over the whole history (docs/data-sources/labour-market.md):
 IDENTITY_LEVEL_TOLERANCE = (
     1.5  # thousand: labour force vs employed + unemployed, three rounded values; max 1.0
@@ -109,6 +110,32 @@ def _members(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
     return chosen
 
 
+class _Lines:
+    """Physical lines of a member, each at most MAX_LINE characters, one per CSV record.
+
+    The csv module would otherwise hold a record of any length (one without newlines, or one continued over many
+    lines inside quotes) in memory before the row cap applies. The caller marks each record consumed.
+    """
+
+    def __init__(self, text: io.TextIOBase) -> None:
+        self.text = text
+        self.open_record = False
+
+    def __iter__(self) -> _Lines:
+        return self
+
+    def __next__(self) -> str:
+        if self.open_record:
+            layout("Labour market CSV record spans more than one line")
+        line = self.text.readline(MAX_LINE + 1)
+        if not line:
+            raise StopIteration
+        if len(line) > MAX_LINE:
+            fail("Labour market CSV line exceeds size limit")
+        self.open_record = True
+        return line
+
+
 def _value(text: str, ref: str) -> float:
     try:
         value = float(text)
@@ -124,8 +151,10 @@ def _read_member(
 ) -> dict[str, dict[str, Observation]]:
     found: dict[str, dict[str, Observation]] = {}
     with archive.open(info) as raw:
-        reader = csv.reader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline=""))
+        lines = _Lines(io.TextIOWrapper(raw, encoding="utf-8-sig", newline=""))
+        reader = csv.reader(lines, strict=True)
         header = next(reader, None) or []
+        lines.open_record = False
         if len(header) != len(set(header)) or not HEADER_REQUIRED[survey] <= set(header):
             layout(f"Labour market {survey.upper()} CSV schema changed")
         col = {name: i for i, name in enumerate(header)}
@@ -133,6 +162,7 @@ def _read_member(
             col[c] for c in ("Series_reference", "Period", "Data_value", "STATUS")
         )
         for n, row in enumerate(reader):
+            lines.open_record = False
             if n >= MAX_ROWS:
                 fail(f"Labour market {survey.upper()} member exceeds row limit")
             pinned = BY_REFERENCE.get(row[ref_i]) if len(row) > ref_i else None

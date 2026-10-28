@@ -291,3 +291,21 @@ def test_revisions_are_warnings_and_lost_history_is_an_error():
     assert any(f.rule == "revisions" and "hlfs.rate.unemployment.sa" in f.message for f in findings)
     previous["hlfs.rate.unemployment.sa"]["1980-03"] = Point("1980-03", 4.0, ObsStatus.FINAL)
     assert any(f.rule == "coverage" for f in errors(june, previous=previous))
+
+
+def test_an_overlong_line_is_refused_before_it_is_held_in_memory(monkeypatch):
+    monkeypatch.setattr(labour, "MAX_LINE", 200)
+    with pytest.raises(IngestError, match="line"):
+        parse("2026-06")
+
+
+def test_a_record_spanning_lines_is_refused():
+    def change(name, text):
+        if "/hlfs-" not in name:
+            return text
+        head, _, rest = text.partition("\n")
+        return head + '\n"HLFQ.S1F3S\n",2026.06\n' + rest
+
+    with pytest.raises(IngestError) as e:
+        parse("2026-06", rezip("2026-06", change))
+    assert e.value.error_class is ErrorClass.LAYOUT_CHANGED
