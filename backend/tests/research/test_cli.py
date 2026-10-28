@@ -432,3 +432,32 @@ def test_health_reports_each_source_and_exits_1_when_attention_is_needed(env, ca
         "example",
         "locked",
     }
+
+
+def test_health_exits_1_for_a_published_summary_of_an_institution_removed_from_the_registry(
+    tmp_path, monkeypatch, capsys
+):
+    from nzstats.store.db import connect, migrate
+
+    from .llm_support import seed_version
+    from .public_support import store_summary
+
+    path = tmp_path / "research.toml"
+    locked_only = "[institutions.locked]" + REGISTRY.split("[institutions.locked]")[1]
+    path.write_text(textwrap.dedent(locked_only), encoding="utf-8")
+    monkeypatch.setenv("NZSTATS_RESEARCH_SOURCES_FILE", str(path))
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    assert main(["research", "health"]) == 0  # only the gated `locked` source: nothing to report
+    capsys.readouterr()
+    sid = store_summary(
+        conn, seed_version(conn)
+    )  # `example` has stored, published research but no entry
+    assert main(["research", "health", "--json"]) == 1
+    data = json.loads(capsys.readouterr().out)
+    removed = next(s for s in data["sources"] if s["key"] == "example")
+    assert data["needs_attention"] is True and removed["routes"] == "unregistered"
+    assert [f["code"] for f in removed["findings"]] == ["published_but_withheld"]
+    assert main(["research", "health"]) == 1
+    assert f"research withdraw {sid}" in capsys.readouterr().out

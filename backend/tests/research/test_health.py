@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import socket
 from datetime import timedelta
 
 from nzstats.research import store
+from nzstats.research import summary_store as ss
 from nzstats.research.contract import LlmLimits
 from nzstats.research.health import research_health
 from nzstats.store.db import transaction
@@ -127,3 +129,88 @@ def test_the_report_is_json_serialisable_and_carries_no_private_fields(conn):
     assert report.public_switch == "on"
     for private in ("Private Reviewer Name", "PRIVATE", "Private Approver", "RAW MODEL OUTPUT"):
         assert private not in text
+
+
+def _removed(conn, **kw):
+    """Health over a registry that no longer lists `example`, the institution whose summaries are stored."""
+    return research_health(conn, {}, now=NOW, limits=LlmLimits(), env={}, **kw)
+
+
+def test_a_published_summary_of_an_institution_removed_from_the_registry_needs_attention(conn):
+    sid = store_summary(conn, seed_version(conn))
+    visible = research_health(conn, registry(), now=NOW, limits=LlmLimits(), env={})
+    assert visible.source("example").public == 1 and "published_but_withheld" not in codes(
+        visible, "example"
+    )
+    report = _removed(conn)
+    finding = next(
+        f for f in report.source("example").findings if f.code == "published_but_withheld"
+    )
+    assert finding.severity == "attention" and f"summary {sid}" in finding.message
+    assert "registry" in finding.message and f"research withdraw {sid}" in finding.message
+    assert report.source("example").public == 0 and report.needs_attention
+
+
+def test_a_removed_institution_is_assessed_once_per_published_summary_across_decisions(conn):
+    withdrawn = store_summary(conn, seed_version(conn, doc="a"))
+    ss.record_publication(
+        conn, withdrawn, decision="withdraw", approver="A", note="synthetic", now=NOW
+    )
+    republished = store_summary(conn, seed_version(conn, doc="b"))
+    ss.record_publication(
+        conn, republished, decision="withdraw", approver="A", note="synthetic", now=NOW
+    )
+    ss.record_publication(
+        conn, republished, decision="publish", approver="A", note="synthetic", now=NOW
+    )
+    messages = [f.message for f in _removed(conn).source("example").findings]
+    assert len(messages) == 1 and f"summary {republished}" in messages[0]  # latest decision wins
+
+
+def test_a_removed_institution_whose_summaries_are_all_withdrawn_is_not_flagged(conn):
+    sid = store_summary(conn, seed_version(conn))
+    ss.record_publication(conn, sid, decision="withdraw", approver="A", note="synthetic", now=NOW)
+    report = _removed(conn)
+    assert not report.sources and not report.needs_attention
+
+
+def test_superseded_summaries_raise_no_false_alarm_but_the_newest_of_a_removed_source_does(conn):
+    version = seed_version(conn)
+    older = store_summary(conn, version, prompt_version="outlook-v1")
+    newer = store_summary(conn, version, prompt_version="outlook-v2")
+    live = research_health(conn, registry(), now=NOW, limits=LlmLimits(), env={})
+    assert live.source("example").public == 1 and "published_but_withheld" not in codes(
+        live, "example"
+    )
+    findings = _removed(conn).source("example").findings
+    assert [f.code for f in findings] == ["published_but_withheld"]
+    assert (
+        f"summary {newer}" in findings[0].message and f"summary {older}" not in findings[0].message
+    )
+
+
+def test_a_removed_institution_is_reported_beside_the_registered_ones_in_json(conn):
+    store_summary(conn, seed_version(conn, key="gone"))
+    store_summary(conn, seed_version(conn, key="example"))
+    report = research_health(conn, registry(), now=NOW, limits=LlmLimits(), env={})
+    data = json.loads(json.dumps(report.to_dict()))
+    assert [s["key"] for s in data["sources"]] == ["example", "gone"] and data["needs_attention"]
+    gone = data["sources"][1]
+    assert (gone["permitted"], gone["routes"], gone["public"]) == (False, "unregistered", 0)
+    assert [f["code"] for f in gone["findings"]] == ["published_but_withheld"]
+    assert "published_but_withheld" not in codes(report, "example")
+    for private in ("Private Reviewer Name", "PRIVATE", "Private Approver", "RAW MODEL OUTPUT"):
+        assert private not in json.dumps(data)
+
+
+def test_the_withholding_audit_writes_nothing_and_makes_no_network_request(conn, monkeypatch):
+    store_summary(conn, seed_version(conn))
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("health must not touch the network")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)
+    before = conn.total_changes
+    assert _removed(conn).needs_attention
+    assert conn.total_changes == before and not conn.in_transaction

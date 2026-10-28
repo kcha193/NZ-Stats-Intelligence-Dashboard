@@ -4,9 +4,9 @@ Per source: whether any route (crawler or manual import) permits holding its mat
 the newest stored publication against the registry's optional cadence (`expected_publication_days`), and the work
 queues (current versions without a finished summary, verified summaries awaiting review, approved summaries without a
 publication decision). It also re-runs the public gate over every summary whose latest decision is `publish`, so a
-revoked permission, a newer document version or evidence that no longer verifies shows up as a summary that is
-published but withheld. Globally: recorded model spend in the rolling window against its cap, and the public API
-switch.
+revoked permission, an institution removed from the registry (listed with routes `unregistered`), a newer document
+version or evidence that no longer verifies shows up as a summary that is published but withheld. Globally:
+recorded model spend in the rolling window against its cap, and the public API switch.
 
 Nothing is requested or changed, and no reviewer, approver, importer, note or document text is included: the report
 can go to a log or a monitoring channel. `needs_attention` is the exit status for a scheduled check.
@@ -163,16 +163,19 @@ def _queues(conn: sqlite3.Connection, inst_id: int, src: SourceHealth) -> None:
                 f"current versions graded poor: {', '.join(map(str, poor))}; see `research quality`")  # fmt: skip
 
 
-def _published_ids(conn: sqlite3.Connection, key: str) -> list[int]:
-    """Summaries of this institution whose latest publication decision is `publish`."""
-    return [
-        int(r[0]) for r in conn.execute(
-            "SELECT s.id FROM research_summary s JOIN research_document_version v ON v.id = s.version_id"
-            " JOIN research_publication p ON p.id = v.publication_id"
-            " JOIN research_institution i ON i.id = p.institution_id WHERE i.key = ? AND"
-            " (SELECT d.decision FROM research_summary_publication d WHERE d.summary_id = s.id"
-            "  ORDER BY d.id DESC LIMIT 1) = 'publish' ORDER BY s.id", (key,))
-    ]  # fmt: skip
+def _published_ids(conn: sqlite3.Connection) -> dict[str, list[int]]:
+    """Institution key -> its summaries whose latest publication decision is `publish`, whether or not the key is
+    still in the registry (one query for every institution)."""
+    out: dict[str, list[int]] = {}
+    for key, sid in conn.execute(
+        "SELECT i.key, s.id FROM research_summary s JOIN research_document_version v ON v.id = s.version_id"
+        " JOIN research_publication p ON p.id = v.publication_id"
+        " JOIN research_institution i ON i.id = p.institution_id WHERE"
+        " (SELECT d.decision FROM research_summary_publication d WHERE d.summary_id = s.id"
+        "  ORDER BY d.id DESC LIMIT 1) = 'publish' ORDER BY i.key, s.id"
+    ):
+        out.setdefault(key, []).append(int(sid))
+    return out
 
 
 def research_health(
@@ -184,16 +187,28 @@ def research_health(
     env: Mapping[str, str],
 ) -> HealthReport:
     sources = [_one(conn, inst, now) for inst in registry.values()]
+    published = _published_ids(conn)
+    # an institution removed from the registry is withheld by the public gate, so it is audited too
+    sources += [
+        SourceHealth(key, permitted=False, routes="unregistered")
+        for key in published
+        if key not in registry
+    ]
     shown = {p.id for p in public_summaries(conn, registry)}
     for src in sources:
-        for sid in _published_ids(conn, src.key):
+        for sid in published.get(src.key, ()):
             if sid in shown:
                 src.public += 1
                 continue
             reason = why_not_public(conn, registry, sid)
             if reason and not reason.startswith("superseded"):
+                hint = (
+                    f"; restore its registry entry or run `research withdraw {sid}`"
+                    if src.key not in registry
+                    else ""
+                )
                 src.add("attention", "published_but_withheld",
-                        f"summary {sid} is published but withheld: {reason}")  # fmt: skip
+                        f"summary {sid} is published but withheld: {reason}{hint}")  # fmt: skip
     spent = ss.spent_since(conn, now - timedelta(days=PERIOD_DAYS))
     report = HealthReport(now.astimezone(AKL).isoformat(timespec="seconds"), sources, round(spent, 6),
                           limits.max_period_usd, "on" if public_research_enabled(env) else "off")  # fmt: skip

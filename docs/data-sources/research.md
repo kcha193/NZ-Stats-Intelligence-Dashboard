@@ -474,7 +474,7 @@ scripts/run.sh research health --json   # the same for a scheduled check or a lo
 | `crawler_blocked`, `crawler_failing`, `repeated_failures` | attention | see `research status`; do not retry in a loop |
 | `stale` | attention | the newest stored publication is older than `expected_publication_days` (optional registry field, 1 to 730): look for a missed release |
 | `poor_extraction` | attention | read the version (`research quality ID`) before summarising |
-| `published_but_withheld` | attention | a published summary the gate now withholds: a permission was revoked, a newer document version exists, or the evidence no longer verifies. `research summary ID` gives the reason; withdraw it or summarise the new version |
+| `published_but_withheld` | attention | a published summary the gate now withholds: a permission was revoked, its institution was removed from the registry (listed with routes `unregistered`), a newer document version exists, or the evidence no longer verifies. `research summary ID` gives the reason; withdraw it or summarise the new version |
 | `budget_near_cap` | attention | 80% of the rolling model budget is spent |
 | `public_api_on` | info | `NZSTATS_PUBLIC_RESEARCH=1`: the routes are served without authentication |
 
