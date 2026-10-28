@@ -21,6 +21,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from nzstats.research import summary_store as ss
 from nzstats.research.contract import Indicator, OutlookSummary
 from nzstats.research.evaluate import (
     PRICE_POINTS,
@@ -168,6 +169,8 @@ def evaluate_stored(
             cost += spent
             if r["status"] == "provider_error":
                 errors += 1
+                continue
+            if ss.is_redacted(r["output_json"]):  # purged: there is nothing left to score
                 continue
             if r["version_id"] in scored:  # an older attempt at the same work
                 continue

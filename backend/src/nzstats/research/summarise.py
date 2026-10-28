@@ -123,7 +123,7 @@ def eligible_versions(
 ) -> tuple[list[Candidate], list[tuple[str, str]]]:
     """Versions this provider may process, and (institution, reason) for every refusal."""
     sql = (
-        "SELECT v.id, v.title, v.licence_snapshot, v.acquisition, p.published_on, i.key"
+        "SELECT v.id, v.title, v.licence_snapshot, v.acquisition, v.purged_at, p.published_on, i.key"
         " FROM research_document_version v"
         " JOIN research_publication p ON p.id = v.publication_id"
         " JOIN research_institution i ON i.id = p.institution_id"
@@ -143,7 +143,9 @@ def eligible_versions(
         key = row["key"]
         inst = registry.get(key)
         reason = (
-            "not in the research registry"
+            "its text was purged"
+            if row["purged_at"]
+            else "not in the research registry"
             if inst is None
             else inst.llm_refusal(hosted=hosted, acquisition=row["acquisition"])
         )

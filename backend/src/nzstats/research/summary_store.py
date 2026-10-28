@@ -30,6 +30,14 @@ _SUMMARY_JOIN = (
 )
 
 
+# What a purge leaves in a summary's content columns (migration 010 allows no other change, and only after a purge).
+REDACTED = '{"redacted":true}'
+
+
+def is_redacted(value: str | None) -> bool:
+    return value == REDACTED
+
+
 class ReviewError(ValueError):
     pass
 
@@ -354,6 +362,10 @@ def record_publication(
     ).fetchone()
     if row is None:
         raise PublicationError(f"no summary {summary_id}")
+    if decision == "publish" and conn.execute(
+        "SELECT 1 FROM research_summary s JOIN research_document_version v ON v.id = s.version_id"
+        " WHERE s.id=? AND v.purged_at IS NOT NULL", (summary_id,)).fetchone():  # fmt: skip
+        raise PublicationError("the source text of this summary was purged; it cannot be published")
     if decision == "publish" and (row["status"], row["review_status"]) != ("verified", "approved"):
         raise PublicationError(
             "only an approved, verified summary can be published"

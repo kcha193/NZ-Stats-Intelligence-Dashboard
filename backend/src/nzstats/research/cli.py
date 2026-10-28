@@ -16,6 +16,7 @@ from pathlib import Path
 
 from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
+from nzstats.research import purge
 from nzstats.research import summary_store as ss
 from nzstats.research.contract import Provider
 from nzstats.research.fetch import (
@@ -82,6 +83,26 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_imp.add_argument("--published-on", type=date.fromisoformat,
                        help="the institution's publication date (YYYY-MM-DD)")  # fmt: skip
     p_imp.add_argument("--series", help="the report series, e.g. HYEFU")
+    p_purge = rsub.add_parser(
+        "purge",
+        help="remove stored source content when a permission is withdrawn (Phase 3F; dry run by default)",
+    )
+    p_purge.add_argument("key", nargs="?", help="the institution (omit with --finish)")
+    sel = p_purge.add_mutually_exclusive_group()
+    sel.add_argument("--acquisition", choices=("manual", "crawler", "all"),
+                     help="every stored version obtained this way")  # fmt: skip
+    sel.add_argument("--version", type=_positive_int, action="append", default=[],
+                     help="a specific document version id (repeatable)")  # fmt: skip
+    p_purge.add_argument("--reason", choices=("permission_withdrawn", "takedown", "other"))
+    p_purge.add_argument("--by", help="who authorised the purge")
+    p_purge.add_argument("--note", help="why, and who asked (private)")
+    p_purge.add_argument(
+        "--apply", action="store_true", help="do it (the default only shows the plan)"
+    )
+    p_purge.add_argument("--finish", action="store_true",
+                         help="finish removing files left pending by an interrupted purge")  # fmt: skip
+    p_orph = rsub.add_parser("orphans", help="stored files that no record references (Phase 3F)")
+    p_orph.add_argument("--remove", action="store_true", help="delete the ones older than an hour")
     p_ready = rsub.add_parser(
         "readiness", help="the four pilot permissions per source (Phase 3D-A)"
     )
@@ -341,7 +362,11 @@ def _show(args: argparse.Namespace, settings: Settings, registry: dict[str, Inst
         _emit(f"  public: no ({_safe(reason)})")
     _emit("  Not an official statistic: an interpretation of institutional commentary.")
     _emit(f"  {SCOPE}")
-    if row["output_json"]:
+    if ss.is_redacted(row["output_json"]):
+        _emit(
+            "  content purged: the source text and everything derived from it was removed (research purge)"
+        )
+    elif row["output_json"]:
         out = json.loads(row["output_json"])
         for name in ("outlook", "uncertainty"):
             if out.get(name):
@@ -364,7 +389,7 @@ def _show(args: argparse.Namespace, settings: Settings, registry: dict[str, Inst
             _emit("\n".join(_evidence(c["evidence"])))
     elif row["raw_output"] is not None:
         _emit(f"  raw output: {len(row['raw_output'])} characters (stored, not shown)")
-    if row["verification"]:
+    if row["verification"] and not ss.is_redacted(row["verification"]):
         report = json.loads(row["verification"])
         for kind in ("errors", "warnings"):
             for p in report[kind]:
@@ -497,8 +522,9 @@ def _health(args: argparse.Namespace, settings: Settings, registry: dict[str, In
         _emit(f"LLM configuration error: {exc}")
         return 2
     report = research_health(
-        _open(settings), registry, now=utc_now(), limits=limits, env=os.environ
-    )
+        _open(settings), registry, now=utc_now(), limits=limits, env=os.environ,
+        artifacts=ArtifactStore(settings.raw_dir),
+    )  # fmt: skip
     if args.json:
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
         return 1 if report.needs_attention else 0
@@ -578,7 +604,74 @@ def _import(args: argparse.Namespace, settings: Settings, registry: dict[str, In
     return 0
 
 
-_SUMMARY_COMMANDS = {"summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
+def _purge(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
+    """Plan (default) or perform a purge; `--finish` completes the file step of an interrupted one."""
+    conn = _open(settings)
+    artifacts = ArtifactStore(settings.raw_dir)
+    if args.finish:
+        done = purge.finish_pending(conn, artifacts, now=utc_now())
+        left = len(purge.pending_artifacts(conn))
+        _emit(f"finished {done} pending artifact(s); {left} still pending")
+        return 1 if left else 0
+    if not args.key:
+        _emit("refused: name the institution (or use --finish)")
+        return 2
+    try:
+        plan = purge.plan_purge(
+            conn, args.key, acquisition=args.acquisition, version_ids=tuple(args.version)
+        )
+    except purge.PurgeError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    _emit(
+        f"{args.key}: {len(plan.version_ids)} version(s) selected {json.dumps(plan.scope, sort_keys=True)}"
+    )
+    _emit(f"  would remove {plan.sections} section(s), redact {plan.summaries} summary(ies), delete {plan.claims}"
+          f" forecast claim(s), withdraw {plan.published} published summary(ies), delete {len(plan.artifacts)} raw artifact(s)")  # fmt: skip
+    _emit(
+        "  kept: version tombstones and hashes, the import, review, publication and spend logs, and a purge record"
+    )
+    if not plan.version_ids:
+        _emit("nothing to purge")
+        return 0
+    if not args.apply:
+        _emit("Dry run: nothing was changed. Add --apply with --reason, --by and --note to purge.")
+        return 0
+    if not (args.reason and args.by and args.note):
+        _emit("refused: --apply needs --reason, --by and --note")
+        return 2
+    try:
+        result = purge.apply_purge(conn, plan, artifacts, reason=args.reason, purged_by=args.by,
+                                   note=args.note, now=utc_now())  # fmt: skip
+    except purge.PurgeError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    _emit(f"purge {result.purge_id}: {result.versions} version(s) purged, {result.artifacts_removed} artifact(s)"
+          f" removed, {result.pending} pending")  # fmt: skip
+    _emit("Older backups may still hold this content: expire them (README, backup and restore).")
+    if result.pending:
+        _emit("Some files could not be removed; run `research purge --finish`.")
+        return 1
+    return 0
+
+
+def _orphans(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
+    conn = _open(settings)
+    artifacts = ArtifactStore(settings.raw_dir)
+    found = purge.find_orphan_files(conn, artifacts)
+    for path in found:
+        _emit(f"{path.parent.name}/{path.name}")
+    problems = purge.integrity_problems(conn, artifacts)
+    for problem in problems:
+        _emit(f"problem: {problem}")
+    if args.remove and found:
+        _emit(f"removed {purge.remove_orphan_files(conn, artifacts)} unreferenced file(s)")
+        return 1 if problems else 0
+    _emit(f"{len(found)} unreferenced file(s) older than an hour; {len(problems)} problem(s)")
+    return 1 if found or problems else 0
+
+
+_SUMMARY_COMMANDS = {"purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
                      "quality": _quality, "evaluate": _evaluate}  # fmt: skip

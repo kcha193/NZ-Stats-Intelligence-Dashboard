@@ -159,6 +159,10 @@ def import_document(
              extracted.text_sha256, importer.strip(), note.strip(), snapshot, to_utc_iso(now)),
         )  # fmt: skip
 
+    if store.purged_text(conn, inst_id, extracted.text_sha256) is not None:
+        raise ImportRefused(
+            "this text was purged and cannot be stored again (see `research purge`)"
+        )
     fetched = FetchResult(
         address, 0, FORMATS[file_format], body, now
     )  # status 0: not fetched over HTTP
