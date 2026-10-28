@@ -21,7 +21,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from nzstats.research import summary_store as ss
 from nzstats.research.contract import Indicator, OutlookSummary
 from nzstats.research.evaluate import (
     PRICE_POINTS,
@@ -146,7 +145,7 @@ def evaluate_stored(
     gold = {d.version_id: d for d in annotations.documents}
     marks = ",".join("?" * len(gold))
     rows = conn.execute(
-        "SELECT s.*, p.published_on FROM research_summary s"
+        "SELECT s.*, p.published_on, v.purged_at FROM research_summary s"
         " JOIN research_document_version v ON v.id = s.version_id"
         " JOIN research_publication p ON p.id = v.publication_id"
         f" WHERE s.version_id IN ({marks}) ORDER BY s.id DESC",
@@ -170,7 +169,7 @@ def evaluate_stored(
             if r["status"] == "provider_error":
                 errors += 1
                 continue
-            if ss.is_redacted(r["output_json"]):  # purged: there is nothing left to score
+            if r["purged_at"] is not None:  # purged: there is nothing left to score
                 continue
             if r["version_id"] in scored:  # an older attempt at the same work
                 continue

@@ -247,3 +247,32 @@ def test_filtering_by_model_leaves_that_models_scoring_cost_and_latency_unchange
     assert filtered.recorded_cost_usd == unfiltered.recorded_cost_usd == pytest.approx(0.02)
     assert filtered.report.metrics == unfiltered.report.metrics
     assert filtered.report.metrics["mean_latency_ms"] == 700
+
+
+def test_purged_invalid_output_is_not_scored_but_usage_is_preserved(conn, tmp_path):
+    from nzstats.research import purge
+    from nzstats.sources.artifacts import ArtifactStore
+
+    from .test_purge import do_import
+
+    artifacts = ArtifactStore(tmp_path / "raw")
+    purged = do_import(conn, artifacts).version_id
+    active = seed_version(conn, doc="active")
+    key = ss.SummaryKey(purged, "fake", "fake-1", "outlook-v2", "3b-1", "b" * 64)
+    run = ss.start_run(conn, provider="fake", model="fake-1", hosted=False, prompt_version="outlook-v2",
+                       processing_version="3b-1", limits={}, dry_run=False, now=NOW)  # fmt: skip
+    with transaction(conn):
+        invalid = ss.insert_summary(conn, key, run_id=run, attempt=1, hosted=False, verifier_version="v",
+                                    parameters={}, raw_output="invalid", output_json=None,
+                                    status="invalid_output", error_class="bad", verification=None, now=NOW)  # fmt: skip
+    usage(conn, invalid, purged, cost=0.02, latency=100)
+    store_summary(conn, active, review=None, publish=False)
+    ann = annotations(tmp_path, {"version_id": purged, **GOLD}, {"version_id": active, **GOLD})
+    assert evaluate_stored(conn, ann).groups[0].documents == 2
+    plan = purge.plan_purge(conn, "example", version_ids=(purged,))
+    purge.apply_purge(
+        conn, plan, artifacts, reason="takedown", purged_by="Owner", note="test", now=NOW
+    )
+    (group,) = evaluate_stored(conn, ann).groups
+    assert group.documents == 1 and group.report.models[0].version == str(active)
+    assert group.recorded_cost_usd == pytest.approx(0.02)
