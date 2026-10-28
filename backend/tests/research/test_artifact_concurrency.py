@@ -490,3 +490,56 @@ def test_pending_purge_and_stats_writer_share_bytes_under_the_same_lock(
     assert row is not None and artifacts.exists(row[0])
     assert purge.pending_artifacts(conn) == []
     assert real_finish(conn, artifacts, now=NOW) == 0
+
+
+@pytest.mark.parametrize("same_bytes", [False, True], ids=["different-path", "shared-path"])
+def test_pending_purge_does_not_delete_a_reused_artifact_id(
+    conn, artifacts, monkeypatch, same_bytes
+):
+    """Two interrupted purges queue the same ID; a Stats NZ writer reuses it between finishes."""
+    from types import SimpleNamespace
+
+    from nzstats.pipeline.ingest import _record_raw
+    from nzstats.sources.fetcher import FetchResult
+
+    first = do_import(conn, artifacts)
+    old_body = html().replace(b"grow slowly", b"grow much more slowly")
+    second = do_import(conn, artifacts, old_body)
+    assert second.outcome == "updated"
+    real_finish = purge.finish_pending
+    monkeypatch.setattr(purge, "finish_pending", lambda *a, **kw: 0)
+    for version in (second.version_id, first.version_id):
+        plan = purge.plan_purge(conn, "example", version_ids=(version,))
+        apply(conn, artifacts, plan=plan)
+    monkeypatch.setattr(purge, "finish_pending", real_finish)
+    pending = purge.pending_artifacts(conn)
+    assert [row["raw_artifact_id"] for row in pending] == [2, 1, 2]
+    body = old_body if same_bytes else b"unrelated Stats NZ bytes"
+    result = FetchResult("https://www.stats.govt.nz/file", 200, "text/plain", body, NOW)
+    other = connect(db_path(conn))
+
+    def interleaved(_conn):
+        yield pending[0]
+        _record_raw(SimpleNamespace(conn=other, artifacts=artifacts), result)
+        assert (
+            other.execute("SELECT id FROM raw_artifact WHERE url=?", (result.url,)).fetchone()[0]
+            == 2
+        )
+        yield from pending[1:]
+
+    monkeypatch.setattr(purge, "pending_artifacts", interleaved)
+    try:
+        assert real_finish(conn, artifacts, now=NOW) == 3
+    finally:
+        other.close()
+    monkeypatch.undo()
+    row = conn.execute("SELECT id, path FROM raw_artifact WHERE url=?", (result.url,)).fetchone()
+    assert row is not None and row[0] == 2 and artifacts.exists(row[1])
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM research_purge_artifact WHERE removed_at IS NULL"
+        ).fetchone()[0]
+        == 0
+    )
+    assert purge.remove_orphan_files(conn, artifacts, older_than_seconds=0) == 0
+    assert artifacts.exists(row[1]) and real_finish(conn, artifacts, now=NOW) == 0

@@ -335,18 +335,28 @@ def finish_pending(conn: sqlite3.Connection, artifacts: ArtifactStore, *, now: d
                                     (art["id"],)).fetchone()[0]  # fmt: skip
             if finished is not None:  # another process finished it since the list was read
                 continue
-            surviving = conn.execute(
+            # A previous pending purge may have deleted this row, allowing SQLite to reuse its ID.
+            # Never treat the replacement as the old artifact, even if it points to the same file.
+            matches = (
+                conn.execute(
+                    "SELECT 1 FROM raw_artifact WHERE id=? AND url=? AND sha256=? AND path=?",
+                    (art["raw_artifact_id"], art["url"], art["sha256"], art["path"]),
+                ).fetchone()
+                is not None
+            )
+            surviving = matches and conn.execute(
                 "SELECT 1 FROM research_document_version WHERE raw_artifact_id=? AND purged_at IS NULL",
-                (art["raw_artifact_id"],)).fetchone()  # fmt: skip
+                (art["raw_artifact_id"],)).fetchone() is not None  # fmt: skip
             outcome = (
-                "file_kept_shared" if surviving is not None else _remove_file(conn, artifacts, art)
+                "file_kept_shared" if surviving else _remove_file(conn, artifacts, art, matches)
             )
             if outcome is None:
                 continue
-            conn.execute("UPDATE research_document_version SET raw_artifact_id=NULL WHERE raw_artifact_id=?"
-                         " AND purged_at IS NOT NULL", (art["raw_artifact_id"],))  # fmt: skip
-            if surviving is None:
-                conn.execute("DELETE FROM raw_artifact WHERE id=?", (art["raw_artifact_id"],))
+            if matches:
+                conn.execute("UPDATE research_document_version SET raw_artifact_id=NULL WHERE raw_artifact_id=?"
+                             " AND purged_at IS NOT NULL", (art["raw_artifact_id"],))  # fmt: skip
+                if not surviving:
+                    conn.execute("DELETE FROM raw_artifact WHERE id=?", (art["raw_artifact_id"],))
             conn.execute("UPDATE research_purge_artifact SET outcome=?, removed_at=? WHERE id=?",
                          (outcome, to_utc_iso(now), art["id"]))  # fmt: skip
         done += 1
@@ -354,7 +364,7 @@ def finish_pending(conn: sqlite3.Connection, artifacts: ArtifactStore, *, now: d
 
 
 def _remove_file(
-    conn: sqlite3.Connection, artifacts: ArtifactStore, art: sqlite3.Row
+    conn: sqlite3.Connection, artifacts: ArtifactStore, art: sqlite3.Row, matches: bool
 ) -> str | None:
     """The outcome of removing one file, or None when it could not be removed (try again later)."""
     if not valid_rel(art["path"]):
@@ -363,7 +373,8 @@ def _remove_file(
         )
         return "unsafe_path"
     shared = conn.execute(
-        "SELECT 1 FROM raw_artifact WHERE path=? AND id != ?", (art["path"], art["raw_artifact_id"])
+        "SELECT 1 FROM raw_artifact WHERE path=? AND (? = 0 OR id != ?)",
+        (art["path"], matches, art["raw_artifact_id"]),
     ).fetchone()
     if shared is not None:
         return "file_kept_shared"
