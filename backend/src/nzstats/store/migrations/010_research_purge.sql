@@ -70,6 +70,15 @@ WHEN NEW.decision = 'publish' AND EXISTS (
   WHERE s.id = NEW.summary_id AND v.purged_at IS NOT NULL)
 BEGIN SELECT RAISE(ABORT, 'a summary of purged text cannot be published'); END;
 
+-- A summary or claim cannot be stored for purged text, even by a model call that began before the purge.
+CREATE TRIGGER research_summary_not_purged BEFORE INSERT ON research_summary
+WHEN (SELECT purged_at FROM research_document_version WHERE id = NEW.version_id) IS NOT NULL
+BEGIN SELECT RAISE(ABORT, 'the text of a purged version cannot have new summaries'); END;
+CREATE TRIGGER research_claim_not_purged BEFORE INSERT ON research_forecast_claim
+WHEN EXISTS (SELECT 1 FROM research_summary s JOIN research_document_version v ON v.id = s.version_id
+             WHERE s.id = NEW.summary_id AND v.purged_at IS NOT NULL)
+BEGIN SELECT RAISE(ABORT, 'the text of a purged version cannot have new claims'); END;
+
 -- Redaction: the one permitted change to a stored summary or claim, and only once its version is purged.
 DROP TRIGGER research_summary_content_immutable;
 CREATE TRIGGER research_summary_content_immutable

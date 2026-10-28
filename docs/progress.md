@@ -1,9 +1,28 @@
 # Progress and verification record
 
-Last updated 2026-10-28. Phase 3E (production readiness) is on `feat/phase-3e-production-readiness` (not merged).
-Phases 3A to 3D (PRs #11 to #15), Phase 4B dashboard UX remediation (PR #17) and the Netlify static publication
+Last updated 2026-10-28. Phase 3F (pilot and release acceptance) is on `feat/phase-3f-pilot-acceptance` (PR open, not merged).
+Phases 3A to 3E (PRs #11 to #16), Phase 4B dashboard UX remediation (PR #17) and the Netlify static publication
 (PR #10) are merged to `main`; the static site is not deployed and no research source is approved. Earlier entries
 below are historical.
+
+## Phase 3F: pilot and release acceptance, 28 October 2026
+
+Report, blocker register, readiness matrix and recommendation: [Phase 3F](superpowers/specs/2026-10-28-phase-3f-pilot-acceptance.md).
+**Recommendation: GO WITH CONDITIONS to merge; NO-GO for any real-data research pilot until B2 to B5 are done by the owner.**
+Nothing was activated, deployed, spent or published; no request went to any institution, stats.govt.nz or a model provider.
+The Treasury pilot stopped at the permission gate (0 of 4 gates); no real-data quality figure exists.
+
+Built (test-first): concurrency-safe model spend (reservations, migration 009; interrupted calls stay at their worst case);
+targeted purge of source content with tombstones, resumable file removal, orphan prevention and detection (migration 010);
+a loopback-only guard for published research; `research cpi-reconcile` (independent check of stored vintages and outcomes
+against the official files); a lifecycle acceptance test through the real API. An independent review found one high issue
+(an in-flight summarise could re-store purged output) and several medium ones; all fixed with failing-first tests.
+
+Verification (this machine; hosted CI cannot start, billing): backend 2501 tests, Ruff clean; frontend audit, typecheck, lint,
+tests, build; Playwright live 126, research 18 (3 skipped), static site 270; on a copy of the live database (schema 7)
+migration to 10, `verify-backup`, `cpi-reconcile` (2 vintages, 1,607 outcomes, no discrepancy), `orphans` and the snapshot
+(byte-identical to `main`'s, `7be455c2b866`) all clean; live database SHA-256 unchanged. Not run: Docker build and smoke (no
+runtime), draft Netlify deploy (owner authorisation), CPI backfill (owner approval), any real-model evaluation.
 
 ## Phase 3E: production readiness, 28 October 2026
 

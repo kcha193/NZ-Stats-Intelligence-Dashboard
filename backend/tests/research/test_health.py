@@ -216,18 +216,18 @@ def test_the_withholding_audit_writes_nothing_and_makes_no_network_request(conn,
     assert conn.total_changes == before and not conn.in_transaction
 
 
-def _reserve(conn, version, *, at, state="held", usd=0.5):
+def _reserve(conn, version, *, at, state="held", usd=0.5, expires=None):
     run = conn.execute("INSERT INTO research_llm_run(provider, model, hosted, prompt_version, processing_version,"
                        " started_at) VALUES ('fake','m',0,'p','3b-1',?)", (at,)).lastrowid  # fmt: skip
     closed = "2026-10-26T01:00:00Z" if state == "abandoned" else None
     conn.execute("INSERT INTO research_llm_reservation(run_id, version_id, call_no, provider, model, reserved_usd,"
-                 " state, settle_basis, closed_at, created_at) VALUES (?,?,1,'fake','m',?,?,?,?,?)",
-                 (run, version, usd, state, "interrupted" if closed else None, closed, at))  # fmt: skip
+                 " state, settle_basis, closed_at, created_at, expires_at) VALUES (?,?,1,'fake','m',?,?,?,?,?,?)",
+                 (run, version, usd, state, "interrupted" if closed else None, closed, at, expires or at))  # fmt: skip
 
 
 def test_a_model_call_with_an_unknown_outcome_needs_attention_once_it_cannot_be_in_flight(conn):
     version = seed_version(conn)
-    _reserve(conn, version, at="2026-10-26T00:59:00Z")
+    _reserve(conn, version, at="2026-10-26T00:59:00Z", expires="2026-10-26T01:07:00Z")
     young = research_health(conn, registry(), now=NOW, limits=LlmLimits(), env={})
     assert "unsettled_model_calls" not in codes(young)  # a live call holds a reservation too
     old = research_health(

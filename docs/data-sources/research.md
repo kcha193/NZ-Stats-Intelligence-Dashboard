@@ -505,7 +505,7 @@ second sees the first's hold and stops with `budget_exhausted`. The reservation 
 the call returns (`reported`, `estimated` when the provider gave no usage, `not_billed` for failures a provider reports
 before generating anything, `worst_case` for other failures without usage), before the result is stored, so the cost
 survives a failure to store it. If the process is killed or interrupted mid-call, the reservation is never settled: it
-keeps counting at its worst case (`held`, then `abandoned` by the next run once no live call could still hold it, or at
+keeps counting at its worst case (`held`, then `abandoned` by the next run once its own deadline has passed, or at
 once for an interrupt the process saw). Whether the provider billed such a call is unknown, so it is never treated as
 free. The rows are append-only and move forward once. Estimates are not guarantees: the worst case uses an estimate of the
 input size, so a reported usage above it settles at the higher figure.
@@ -556,6 +556,8 @@ state), the `research_manual_import` log, review and publication logs, model usa
 The publication's title and address stay as metadata. Triggers allow redaction only for a version already marked purged
 and only to those placeholders; a purge cannot be undone; nothing can store the purged text again (an import is refused
 with "purged", a crawl records a failure) under any address of that institution.
+
+`--apply` refuses if the selection changed since the plan. After the files go, the write-ahead log is truncated; if a reader (the API, the scheduler) keeps it busy the command warns and exits 1: stop them and run `research purge --finish`. A summarise call that was in flight when the purge committed is billed but its output is refused (outcome `purged`).
 
 Two steps, because a file cannot join a transaction: the database step makes the content unavailable and records every
 artifact; the file step then deletes them. If it is interrupted, `research health` reports `purge_incomplete` and

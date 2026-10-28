@@ -86,3 +86,8 @@ def test_cli_cpi_reconcile_reports_success_and_failure_by_exit_status(
         p.unlink()
     assert main(["research", "cpi-reconcile"]) == 1
     assert "DISCREPANCY" in capsys.readouterr().out
+
+
+def test_nothing_to_check_is_not_a_pass(rt):
+    result = reconcile(rt.conn, rt.settings.raw_dir)
+    assert not result.ok and any("no CPI vintages" in d for d in result.discrepancies)

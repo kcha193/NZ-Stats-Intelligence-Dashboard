@@ -221,8 +221,8 @@ def summarise_versions(
                     "period_remaining_usd": round(remaining, 6), "timeout_seconds": limits.timeout_seconds},
             dry_run=False, now=started,
         )  # fmt: skip
-        # A reservation still held from before any call could be in flight belongs to a process that is gone.
-        ss.abandon_stale(conn, older_than=started - stale_after(limits), now=started)
+        # A reservation held past its own deadline belongs to a process that is gone.
+        ss.abandon_stale(conn, now=started)
     stopped = False
     slots = 0  # the cap bounds work still to do; finished and oversize versions never use a slot
     try:
@@ -319,6 +319,7 @@ def _process(
             provider=provider.name, model=provider.model, amount_usd=worst,
             period_cap_usd=limits.max_period_usd,
             since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
+            expires_at=now_fn() + stale_after(limits),
         )  # fmt: skip
         if held is None:
             budget_stop = True
@@ -379,23 +380,31 @@ def _process(
         status, error_class, output_json, verification, claims = _interpret(
             response.text, response.model, request, sections, key, parameters, now_fn()
         )
-    with transaction(conn):
-        summary_id = ss.insert_summary(
-            conn, key, run_id=result.run_id or 0, attempt=attempt, hosted=provider.hosted,
-            verifier_version=VERIFIER_VERSION, parameters=parameters, raw_output=raw,
-            output_json=output_json, status=status, error_class=error_class,
-            verification=verification, now=now_fn(),
-        )  # fmt: skip
-        for c in calls:
-            ss.record_usage(
-                conn, run_id=result.run_id or 0, version_id=key.version_id, summary_id=summary_id,
-                call_no=c.call_no, provider=provider.name, model=provider.model,
-                input_tokens=c.input_tokens, output_tokens=c.output_tokens, usage_estimated=c.estimated,
-                latency_ms=c.latency_ms, cost_usd=c.cost_usd, outcome=c.outcome,
-                error_class=c.error_class, now=now_fn(),
+    try:
+        with transaction(conn):
+            summary_id = ss.insert_summary(
+                conn, key, run_id=result.run_id or 0, attempt=attempt, hosted=provider.hosted,
+                verifier_version=VERIFIER_VERSION, parameters=parameters, raw_output=raw,
+                output_json=output_json, status=status, error_class=error_class,
+                verification=verification, now=now_fn(),
             )  # fmt: skip
-        if status == "verified":
-            ss.insert_claims(conn, summary_id, claims)
+            for c in calls:
+                ss.record_usage(
+                    conn, run_id=result.run_id or 0, version_id=key.version_id, summary_id=summary_id,
+                    call_no=c.call_no, provider=provider.name, model=provider.model,
+                    input_tokens=c.input_tokens, output_tokens=c.output_tokens, usage_estimated=c.estimated,
+                    latency_ms=c.latency_ms, cost_usd=c.cost_usd, outcome=c.outcome,
+                    error_class=c.error_class, now=now_fn(),
+                )  # fmt: skip
+            if status == "verified":
+                ss.insert_claims(conn, summary_id, claims)
+    except sqlite3.IntegrityError:
+        purged = conn.execute("SELECT purged_at FROM research_document_version WHERE id=?",
+                              (key.version_id,)).fetchone()[0]  # fmt: skip
+        if purged is None:
+            raise
+        item.outcome = "purged"  # purged while the call ran: the call was billed and settled; its output is refused
+        return budget_stop
     item.outcome, item.summary_id, item.error_class = status, summary_id, error_class
     if verification is not None:
         item.errors, item.warnings = len(verification["errors"]), len(verification["warnings"])

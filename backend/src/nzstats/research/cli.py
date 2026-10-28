@@ -616,8 +616,11 @@ def _purge(args: argparse.Namespace, settings: Settings, registry: dict[str, Ins
     if args.finish:
         done = purge.finish_pending(conn, artifacts, now=utc_now())
         left = len(purge.pending_artifacts(conn))
-        _emit(f"finished {done} pending artifact(s); {left} still pending")
-        return 1 if left else 0
+        clean = purge.truncate_wal(conn)
+        _emit(
+            f"finished {done} pending artifact(s); {left} still pending; log {'truncated' if clean else 'still busy'}"
+        )
+        return 1 if left or not clean else 0
     if not args.key:
         _emit("refused: name the institution (or use --finish)")
         return 2
@@ -654,6 +657,10 @@ def _purge(args: argparse.Namespace, settings: Settings, registry: dict[str, Ins
     _emit(f"purge {result.purge_id}: {result.versions} version(s) purged, {result.artifacts_removed} artifact(s)"
           f" removed, {result.pending} pending")  # fmt: skip
     _emit("Older backups may still hold this content: expire them (README, backup and restore).")
+    if not result.wal_truncated:
+        _emit("WARNING: a reader kept the write-ahead log busy, so the old pages may remain in the database files."
+              " Stop the API and scheduler and run `research purge --finish`.")  # fmt: skip
+        return 1
     if result.pending:
         _emit("Some files could not be removed; run `research purge --finish`.")
         return 1

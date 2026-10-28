@@ -526,3 +526,98 @@ def test_health_flags_an_unfinished_purge_and_does_not_mistake_a_purged_version_
     purge.finish_pending(conn, artifacts, now=NOW)
     clean = research_health(conn, REG, now=NOW, limits=LlmLimits(), env={}, artifacts=artifacts)
     assert "purge_incomplete" not in {f.code for f in clean.findings}
+
+
+# --- independent review findings (Phase 3F) -----------------------------------------------------------------------
+
+
+def test_an_in_flight_summarise_cannot_store_output_for_text_purged_meanwhile(conn, artifacts):
+    """The provider call takes a while; a purge may commit in between. Nothing derived may then be stored."""
+    from nzstats.research.contract import LlmLimits
+    from nzstats.research.providers import FakeProvider, Pricing
+    from nzstats.research.summarise import summarise_versions
+
+    from .llm_support import draft_json
+
+    version = do_import(conn, artifacts).version_id
+
+    def purge_during_the_call(req):
+        apply(conn, artifacts)
+        return draft_json(req.version_id)
+
+    result = summarise_versions(conn, REG, FakeProvider(purge_during_the_call, usage=(1000, 200)),
+                                pricing=Pricing(4.0, 20.0), limits=LlmLimits(), sleep=lambda s: None,
+                                now_fn=lambda: NOW, version_ids=(version,))  # fmt: skip
+    assert [i.outcome for i in result.items] == ["purged"]
+    assert count(conn, "research_summary") == 0 and count(conn, "research_forecast_claim") == 0
+    spent = conn.execute("SELECT state FROM research_llm_reservation").fetchone()[0]
+    assert spent == "settled"  # the call happened and was billed; only its output was refused
+    with pytest.raises(sqlite3.DatabaseError, match="purged"):
+        ss.insert_summary(conn, ss.SummaryKey(version, "p", "m", "v", "v", "a" * 64), run_id=1, attempt=1,
+                          hosted=False, verifier_version="v", parameters={}, raw_output="LATE", output_json=None,
+                          status="invalid_output", error_class="x", verification=None, now=NOW)  # fmt: skip
+
+
+def test_a_busy_reader_is_reported_because_the_old_pages_may_remain(conn, artifacts, tmp_path):
+    imported_and_published(conn, artifacts)
+    reader = sqlite3.connect(tmp_path / "t.db")
+    reader.execute("BEGIN")
+    reader.execute(
+        "SELECT COUNT(*) FROM research_section"
+    ).fetchall()  # holds a read snapshot of the old pages
+    result = apply(conn, artifacts)
+    assert result.wal_truncated is False
+    reader.close()
+    assert purge.truncate_wal(conn) is True
+
+
+def test_a_purge_whose_selection_changed_since_the_plan_is_refused(conn, artifacts):
+    do_import(conn, artifacts)
+    stale = plan(conn)
+    do_import(conn, artifacts, html(PARA * 9), url=f"{BASE}/research/second")
+    with pytest.raises(purge.PurgeError, match="changed since"):
+        apply(conn, artifacts, plan=stale)
+    assert count(conn, "research_purge") == 0
+
+
+def test_the_same_bytes_are_refused_even_if_extraction_changes_the_text_hash(conn, artifacts):
+    first = do_import(conn, artifacts)
+    row = conn.execute(
+        "SELECT content_sha256 FROM research_document_version WHERE id=?", (first.version_id,)
+    ).fetchone()
+    apply(conn, artifacts)
+    assert store.purged_text(conn, 1, "0" * 64, content_sha256=row[0]) is not None
+    with pytest.raises(ImportRefused, match="purged"):
+        do_import(conn, artifacts)
+
+
+def test_a_surviving_publication_holding_the_same_text_is_not_wrongly_refused(conn, artifacts):
+    a = do_import(conn, artifacts)
+    do_import(
+        conn, artifacts, html().replace(b"</body>", b"<!-- b --></body>"), url=f"{BASE}/research/b"
+    )  # duplicate of a
+    b_body = html(PARA * 8 + "Distinct tail.")
+    do_import(conn, artifacts, b_body, url=f"{BASE}/research/b2")
+    again = do_import(conn, artifacts, b_body, url=f"{BASE}/research/b2")
+    assert again.outcome == "unchanged"
+    purge.apply_purge(conn, purge.plan_purge(conn, "example", version_ids=(a.version_id,)), artifacts,
+                      reason="takedown", purged_by="Owner", note="n", now=NOW)  # fmt: skip
+    assert do_import(conn, artifacts, b_body, url=f"{BASE}/research/b2").outcome == "unchanged"
+
+
+def test_a_file_that_could_not_be_followed_is_still_reported_by_the_integrity_check(
+    conn, artifacts
+):
+    imported_and_published(conn, artifacts)
+    conn.execute("UPDATE raw_artifact SET path = ?", ("../x",))
+    apply(conn, artifacts)
+    assert any("not removed" in p for p in purge.integrity_problems(conn, artifacts))
+
+
+def test_the_orphan_sweep_ignores_files_that_are_not_artifact_names(conn, artifacts):
+    odd = artifacts.root / "ab" / "notes.txt"
+    odd.parent.mkdir(parents=True)
+    odd.write_text("not ours")
+    old = time.time() - 7200
+    os.utime(odd, (old, old))
+    assert purge.find_orphan_files(conn, artifacts, older_than_seconds=0) == []

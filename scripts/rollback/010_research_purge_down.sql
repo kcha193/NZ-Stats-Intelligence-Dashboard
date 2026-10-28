@@ -3,6 +3,8 @@
 -- hashes, redacted summaries keep their placeholders, and nothing can re-publish them because their text no longer
 -- exists. Run with: sqlite3 data/nzstats.db < scripts/rollback/010_research_purge_down.sql
 BEGIN IMMEDIATE;
+DROP TRIGGER research_claim_not_purged;
+DROP TRIGGER research_summary_not_purged;
 DROP TRIGGER research_publication_not_purged;
 DROP TRIGGER research_section_not_purged;
 DROP TRIGGER research_version_purge_final;

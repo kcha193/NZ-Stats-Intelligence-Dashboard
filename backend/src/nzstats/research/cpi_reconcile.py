@@ -173,6 +173,8 @@ def reconcile(conn: sqlite3.Connection, raw_dir: Path) -> Reconciliation:
                 chain[key].append((info, held))
                 if key == NSA:
                     window_start = min(points)
+    if not result.vintages:
+        result.discrepancies.append("no CPI vintages are stored: there is nothing to reconcile")
     newest = chain[NSA][-1][1] if chain[NSA] else {}
     actuals = CpiActuals(conn)
     for measure, (_, series, _) in MEASURES.items():
@@ -215,6 +217,8 @@ def reconcile(conn: sqlite3.Connection, raw_dir: Path) -> Reconciliation:
                     f" (genuine first: {got.first.first_release}); official files give {exp_first[1]} /"
                     f" {exp_latest[1]} (genuine first: {genuine})"
                 )
+    if result.vintages and not result.outcomes and not result.discrepancies:
+        result.discrepancies.append("no outcome could be checked against the official files")
     return result
 
 

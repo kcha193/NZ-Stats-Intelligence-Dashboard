@@ -194,6 +194,12 @@ def _one(
     try:
         return store_document(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
                               tuple(warnings), artifacts, now_fn())  # fmt: skip
+    except IngestError as exc:
+        if str(exc) == "purged_text":  # purged on purpose: not a failure, and nothing to log as one
+            return ItemOutcome(
+                url, "skipped_purged", ErrorClass.VALIDATION_FAILED.value, "purged_text"
+            )
+        return _failed(url, exc)
     except Exception as exc:  # the transaction rolled back; the previous version is still current
         log.exception("storing %s failed", url)
         return _failed(url, exc)
@@ -316,8 +322,11 @@ def store_document(
 
     `audit`, when given, writes its record of the outcome inside the same transaction.
     """
-    purged = store.purged_text(conn, inst_id, extracted.text_sha256)
-    if purged is not None:  # checked before any file is written
+    content_sha = hashlib.sha256(fetched.body).hexdigest()
+    purged = store.purged_text(
+        conn, inst_id, extracted.text_sha256, content_sha256=content_sha, doc_key=doc_key
+    )
+    if purged is not None:  # checked before any file is written, and again under the write lock
         raise IngestError(ErrorClass.VALIDATION_FAILED, "purged_text")
     raw, created = None, False
     if artifacts is not None:
@@ -370,6 +379,17 @@ def _store_locked(
     acquisition: str,
 ) -> ItemOutcome:
     """The body of `store_document`; the caller holds the transaction."""
+    if (
+        store.purged_text(
+            conn,
+            inst_id,
+            extracted.text_sha256,
+            content_sha256=hashlib.sha256(fetched.body).hexdigest(),
+            doc_key=doc_key,
+        )
+        is not None
+    ):  # a purge may have committed since the early check
+        raise IngestError(ErrorClass.VALIDATION_FAILED, "purged_text")
     pub_id, created = store.upsert_publication(
         conn, inst_id, doc_key=doc_key, url=candidate.url,
         title=_title(extracted.title, candidate.title, url=candidate.url),

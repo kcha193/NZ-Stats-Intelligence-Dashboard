@@ -16,6 +16,7 @@ CREATE TABLE research_llm_reservation (
   settle_basis TEXT CHECK (settle_basis IS NULL OR settle_basis IN
     ('reported', 'estimated', 'not_billed', 'worst_case', 'interrupted')),
   created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,                                 -- when no live call of the reserving process could still hold it
   closed_at TEXT,
   CHECK ((state = 'settled') = (actual_usd IS NOT NULL)),
   CHECK ((state = 'held') = (closed_at IS NULL))
@@ -27,7 +28,7 @@ CREATE TRIGGER research_reservation_no_delete BEFORE DELETE ON research_llm_rese
 BEGIN SELECT RAISE(ABORT, 'research_llm_reservation is append-only'); END;
 
 CREATE TRIGGER research_reservation_immutable
-BEFORE UPDATE OF run_id, version_id, call_no, provider, model, reserved_usd, created_at ON research_llm_reservation
+BEFORE UPDATE OF run_id, version_id, call_no, provider, model, reserved_usd, created_at, expires_at ON research_llm_reservation
 BEGIN SELECT RAISE(ABORT, 'research_llm_reservation facts are immutable'); END;
 
 -- held -> settled | abandoned, once. A closed reservation never changes again.

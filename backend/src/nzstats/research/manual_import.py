@@ -159,18 +159,24 @@ def import_document(
              extracted.text_sha256, importer.strip(), note.strip(), snapshot, to_utc_iso(now)),
         )  # fmt: skip
 
-    if store.purged_text(conn, inst_id, extracted.text_sha256) is not None:
-        raise ImportRefused(
-            "this text was purged and cannot be stored again (see `research purge`)"
-        )
+    purged_msg = "this text was purged and cannot be stored again (see `research purge`)"
+    if store.purged_text(
+        conn, inst_id, extracted.text_sha256, content_sha256=content_sha, doc_key=doc_key
+    ):
+        raise ImportRefused(purged_msg)
     fetched = FetchResult(
         address, 0, FORMATS[file_format], body, now
     )  # status 0: not fetched over HTTP
-    item = store_document(
-        conn, inst, inst_id, Candidate(address, title=title, series=series), doc_key, fetched, extracted,
-        _published(published_on, extracted, now), tuple(warnings), artifacts, now, acquisition="manual",
-        audit=audit,
-    )  # fmt: skip
+    try:
+        item = store_document(
+            conn, inst, inst_id, Candidate(address, title=title, series=series), doc_key, fetched, extracted,
+            _published(published_on, extracted, now), tuple(warnings), artifacts, now, acquisition="manual",
+            audit=audit,
+        )  # fmt: skip
+    except IngestError as exc:
+        if str(exc) == "purged_text":  # a purge committed since the check above
+            raise ImportRefused(purged_msg) from None
+        raise
     warnings = item.warnings
     if item.version_id is not None and item.outcome in ("unchanged", "reactivated"):
         route = conn.execute("SELECT acquisition FROM research_document_version WHERE id=?",

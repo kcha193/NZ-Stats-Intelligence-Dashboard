@@ -222,7 +222,7 @@ def test_a_young_held_reservation_is_not_abandoned_under_a_live_call(conn):
                  " started_at) VALUES ('fake','m',0,'p','v',?)", ("2026-10-26T00:59:30Z",))  # fmt: skip
     conn.execute(
         "INSERT INTO research_llm_reservation(run_id, version_id, call_no, provider, model,"
-        " reserved_usd, created_at) VALUES (1,1,1,'fake','m',0.5,'2026-10-26T00:59:30Z')"
+        " reserved_usd, created_at, expires_at) VALUES (1,1,1,'fake','m',0.5,'2026-10-26T00:59:30Z','2026-10-26T01:07:30Z')"
     )
     run(conn, fake(), limits=LlmLimits(max_run_usd=5.0, max_period_usd=10.0))
     assert reservations(conn)[0]["state"] == "held"
@@ -249,3 +249,33 @@ def test_runs_before_reservations_existed_still_count_as_before(conn):
     assert window(conn) == pytest.approx(2.5)
     run(conn, fake())
     assert window(conn) == pytest.approx(2.5 + ONE_CALL)
+
+
+def test_a_run_with_a_shorter_timeout_does_not_abandon_another_runs_live_call(conn):
+    """Each reservation carries the deadline its own process set; another process's settings never shorten it."""
+    seed_version(conn)
+    ss.start_run(conn, provider="fake", model="m", hosted=False, prompt_version="p", processing_version="v",
+                 limits={}, dry_run=False, now=NOW)  # fmt: skip
+    rid = ss.reserve(conn, run_id=1, version_id=1, call_no=1, provider="fake", model="m", amount_usd=0.1,
+                     period_cap_usd=10, since=NOW - timedelta(days=30), now=NOW,
+                     expires_at=NOW + timedelta(hours=1))  # fmt: skip
+    short = LlmLimits(max_run_usd=5.0, max_period_usd=10.0, timeout_seconds=1.0, max_retries=0)
+    run(conn, fake(), now=NOW + timedelta(minutes=30), limits=short)
+    assert reservations(conn)[0]["state"] == "held"  # its own process allowed an hour
+    ss.settle(conn, rid, actual_usd=0.05, basis="reported", now=NOW + timedelta(minutes=31))
+    assert reservations(conn)[0]["state"] == "settled"
+    run(conn, fake(), now=NOW + timedelta(hours=3), limits=short)
+
+
+def test_settling_a_reservation_already_abandoned_is_a_no_op_not_an_error(conn):
+    seed_version(conn)
+    ss.start_run(conn, provider="fake", model="m", hosted=False, prompt_version="p", processing_version="v",
+                 limits={}, dry_run=False, now=NOW)  # fmt: skip
+    rid = ss.reserve(conn, run_id=1, version_id=1, call_no=1, provider="fake", model="m", amount_usd=0.1,
+                     period_cap_usd=10, since=NOW - timedelta(days=30), now=NOW, expires_at=NOW + timedelta(seconds=5))  # fmt: skip
+    ss.abandon_stale(conn, now=NOW + timedelta(minutes=5))
+    ss.settle(conn, rid, actual_usd=0.01, basis="reported", now=NOW + timedelta(minutes=6))
+    row = reservations(conn)[0]
+    assert (row["state"], row["actual_usd"]) == ("abandoned", None) and window(
+        conn, NOW
+    ) == pytest.approx(0.1)

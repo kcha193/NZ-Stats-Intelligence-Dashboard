@@ -101,6 +101,7 @@ def reserve(
     period_cap_usd: float,
     since: datetime,
     now: datetime,
+    expires_at: datetime,
 ) -> int | None:
     """Hold `amount_usd` for one provider call, or None when the window cannot afford it.
 
@@ -114,8 +115,8 @@ def reserve(
             return None
         rid = int(conn.execute(
             "INSERT INTO research_llm_reservation(run_id, version_id, call_no, provider, model,"
-            " reserved_usd, created_at) VALUES (?,?,?,?,?,?,?)",
-            (run_id, version_id, call_no, provider, model, amount_usd, to_utc_iso(now)),
+            " reserved_usd, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)",
+            (run_id, version_id, call_no, provider, model, amount_usd, to_utc_iso(now), to_utc_iso(expires_at)),
         ).lastrowid)  # fmt: skip
     except BaseException:
         if conn.in_transaction:
@@ -128,10 +129,12 @@ def reserve(
 def settle(
     conn: sqlite3.Connection, reservation_id: int, *, actual_usd: float, basis: str, now: datetime
 ) -> None:
-    """Close a held reservation at the call's actual cost (`basis`: reported, estimated, not_billed, worst_case)."""
+    """Close a held reservation at the call's actual cost (`basis`: reported, estimated, not_billed, worst_case).
+
+    A reservation already abandoned (its deadline passed) stays at its worst case: settling it is a no-op."""
     conn.execute(
         "UPDATE research_llm_reservation SET state='settled', actual_usd=?, settle_basis=?, closed_at=?"
-        " WHERE id=?",
+        " WHERE id=? AND state='held'",
         (actual_usd, basis, to_utc_iso(now), reservation_id),
     )
 
@@ -141,9 +144,9 @@ def abandon_run(conn: sqlite3.Connection, run_id: int, *, now: datetime) -> floa
     return _abandon(conn, "run_id = ?", (run_id,), now)
 
 
-def abandon_stale(conn: sqlite3.Connection, *, older_than: datetime, now: datetime) -> float:
-    """Close held reservations created before `older_than` (their process is gone); returns the USD they hold."""
-    return _abandon(conn, "created_at < ?", (to_utc_iso(older_than),), now)
+def abandon_stale(conn: sqlite3.Connection, *, now: datetime) -> float:
+    """Close held reservations whose own deadline has passed (their process is gone); returns the USD they hold."""
+    return _abandon(conn, "expires_at < ?", (to_utc_iso(now),), now)
 
 
 def _abandon(conn: sqlite3.Connection, where: str, params: tuple, now: datetime) -> float:
@@ -162,7 +165,7 @@ def _abandon(conn: sqlite3.Connection, where: str, params: tuple, now: datetime)
 def open_reservations(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Reservations whose outcome is unknown (held or abandoned), oldest first; for health and operators."""
     return conn.execute(
-        "SELECT id, run_id, version_id, call_no, state, reserved_usd, created_at, closed_at"
+        "SELECT id, run_id, version_id, call_no, state, reserved_usd, created_at, expires_at, closed_at"
         " FROM research_llm_reservation WHERE state != 'settled' ORDER BY id"
     ).fetchall()
 

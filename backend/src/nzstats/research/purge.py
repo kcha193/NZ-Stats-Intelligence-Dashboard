@@ -71,6 +71,9 @@ class PurgeResult:
     versions: int
     artifacts_removed: int
     pending: int
+    wal_truncated: bool = (
+        True  # False: a reader held the old pages, so they may remain in the database files
+    )
 
 
 def _in(values: Sequence[int]) -> str:
@@ -218,6 +221,8 @@ def apply_purge(
             current = plan_purge(conn, plan.institution, **_selector(plan.scope))
             if not current.version_ids:
                 raise PurgeError("nothing to purge: no stored version matches")
+            if current.version_ids != plan.version_ids:
+                raise PurgeError("the selection changed since the plan was made; plan again")
             purge_id = _record_purge(conn, current, reason, purged_by, note, now)
             _mark_versions(conn, current.version_ids, purge_id, now)
             _withdraw_published(conn, current.version_ids, purged_by, purge_id, now)
@@ -229,12 +234,29 @@ def apply_purge(
                     " VALUES (?,?,?,?,?)", (purge_id, ref.id, ref.url, ref.sha256, ref.path))  # fmt: skip
         removed = finish_pending(conn, artifacts, now=now)
         pending = len(pending_artifacts(conn))
-        conn.execute(
-            "PRAGMA wal_checkpoint(TRUNCATE)"
-        )  # drop the log pages that held the old content
+        truncated = truncate_wal(conn)  # drop the log pages that held the old content
     finally:
         conn.execute("PRAGMA secure_delete=OFF")
-    return PurgeResult(purge_id, len(current.version_ids), removed, pending)
+    return PurgeResult(purge_id, len(current.version_ids), removed, pending, truncated)
+
+
+def truncate_wal(conn: sqlite3.Connection, *, attempts: int = 5, wait: float = 0.2) -> bool:
+    """Checkpoint and truncate the write-ahead log; False if a reader kept it busy after a few tries.
+
+    The pragma reports a busy log instead of failing, so the result is checked: until it is truncated the pages that
+    held purged content may still be readable in the `-wal` and database files. The connection's long busy timeout
+    is lifted meanwhile, so a held reader costs seconds, not minutes.
+    """
+    previous = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+    conn.execute("PRAGMA busy_timeout=0")
+    try:
+        for _ in range(attempts):
+            if not conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]:
+                return True
+            time.sleep(wait)
+        return False
+    finally:
+        conn.execute(f"PRAGMA busy_timeout={int(previous)}")
 
 
 def _selector(scope: dict) -> dict:
@@ -353,6 +375,13 @@ def integrity_problems(
         problems.append(
             f"{len(pending)} purged artifact(s) still to remove; run `research purge --finish`"
         )
+    for (n,) in conn.execute(
+        "SELECT COUNT(*) FROM research_purge_artifact WHERE outcome = 'unsafe_path'"
+    ):
+        if n:
+            problems.append(
+                f"{n} purged artifact(s) had an unexpected stored path and were not removed: check by hand"
+            )
     for (vid,) in conn.execute(
         "SELECT v.id FROM research_document_version v WHERE v.purged_at IS NOT NULL AND EXISTS"
         " (SELECT 1 FROM research_section s WHERE s.version_id = v.id)"):  # fmt: skip
@@ -378,7 +407,10 @@ def find_orphan_files(
     out = []
     for path in artifacts.files():
         rel = f"{path.parent.name}/{path.name}"
-        if rel in known:
+        ours = valid_rel(rel) or (
+            path.name.startswith(".") and path.name.endswith(".tmp")
+        )  # an artifact or its temp
+        if rel in known or not ours:
             continue
         if path.stat().st_mtime <= cutoff:
             out.append(path)

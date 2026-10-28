@@ -27,7 +27,6 @@ from nzstats.research.contract import PERIOD_DAYS, LlmLimits
 from nzstats.research.public import public_summaries, why_not_public
 from nzstats.research.quality import version_quality
 from nzstats.research.registry import Institution
-from nzstats.research.summarise import stale_after
 from nzstats.sources.artifacts import ArtifactStore
 
 BUDGET_WARNING_SHARE = 0.8  # spend at or above this share of the rolling cap needs attention
@@ -243,10 +242,10 @@ def _unsettled_calls(
     """Calls whose outcome is unknown (the process died, or the call was interrupted). They count at their worst
     case until they leave the rolling window; a young held one may simply be a call in flight."""
     stamp = to_utc_iso(now - timedelta(days=PERIOD_DAYS))
-    in_flight = to_utc_iso(now - stale_after(limits))
+    live = to_utc_iso(now)
     rows = [
         r for r in ss.open_reservations(conn)
-        if r["created_at"] >= stamp and (r["state"] == "abandoned" or r["created_at"] < in_flight)
+        if r["created_at"] >= stamp and (r["state"] == "abandoned" or r["expires_at"] < live)
     ]  # fmt: skip
     if rows:
         held = sum(r["reserved_usd"] for r in rows)
