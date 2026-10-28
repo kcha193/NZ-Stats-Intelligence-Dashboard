@@ -41,7 +41,7 @@ Downloads: `…-quarter.csv` (21 MB, 98,547 rows, 1,004 series), `…-quarter.xl
 
 Columns: `Series_reference, Period, Data_value, STATUS, UNITS, MAGNITUDE, Subject, Group, Series_title_1..5`. `Period`
 is `YYYY.MM` (quarter-end month); `SNEQ.*` series are quarterly, `SNEA.*` annual (March years and rolling annuals).
-`STATUS` is `FINAL` for quarterly rows; `REVISED` appears in annual rows. Chain-volume series are in 2009/10 prices.
+`STATUS` mixes `FINAL` and `REVISED` (quarterly and annual rows alike). Chain-volume series are in 2009/10 prices.
 
 Headline series (June 2026 values, $ million unless stated):
 
@@ -84,7 +84,7 @@ Downloads: `labour-market-statistics-june-2026-quarter.zip` (18.6 MB packed, **7
 QES workbooks. The March 2026 page lists only `…-march-2026-quarter-revised.zip`, whose folder is named "…updated" and
 whose members are dated 28 July 2026, i.e. **the March release was republished after first publication**.
 
-Zip members: `hlfs-<qtr>-csv.csv` (423 MB, 1,278,057 rows, 61 columns), `lci-…csv` (6.7 MB), `qes-…csv` (40 MB),
+Zip members: `hlfs-<qtr>-csv.csv` (423 MB, 1,278,057 rows, 58 columns), `lci-…csv` (6.7 MB), `qes-…csv` (40 MB),
 `lms-…-tables.csv` (286 MB: HLFS+LCI+QES combined). Member names differ by release (`-csv.csv` in June, `-tables.csv`
 in the revised March zip). Only the HLFS and LCI members are read, streamed row by row.
 
@@ -101,12 +101,16 @@ Findings:
 
 6. **A real revision of the headline rate**: the March 2026 release reported unemployment of 5.3%; the June 2026
    release states 5.4% for March 2026. Seasonal adjustment revises the SA history every quarter.
-7. `STATUS` is `FINAL` on every HLFS row, including revised seasonally adjusted history, so revisions are found only by
-   comparing stored vintages.
-8. Levels are in thousands, rounded; rates are published to 1 d.p. Identity checks (labour force = employed +
-   unemployed; rate = unemployed / labour force) therefore need measured tolerances.
-9. HLFS is a sample survey: the file carries sampling-error series. Quarterly movements of 0.1 to 0.2 points are
-   within sampling error; the dashboard says so instead of narrating them as trends.
+7. `STATUS` mixes `FINAL` and `REVISED` on the pinned HLFS series (stored as `final` and `unknown`, as for CPI).
+   It does not say which release revised a value, so revisions are found by comparing stored vintages.
+8. Levels are in thousands, rounded; rates are published to 1 d.p. Identity checks therefore use measured
+   tolerances: labour force against employed plus unemployed max 1.0 thousand (tolerance 1.5, the bound for three
+   rounded values); unemployment, employment and participation rates against their levels max 0.0706 pp
+   (tolerance 0.08); LCI changes against the integer index max 0.0500 pp (tolerance 0.06). Both full official
+   archives parse and validate with no error in about 3 s each.
+9. HLFS is a sample survey: the file carries sampling-error series (not stored in Phase 4C). The dashboard says that
+   small quarterly movements may not be statistically significant instead of narrating them as trends; it does not
+   quote a sampling-error size it has not read.
 
 ### OCR (Reserve Bank of New Zealand)
 

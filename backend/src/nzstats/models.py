@@ -305,7 +305,7 @@ class GdpSeriesOut(BaseModel):
     source_url: str | None
 
 
-class GdpRevisionRow(BaseModel):
+class FirstLatestRow(BaseModel):
     period: str
     first_value: float
     first_release: str  # title of the release the first value comes from
@@ -317,12 +317,12 @@ class GdpRevisionRow(BaseModel):
     revision: float  # percentage points, latest minus first, as published to 1 d.p.
 
 
-class GdpRevisionTable(BaseModel):
+class FirstLatestTable(BaseModel):
     series_key: str
     label: str
     available: bool
     note: str
-    rows: list[GdpRevisionRow]
+    rows: list[FirstLatestRow]
 
 
 class GdpDashboardOut(BaseModel):
@@ -331,7 +331,32 @@ class GdpDashboardOut(BaseModel):
     published_at: str
     captured_at: str
     series: list[GdpSeriesOut]
-    revisions: list[GdpRevisionTable]
+    revisions: list[FirstLatestTable]
+    sources: list[str]
+    caveats: list[str]
+
+
+class LabourSeriesOut(BaseModel):
+    key: str
+    name: str
+    unit: str
+    survey: Literal[
+        "hlfs", "lci"
+    ]  # Household Labour Force Survey or Labour Cost Index: never combined
+    measure: Literal["rate", "level", "index", "quarterly_change", "annual_change"]
+    adjustment: str
+    definition: str
+    points: list[PointOut]
+    source_url: str | None
+
+
+class LabourDashboardOut(BaseModel):
+    analysis: ReleaseAnalysis
+    reference_period: str
+    published_at: str
+    captured_at: str
+    series: list[LabourSeriesOut]
+    revisions: list[FirstLatestTable]
     sources: list[str]
     caveats: list[str]
 

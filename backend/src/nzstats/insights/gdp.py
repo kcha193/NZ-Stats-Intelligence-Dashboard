@@ -14,12 +14,11 @@ from nzstats.adapters.gdp.series import HEADLINE, KEYS, SLUG
 from nzstats.clock import to_akl_iso
 from nzstats.insights.migration import _corrections
 from nzstats.insights.summary import release_summary
+from nzstats.insights.vintages import first_latest_table
 from nzstats.models import (
     ChangeOut,
     Evidence,
     GdpDashboardOut,
-    GdpRevisionRow,
-    GdpRevisionTable,
     GdpSeriesOut,
     Insight,
     Methodology,
@@ -40,7 +39,6 @@ AVG = "gdp.production.cv.nsa.pct_annual_avg"
 EXP_QOQ = "gdp.expenditure.cv.sa.pct_qoq"
 PER_CAPITA = "gdp.per_capita.production.cv.sa"
 NOMINAL = "gdp.expenditure.cp.sa"
-REVISION_QUARTERS = 8
 CAVEATS = [
     "Gross domestic product (GDP) measures the value of goods and services produced in New Zealand. Stats NZ's "
     "headline is the production measure in chain-volume terms (real, 2009/10 prices), seasonally adjusted.",
@@ -264,66 +262,6 @@ def _revision_block(conn, row, stored) -> RevisionBlock:
     )
 
 
-def _first_published(
-    conn, key: str, published_at: str
-) -> list[tuple[str, str | None, dict[str, float]]]:
-    """Each stored release up to `published_at`, oldest first, with its first stored values of `key`."""
-    references = dict(
-        conn.execute(
-            "SELECT release_key, reference_period FROM release WHERE series_slug = ?", (SLUG,)
-        ).fetchall()
-    )
-    seen: dict[str, tuple[str, str | None, dict[str, float]]] = {}
-    for v in repo.list_vintages(conn, key):
-        if v.published_at > published_at or v.release_key in seen:
-            continue  # later releases cannot be "first published" for this view; keep each release's original
-        points = {p: pt.value for p, pt in repo.vintage_points(conn, v.vintage_id).items()}
-        seen[v.release_key] = (v.title, references.get(v.release_key), points)
-    return list(seen.values())
-
-
-def _revision_table(conn, row, stored, key: str) -> GdpRevisionTable:
-    d = stored[key][0]
-    releases = _first_published(conn, key, row["published_at"])
-    if len(releases) < 2:
-        return GdpRevisionTable(
-            series_key=key,
-            label=d.name,
-            available=False,
-            note="Only one GDP release is stored, so first-published and latest figures cannot be compared.",
-            rows=[],
-        )
-    latest = _values(stored, key)
-    ref = max(latest)
-    rows = []
-    for period in (add_months(ref, -3 * k) for k in range(REVISION_QUARTERS)):
-        if period not in latest:
-            continue
-        own = next((r for r in releases if r[1] == period and period in r[2]), None)
-        first = own or next((r for r in releases if period in r[2]), None)
-        if first is None:
-            continue
-        rows.append(
-            GdpRevisionRow(
-                period=period,
-                first_value=first[2][period],
-                first_release=first[0],
-                first_is_publication=own is not None,
-                latest_value=latest[period],
-                latest_release=row["title"],
-                revision=round_1dp(latest[period] - first[2][period]),
-            )
-        )
-    return GdpRevisionTable(
-        series_key=key,
-        label=d.name,
-        available=True,
-        note="First published: the figure in the release for that quarter. Where that release is not stored, the "
-        f"earliest stored figure is shown and marked as earliest stored. Latest: {row['title']}.",
-        rows=rows,
-    )
-
-
 def _build(
     conn: sqlite3.Connection, release_id: int | None, *, full: bool
 ) -> GdpDashboardOut | None:
@@ -388,7 +326,12 @@ def _build(
         published_at=to_akl_iso(row["published_at"]),
         captured_at=to_akl_iso(captured),
         series=series,
-        revisions=[_revision_table(conn, row, stored, k) for k in (QOQ, AVG)] if full else [],
+        revisions=[
+            first_latest_table(conn, SLUG, row, k, stored[k][0].name, _values(stored, k))
+            for k in (QOQ, AVG)
+        ]
+        if full
+        else [],
         sources=sorted(
             {d.source_url for d, _ in stored.values() if d.source_url}
             | {row["page_url"] or ""} - {""}
