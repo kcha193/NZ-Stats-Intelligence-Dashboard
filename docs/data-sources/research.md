@@ -293,6 +293,14 @@ stored text with no section that reads like instructions to a model. Raw output,
 names, notes, parameters, usage and cost are never in a response. `research summary ID` tells the operator why a summary
 is not public.
 
+**Loopback only (Phase 3F).** Because there is no login, `nzstats serve` refuses to start with `NZSTATS_PUBLIC_RESEARCH=1`
+on any address other than loopback (`127.0.0.1`, `::1`, `localhost`) and exits 2 before the app, the database or the
+scheduler exist. A private preview is `nzstats serve --host 127.0.0.1 --no-scheduler`. The only way around it is a
+deliberate `NZSTATS_RESEARCH_ALLOW_NONLOOPBACK=1`, for when something else limits who can connect: a published port bound
+to loopback (`127.0.0.1:8000:8000` in Compose; the container itself must listen on `0.0.0.0`), a private network such as
+Tailscale, or an authenticating reverse proxy. Never set it with `ports: "8000:8000"`. Containers that leave research
+off are unaffected.
+
 ```sh
 nzstats research publish 12 --approver "Your Name" --note "terms section 4 permit summaries with attribution"
 nzstats research summary 12      # shows 'public: yes (summary)' or the reason it is not
@@ -423,7 +431,8 @@ measurement from the synthetic replay (`RECORDED_BASELINE`) and must never be me
 
 ## Production operations (Phase 3E)
 
-Readiness report, blocker register and go/no-go: [Phase 3E](../superpowers/specs/2026-10-28-phase-3e-production-readiness.md).
+Readiness report, blocker register and go/no-go: [Phase 3F](../superpowers/specs/2026-10-28-phase-3f-pilot-acceptance.md)
+(updates [Phase 3E](../superpowers/specs/2026-10-28-phase-3e-production-readiness.md)).
 **Status on 2026-10-28: still nothing approved.** Every source has `manual_import = "denied"` too.
 
 ### Manual document import (a fifth, separate permission)
@@ -476,6 +485,9 @@ scripts/run.sh research health --json   # the same for a scheduled check or a lo
 | `poor_extraction` | attention | read the version (`research quality ID`) before summarising |
 | `published_but_withheld` | attention | a published summary the gate now withholds: a permission was revoked, its institution was removed from the registry (listed with routes `unregistered`), a newer document version exists, or the evidence no longer verifies. `research summary ID` gives the reason; withdraw it or summarise the new version |
 | `budget_near_cap` | attention | 80% of the rolling model budget is spent |
+| `unsettled_model_calls` | attention | model calls whose outcome is unknown (the process died or was interrupted); they count at their worst case until they leave the 30-day window. Check the provider's billing before raising the cap |
+| `purge_incomplete` | attention | a purge removed the content but not every file: run `research purge --finish` |
+| `raw_file_missing` | attention | a stored version's raw file is gone: restore it from backup or re-import |
 | `public_api_on` | info | `NZSTATS_PUBLIC_RESEARCH=1`: the routes are served without authentication |
 
 The report contains no reviewer, approver or importer names, notes or document text.
@@ -486,6 +498,17 @@ Two limits, both checked before every call against the worst case: `NZSTATS_LLM_
 `NZSTATS_LLM_MAX_PERIOD_USD` over any rolling 30 days (default $10), counting every recorded call, failed ones included.
 A run may spend only the smaller of its own budget and what the window has left; the run record stores both. A dry run
 prints the remainder and spends nothing.
+
+**Reservations (Phase 3F).** Each call first reserves its worst-case cost in `research_llm_reservation`, inside the
+database write lock, so two `research summarise` processes started together cannot both spend the same remainder: the
+second sees the first's hold and stops with `budget_exhausted`. The reservation is settled to the actual cost the moment
+the call returns (`reported`, `estimated` when the provider gave no usage, `not_billed` for failures a provider reports
+before generating anything, `worst_case` for other failures without usage), before the result is stored, so the cost
+survives a failure to store it. If the process is killed or interrupted mid-call, the reservation is never settled: it
+keeps counting at its worst case (`held`, then `abandoned` by the next run once no live call could still hold it, or at
+once for an interrupt the process saw). Whether the provider billed such a call is unknown, so it is never treated as
+free. The rows are append-only and move forward once. Estimates are not guarantees: the worst case uses an estimate of the
+input size, so a reported usage above it settles at the higher figure.
 
 ### Reviewer workflow
 
@@ -505,6 +528,44 @@ To withdraw everything from a source at once, set its `public_display = "none"` 
 the service if the registry is baked into an image. Republishing is a new `publish` decision. Nothing from research is in
 the static snapshot, so no redeploy is needed.
 
+### Purging stored content when a permission is withdrawn (Phase 3F)
+
+Revoking a permission stops processing and display at once but leaves the stored text. To remove it:
+
+```sh
+scripts/run.sh research purge treasury --acquisition manual            # the plan; nothing changes
+scripts/run.sh research purge treasury --acquisition manual --apply \
+  --reason permission_withdrawn --by "Kevin Chang" --note "licence page withdrew storage, 2026-11-20"
+scripts/run.sh research purge treasury --version 12 --version 13 ...   # or specific versions
+scripts/run.sh research purge --finish                                 # only after an interrupted purge
+scripts/run.sh research orphans                                        # stray or missing files; --remove deletes old strays
+```
+
+`--acquisition` is `manual`, `crawler` or `all`; revoking one route and purging only its versions leaves the other's alone.
+
+What is **removed**: the sections (the licensed text), the raw files, the forecast claims, and the model output derived
+from the text (raw output, the validated summary, the verification report), replaced by `{"redacted":true}`. That includes
+any other stored byte-for-byte copy of the same document address that no surviving version owns (the crawler keeps each
+fetch). Published summaries of the text are withdrawn (an automatic `withdraw` decision by the person named). Deleted
+database content is overwritten (`secure_delete`) and the write-ahead log truncated.
+
+What is **kept** because it is an audit fact, not content: the version row (ids, content and text hashes, format, title,
+timestamps, how it was obtained, the permissions in force then), the summary rows (status, model, prompt, hashes, review
+state), the `research_manual_import` log, review and publication logs, model usage and spend, and a new immutable
+`research_purge` record plus one `research_purge_artifact` row per destroyed file (address and hash, never the bytes).
+The publication's title and address stay as metadata. Triggers allow redaction only for a version already marked purged
+and only to those placeholders; a purge cannot be undone; nothing can store the purged text again (an import is refused
+with "purged", a crawl records a failure) under any address of that institution.
+
+Two steps, because a file cannot join a transaction: the database step makes the content unavailable and records every
+artifact; the file step then deletes them. If it is interrupted, `research health` reports `purge_incomplete` and
+`research purge --finish` completes it (safe to repeat). A file another record still points at is kept; a stored path of
+an unexpected shape is never followed. **A purge cannot reach older backups** (`data/backups/`, off-machine copies):
+expire them according to the withdrawal.
+
+An import of a document whose text is already stored, with different file bytes, no longer keeps the extra copy
+(only a file that becomes a version is kept); a duplicate or rolled-back store removes the file it just wrote.
+
 ### Onboarding a new source
 
 1. Record the institution in `config/research_sources.toml` as `needs_review` with hosts, prefixes and evidence fields.
@@ -523,6 +584,10 @@ summary that is now withheld.
 
 ## Rollback
 
+Phase 3F: `sqlite3 data/nzstats.db < scripts/rollback/010_research_purge_down.sql` (purge records and the redaction
+triggers; purged content is not restored) and `009_research_llm_reservation_down.sql` (spend reservations; held or
+abandoned ones stop counting, so wait out the window or lower the cap by that amount).
+
 Phase 3E only: `sqlite3 data/nzstats.db < scripts/rollback/008_research_manual_import_down.sql` removes the import
 audit log and the `acquisition` column; imported versions stay stored (use the full rollback below to delete them).
 
@@ -530,7 +595,7 @@ The tables are additive and nothing outside `research_*` references them. To rem
 
 ```sh
 scripts/backup.sh                       # Docker deployment; without Docker: scripts/run.sh backup data/backups/before-rollback.db
-sqlite3 data/nzstats.db < scripts/rollback/004_research_down.sql   # also drops the 3B, 3C and 3E tables (006 to 008)
+sqlite3 data/nzstats.db < scripts/rollback/004_research_down.sql   # also drops the 3B, 3C, 3E and 3F tables (006 to 010)
 ```
 
 Stop (or downgrade) every process that runs the new code first: starting it again re-applies migration 004 and recreates

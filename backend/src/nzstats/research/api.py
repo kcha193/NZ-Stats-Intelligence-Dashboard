@@ -9,6 +9,7 @@ registry that cannot be read means nothing is shown. The database is opened read
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import sqlite3
@@ -62,6 +63,42 @@ Institutions = Annotated[str | None, Query(pattern=_KEY_LIST)]
 
 def public_research_enabled(env: Mapping[str, str] | None = None) -> bool:
     return (os.environ if env is None else env).get(ENABLE_ENV) == "1"
+
+
+ALLOW_NONLOOPBACK_ENV = "NZSTATS_RESEARCH_ALLOW_NONLOOPBACK"
+
+
+def _is_loopback(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    mapped = getattr(address, "ipv4_mapped", None)
+    return (mapped or address).is_loopback
+
+
+def bind_refusal(host: str, env: Mapping[str, str] | None = None) -> str | None:
+    """Why the server may not listen on `host` while research is switched on, or None.
+
+    The research routes have no login, so published research is reachable by anyone who can connect. With the switch
+    on, only a loopback address is accepted unless the operator acknowledges, with `NZSTATS_RESEARCH_ALLOW_NONLOOPBACK=1`,
+    that something else limits who can connect (a loopback-only published port, a private network, an authenticating
+    reverse proxy). Fixed wording; it echoes only the host the operator typed.
+    """
+    env = os.environ if env is None else env
+    if (
+        not public_research_enabled(env)
+        or _is_loopback(host)
+        or env.get(ALLOW_NONLOOPBACK_ENV) == "1"
+    ):
+        return None
+    return (
+        f"refusing to serve published research on {host!r}: published research is served without authentication. Listen on"
+        f" 127.0.0.1 (`nzstats serve --host 127.0.0.1`), or, if a loopback-only published port, a private network or an"
+        f" authenticating proxy limits who can connect, set {ALLOW_NONLOOPBACK_ENV}=1"
+    )
 
 
 def _read_only(path: Path) -> sqlite3.Connection:

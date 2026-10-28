@@ -19,6 +19,7 @@ from nzstats.config import Settings
 from nzstats.research import purge
 from nzstats.research import summary_store as ss
 from nzstats.research.contract import Provider
+from nzstats.research.cpi_reconcile import reconcile
 from nzstats.research.fetch import (
     DEFAULT_MAX_BYTES,
     ResearchFetcher,
@@ -70,6 +71,10 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_health.add_argument("--json", action="store_true", help="machine-readable output")
     rsub.add_parser(
         "cpi-vintages", help="which CPI quarters have a genuine first-published vintage stored (3E)"
+    )
+    rsub.add_parser(
+        "cpi-reconcile",
+        help="check stored CPI vintages and outcomes against the official files kept in data/raw (3F; no request)",
     )
     p_imp = rsub.add_parser(
         "import", help="store an owner-supplied copy of one document (Phase 3E; no request is made)"
@@ -671,7 +676,32 @@ def _orphans(args: argparse.Namespace, settings: Settings, registry: dict[str, I
     return 1 if found or problems else 0
 
 
-_SUMMARY_COMMANDS = {"purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
+def _cpi_reconcile(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    """Exit 1 on any discrepancy. Reads the database and the kept files only; nothing is requested or changed."""
+    result = reconcile(_open(settings), settings.raw_dir)
+    matched = sum(1 for v in result.vintages if v.file_sha256)
+    _emit(f"{len(result.vintages)} stored all-groups index vintages; {matched} reproduced by one of"
+          f" {result.official_files} kept official files")  # fmt: skip
+    for v in result.vintages:
+        _emit(
+            f"  {v.series} vintage {v.vintage_id} {v.release_key}: {v.file_sha256[:12] if v.file_sha256 else 'NO MATCH'}"
+        )
+    genuine = sorted({o.quarter for o in result.outcomes if o.genuine_first_release})
+    _emit(f"{len(result.outcomes)} outcomes checked; first-published is a genuine first release only for:"
+          f" {', '.join(genuine) or 'none'}")  # fmt: skip
+    for line in result.discrepancies:
+        _emit(f"DISCREPANCY: {line}")
+    _emit(
+        "reconciled: no discrepancies"
+        if result.ok
+        else f"{len(result.discrepancies)} discrepancy(ies)"
+    )
+    return 0 if result.ok else 1
+
+
+_SUMMARY_COMMANDS = {"cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
                      "quality": _quality, "evaluate": _evaluate}  # fmt: skip
