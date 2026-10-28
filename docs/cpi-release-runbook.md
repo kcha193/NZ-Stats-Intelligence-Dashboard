@@ -132,3 +132,22 @@ scripts/run.sh research cpi-vintages
 Release order, not ingestion order, decides first-published and latest, so ingesting older releases after September is
 safe (tested on the real files). Do not go before December 2025 without a vintage-depth probe of the file layout first.
 
+
+### Reconciling the vintages against the official files (Phase 3F)
+
+After any backfill (and now, on the existing data), check that what is stored is what Stats NZ published. It reads the
+database and the files kept under `data/raw` and makes no request:
+
+```sh
+scripts/run.sh research cpi-reconcile
+```
+
+Two independent checks (they use neither the Stats NZ adapter nor the outcome code; the files are parsed with the csv
+module and Decimal). **Fidelity:** every stored all-groups index vintage, unadjusted and seasonally adjusted, must be
+reproduced exactly, period for period from its first stored period, by one of the kept official CSV files; a vintage no
+file reproduces is reported. **Outcomes:** for each of the four measures and every quarter the stored window supports, the
+first-published and latest values the dashboard reports must equal those calculated from the official files (first from the
+earliest stored bundle of the earliest release that holds enough data, latest from the newest release's current bundle,
+rounded half away from zero to one decimal place), and "first release" must be true only for a quarter's own release.
+Exit 1 and a `DISCREPANCY:` line for each failure. Run it before the backfill (the baseline) and after it; a quarter whose
+own release is still missing is correctly reported as earliest stored, not as a discrepancy.

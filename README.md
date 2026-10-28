@@ -81,6 +81,9 @@ database or the API. Nothing is published unless you enable it: see [docs/netlif
    HTTPS certificate rather than exposing port 8000.
 4. Keep the instance private (LAN or VPN). Stats NZ's terms-and-conditions page could not be machine-read,
    so review it before making the dashboard public.
+5. Leave `NZSTATS_PUBLIC_RESEARCH` unset here. The research routes have no login, so with it set `nzstats serve`
+   refuses to start on any address but loopback, which the container's `0.0.0.0` is not. A private research preview
+   runs on the owner's machine (`nzstats serve --host 127.0.0.1`); see `docs/data-sources/research.md`.
 
 ## Local development
 

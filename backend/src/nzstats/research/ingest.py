@@ -194,6 +194,12 @@ def _one(
     try:
         return store_document(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
                               tuple(warnings), artifacts, now_fn())  # fmt: skip
+    except IngestError as exc:
+        if str(exc) == "purged_text":  # purged on purpose: not a failure, and nothing to log as one
+            return ItemOutcome(
+                url, "skipped_purged", ErrorClass.VALIDATION_FAILED.value, "purged_text"
+            )
+        return _failed(url, exc)
     except Exception as exc:  # the transaction rolled back; the previous version is still current
         log.exception("storing %s failed", url)
         return _failed(url, exc)
@@ -316,13 +322,68 @@ def store_document(
 
     `audit`, when given, writes its record of the outcome inside the same transaction.
     """
-    raw = artifacts.save(fetched) if artifacts is not None else None  # content-addressed file
+    content_sha = hashlib.sha256(fetched.body).hexdigest()
+    purged = store.purged_text(
+        conn, inst_id, extracted.text_sha256, content_sha256=content_sha, doc_key=doc_key
+    )
+    if purged is not None:  # checked before any file is written, and again under the write lock
+        raise IngestError(ErrorClass.VALIDATION_FAILED, "purged_text")
+    raw, created = None, False
     with transaction(conn):
-        item = _store_locked(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
-                             warnings, raw, now, acquisition)  # fmt: skip
-        if audit is not None:
-            audit(item)
+        # The file is written, recorded and (if nothing keeps it) removed under the one write lock, so no other
+        # writer, in this process or another, can be between "saved the shared file" and "registered it".
+        if artifacts is not None:
+            created = not artifacts.exists(artifacts.rel_for(fetched.body))
+            raw = artifacts.save(fetched)  # content-addressed file
+        conn.execute("SAVEPOINT store_document")
+        try:
+            item = _store_locked(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
+                                 warnings, raw, now, acquisition)  # fmt: skip
+            if audit is not None:
+                audit(item)
+        except BaseException:
+            _discard_after_failure(conn, artifacts, raw, created)
+            raise
+        conn.execute("RELEASE store_document")
+        if item.outcome == "duplicate" or (
+            acquisition == "manual" and item.outcome in ("unchanged", "reactivated")
+        ):
+            _discard_new_file(conn, artifacts, raw, created)  # no version links these bytes
     return item
+
+
+def _discard_after_failure(
+    conn: sqlite3.Connection,
+    artifacts: ArtifactStore | None,
+    raw: ArtifactRecord | None,
+    created: bool,
+) -> None:
+    """Undo this store's rows but keep the write lock, then drop the file if no committed row records it."""
+    try:
+        conn.execute("ROLLBACK TO store_document")
+        _discard_new_file(conn, artifacts, raw, created)
+    except sqlite3.Error:  # the original error propagates; the orphan sweep removes the file later
+        log.exception("could not clean up after a failed store")
+
+
+def _discard_new_file(
+    conn: sqlite3.Connection,
+    artifacts: ArtifactStore | None,
+    raw: ArtifactRecord | None,
+    created: bool,
+) -> None:
+    """Remove a file this call wrote if nothing records it, so a refused or rolled-back store leaves no orphan.
+
+    The caller holds the write lock: no other writer has an uncommitted `raw_artifact` row, and none can register
+    this path until the lock is released, so "no row" is final.
+    """
+    if artifacts is None or raw is None or not created:
+        return
+    if conn.execute("SELECT 1 FROM raw_artifact WHERE path=?", (raw.path,)).fetchone() is None:
+        try:
+            artifacts.remove(raw.path)
+        except OSError:
+            log.exception("could not remove the unreferenced artifact %s", raw.path)
 
 
 def _store_locked(
@@ -340,6 +401,17 @@ def _store_locked(
     acquisition: str,
 ) -> ItemOutcome:
     """The body of `store_document`; the caller holds the transaction."""
+    if (
+        store.purged_text(
+            conn,
+            inst_id,
+            extracted.text_sha256,
+            content_sha256=hashlib.sha256(fetched.body).hexdigest(),
+            doc_key=doc_key,
+        )
+        is not None
+    ):  # a purge may have committed since the early check
+        raise IngestError(ErrorClass.VALIDATION_FAILED, "purged_text")
     pub_id, created = store.upsert_publication(
         conn, inst_id, doc_key=doc_key, url=candidate.url,
         title=_title(extracted.title, candidate.title, url=candidate.url),
@@ -358,7 +430,7 @@ def _store_locked(
         conn, pub_id, content_sha256=hashlib.sha256(fetched.body).hexdigest(), text_sha256=extracted.text_sha256,
         fmt=extracted.format, fetched_at=fetched.fetched_at,
         extractor_version=extracted.extractor_version,
-        raw_artifact_id=record_artifact(conn, raw) if raw is not None else None,
+        raw_artifact_id=record_artifact(conn, raw) if _keeps_raw(conn, pub_id, extracted, raw, acquisition) else None,
         title=_title(extracted.title, candidate.title, url=candidate.url),
         sections=[store.SectionRow(s.ordinal, s.heading, s.text, s.page_start, s.page_end,
                                    s.char_start, s.char_end) for s in extracted.sections],
@@ -369,6 +441,22 @@ def _store_locked(
     outcome = {"new": "new" if created else "updated"}.get(change, change)
     return ItemOutcome(candidate.url, outcome, publication_id=pub_id, version_id=version_id,
                        warnings=warnings)  # fmt: skip
+
+
+def _keeps_raw(
+    conn: sqlite3.Connection,
+    publication_id: int,
+    extracted: Extracted,
+    raw: ArtifactRecord | None,
+    acquisition: str,
+) -> bool:
+    """Whether to record this fetch's bytes. The crawler keeps every fetch for audit; a manual import keeps the
+    bytes only when they become a version, so no imported file is ever left unlinked to a version."""
+    if raw is None:
+        return False
+    return acquisition != "manual" or not store.text_is_stored(
+        conn, publication_id, extracted.text_sha256
+    )
 
 
 def _outcome(result: RunResult, blocked: bool) -> str:

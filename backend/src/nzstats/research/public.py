@@ -35,7 +35,7 @@ _SELECT = (
     " s.hosted, s.prompt_version, s.processing_version, s.created_at,"
     f" ({_LATEST_DECISION.format(col='decision')}) AS decision,"
     f" ({_LATEST_DECISION.format(col='decided_at')}) AS decided_at,"
-    " v.version_no, v.title, v.fetched_at, v.format, v.page_count, v.superseded_at, v.acquisition,"
+    " v.version_no, v.title, v.fetched_at, v.format, v.page_count, v.superseded_at, v.acquisition, v.purged_at,"
     " p.id AS publication_id, p.canonical_url, p.published_on, p.categories, p.current_version_id,"
     " p.duplicate_of_id, i.key AS institution"
     " FROM research_summary s JOIN research_document_version v ON v.id = s.version_id"
@@ -90,6 +90,8 @@ def _state_refusal(row: sqlite3.Row, newest: Mapping[int, int]) -> str | None:
         return "not publication-approved (withdrawn)"
     if newest.get(row["version_id"]) != row["id"]:
         return f"superseded by summary {newest.get(row['version_id'])} of the same document version"
+    if row["purged_at"]:
+        return "the source text was purged"
     if row["current_version_id"] != row["version_id"] or row["superseded_at"]:
         return "the document has a newer version; summarise it again"
     if row["duplicate_of_id"] is not None:

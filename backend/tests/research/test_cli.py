@@ -461,3 +461,77 @@ def test_health_exits_1_for_a_published_summary_of_an_institution_removed_from_t
     assert [f["code"] for f in removed["findings"]] == ["published_but_withheld"]
     assert main(["research", "health"]) == 1
     assert f"research withdraw {sid}" in capsys.readouterr().out
+
+
+def _purgeable(tmp_path, monkeypatch):
+    """A manual-import-only source with one imported document; the data directory and the registry text."""
+    registry = tmp_path / "research.toml"
+    registry.write_text(registry.read_text() + textwrap.dedent(MANUAL_REGISTRY), encoding="utf-8")
+    doc = _doc(tmp_path)
+    assert main(["research", "import", "manualonly", str(doc), "--url", "https://docs.example.org/outlook",
+                 "--importer", "Test Owner", "--note", "saved from a browser"]) == 0  # fmt: skip
+
+
+def test_purge_shows_a_plan_by_default_and_changes_nothing(env, tmp_path, capsys):
+    _purgeable(tmp_path, None)
+    capsys.readouterr()
+    args = ["research", "purge", "manualonly", "--acquisition", "manual"]
+    assert main(args) == 0
+    out = capsys.readouterr().out
+    assert "1 version(s) selected" in out and "Dry run: nothing was changed" in out
+    raw = list((tmp_path / "data" / "raw").rglob("*/*"))
+    assert len([p for p in raw if p.is_file()]) == 1
+
+
+def test_purge_apply_needs_its_reason_name_and_note_then_removes_the_content(env, tmp_path, capsys):
+    _purgeable(tmp_path, None)
+    capsys.readouterr()
+    base = ["research", "purge", "manualonly", "--acquisition", "manual", "--apply"]
+    assert main(base) == 2 and "--apply needs --reason, --by and --note" in capsys.readouterr().out
+    assert (
+        main(
+            [
+                *base,
+                "--reason",
+                "permission_withdrawn",
+                "--by",
+                "Owner",
+                "--note",
+                "licence withdrawn",
+            ]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "1 version(s) purged, 1 artifact(s) removed, 0 pending" in out and "backups" in out
+    assert not [p for p in (tmp_path / "data" / "raw").rglob("*") if p.is_file()]
+    assert main(["research", "purge", "manualonly", "--acquisition", "manual"]) == 0
+    assert "nothing to purge" in capsys.readouterr().out
+    assert main(["research", "orphans"]) == 0
+
+
+def test_purge_refuses_an_unknown_source_and_a_missing_selection(env, capsys):
+    assert main(["research", "purge", "nobody", "--acquisition", "all"]) == 2
+    assert "unknown institution" in capsys.readouterr().out
+    assert main(["research", "purge", "manualonly"]) == 2
+    assert main(["research", "purge"]) == 2
+    assert "name the institution" in capsys.readouterr().out
+    assert main(["research", "purge", "--finish"]) == 0
+
+
+def test_orphans_lists_old_unreferenced_files_and_removes_only_on_request(env, tmp_path, capsys):
+    import os
+    import time
+
+    assert main(["research", "orphans"]) == 0  # also creates the data directory and database
+    capsys.readouterr()
+    stray = tmp_path / "data" / "raw" / "ab" / ("ab" + "0" * 62)
+    stray.parent.mkdir(parents=True)
+    stray.write_bytes(b"left over")
+    assert main(["research", "orphans"]) == 0  # too young to be sure it is not mid-write
+    old = time.time() - 7200
+    os.utime(stray, (old, old))
+    assert main(["research", "orphans"]) == 1
+    assert "ab/" in capsys.readouterr().out and stray.exists()
+    assert main(["research", "orphans", "--remove"]) == 0
+    assert not stray.exists()

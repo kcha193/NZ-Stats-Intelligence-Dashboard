@@ -30,6 +30,14 @@ _SUMMARY_JOIN = (
 )
 
 
+# What a purge leaves in a summary's content columns (migration 010 allows no other change, and only after a purge).
+REDACTED = '{"redacted":true}'
+
+
+def is_redacted(value: str | None) -> bool:
+    return value == REDACTED
+
+
 class ReviewError(ValueError):
     pass
 
@@ -59,20 +67,107 @@ class SummaryKey:
 
 
 def spent_since(conn: sqlite3.Connection, since: datetime) -> float:
-    """Recorded model spend (USD, failed calls included) from `since` onwards, across every run.
+    """Model spend (USD, failed calls included) from `since` onwards, across every run.
 
-    Per run, the larger of its usage rows and its own `spent_usd`: an aborted run records what it spent on the run
-    even when the usage rows of its last document never reached the store. A process killed outright records
-    neither (a residual risk the per-run budget bounds).
+    Calls made since migration 009 are counted from their reservations: the actual cost once settled, the reserved
+    worst case while held or abandoned (an unknown outcome is treated as spent). A run that has no reservations
+    (made before 009) is counted as before: the larger of its usage rows and its own `spent_usd`.
     """
     stamp = to_utc_iso(since)
-    row = conn.execute(
+    legacy = conn.execute(
         "SELECT COALESCE(SUM(MAX(r.spent_usd, COALESCE(u.cost, 0))), 0) FROM research_llm_run r"
         " LEFT JOIN (SELECT run_id, SUM(cost_usd) AS cost FROM research_llm_usage WHERE created_at >= ?"
-        " GROUP BY run_id) u ON u.run_id = r.id WHERE r.dry_run = 0 AND (r.started_at >= ? OR u.cost IS NOT NULL)",
+        " GROUP BY run_id) u ON u.run_id = r.id WHERE r.dry_run = 0 AND (r.started_at >= ? OR u.cost IS NOT NULL)"
+        " AND NOT EXISTS (SELECT 1 FROM research_llm_reservation x WHERE x.run_id = r.id)",
         (stamp, stamp),
-    ).fetchone()
-    return float(row[0])
+    ).fetchone()[0]
+    reserved = conn.execute(
+        "SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE reserved_usd END), 0)"
+        " FROM research_llm_reservation WHERE created_at >= ?",
+        (stamp,),
+    ).fetchone()[0]
+    return float(legacy) + float(reserved)
+
+
+def reserve(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int,
+    version_id: int,
+    call_no: int,
+    provider: str,
+    model: str,
+    amount_usd: float,
+    period_cap_usd: float,
+    since: datetime,
+    now: datetime,
+    expires_at: datetime,
+) -> int | None:
+    """Hold `amount_usd` for one provider call, or None when the window cannot afford it.
+
+    The check and the insert happen under one write lock (`BEGIN IMMEDIATE`), so concurrent processes see each
+    other's holds: the sum of everything spent and held never exceeds the cap because of a race.
+    """
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if spent_since(conn, since) + amount_usd > period_cap_usd + 1e-9:
+            conn.execute("ROLLBACK")
+            return None
+        rid = int(conn.execute(
+            "INSERT INTO research_llm_reservation(run_id, version_id, call_no, provider, model,"
+            " reserved_usd, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)",
+            (run_id, version_id, call_no, provider, model, amount_usd, to_utc_iso(now), to_utc_iso(expires_at)),
+        ).lastrowid)  # fmt: skip
+    except BaseException:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+    conn.execute("COMMIT")
+    return rid
+
+
+def settle(
+    conn: sqlite3.Connection, reservation_id: int, *, actual_usd: float, basis: str, now: datetime
+) -> None:
+    """Close a held reservation at the call's actual cost (`basis`: reported, estimated, not_billed, worst_case).
+
+    A reservation already abandoned (its deadline passed) stays at its worst case: settling it is a no-op."""
+    conn.execute(
+        "UPDATE research_llm_reservation SET state='settled', actual_usd=?, settle_basis=?, closed_at=?"
+        " WHERE id=? AND state='held'",
+        (actual_usd, basis, to_utc_iso(now), reservation_id),
+    )
+
+
+def abandon_run(conn: sqlite3.Connection, run_id: int, *, now: datetime) -> float:
+    """Close this run's still-held reservations as interrupted; they keep counting at their worst case."""
+    return _abandon(conn, "run_id = ?", (run_id,), now)
+
+
+def abandon_stale(conn: sqlite3.Connection, *, now: datetime) -> float:
+    """Close held reservations whose own deadline has passed (their process is gone); returns the USD they hold."""
+    return _abandon(conn, "expires_at < ?", (to_utc_iso(now),), now)
+
+
+def _abandon(conn: sqlite3.Connection, where: str, params: tuple, now: datetime) -> float:
+    held = conn.execute(
+        f"SELECT COALESCE(SUM(reserved_usd), 0) FROM research_llm_reservation WHERE state='held' AND {where}",
+        params,
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE research_llm_reservation SET state='abandoned', settle_basis='interrupted', closed_at=?"
+        f" WHERE state='held' AND {where}",
+        (to_utc_iso(now), *params),
+    )
+    return float(held)
+
+
+def open_reservations(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Reservations whose outcome is unknown (held or abandoned), oldest first; for health and operators."""
+    return conn.execute(
+        "SELECT id, run_id, version_id, call_no, state, reserved_usd, created_at, expires_at, closed_at"
+        " FROM research_llm_reservation WHERE state != 'settled' ORDER BY id"
+    ).fetchall()
 
 
 def start_run(
@@ -270,6 +365,10 @@ def record_publication(
     ).fetchone()
     if row is None:
         raise PublicationError(f"no summary {summary_id}")
+    if decision == "publish" and conn.execute(
+        "SELECT 1 FROM research_summary s JOIN research_document_version v ON v.id = s.version_id"
+        " WHERE s.id=? AND v.purged_at IS NOT NULL", (summary_id,)).fetchone():  # fmt: skip
+        raise PublicationError("the source text of this summary was purged; it cannot be published")
     if decision == "publish" and (row["status"], row["review_status"]) != ("verified", "approved"):
         raise PublicationError(
             "only an approved, verified summary can be published"

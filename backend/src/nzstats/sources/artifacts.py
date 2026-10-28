@@ -4,16 +4,56 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 from nzstats.sources.fetcher import FetchResult
 from nzstats.store.repo import ArtifactRecord
 
+_REL = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{64}$")
+
+
+def valid_rel(rel: str) -> bool:
+    """Whether `rel` has the shape this store writes (`ab/<64 hex>`): nothing else is ever read or removed."""
+    return bool(_REL.fullmatch(rel or ""))
+
 
 class ArtifactStore:
     def __init__(self, raw_dir: Path) -> None:
         self._dir = raw_dir
+
+    @property
+    def root(self) -> Path:
+        return self._dir
+
+    def rel_for(self, body: bytes) -> str:
+        sha = hashlib.sha256(body).hexdigest()
+        return f"{sha[:2]}/{sha}"
+
+    def exists(self, rel: str) -> bool:
+        return valid_rel(rel) and (self._dir / rel).is_file()
+
+    def remove(self, rel: str) -> bool:
+        """Delete one stored file; False when it was already gone. Refuses any name this store would not write."""
+        if not valid_rel(rel):
+            raise ValueError("not a stored artifact name")
+        try:
+            (self._dir / rel).unlink()
+        except FileNotFoundError:
+            return False
+        return True
+
+    def files(self) -> Iterator[Path]:
+        """Every stored artifact file and every leftover temporary file, without following links."""
+        if not self._dir.is_dir():
+            return
+        for sub in sorted(self._dir.iterdir()):
+            if sub.is_dir() and not sub.is_symlink():
+                for path in sorted(sub.iterdir()):
+                    if path.is_file() and not path.is_symlink():
+                        yield path
 
     def save(self, result: FetchResult) -> ArtifactRecord:
         sha = hashlib.sha256(result.body).hexdigest()

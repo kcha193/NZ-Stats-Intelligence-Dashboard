@@ -183,6 +183,42 @@ def mark_duplicate(
                  " WHERE id=?", (original_id, original_version_id, publication_id))  # fmt: skip
 
 
+def purged_text(
+    conn: sqlite3.Connection,
+    institution_id: int,
+    text_sha256: str,
+    *,
+    content_sha256: str | None = None,
+    doc_key: str | None = None,
+) -> sqlite3.Row | None:
+    """The purged version (any publication of this institution) whose text or file bytes these are, if any.
+
+    A purge removes content that may not be held; storing the same text again, under any address, would undo it.
+    The file's own hash is matched too, so a changed extractor cannot get the same bytes past it. A publication that
+    still holds this text in an unpurged version (`doc_key`) is not refused: that text was not purged for it.
+    """
+    if doc_key is not None and conn.execute(
+        "SELECT 1 FROM research_document_version v JOIN research_publication p ON p.id = v.publication_id"
+        " WHERE p.doc_key=? AND v.text_sha256=? AND v.purged_at IS NULL", (doc_key, text_sha256)).fetchone():  # fmt: skip
+        return None
+    return conn.execute(
+        "SELECT v.id, v.purged_at, v.purge_id FROM research_document_version v"
+        " JOIN research_publication p ON p.id = v.publication_id"
+        " WHERE p.institution_id=? AND v.purged_at IS NOT NULL AND (v.text_sha256=? OR v.content_sha256=?) LIMIT 1",
+        (institution_id, text_sha256, content_sha256 or text_sha256),
+    ).fetchone()
+
+
+def text_is_stored(conn: sqlite3.Connection, publication_id: int, text_sha256: str) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM research_document_version WHERE publication_id=? AND text_sha256=?",
+            (publication_id, text_sha256),
+        ).fetchone()
+        is not None
+    )
+
+
 def find_text_elsewhere(
     conn: sqlite3.Connection, text_sha256: str, *, exclude_publication_id: int
 ) -> tuple[int, int] | None:
@@ -194,7 +230,7 @@ def find_text_elsewhere(
     row = conn.execute(
         "SELECT v.publication_id, v.id FROM research_document_version v"
         " JOIN research_publication p ON p.id = v.publication_id"
-        " WHERE v.text_sha256=? AND v.publication_id != ?"
+        " WHERE v.text_sha256=? AND v.publication_id != ? AND v.purged_at IS NULL"
         " ORDER BY (p.current_version_id = v.id) DESC, v.id LIMIT 1",
         (text_sha256, exclude_publication_id),
     ).fetchone()

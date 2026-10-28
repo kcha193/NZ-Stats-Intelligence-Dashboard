@@ -241,8 +241,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         import uvicorn
 
         from nzstats.api.app import create_app
-        from nzstats.research.api import research_router  # off unless NZSTATS_PUBLIC_RESEARCH=1
+        from nzstats.research.api import (
+            bind_refusal,
+            research_router,
+        )  # off unless NZSTATS_PUBLIC_RESEARCH=1
 
+        refusal = bind_refusal(args.host)
+        if refusal is not None:  # before the app, the database or the scheduler exist
+            print(refusal, file=sys.stderr)
+            return 2
         uvicorn.run(
             create_app(
                 settings, start_scheduler=not args.no_scheduler, routers=[research_router()]

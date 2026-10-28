@@ -19,13 +19,15 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
 
-from nzstats.clock import AKL
+from nzstats.clock import AKL, to_utc_iso
+from nzstats.research import purge
 from nzstats.research import summary_store as ss
 from nzstats.research.api import ENABLE_ENV, public_research_enabled
 from nzstats.research.contract import PERIOD_DAYS, LlmLimits
 from nzstats.research.public import public_summaries, why_not_public
 from nzstats.research.quality import version_quality
 from nzstats.research.registry import Institution
+from nzstats.sources.artifacts import ArtifactStore
 
 BUDGET_WARNING_SHARE = 0.8  # spend at or above this share of the rolling cap needs attention
 REPEATED_FAILURES = 3
@@ -137,7 +139,8 @@ def _one(conn: sqlite3.Connection, inst: Institution, now: datetime) -> SourceHe
 def _queues(conn: sqlite3.Connection, inst_id: int, src: SourceHealth) -> None:
     src.unsummarised = conn.execute(
         "SELECT COUNT(*) FROM research_publication p WHERE p.institution_id = ? AND p.duplicate_of_id IS NULL"
-        " AND p.current_version_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM research_summary s"
+        " AND p.current_version_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM research_document_version cv"
+        " WHERE cv.id = p.current_version_id AND cv.purged_at IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM research_summary s"
         " WHERE s.version_id = p.current_version_id AND s.status != 'provider_error')", (inst_id,),
     ).fetchone()[0]  # fmt: skip
     joined = (
@@ -154,8 +157,9 @@ def _queues(conn: sqlite3.Connection, inst_id: int, src: SourceHealth) -> None:
     ).fetchone()[0]  # fmt: skip
     poor = [
         r[0] for r in conn.execute(
-            "SELECT current_version_id FROM research_publication WHERE institution_id = ?"
-            " AND current_version_id IS NOT NULL ORDER BY id", (inst_id,))
+            "SELECT p.current_version_id FROM research_publication p JOIN research_document_version v"
+            " ON v.id = p.current_version_id WHERE p.institution_id = ? AND v.purged_at IS NULL ORDER BY p.id",
+            (inst_id,))
         if (q := version_quality(conn, r[0])) is not None and q.grade == "poor"
     ]  # fmt: skip
     if poor:
@@ -185,6 +189,7 @@ def research_health(
     now: datetime,
     limits: LlmLimits,
     env: Mapping[str, str],
+    artifacts: ArtifactStore | None = None,
 ) -> HealthReport:
     sources = [_one(conn, inst, now) for inst in registry.values()]
     published = _published_ids(conn)
@@ -216,7 +221,35 @@ def research_health(
         report.findings.append(Finding(
             "attention", "budget_near_cap",
             f"${spent:.2f} of the ${limits.max_period_usd:.2f} {PERIOD_DAYS}-day model budget is spent"))  # fmt: skip
+    _unsettled_calls(conn, report, now, limits)
+    for problem in purge.integrity_problems(conn, artifacts):
+        report.findings.append(
+            Finding(
+                "attention",
+                "purge_incomplete" if "purge" in problem else "raw_file_missing",
+                problem,
+            )
+        )
     if report.public_switch == "on":
         report.findings.append(Finding(
             "info", "public_api_on", f"{ENABLE_ENV}=1: published research is served without authentication"))  # fmt: skip
     return report
+
+
+def _unsettled_calls(
+    conn: sqlite3.Connection, report: HealthReport, now: datetime, limits: LlmLimits
+) -> None:
+    """Calls whose outcome is unknown (the process died, or the call was interrupted). They count at their worst
+    case until they leave the rolling window; a young held one may simply be a call in flight."""
+    stamp = to_utc_iso(now - timedelta(days=PERIOD_DAYS))
+    live = to_utc_iso(now)
+    rows = [
+        r for r in ss.open_reservations(conn)
+        if r["created_at"] >= stamp and (r["state"] == "abandoned" or r["expires_at"] < live)
+    ]  # fmt: skip
+    if rows:
+        held = sum(r["reserved_usd"] for r in rows)
+        report.findings.append(Finding(
+            "attention", "unsettled_model_calls",
+            f"{len(rows)} model call(s) have an unknown outcome and count as ${held:.2f} spent until they leave"
+            f" the {PERIOD_DAYS}-day window; check the provider's billing before raising the cap"))  # fmt: skip
