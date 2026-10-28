@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -38,6 +39,7 @@ from nzstats.sources.artifacts import ArtifactStore
 from nzstats.sources.fetcher import FetchResult
 from nzstats.store.db import transaction
 
+log = logging.getLogger(__name__)
 FORMATS = {"html": "text/html; charset=utf-8", "pdf": "application/pdf"}
 
 
@@ -120,7 +122,14 @@ def import_document(
     address = check_address(inst, url)
     try:
         extracted = _extract(body, file_format, limits or ExtractionLimits())
+    except ImportRefused:
+        raise
     except IngestError as exc:
+        raise ImportRefused(f"extraction failed: {safe_detail(exc)}") from None
+    except (
+        Exception
+    ) as exc:  # a parser bug on a hostile file refuses the import; the message is logged only
+        log.exception("extracting an imported %s file failed", file_format)
         raise ImportRefused(f"extraction failed: {safe_detail(exc)}") from None
     doc_key = f"{inst.key}:{address.split('://', 1)[1]}"
     existing = conn.execute("SELECT current_version_id FROM research_publication WHERE doc_key=?",
@@ -158,5 +167,13 @@ def import_document(
         _published(published_on, extracted, now), tuple(warnings), artifacts, now, acquisition="manual",
         audit=audit,
     )  # fmt: skip
+    warnings = item.warnings
+    if item.version_id is not None and item.outcome in ("unchanged", "reactivated"):
+        route = conn.execute("SELECT acquisition FROM research_document_version WHERE id=?",
+                             (item.version_id,)).fetchone()[0]  # fmt: skip
+        if (
+            route != "manual"
+        ):  # the same text was first stored by the crawler: it stays under that approval
+            warnings = (*warnings, "stored_by_crawler")
     return ImportResult(inst.key, address, item.outcome, item.publication_id, item.version_id, content_sha,
-                        item.warnings)  # fmt: skip
+                        warnings)  # fmt: skip

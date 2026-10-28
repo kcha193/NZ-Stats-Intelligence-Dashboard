@@ -72,6 +72,12 @@ def verify_backup(
     if not path.is_file():
         report.problems.append("the backup file does not exist")
         return report
+    wal = path.with_name(path.name + "-wal")
+    if wal.is_file() and wal.stat().st_size > 0:
+        # The check reads the main file only; a restore would also replay this log, so it would see a different state.
+        report.problems.append(
+            f"{wal.name} exists beside the backup: take backups with `nzstats backup`, not a file copy"
+        )
     try:
         conn = _read_only(path, immutable=True)
         result = [r[0] for r in conn.execute("PRAGMA integrity_check")]
@@ -111,11 +117,15 @@ def verify_backup(
     finally:
         conn.close()
     if live is not None:
-        live_conn = _read_only(Path(live), immutable=False)
         try:
-            live_counts = _counts(live_conn)
-        finally:
-            live_conn.close()
+            live_conn = _read_only(Path(live), immutable=False)
+            try:
+                live_counts = _counts(live_conn)
+            finally:
+                live_conn.close()
+        except sqlite3.Error:
+            report.problems.append("the live database could not be read for the row comparison")
+            return report
         report.count_differences = {
             t: (report.counts.get(t, 0), n)
             for t, n in live_counts.items()

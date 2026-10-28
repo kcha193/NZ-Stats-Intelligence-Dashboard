@@ -19,9 +19,10 @@ database holds one CPI release vintage (September 2026 quarter): earlier quarter
 first-published figure for the unadjusted index (not revised across the four real release files) but not for the
 seasonally adjusted one. Compose publishes port 8000 on all interfaces, so the research switch must stay off on any
 reachable host. An automated security review found that a manual-import approval would have kept crawled versions usable
-after the crawler approval was revoked; fixed in `bf1996d` with failing-first tests.
+after the crawler approval was revoked; fixed in `bf1996d` with failing-first tests. An independent review found no critical or high
+issue after that; its medium and low findings were fixed with tests or recorded as follow-ups in the report.
 
-Verification (this machine): backend 2402+ tests (Python 3.14 venv), Ruff and format clean; frontend 458 tests,
+Verification (this machine): backend 2414 tests (Python 3.14 venv), Ruff and format clean; frontend 458 tests,
 typecheck, lint (existing warnings), build, no API type change; Playwright live 108 passed, research 18 passed and 3
 screenshot captures skipped, static site 252 passed; on a copy of the real database, migration 7 to 8 applied,
 `verify-backup --raw-dir data/raw` ok (54,012 rows, 23 tables), `research health` ok (all sources gated); real-DB

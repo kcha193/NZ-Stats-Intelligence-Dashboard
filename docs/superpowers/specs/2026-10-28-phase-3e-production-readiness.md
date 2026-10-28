@@ -82,7 +82,7 @@ Open PRs: none. Worktrees: `phase-4b-dashboard-ux` holds uncommitted, unrelated 
 7. **Runbooks**: manual import, reviewer workflow, source onboarding, health monitoring, withdrawal, backup and restore
    (`docs/data-sources/research.md`, `README.md`), CPI backfill (`docs/cpi-release-runbook.md`).
 
-Tests added: 35 manual import (registry rules, provenance, versions, URL policy, walls, formats, size, PDF pages,
+Tests added: 38 manual import (registry rules, provenance, versions, URL policy, walls, formats, size, PDF pages,
 append-only audit, LLM eligibility, revocation through the gate and the API, approvals scoped to acquisition), 9 health, 3 readiness, 4 CLI (import,
 health), 3 summarise and provider (rolling cap), 15 CPI oracle and coverage, 8 backup verification, 1 migration 008
 rollback.
@@ -90,6 +90,16 @@ rollback.
 An automated security review of the first commits found that `source_permitted` let a manual-import approval keep
 crawled versions usable after the crawler approval was revoked. Fixed in `bf1996d`: each approval now covers only the
 versions it let in (`Institution.holds(acquisition)`), with failing-first tests in both directions.
+
+An independent code review of the whole diff (security, licensing, statistics, operations) then found no critical or
+high issue after that fix, and confirmed: no gate widened beyond intent, no new field reaches the API or snapshot, the
+audit row is atomic with the version, revocation is immediate, the oracle is independent, and the backup check never
+writes the copy. Its medium and low findings, fixed with failing-first tests: spend recorded only on an aborted run now
+counts toward the 30-day cap; `verify-backup` fails when a non-empty `-wal` sits beside the copy and reports an
+unreadable `--live` database instead of crashing; a parser crash on a hostile import file is a refusal; re-importing
+text the crawler stored first warns `stored_by_crawler` (it stays under the crawler approval); and a failing audit
+insert is shown to roll the version back. Accepted as follow-ups (section 11): concurrent summarise runs, a targeted
+purge of imported copies, and the reviewer's labelling notes.
 
 ## 6. Historical data readiness
 
@@ -128,7 +138,7 @@ GDP, labour-market and OCR data are separate official-source integrations and ar
 
 | Check | Result |
 |---|---|
-| Backend `pytest` (Python 3.14 venv; CI uses 3.12) | 2402 passed (+ out-of-order backfill tests after) |
+| Backend `pytest` (Python 3.14 venv; CI uses 3.12) | 2414 passed |
 | `ruff check .`, `ruff format --check .` | clean |
 | Frontend `npm test`, `typecheck`, `lint`, `build` | 458 passed; clean; existing fast-refresh warnings only; built |
 | `npm run gen:api` | no change to `src/api/schema.d.ts` (no API model changed) |
@@ -186,3 +196,12 @@ example Tailscale) in front, never a bare published port.
 - Revoking a permission stops processing and display but does not delete stored text; the rollback and deletion steps
   are in `research.md`.
 - Heuristic wall detection and extraction grading are untested on real Treasury documents.
+- Budget: two summarise processes started together each read the remaining 30-day budget once, so together they can
+  spend up to twice it; a process killed outright records no spend for its last document. Run summarise from one
+  place at a time (a lock or reservation row is the follow-up).
+- No targeted purge: deleting imported copies after a licence is withdrawn needs the full research rollback today (a
+  purge of `acquisition = 'manual'` versions and their raw files is the follow-up). A `duplicate` import leaves its raw
+  file unreferenced.
+- The import URL is the importer's statement; its query string is kept in the document address.
+- "First release" means the earliest stored bundle of that quarter's own release, which could be a correction if the
+  original was never stored; `cpi-vintages` checks the unadjusted series only.

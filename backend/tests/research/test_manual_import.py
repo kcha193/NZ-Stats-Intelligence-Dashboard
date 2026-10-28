@@ -359,3 +359,37 @@ def test_a_crawler_approval_does_not_cover_imported_versions_after_manual_import
     assert public_summaries(conn, {"example": crawler_only}) == []
     found, _ = eligible_versions(conn, {"example": crawler_only}, hosted=False)
     assert found == []
+
+
+def test_a_failing_audit_insert_rolls_back_the_version(conn, artifacts):
+    conn.execute("CREATE TRIGGER fail_audit BEFORE INSERT ON research_manual_import"
+                 " BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END")  # fmt: skip
+    with pytest.raises(sqlite3.DatabaseError, match="audit unavailable"):
+        do_import(conn, manual(), artifacts=artifacts)
+    assert conn.execute("SELECT COUNT(*) FROM research_document_version").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM research_publication").fetchone()[0] == 0
+
+
+def test_a_parser_crash_on_a_hostile_file_is_a_refusal_not_a_traceback(
+    conn, artifacts, monkeypatch
+):
+    def boom(*a, **k):
+        raise RuntimeError("secret parser detail")
+
+    monkeypatch.setattr("nzstats.research.manual_import.extract_html", boom)
+    with pytest.raises(ImportRefused, match="extraction failed") as exc:
+        do_import(conn, manual(), artifacts=artifacts)
+    assert "secret" not in str(exc.value)
+
+
+def test_reimporting_text_the_crawler_stored_warns_that_it_stays_crawler_scoped(conn, artifacts):
+    both = manual(
+        review_status="approved", approved_by="Owner", approved_on="2026-10-25", approval_note="s"
+    )
+    first = do_import(conn, both, artifacts=artifacts)
+    # As if the crawler had stored this text first: a version keeps the route it was first obtained by.
+    conn.execute(
+        "UPDATE research_document_version SET acquisition='crawler' WHERE id=?", (first.version_id,)
+    )
+    again = do_import(conn, both, artifacts=artifacts)
+    assert again.outcome == "unchanged" and "stored_by_crawler" in again.warnings

@@ -109,3 +109,16 @@ def test_cli_backup_verifies_its_copy_and_verify_backup_exits_nonzero_on_failure
     assert main(["verify-backup", str(dest), *args]) == 0
     (tmp_path / "junk.db").write_bytes(b"junk" * 500)
     assert main(["verify-backup", str(tmp_path / "junk.db")]) == 1
+
+
+def test_a_backup_with_a_wal_sidecar_fails_because_a_restore_would_read_a_different_state(tmp_path):
+    copy = _copy(_db(tmp_path), tmp_path / "copy.db")
+    (tmp_path / "copy.db-wal").write_bytes(b"x" * 64)
+    report = verify_backup(copy)
+    assert not report.ok and any("-wal" in p for p in report.problems)
+
+
+def test_a_missing_live_database_is_a_problem_not_a_crash(tmp_path):
+    copy = _copy(_db(tmp_path), tmp_path / "copy.db")
+    report = verify_backup(copy, live=tmp_path / "nope.db")
+    assert not report.ok and any("live" in p for p in report.problems)

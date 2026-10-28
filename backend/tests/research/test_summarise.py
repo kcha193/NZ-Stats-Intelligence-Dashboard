@@ -592,3 +592,19 @@ def test_a_dry_run_reports_the_period_budget_without_spending(conn):
     result = run(conn, FakeProvider("{}"), dry_run=True, limits=LlmLimits(max_period_usd=0.0001))
     assert [i.outcome for i in result.items] == ["would_summarise"]
     assert result.period_remaining_usd == pytest.approx(0.0001)
+
+
+def test_spend_recorded_only_on_an_aborted_run_still_counts_toward_the_period_cap(conn):
+    # An abort after billed calls records the spend on the run, not as usage rows (review finding).
+    from datetime import timedelta
+
+    seed_version(conn)
+    run_id = ss.start_run(conn, provider="fake", model="m", hosted=False, prompt_version="p",
+                          processing_version="3b-1", limits={}, dry_run=False, now=NOW - timedelta(days=1))  # fmt: skip
+    ss.finish_run(
+        conn, run_id, outcome="aborted", counts={}, spent_usd=9.99, now=NOW - timedelta(days=1)
+    )
+    assert ss.spent_since(conn, NOW - timedelta(days=30)) == pytest.approx(9.99)
+    fake = FakeProvider(lambda req: draft_json(req.version_id))
+    result = run(conn, fake, limits=LlmLimits(max_run_usd=5.0, max_period_usd=10.0))
+    assert [i.outcome for i in result.items] == ["budget_exhausted"] and fake.calls == []
