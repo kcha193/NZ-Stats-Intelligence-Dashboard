@@ -16,7 +16,7 @@ beforeEach(() => mockApi({ "/api/cpi": data }));
 it("shows the verified headline indicators with units, comparisons and provenance", async () => {
   renderWithProviders(<Inflation />);
   expect(await screen.findByRole("heading", { name: "Inflation", level: 1 })).toBeInTheDocument();
-  const kpis = screen.getByRole("region", { name: "CPI key indicators" });
+  const kpis = await screen.findByRole("region", { name: "CPI key indicators" });
   for (const text of ["4.1%", "1.5%", "4.9%", "3.4%", "Annual CPI inflation", "Tradables", "Non-tradables"]) {
     expect(kpis).toHaveTextContent(text);
   }
@@ -31,7 +31,7 @@ it("shows the verified headline indicators with units, comparisons and provenanc
 it("changes the history range and keeps a zero line and the reference band", async () => {
   renderWithProviders(<Inflation />);
   const user = userEvent.setup();
-  await screen.findByRole("heading", { name: "Inflation", level: 1 });
+  await screen.findByRole("region", { name: "CPI key indicators" });
   expect(optionOf("Annual CPI inflation history").xAxis.data).toHaveLength(40);
   const ranges = within(screen.getByRole("group", { name: "History range" }));
   await user.click(ranges.getByRole("radio", { name: "3 years" }));
@@ -88,7 +88,7 @@ it("explores official groups with source metadata and the three views", async ()
 
 it("keeps chart exports, official underlying measures, analysis and safe methodology links", async () => {
   renderWithProviders(<Inflation />);
-  await screen.findByRole("heading", { name: "Inflation", level: 1 });
+  await screen.findByRole("region", { name: "CPI key indicators" });
   expect(screen.getAllByRole("button", { name: /download data/i })).toHaveLength(5);
   expect(screen.getAllByRole("button", { name: /export image/i })).toHaveLength(5);
   expect(screen.getByRole("table", { name: "Official underlying measures" })).toHaveTextContent("Weighted median");
@@ -115,7 +115,57 @@ it("shows n/a, never an invented 0.0%, when a rate is not available", async () =
   mockApi({ "/api/cpi": gap });
   renderWithProviders(<Inflation />);
   const user = userEvent.setup();
-  await screen.findByRole("heading", { name: "Inflation", level: 1 });
+  await screen.findByRole("region", { name: "CPI key indicators" });
   await user.click(within(screen.getByRole("group", { name: "Rate" })).getByRole("radio", { name: "Quarterly" }));
   expect(screen.getByText(/tradables n\/a, non-tradables n\/a/)).toBeInTheDocument();
+});
+
+
+it("retains one Inflation h1 during initial loading, not found, server error, pending retry and success", async () => {
+  let respond!: (response: Response) => void;
+  vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { respond = resolve; })));
+  const user = userEvent.setup();
+  renderWithProviders(<Inflation />);
+  const heading = () => expect(screen.getAllByRole("heading", { name: "Inflation", level: 1 })).toHaveLength(1);
+  heading();
+  expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+  respond(new Response(JSON.stringify({ detail: "Synthetic unavailable" }), { status: 503 }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("This could not be loaded");
+  heading();
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  heading();
+  respond(new Response(JSON.stringify(data), { status: 200 }));
+  await screen.findByRole("region", { name: "CPI key indicators" });
+  heading();
+  expect(screen.getByRole("heading", { name: "CPI key indicators", level: 2 })).toBeInTheDocument();
+});
+
+it("retains Inflation identity in the 404 empty state", async () => {
+  mockApi({});
+  renderWithProviders(<Inflation />);
+  await screen.findByText("CPI data has not been ingested yet");
+  expect(screen.getAllByRole("heading", { name: "Inflation", level: 1 })).toHaveLength(1);
+});
+
+it("keeps table periods and annual rates aligned with full, limited and changed chart ranges", async () => {
+  renderWithProviders(<Inflation />);
+  await screen.findByRole("region", { name: "CPI key indicators" });
+  const user = userEvent.setup();
+  const ranges = within(screen.getByRole("group", { name: "History range" }));
+  await user.click(screen.getAllByText("View data table")[0]);
+  for (const [name, count] of [["Full history", 58], ["3 years", 12], ["5 years", 20], ["10 years", 40]] as const) {
+    await user.click(ranges.getByRole("radio", { name }));
+    const table = screen.getAllByRole("table")[0];
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(count);
+    expect(table).toHaveTextContent(`Showing all ${count} periods`);
+    const option = optionOf("Annual CPI inflation history");
+    expect(option.xAxis.data).toHaveLength(count);
+    const original = data.series.find((s) => s.slug === "all_groups" && s.adjustment === "none")!.points.slice(-count);
+    expect(option.series[0].data).toEqual(original.map((p) => p.annual_pct));
+    expect(rows.map((r) => within(r).getAllByRole("cell")[4].textContent)).toEqual(original.map((p) =>
+      p.annual_pct == null ? "n/a" : p.annual_pct.toLocaleString("en-NZ", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).replace("-", "−"),
+    ));
+  }
+  expect(screen.getByRole("heading", { name: "Inflation", level: 1 })).toBeInTheDocument();
 });

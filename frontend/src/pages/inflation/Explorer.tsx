@@ -5,7 +5,7 @@ import { componentOption, historyCsvRows, rangeFilter, type ComponentMode, type 
 import { useChartTheme } from "@/charts/theme";
 import { Segmented } from "@/components/Segmented";
 import { formatNumber, monthLabel } from "@/lib/format";
-import { fullMonth, plainName } from "./format";
+import { CPI_HISTORY_COLUMNS, CPI_TABLE_NOTE, fullMonth, plainName } from "./format";
 
 const MODES = [
   { value: "annual", label: "Annual change" },
@@ -46,9 +46,9 @@ export function Explorer({ data, range, source }: { data: CpiDashboard; range: C
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="grid gap-1 text-xs">
+        <label className="grid min-w-0 max-w-full gap-1 text-xs">
           CPI component
-          <select className="rounded-md border bg-background px-2 py-1.5 text-sm" value={slug} onChange={(e) => setSlug(e.target.value)}>
+          <select className="min-h-11 min-w-0 max-w-full rounded-md border bg-background px-2 py-1.5 text-sm sm:min-h-0" value={slug} onChange={(e) => setSlug(e.target.value)}>
             {optionGroups.map(([label, list]) => (
               <optgroup key={label} label={label}>
                 {list.map((s) => <option key={s.slug} value={s.slug}>{plainName(s)}</option>)}
@@ -68,6 +68,7 @@ export function Explorer({ data, range, source }: { data: CpiDashboard; range: C
         unit={mode === "index" ? "index (June 2017 = 1000)" : "percent"} source={source}
         caveat={mode === "index" ? "Axis does not start at zero. Index levels are published as rounded numbers." : "Percentage change in this component's prices; not its contribution to the headline change."}
         option={componentOption(series, mode, range, theme)} ariaLabel="CPI component history" height={300}
+        tableColumns={CPI_HISTORY_COLUMNS} tableNote={CPI_TABLE_NOTE}
         csvFilename={`cpi-${series.slug}-${adjustment}.csv`} csvRows={historyCsvRows(series, visible, meta)} />
       <p aria-label="Component source" className="text-xs text-muted-foreground">
         Stats NZ series {series.source_reference ?? "n/a"} · {series.classification} · {ADJUSTMENT[adjustment as keyof typeof ADJUSTMENT]} index · latest {last ? monthLabel(last.period) : "n/a"} ({series.status}).
