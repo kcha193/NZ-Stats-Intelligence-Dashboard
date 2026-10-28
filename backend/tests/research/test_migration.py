@@ -243,3 +243,19 @@ def test_migration_008_is_additive_and_its_rollback_removes_only_its_objects(tmp
     for sql in after.values():
         for table in ("release", "series", "vintage", "observation", "ingest_run"):
             assert f"REFERENCES {table} " not in sql and f"REFERENCES {table}(" not in sql
+
+
+ROLLBACK_009 = REPO / "scripts" / "rollback" / "009_research_llm_reservation_down.sql"
+
+
+def test_migration_009_is_additive_and_its_rollback_removes_only_its_objects(tmp_path):
+    conn = connect(tmp_path / "r.db")
+    migrate(conn)
+    conn.executescript(ROLLBACK_009.read_text(encoding="utf-8"))
+    before = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    assert "research_llm_reservation" not in before
+    assert 9 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
+    assert migrate(conn) >= 9
+    after = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    assert {k: v for k, v in after.items() if k in before} == before
+    assert "research_llm_reservation" in after

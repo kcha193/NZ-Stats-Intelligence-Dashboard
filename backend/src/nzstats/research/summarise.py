@@ -53,6 +53,17 @@ NOT_BILLED = frozenset(
     {"auth_error", "bad_request", "rate_limited", "overloaded", "conflict", "http_error"}
 )
 MAX_BACKOFF_SECONDS = 30.0
+STALE_MARGIN_SECONDS = 60.0
+
+
+def stale_after(limits: LlmLimits) -> timedelta:
+    """How long a call can legitimately be in flight: every attempt at its timeout, every back-off, and a margin."""
+    attempts = limits.max_retries + 1
+    return timedelta(
+        seconds=limits.timeout_seconds * attempts
+        + MAX_BACKOFF_SECONDS * limits.max_retries
+        + STALE_MARGIN_SECONDS
+    )
 
 
 @dataclass(frozen=True)
@@ -208,6 +219,8 @@ def summarise_versions(
                     "period_remaining_usd": round(remaining, 6), "timeout_seconds": limits.timeout_seconds},
             dry_run=False, now=started,
         )  # fmt: skip
+        # A reservation still held from before any call could be in flight belongs to a process that is gone.
+        ss.abandon_stale(conn, older_than=started - stale_after(limits), now=started)
     stopped = False
     slots = 0  # the cap bounds work still to do; finished and oversize versions never use a slot
     try:
@@ -245,8 +258,7 @@ def summarise_versions(
                                    sleep=sleep, clock=clock)  # fmt: skip
     except BaseException:
         if result.run_id is not None:
-            ss.finish_run(conn, result.run_id, outcome="aborted", counts=result.counts,
-                          spent_usd=result.spent_usd, now=now_fn())  # fmt: skip
+            _record_abort(conn, result, now_fn())
         raise
     if stopped:
         result.outcome = "budget_exhausted"
@@ -256,6 +268,22 @@ def summarise_versions(
         ss.finish_run(conn, result.run_id, outcome=result.outcome, counts=result.counts,
                       spent_usd=result.spent_usd, now=now_fn())  # fmt: skip
     return result
+
+
+def _record_abort(conn: sqlite3.Connection, result: SummariseResult, now: datetime) -> None:
+    """Close an interrupted run. A call that never returned may have been billed, so its reservation stays at the
+    worst case and the run records it as spent. Recording must not hide the error that interrupted the run."""
+    try:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        interrupted = ss.abandon_run(conn, result.run_id or 0, now=now)
+        result.spent_usd += interrupted
+        ss.finish_run(conn, result.run_id or 0, outcome="aborted", counts=result.counts,
+                      spent_usd=result.spent_usd, now=now)  # fmt: skip
+    except Exception:
+        log.exception(
+            "could not record the aborted run %s; its reservations stay held", result.run_id
+        )
 
 
 def _process(
@@ -283,11 +311,22 @@ def _process(
         if result.spent_usd + worst > limits.max_run_usd:
             budget_stop = True
             break
+        # Reserve before contacting the provider: under the database write lock, so another process sees it.
+        held = ss.reserve(
+            conn, run_id=result.run_id or 0, version_id=key.version_id, call_no=call_no,
+            provider=provider.name, model=provider.model, amount_usd=worst,
+            period_cap_usd=limits.max_period_usd,
+            since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
+        )  # fmt: skip
+        if held is None:
+            budget_stop = True
+            break
         started = clock()
         try:
             response = provider.summarise(request)
             error = None
         except ProviderDisabled:
+            ss.settle(conn, held, actual_usd=0.0, basis="not_billed", now=now_fn())
             raise
         except ProviderError as exc:
             error = exc
@@ -303,16 +342,25 @@ def _process(
             cost = pricing.cost(in_tok, out_tok)
             calls.append(_Call(call_no, in_tok, out_tok, estimated, latency, cost, "ok", None))
             result.spent_usd += cost
+            # Settled at once, in its own transaction: the cost is durable even if storing the result fails.
+            ss.settle(conn, held, actual_usd=cost, basis="estimated" if estimated else "reported",
+                      now=now_fn())  # fmt: skip
             break
         assert error is not None
         reported = error.input_tokens is not None and error.output_tokens is not None
         if reported:
-            cost = pricing.cost(error.input_tokens or 0, error.output_tokens or 0)
+            cost, basis = (
+                pricing.cost(error.input_tokens or 0, error.output_tokens or 0),
+                "reported",
+            )
+        elif error.error_class in NOT_BILLED:
+            cost, basis = 0.0, "not_billed"
         else:
-            cost = 0.0 if error.error_class in NOT_BILLED else worst
+            cost, basis = worst, "worst_case"
         calls.append(_Call(call_no, error.input_tokens, error.output_tokens, not reported, latency,
                            cost, "provider_error", error.error_class))  # fmt: skip
         result.spent_usd += cost
+        ss.settle(conn, held, actual_usd=cost, basis=basis, now=now_fn())
         if not error.retryable or call_no > limits.max_retries:
             break
         sleep(min(BACKOFF_SECONDS * 2 ** (call_no - 1), MAX_BACKOFF_SECONDS))

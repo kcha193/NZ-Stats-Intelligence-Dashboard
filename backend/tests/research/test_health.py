@@ -214,3 +214,39 @@ def test_the_withholding_audit_writes_nothing_and_makes_no_network_request(conn,
     before = conn.total_changes
     assert _removed(conn).needs_attention
     assert conn.total_changes == before and not conn.in_transaction
+
+
+def _reserve(conn, version, *, at, state="held", usd=0.5):
+    run = conn.execute("INSERT INTO research_llm_run(provider, model, hosted, prompt_version, processing_version,"
+                       " started_at) VALUES ('fake','m',0,'p','3b-1',?)", (at,)).lastrowid  # fmt: skip
+    closed = "2026-10-26T01:00:00Z" if state == "abandoned" else None
+    conn.execute("INSERT INTO research_llm_reservation(run_id, version_id, call_no, provider, model, reserved_usd,"
+                 " state, settle_basis, closed_at, created_at) VALUES (?,?,1,'fake','m',?,?,?,?,?)",
+                 (run, version, usd, state, "interrupted" if closed else None, closed, at))  # fmt: skip
+
+
+def test_a_model_call_with_an_unknown_outcome_needs_attention_once_it_cannot_be_in_flight(conn):
+    version = seed_version(conn)
+    _reserve(conn, version, at="2026-10-26T00:59:00Z")
+    young = research_health(conn, registry(), now=NOW, limits=LlmLimits(), env={})
+    assert "unsettled_model_calls" not in codes(young)  # a live call holds a reservation too
+    old = research_health(
+        conn, registry(), now=NOW + timedelta(hours=1), limits=LlmLimits(), env={}
+    )
+    assert "unsettled_model_calls" in codes(old) and old.needs_attention
+    assert old.spent_period_usd == 0.5  # counted at its worst case either way
+    message = next(f.message for f in old.findings if f.code == "unsettled_model_calls")
+    assert "$0.50" in message and "1 " in message
+
+
+def test_an_abandoned_call_keeps_needing_attention_until_it_leaves_the_window(conn):
+    version = seed_version(conn)
+    _reserve(conn, version, at="2026-10-26T00:00:00Z", state="abandoned")
+    report = research_health(
+        conn, registry(), now=NOW + timedelta(days=2), limits=LlmLimits(), env={}
+    )
+    assert "unsettled_model_calls" in codes(report)
+    later = research_health(
+        conn, registry(), now=NOW + timedelta(days=40), limits=LlmLimits(), env={}
+    )
+    assert "unsettled_model_calls" not in codes(later)
