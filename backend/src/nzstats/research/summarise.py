@@ -112,7 +112,8 @@ def eligible_versions(
 ) -> tuple[list[Candidate], list[tuple[str, str]]]:
     """Versions this provider may process, and (institution, reason) for every refusal."""
     sql = (
-        "SELECT v.id, v.title, v.licence_snapshot, p.published_on, i.key FROM research_document_version v"
+        "SELECT v.id, v.title, v.licence_snapshot, v.acquisition, p.published_on, i.key"
+        " FROM research_document_version v"
         " JOIN research_publication p ON p.id = v.publication_id"
         " JOIN research_institution i ON i.id = p.institution_id"
     )
@@ -130,7 +131,11 @@ def eligible_versions(
     for row in conn.execute(sql, params):
         key = row["key"]
         inst = registry.get(key)
-        reason = "not in the research registry" if inst is None else inst.llm_refusal(hosted=hosted)
+        reason = (
+            "not in the research registry"
+            if inst is None
+            else inst.llm_refusal(hosted=hosted, acquisition=row["acquisition"])
+        )
         if reason is None and _stored_policy(row["licence_snapshot"]) not in (
             None,
             ContentPolicy.FULL_TEXT,

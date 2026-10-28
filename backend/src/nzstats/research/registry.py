@@ -153,6 +153,16 @@ class Institution:
         """Material from this source may be held here: fetched by the crawler or stored from a manual import."""
         return self.automated_access_allowed or self.manual_import_allowed
 
+    def holds(self, acquisition: str | None) -> bool:
+        """Whether material obtained this way may still be used. Each approval covers only what it let in: crawled
+        versions need the crawler approval and imported ones the manual-import approval, so revoking one route is
+        never undone by the other. `None` (no version in view) asks whether any route is open."""
+        if acquisition is None:
+            return self.source_permitted
+        return (
+            self.manual_import_allowed if acquisition == "manual" else self.automated_access_allowed
+        )
+
     def import_refusal(self) -> str | None:
         """Why an owner-supplied copy may not be stored, in fixed wording (None when allowed)."""
         return None if self.manual_import_allowed else "manual import not approved for this source"
@@ -167,17 +177,17 @@ class Institution:
             return "content policy none: automated access is not permitted"
         return None
 
-    def llm_refusal(self, *, hosted: bool) -> str | None:
-        """Why this source's text may not go to a (hosted or local) model, in fixed wording."""
-        if not self.source_permitted or self.llm_processing is LlmProcessing.DENIED:
+    def llm_refusal(self, *, hosted: bool, acquisition: str | None = None) -> str | None:
+        """Why this source's text (a version obtained by `acquisition`) may not go to a model, in fixed wording."""
+        if not self.holds(acquisition) or self.llm_processing is LlmProcessing.DENIED:
             return "llm processing denied for this source"
         if hosted and self.llm_processing is not LlmProcessing.HOSTED:
             return "source permits local models only"
         return None
 
-    def display_level(self) -> PublicDisplay:
+    def display_level(self, acquisition: str | None = None) -> PublicDisplay:
         """What may be shown now. AI text needs the source's LLM permission too: revoking it withdraws the text."""
-        if not self.source_permitted:
+        if not self.holds(acquisition):
             return PublicDisplay.NONE
         if (
             self.public_display.rank > PublicDisplay.LINK_ONLY.rank

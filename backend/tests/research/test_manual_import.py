@@ -322,3 +322,40 @@ def test_the_api_applies_a_revocation_on_the_next_request(make, tmp_path):
     current = {"example": _displayable_manual(**REVOKED["manual import"])}
     assert client.get(f"/api/research/summaries/{sid}").status_code == 404
     assert client.get("/api/research/feed").json()["total"] == 0
+
+
+# --- review finding: each permission covers only what was obtained under it ---------------------------------------
+
+
+def test_a_manual_import_approval_does_not_revive_crawled_versions_after_crawler_approval_is_revoked(
+    conn, artifacts
+):
+    from .llm_support import seed_version
+    from .public_support import store_summary
+
+    crawled = seed_version(conn)  # stored by the crawler while the source was approved
+    sid = store_summary(conn, crawled)
+    from nzstats.research.public import public_summaries
+
+    both = _displayable_manual(review_status="approved", approved_by="Owner", approved_on="2026-10-25",
+                               approval_note="synthetic")  # fmt: skip
+    assert [p.id for p in public_summaries(conn, {"example": both})] == [sid]
+    manual_only = _displayable_manual()  # crawler approval revoked; manual import still approved
+    assert public_summaries(conn, {"example": manual_only}) == []
+    found, refusals = eligible_versions(conn, {"example": manual_only}, hosted=False)
+    assert found == [] and refusals == [("example", "llm processing denied for this source")]
+
+
+def test_a_crawler_approval_does_not_cover_imported_versions_after_manual_import_is_revoked(
+    conn, artifacts
+):
+    from nzstats.research.public import public_summaries
+
+    _, sid = _imported_and_published(conn, artifacts)
+    crawler_only = _displayable_manual(review_status="approved", approved_by="Owner", approved_on="2026-10-25",
+                                       approval_note="synthetic", manual_import="denied",
+                                       manual_import_approved_by=None, manual_import_approved_on=None,
+                                       manual_import_note=None)  # fmt: skip
+    assert public_summaries(conn, {"example": crawler_only}) == []
+    found, _ = eligible_versions(conn, {"example": crawler_only}, hosted=False)
+    assert found == []
