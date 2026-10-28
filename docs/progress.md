@@ -1,8 +1,9 @@
 # Progress and verification record
 
 Last updated 2026-10-28. Phase 3E (production readiness) is on `feat/phase-3e-production-readiness` (not merged).
-Phases 3A to 3D (PRs #11 to #15) and the Netlify static publication (PR #10) are merged to `main`; the static site is
-not deployed and no research source is approved. Earlier entries below are historical.
+Phases 3A to 3D (PRs #11 to #15), Phase 4B dashboard UX remediation (PR #17) and the Netlify static publication
+(PR #10) are merged to `main`; the static site is not deployed and no research source is approved. Earlier entries
+below are historical.
 
 ## Phase 3E: production readiness, 28 October 2026
 
@@ -22,13 +23,25 @@ reachable host. An automated security review found that a manual-import approval
 after the crawler approval was revoked; fixed in `bf1996d` with failing-first tests. An independent review found no critical or high
 issue after that; its medium and low findings were fixed with tests or recorded as follow-ups in the report.
 
-Verification (this machine): backend 2414 tests (Python 3.14 venv), Ruff and format clean; frontend 458 tests,
+Verification (this machine): backend 2421 tests (Python 3.14 venv, re-run after merging `main`), Ruff and format clean; frontend 464 tests (after merging `main`),
 typecheck, lint (existing warnings), build, no API type change; Playwright live 108 passed, research 18 passed and 3
 screenshot captures skipped, static site 252 passed; on a copy of the real database, migration 7 to 8 applied,
 `verify-backup --raw-dir data/raw` ok (54,012 rows, 23 tables), `research health` ok (all sources gated); real-DB
 snapshot byte-identical between `main` and the branch (`7be455c2b866`, 216 files) and valid for publication; live
 database SHA-256 unchanged. Not run: Docker build and smoke (no container runtime here), hosted CI (billing), any
 real-model evaluation (no authorised document, provider or budget).
+
+## Phase 4B: targeted dashboard UX remediation, 28 October 2026
+
+Local, uncommitted on `fix/phase-4b-dashboard-ux`, based on verified integration tip `93d114e` (PR #14 merged).
+B1/B3: all selected chart rows available, visible range caption, readable CPI display columns with raw CSV preserved.
+B2: persistent Inflation h1 across loading, 404, error, retry and success. C1: measured mobile targets at least 44×44,
+with compact desktop sizes retained. Existing research checkout and capability reports preserved.
+
+Verification: 423 frontend unit tests, 126 live and 51 targeted static/parity Playwright checks pass; typecheck, lint,
+production/static builds pass with existing warnings. Chromium at 390/768/1440 px; synthetic CPI responses, both themes,
+reduced motion, keyboard/focus, CSV/PNG, state identity and no target overlap/document overflow. No real-device,
+screen-reader or WCAG conformance claim. Full evidence, file list and limitations: [Phase 4B report](phase-4b-dashboard-ux.md).
 
 ## Phase 3D-B: forecast history, evaluation and consensus, 28 October 2026
 
@@ -914,6 +927,8 @@ Run 2026-10-12 against a scratch data directory, 10 s between requests, User-Age
 - Every one of the 26 releases has an analysis page through the API.
 
 ## Chart and design review
+
+- At mobile widths, measure interactive hit regions: aim for at least 44×44 CSS pixels without overlapping neighbouring controls; preserve keyboard focus and desktop density, and record justified exceptions.
 
 - Palette validated with the `dataviz` validator (categorical chart-1 to chart-4): light on `#ffffff` `#2b66a8, #c75f0c,
   #2a8a6c, #7b52b5` and dark on `#1c1917` `#4a8ccb, #d47a36, #3a9c7e, #8e78cf`, all checks pass (worst adjacent

@@ -22,6 +22,7 @@ vi.mock("./EChart", () => ({
 vi.mock("./theme", async (orig) => ({ ...(await orig<typeof import("./theme")>()), useChartTheme: () => TEST_THEME }));
 
 import { ChartCard } from "./ChartCard";
+import { CPI_HISTORY_COLUMNS, CPI_TABLE_NOTE } from "@/pages/inflation/format";
 
 const props = {
   title: "Year-ended net migration was a net gain of 20,350 in July 2026",
@@ -88,7 +89,7 @@ describe("ChartCard", () => {
     await userEvent.click(screen.getByText(/view data table/i));
     const table = screen.getByRole("table");
     expect(within(table).getAllByRole("row")).toHaveLength(3);
-    expect(within(table).getByText("2026-07")).toBeInTheDocument();
+    expect(within(table).getByText("Jul 2026")).toBeInTheDocument();
   });
 
   it("announces an export failure accessibly and restores its button", async () => {
@@ -107,4 +108,62 @@ describe("ChartCard", () => {
     expect(screen.getByText(/Captured 18 Oct 2026, \d{1,2}:00 NZDT/)).toBeInTheDocument();
     expect(screen.queryByText(/2026-10-18T/)).not.toBeInTheDocument();
   });
+
+  it("preserves unsupported period labels instead of inventing a formatted date", async () => {
+    render(<ChartCard {...props} csvRows={[
+      { period: "2026-Q2", value: 1 }, { period: "2026-13", value: 2 }, { period: "not dated", value: null },
+    ]} />);
+    await userEvent.click(screen.getByText("View data table"));
+    const table = screen.getByRole("table");
+    expect(table).toHaveTextContent("Showing all 3 rows in chart order");
+    for (const label of ["2026-Q2", "2026-13", "not dated", "n/a"]) expect(within(table).getByText(label)).toBeInTheDocument();
+  });
+
+  it("discloses every selected period including histories longer and shorter than 24 rows", async () => {
+    const rows = Array.from({ length: 58 }, (_, i) => ({
+      period: `${2012 + Math.floor(i / 4)}-${["03", "06", "09", "12"][i % 4]}`, value: i,
+    }));
+    const { rerender } = render(<ChartCard {...props} csvRows={rows} />);
+    await userEvent.click(screen.getByText("View data table"));
+    expect(screen.getByRole("table")).toHaveTextContent("Showing all 58 periods (58 rows), Mar 2012 to Jun 2026");
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(59);
+    expect(screen.getAllByRole("cell").filter((_, i) => i % 2 === 0).map((c) => c.textContent)).toEqual(
+      rows.map((r, i) => `${["Mar", "Jun", "Sep", "Dec"][i % 4]} ${r.period.slice(0, 4)}`),
+    );
+    rerender(<ChartCard {...props} csvRows={rows.slice(-12)} />);
+    expect(screen.getByRole("table")).toHaveTextContent("Showing all 12 periods (12 rows), Sep 2023 to Jun 2026");
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(13);
+    rerender(<ChartCard {...props} csvRows={[]} />);
+    expect(screen.queryByText("View data table")).not.toBeInTheDocument();
+  });
+
+  it("formats CPI display cells while preserving missing values, series order and CSV precision", async () => {
+    const rows = [
+      { period: "2026-03", series_name: "Tradables", index: 1000, quarterly_pct: null, annual_pct: 1.234567, source_reference: "CPIQ.SYNTHETIC" },
+      { period: "2026-06", series_name: "Tradables", index: 1002, quarterly_pct: 0, annual_pct: -1.25, source_reference: "CPIQ.SYNTHETIC" },
+      { period: "2026-03", series_name: "Non-tradables", index: 1005, quarterly_pct: 0.34567, annual_pct: null, source_reference: "CPIQ.OTHER" },
+    ];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    render(<ChartCard {...props} csvRows={rows} tableColumns={CPI_HISTORY_COLUMNS} tableNote={CPI_TABLE_NOTE} />);
+    await userEvent.click(screen.getByText("View data table"));
+    const table = screen.getByRole("table");
+    expect(table).toHaveTextContent("Showing all 2 periods (3 rows), Mar 2026 to Jun 2026");
+    expect(within(table).getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
+      "Quarter ended", "Series", "Index (June 2017 = 1000)", "Quarterly change (%)", "Annual change (%)",
+    ]);
+    const cells = within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell"));
+    expect(cells.map((row) => row.map((c) => c.textContent))).toEqual([
+      ["Mar 2026", "Tradables", "1,000", "n/a", "1.2"],
+      ["Jun 2026", "Tradables", "1,002", "0.0", "−1.3"],
+      ["Mar 2026", "Non-tradables", "1,005", "0.3", "n/a"],
+    ]);
+    expect(cells[0][4]).toHaveClass("text-right");
+    expect(table).not.toHaveTextContent("CPIQ.SYNTHETIC");
+    expect(screen.getByText(CPI_TABLE_NOTE)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /download data/i }));
+    const csv = await readBlob((URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls[0][0] as Blob);
+    expect(csv).toContain("2026-03,Tradables,1000,,1.234567,CPIQ.SYNTHETIC");
+    expect(csv).toContain("2026-06,Tradables,1002,0,-1.25,CPIQ.SYNTHETIC");
+  });
+
 });

@@ -1,3 +1,4 @@
+import type { ChartTableColumn } from "@/charts/ChartCard";
 import type { CpiSeries } from "@/api/types";
 import { formatNumber } from "@/lib/format";
 
@@ -14,3 +15,19 @@ export const points = (v: number) => `${formatNumber(v, { signed: true, decimals
 
 /** The official name without the "unadjusted index" suffix the API adds to every stored series name. */
 export const plainName = (s: CpiSeries) => s.name.replace(/, (unadjusted|seasonally adjusted) index$/, "");
+
+export const CPI_TABLE_NOTE = "Index base: June 2017 = 1000. Series identifiers, adjustment and release metadata are included in the CSV download; source and capture time are shown above.";
+
+export const CPI_HISTORY_COLUMNS: readonly ChartTableColumn[] = [
+  { key: "period", label: "Quarter ended" },
+  { key: "series_name", label: "Series", format: (v) => String(v).replace(/, (unadjusted|seasonally adjusted) index$/, "") },
+  { key: "index", label: "Index (June 2017 = 1000)", numeric: true, format: (v) => formatNumber(Number(v)) },
+  { key: "quarterly_pct", label: "Quarterly change (%)", numeric: true, format: (v) => formatNumber(Number(v), { decimals: 1 }) },
+  { key: "annual_pct", label: "Annual change (%)", numeric: true, format: (v) => formatNumber(Number(v), { decimals: 1 }) },
+];
+
+export const CPI_CONTRIBUTION_COLUMNS: readonly ChartTableColumn[] = [
+  { key: "reference_period", label: "Quarter ended" },
+  { key: "group", label: "Group" },
+  { key: "contribution_percentage_points", label: "Contribution (percentage points)", numeric: true, format: (v) => formatNumber(Number(v), { decimals: 3 }) },
+];

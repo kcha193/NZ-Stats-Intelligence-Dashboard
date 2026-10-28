@@ -17,7 +17,7 @@ import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { Segmented } from "@/components/Segmented";
 import { formatAklDate, formatAklDateTime, formatNumber } from "@/lib/format";
 import { Explorer } from "./inflation/Explorer";
-import { fullMonth, points, rate } from "./inflation/format";
+import { CPI_HISTORY_COLUMNS, CPI_CONTRIBUTION_COLUMNS, CPI_TABLE_NOTE, fullMonth, points, rate } from "./inflation/format";
 
 const LINKS = [
   ["Stats NZ: consumers price index topic", "https://www.stats.govt.nz/topics/consumers-price-index/"],
@@ -65,15 +65,12 @@ function Dashboard({ data }: { data: CpiDashboard }) {
   };
   return (
     <div className="space-y-6">
-      <header>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Prices and inflation</p>
-        <h1 className="text-xl font-semibold tracking-tight">Inflation</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Latest reference quarter: {fullMonth(data.reference_period)} · Published {formatAklDateTime(rel.published_at)}
-        </p>
-      </header>
+      <p className="text-sm text-muted-foreground">
+        Latest reference quarter: {fullMonth(data.reference_period)} · Published {formatAklDateTime(rel.published_at)}
+      </p>
 
       <section aria-label="CPI key indicators" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <h2 className="sr-only">CPI key indicators</h2>
         <Tile label="Annual CPI inflation" metric={annual} />
         <Tile label="Quarterly CPI inflation" metric={quarterly} />
         <Tile label="Tradables · annual" metric={tradables} />
@@ -84,7 +81,7 @@ function Dashboard({ data }: { data: CpiDashboard }) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 id="cpi-history" className="text-lg font-semibold">Headline CPI history</h2>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs">
+            <label className="flex min-h-11 items-center gap-2 text-xs sm:min-h-0">
               <input type="checkbox" checked={band} onChange={(e) => setBand(e.target.checked)} />
               Show 1% to 3% reference band
             </label>
@@ -96,11 +93,13 @@ function Dashboard({ data }: { data: CpiDashboard }) {
             unit="percent change from the same quarter a year earlier" source={source}
             caveat="The 1% to 3% band is a reference only and is not a forecast. Missing quarters are left as gaps."
             option={annualInflationOption(visible, theme, { band })} ariaLabel="Annual CPI inflation history" height={300}
+            tableColumns={CPI_HISTORY_COLUMNS} tableNote={CPI_TABLE_NOTE}
             csvFilename="cpi-annual-inflation.csv" csvRows={historyCsvRows(all, visible, meta)} />
           <ChartCard title="Quarterly CPI inflation" question={`${quarter}: prices changed ${rate(quarterly.value)} on the previous quarter.`}
             unit="percent change from the previous quarter" source={source}
             caveat="Quarterly change is not annualised and is not comparable with annual change."
             option={quarterlyInflationOption(visible, theme)} ariaLabel="Quarterly CPI inflation history" height={300}
+            tableColumns={CPI_HISTORY_COLUMNS} tableNote={CPI_TABLE_NOTE}
             csvFilename="cpi-quarterly-inflation.csv" csvRows={historyCsvRows(all, visible, meta)} />
         </div>
       </section>
@@ -116,6 +115,7 @@ function Dashboard({ data }: { data: CpiDashboard }) {
           caveat="Tradables are exposed to foreign competition; non-tradables are not. Both are on one percentage axis, so gaps are in percentage points. Non-tradables is not core inflation."
           option={tradablesOption(rangeFilter(nsa("tradables").points, range), rangeFilter(nsa("non_tradables").points, range), horizon, theme)}
           ariaLabel="Tradables and non-tradables inflation" height={320}
+          tableColumns={CPI_HISTORY_COLUMNS} tableNote={CPI_TABLE_NOTE}
           csvFilename={`cpi-tradables-${horizon}.csv`}
           csvRows={[...historyCsvRows(nsa("tradables"), rangeFilter(nsa("tradables").points, range), meta), ...historyCsvRows(nsa("non_tradables"), rangeFilter(nsa("non_tradables").points, range), meta)]} />
       </section>
@@ -134,6 +134,7 @@ function Dashboard({ data }: { data: CpiDashboard }) {
             question={`${quarter}: which groups drove the ${contribution} change${block.headline_pct == null ? "" : ` of ${rate(block.headline_pct)}`}?`}
             unit="percentage points" source={source} caveat={block.note}
             option={contributionOption(block, theme)} ariaLabel="CPI group contributions" height={380}
+            tableColumns={CPI_CONTRIBUTION_COLUMNS} tableNote="Source and release metadata are included in the CSV download; source and capture time are shown above."
             csvFilename={`cpi-contributions-${contribution}.csv`} csvRows={contributionCsvRows(block, meta)} />
         ) : (
           <EmptyState title="Group contributions unavailable" body={block.note} />
@@ -191,10 +192,17 @@ function Dashboard({ data }: { data: CpiDashboard }) {
 export default function Inflation() {
   useDocumentTitle(ROUTE_META["/inflation"].title);
   const q = useCpi();
-  if (q.error instanceof ApiError && q.error.status === 404) {
-    return isStaticMode()
-      ? <EmptyState title="CPI data has not been published yet" body="This dashboard appears once a Stats NZ consumers price index release has been verified and published here." />
-      : <EmptyState title="CPI data has not been ingested yet" body="The next scheduled refresh or a CPI backfill will populate this dashboard. Check Data health for ingestion status." />;
-  }
-  return <QueryBoundary query={q}>{(d) => <Dashboard data={d} />}</QueryBoundary>;
+  const notFound = q.error instanceof ApiError && q.error.status === 404;
+  return (
+    <div className="space-y-6">
+      <header>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Prices and inflation</p>
+        <h1 className="text-xl font-semibold tracking-tight">Inflation</h1>
+      </header>
+      {notFound ? (isStaticMode()
+        ? <EmptyState title="CPI data has not been published yet" body="This dashboard appears once a Stats NZ consumers price index release has been verified and published here." />
+        : <EmptyState title="CPI data has not been ingested yet" body="The next scheduled refresh or a CPI backfill will populate this dashboard. Check Data health for ingestion status." />
+      ) : <QueryBoundary query={q}>{(d) => <Dashboard data={d} />}</QueryBoundary>}
+    </div>
+  );
 }
