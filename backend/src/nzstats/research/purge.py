@@ -335,12 +335,14 @@ def finish_pending(conn: sqlite3.Connection, artifacts: ArtifactStore, *, now: d
                                     (art["id"],)).fetchone()[0]  # fmt: skip
             if finished is not None:  # another process finished it since the list was read
                 continue
-            outcome = _remove_file(conn, artifacts, art)
-            if outcome is None:
-                continue
             surviving = conn.execute(
                 "SELECT 1 FROM research_document_version WHERE raw_artifact_id=? AND purged_at IS NULL",
                 (art["raw_artifact_id"],)).fetchone()  # fmt: skip
+            outcome = (
+                "file_kept_shared" if surviving is not None else _remove_file(conn, artifacts, art)
+            )
+            if outcome is None:
+                continue
             conn.execute("UPDATE research_document_version SET raw_artifact_id=NULL WHERE raw_artifact_id=?"
                          " AND purged_at IS NOT NULL", (art["raw_artifact_id"],))  # fmt: skip
             if surviving is None:

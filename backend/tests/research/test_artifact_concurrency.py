@@ -26,6 +26,7 @@ from nzstats.research.manual_import import ImportRefused
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.store.db import connect
 
+from .conftest import NOW
 from .support import BASE
 from .test_purge import (
     URL,
@@ -419,3 +420,73 @@ def test_the_sweep_lists_and_removes_files_only_while_it_holds_the_write_lock(co
     assert purge.remove_orphan_files(conn, Spy(), older_than_seconds=3600) == 1
     assert seen == [True] and not stray.exists()
     assert not write_locked_elsewhere(path)
+
+
+def test_pending_purge_keeps_same_row_registered_by_another_institution(
+    conn, artifacts, monkeypatch
+):
+    """A second institution may register the identical URL and bytes after the purge is planned."""
+    first = do_import(conn, artifacts)
+    real_finish = purge.finish_pending
+
+    def register_before_finish(c, a, *, now):
+        other_conn = connect(db_path(conn))
+        try:
+            second = do_import(other_conn, artifacts, url=URL, registry=inst(key="other"))
+            assert second.outcome == "new"
+        finally:
+            other_conn.close()
+        return real_finish(c, a, now=now)
+
+    monkeypatch.setattr(purge, "finish_pending", register_before_finish)
+    apply(conn, artifacts)
+    row = conn.execute(
+        "SELECT a.path FROM research_document_version v JOIN raw_artifact a ON a.id=v.raw_artifact_id "
+        "WHERE v.id != ? AND v.purged_at IS NULL",
+        (first.version_id,),
+    ).fetchone()
+    assert row is not None and artifacts.exists(row[0])
+    assert purge.integrity_problems(conn, artifacts) == []
+
+
+def test_pending_purge_and_stats_writer_share_bytes_under_the_same_lock(
+    conn, artifacts, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from nzstats.pipeline.ingest import _record_raw
+    from nzstats.sources.fetcher import FetchResult
+
+    do_import(conn, artifacts)
+    real_finish = purge.finish_pending
+    monkeypatch.setattr(purge, "finish_pending", lambda *a, **kw: 0)
+    apply(conn, artifacts)
+    monkeypatch.setattr(purge, "finish_pending", real_finish)
+    assert len(purge.pending_artifacts(conn)) == 1
+    writer = connect(db_path(conn))
+    result = FetchResult("https://stats.example.org/file", 200, "text/html", html(), NOW)
+    real_save, observed = artifacts.save, []
+
+    def save(fetch):
+        rec = real_save(fetch)
+        probe = sqlite3.connect(db_path(conn), timeout=0, isolation_level=None)
+        probe.row_factory = sqlite3.Row
+        try:
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                real_finish(probe, artifacts, now=NOW)
+            observed.append(True)
+        finally:
+            probe.close()
+        return rec
+
+    monkeypatch.setattr(artifacts, "save", save)
+    try:
+        _record_raw(SimpleNamespace(conn=writer, artifacts=artifacts), result)
+    finally:
+        writer.close()
+    assert observed == [True]
+    assert real_finish(conn, artifacts, now=NOW) == 1
+    row = conn.execute("SELECT path FROM raw_artifact WHERE url=?", (result.url,)).fetchone()
+    assert row is not None and artifacts.exists(row[0])
+    assert purge.pending_artifacts(conn) == []
+    assert real_finish(conn, artifacts, now=NOW) == 0

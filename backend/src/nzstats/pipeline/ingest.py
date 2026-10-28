@@ -25,6 +25,7 @@ from nzstats.pipeline.discover import attempt, record_batch_health
 from nzstats.runtime import Runtime
 from nzstats.slug import slugify
 from nzstats.sources.calendar import fetch_release_month
+from nzstats.sources.fetcher import FetchResult
 from nzstats.sources.release_page import parse_release_page, pick_downloads
 from nzstats.stats.periods import month_range
 from nzstats.store import repo
@@ -149,7 +150,7 @@ def _ingest(
     )
 
     page_result = rt.fetcher.get(page_url, expect=HTML)
-    repo.record_artifact(rt.conn, rt.artifacts.save(page_result))
+    _record_raw(rt, page_result)
     page = parse_release_page(page_result.body.decode("utf-8"), settings.base_url)
 
     wanted = pick_downloads(page.download_urls, adapter.required_downloads)
@@ -160,8 +161,7 @@ def _ingest(
     files: dict[str, bytes] = {}
     for kind, url in wanted.items():
         result = rt.fetcher.get(url, expect=DATA_TYPES)
-        record = rt.artifacts.save(result)
-        repo.record_artifact(rt.conn, record)
+        _record_raw(rt, result)
         files[kind] = result.body
     optional_notes: list[str] = []
     for kind in getattr(adapter, "optional_downloads", ()):
@@ -178,7 +178,7 @@ def _ingest(
                 raise
             optional_notes.append(f"optional {kind} download unavailable ({exc.error_class.value})")
             continue
-        repo.record_artifact(rt.conn, rt.artifacts.save(result))
+        _record_raw(rt, result)
         files[kind] = result.body
     release_id = int(row["id"])
     bundle = adapter.parse(page, files)
@@ -257,6 +257,13 @@ def _ingest(
     if not created:
         return IngestOutcome(key, "unchanged", warnings=unchanged_warnings)
     return IngestOutcome(key, "ingested", warnings=all_warnings)
+
+
+def _record_raw(rt: Runtime, result: FetchResult) -> None:
+    # The orphan sweep and research purge use the same SQLite write lock. Keep file creation
+    # and registration together, including when save reuses an old, unreferenced file.
+    with transaction(rt.conn):
+        repo.record_artifact(rt.conn, rt.artifacts.save(result))
 
 
 def _required_digest(
