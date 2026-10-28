@@ -327,10 +327,17 @@ def finish_pending(conn: sqlite3.Connection, artifacts: ArtifactStore, *, now: d
     """
     done = 0
     for art in pending_artifacts(conn):
-        outcome = _remove_file(conn, artifacts, art)
-        if outcome is None:
-            continue
+        # The shared-path check, the unlink and the records change under one write lock: a store of the same
+        # bytes registers its row (and, if need be, rewrites the file) under that lock too, so it cannot land
+        # between "no other record points here" and the removal.
         with transaction(conn):
+            finished = conn.execute("SELECT removed_at FROM research_purge_artifact WHERE id=?",
+                                    (art["id"],)).fetchone()[0]  # fmt: skip
+            if finished is not None:  # another process finished it since the list was read
+                continue
+            outcome = _remove_file(conn, artifacts, art)
+            if outcome is None:
+                continue
             surviving = conn.execute(
                 "SELECT 1 FROM research_document_version WHERE raw_artifact_id=? AND purged_at IS NULL",
                 (art["raw_artifact_id"],)).fetchone()  # fmt: skip

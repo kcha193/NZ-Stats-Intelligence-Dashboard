@@ -34,6 +34,7 @@ from .test_purge import (
     do_import,
     html,
     imported_and_published,
+    inst,
     raw_files,
 )
 
@@ -298,6 +299,69 @@ def test_a_purge_that_commits_after_the_early_check_still_refuses_the_store_and_
         do_import(conn, artifacts, url=URL_B)
     assert raw_files(artifacts) == [] and count(conn, "raw_artifact") == 0
     assert not write_locked_elsewhere(db_path(conn))
+
+
+def test_a_purge_does_not_delete_a_shared_file_another_institution_registers_meanwhile(
+    conn, artifacts, monkeypatch
+):
+    """The purge decides the path is unshared, then a store under another institution registers the same bytes.
+
+    The purged-text gate is per institution, so that store is allowed; the purge must not remove its file.
+    """
+    do_import(conn, artifacts)
+    path = db_path(conn)
+    registered, purge_done = threading.Event(), threading.Event()
+    real_add_version, results = store.add_version, {}
+
+    def add_version(*a, **kw):
+        out = real_add_version(*a, **kw)
+        if threading.current_thread().name == "writer-b":
+            registered.set()  # B's raw_artifact row is written, uncommitted
+            assert purge_done.wait(30)
+        return out
+
+    monkeypatch.setattr(store, "add_version", add_version)
+    other = inst(key="other")
+    writer = threading.Thread(
+        target=lambda: results.update(
+            b=do_import(connect(path), artifacts, url=URL_B, registry=other)
+        ),
+        name="writer-b",
+    )
+    removals, real_remove = [], artifacts.remove
+
+    def remove(rel):
+        removals.append(rel)
+        writer.start()
+        registered.wait(WAIT)  # reachable only if the purge does not exclude other writers
+        try:
+            return real_remove(rel)
+        finally:
+            purge_done.set()  # B may commit now; the purge itself still needs the lock to finalise
+
+    monkeypatch.setattr(artifacts, "remove", remove)
+    apply(conn, artifacts)
+    writer.join(60)
+
+    assert removals, "the purge must have reached the file"
+    assert results["b"].outcome == "new"
+    verify = connect(path)
+    assert purge.integrity_problems(verify, artifacts) == []
+    assert len(raw_files(artifacts)) == 1 and count(verify, "raw_artifact") == 1
+
+
+def test_a_purge_removes_files_only_while_it_holds_the_write_lock(conn, artifacts, monkeypatch):
+    do_import(conn, artifacts)
+    path, seen, real_remove = db_path(conn), [], artifacts.remove
+
+    def remove(rel):
+        seen.append(write_locked_elsewhere(path))
+        return real_remove(rel)
+
+    monkeypatch.setattr(artifacts, "remove", remove)
+    apply(conn, artifacts)
+    assert seen == [True] and raw_files(artifacts) == []
+    assert not write_locked_elsewhere(path)
 
 
 # --- the orphan sweep ----------------------------------------------------------------------------------------------
