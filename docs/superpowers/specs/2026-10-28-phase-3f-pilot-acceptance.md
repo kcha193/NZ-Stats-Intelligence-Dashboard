@@ -122,7 +122,7 @@ Not backfilled (it contacts stats.govt.nz). Prepared and checked offline:
 | Check | Result |
 |---|---|
 | Hosted CI | **Not run**: billing (B1). Local results below are not hosted CI. |
-| Backend `pytest` (Python 3.14 venv; CI uses 3.12) | 2501 passed (was 2414 in 3E; 87 new) |
+| Backend `pytest` (Python 3.14 venv; CI uses 3.12) | 2512 passed (was 2414 in 3E; 98 new) |
 | `ruff check .`, `ruff format --check .` | clean |
 | Frontend `npm audit --audit-level=low` | no findings |
 | `npm run gen:api` | no change to `src/api/schema.d.ts` |

@@ -329,23 +329,41 @@ def store_document(
     if purged is not None:  # checked before any file is written, and again under the write lock
         raise IngestError(ErrorClass.VALIDATION_FAILED, "purged_text")
     raw, created = None, False
-    if artifacts is not None:
-        created = not artifacts.exists(artifacts.rel_for(fetched.body))
-        raw = artifacts.save(fetched)  # content-addressed file
-    try:
-        with transaction(conn):
+    with transaction(conn):
+        # The file is written, recorded and (if nothing keeps it) removed under the one write lock, so no other
+        # writer, in this process or another, can be between "saved the shared file" and "registered it".
+        if artifacts is not None:
+            created = not artifacts.exists(artifacts.rel_for(fetched.body))
+            raw = artifacts.save(fetched)  # content-addressed file
+        conn.execute("SAVEPOINT store_document")
+        try:
             item = _store_locked(conn, inst, inst_id, candidate, doc_key, fetched, extracted, published,
                                  warnings, raw, now, acquisition)  # fmt: skip
             if audit is not None:
                 audit(item)
-    except BaseException:
-        _discard_new_file(conn, artifacts, raw, created)
-        raise
-    if item.outcome == "duplicate" or (
-        acquisition == "manual" and item.outcome in ("unchanged", "reactivated")
-    ):
-        _discard_new_file(conn, artifacts, raw, created)  # no version links these bytes
+        except BaseException:
+            _discard_after_failure(conn, artifacts, raw, created)
+            raise
+        conn.execute("RELEASE store_document")
+        if item.outcome == "duplicate" or (
+            acquisition == "manual" and item.outcome in ("unchanged", "reactivated")
+        ):
+            _discard_new_file(conn, artifacts, raw, created)  # no version links these bytes
     return item
+
+
+def _discard_after_failure(
+    conn: sqlite3.Connection,
+    artifacts: ArtifactStore | None,
+    raw: ArtifactRecord | None,
+    created: bool,
+) -> None:
+    """Undo this store's rows but keep the write lock, then drop the file if no committed row records it."""
+    try:
+        conn.execute("ROLLBACK TO store_document")
+        _discard_new_file(conn, artifacts, raw, created)
+    except sqlite3.Error:  # the original error propagates; the orphan sweep removes the file later
+        log.exception("could not clean up after a failed store")
 
 
 def _discard_new_file(
@@ -354,7 +372,11 @@ def _discard_new_file(
     raw: ArtifactRecord | None,
     created: bool,
 ) -> None:
-    """Remove a file this call wrote if nothing records it, so a refused or rolled-back store leaves no orphan."""
+    """Remove a file this call wrote if nothing records it, so a refused or rolled-back store leaves no orphan.
+
+    The caller holds the write lock: no other writer has an uncommitted `raw_artifact` row, and none can register
+    this path until the lock is released, so "no row" is final.
+    """
     if artifacts is None or raw is None or not created:
         return
     if conn.execute("SELECT 1 FROM raw_artifact WHERE path=?", (raw.path,)).fetchone() is None:

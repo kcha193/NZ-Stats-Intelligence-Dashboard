@@ -18,7 +18,7 @@ a loopback-only guard for published research; `research cpi-reconcile` (independ
 against the official files); a lifecycle acceptance test through the real API. An independent review found one high issue
 (an in-flight summarise could re-store purged output) and several medium ones; all fixed with failing-first tests.
 
-Verification (this machine; hosted CI cannot start, billing): backend 2501 tests, Ruff clean; frontend audit, typecheck, lint,
+Verification (this machine; hosted CI cannot start, billing): backend 2512 tests, Ruff clean; frontend audit, typecheck, lint,
 tests, build; Playwright live 126, research 18 (3 skipped), static site 270; on a copy of the live database (schema 7)
 migration to 10, `verify-backup`, `cpi-reconcile` (2 vintages, 1,607 outcomes, no discrepancy), `orphans` and the snapshot
 (byte-identical to `main`'s, `7be455c2b866`) all clean; live database SHA-256 unchanged. Not run: Docker build and smoke (no

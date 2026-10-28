@@ -423,11 +423,14 @@ def remove_orphan_files(
     *,
     older_than_seconds: float = ORPHAN_MIN_AGE_SECONDS,
 ) -> int:
+    """Remove unreferenced old files. The listing and the removals share one write lock: a writer registering
+    a file (stores write, record and discard files under that lock) cannot slip in between and lose its file."""
     removed = 0
-    for path in find_orphan_files(conn, artifacts, older_than_seconds=older_than_seconds):
-        try:
-            path.unlink()
-            removed += 1
-        except FileNotFoundError:
-            continue
+    with transaction(conn):
+        for path in find_orphan_files(conn, artifacts, older_than_seconds=older_than_seconds):
+            try:
+                path.unlink()
+                removed += 1
+            except FileNotFoundError:
+                continue
     return removed
