@@ -15,6 +15,7 @@ from nzstats.insights.countries import rank_countries
 from nzstats.insights.cpi import build_cpi_analysis, build_cpi_dashboard
 from nzstats.insights.ect import CAVEATS as ECT_CAVEATS
 from nzstats.insights.ect import build_ect_analysis, build_ect_dashboard
+from nzstats.insights.gdp import build_gdp_analysis, build_gdp_dashboard
 from nzstats.insights.migration import build_release_analysis
 from nzstats.insights.overview import build_overview, health_rows
 from nzstats.insights.revisions import revision_view, series_out, vintage_out
@@ -24,6 +25,7 @@ from nzstats.models import (
     CountriesOut,
     CpiDashboardOut,
     EctDashboardOut,
+    GdpDashboardOut,
     HealthOut,
     OverviewOut,
     PointOut,
@@ -143,6 +145,7 @@ def release_detail(release_id: int, request: Request, conn: Conn) -> ReleaseDeta
     builders = {
         "electronic-card-transactions": build_ect_analysis,
         "consumers-price-index": build_cpi_analysis,
+        "gross-domestic-product": build_gdp_analysis,
     }
     builder = builders.get(row["series_slug"])
     analysis = (
@@ -350,6 +353,14 @@ def ect_dashboard(conn: Conn) -> EctDashboardOut:
     result = build_ect_dashboard(conn)
     if result is None:
         raise HTTPException(404, "ECT data has not been ingested yet")
+    return result
+
+
+@router.get("/gdp", response_model=GdpDashboardOut)
+def gdp_dashboard(conn: Conn) -> GdpDashboardOut:
+    result = build_gdp_dashboard(conn)
+    if result is None:
+        raise HTTPException(404, "GDP data has not been ingested yet")
     return result
 
 

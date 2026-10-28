@@ -85,6 +85,8 @@ def classify_download(url: str) -> str | None:
         return "ect_zip"
     if name.startswith("consumers-price-index-"):
         return _classify_cpi(name)
+    if _GDP_CSV.fullmatch(name):
+        return "gdp_csv"
     if name.endswith(".xlsx"):
         return "workbook"
     if not name.endswith(".csv"):
@@ -96,21 +98,26 @@ def classify_download(url: str) -> str | None:
     return None
 
 
+def _republished(url: str) -> bool:
+    name = url.rsplit("/", 1)[-1]
+    return "-corrected" in name or "-revised" in name
+
+
 def pick_downloads(urls: Iterable[str], kinds: Iterable[str]) -> dict[str, str]:
-    """The first listed URL of each wanted kind, except that a `-corrected` republication wins."""
+    """The first listed URL of each wanted kind, except that a `-corrected` or `-revised` republication wins."""
     wanted, chosen = set(kinds), {}
     for url in urls:
         kind = classify_download(url)
         if kind not in wanted:
             continue
-        if kind not in chosen or (
-            "-corrected" in url.rsplit("/", 1)[-1]
-            and "-corrected" not in chosen[kind].rsplit("/", 1)[-1]
-        ):
+        if kind not in chosen or (_republished(url) and not _republished(chosen[kind])):
             chosen[kind] = url
     return chosen
 
 
+_GDP_CSV = re.compile(
+    r"gross-domestic-product-[a-z]+-[0-9]{4}-quarter(?:-corrected|-revised)?\.csv"
+)
 _CPI_CSV = (
     ("cpi_index_numbers", re.compile(r"-index-numbers(?:-corrected)?\.csv$")),
     ("cpi_seasonally_adjusted", re.compile(r"-seasonally-adjusted(?:-corrected)?\.csv$")),
