@@ -116,3 +116,18 @@ def test_cli_cpi_vintages_reports_the_earliest_stored_boundary(rt, site, capsys,
     assert main(["research", "cpi-vintages"]) == 0
     out = capsys.readouterr().out
     assert "2026-09" in out and "before 2026-09" in out and "earliest stored" in out
+
+
+@pytest.mark.parametrize("measure", MEASURES)
+def test_backfilling_older_releases_after_the_newest_gives_the_in_order_result(rt, site, measure):
+    """The Phase 3E backfill plan: the production database holds only the September 2026 release, and the older ones
+    would be ingested after it. Release order, not ingestion order, decides first-published and latest."""
+    from nzstats.store.repo import latest_points
+
+    ingest_cpi(rt, site, "2026-09", "2025-12", "2026-03", "2026-06")
+    actuals = CpiActuals(rt.conn)
+    for quarter in RELEASES:
+        out = actuals.outcome(Target(measure, quarter))
+        assert out.first.first_release and out.first.value == expected(measure, quarter, quarter)
+        assert out.latest.value == expected(measure, "2026-09", quarter)
+    assert max(latest_points(rt.conn, "cpi.index.nsa.all_groups")) == "2026-09"
