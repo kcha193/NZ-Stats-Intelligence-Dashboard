@@ -1,9 +1,18 @@
 # Progress and verification record
 
-Last updated 2026-10-29. Phase 4D reconciles the completed Phase 4C stack on `feat/phase-4d-release`.
-Only PR #19 reached `main`; PRs #20–#22 merged into feature branches. The final integration remains unmerged. Phases 3A to 3F, 4B and the Netlify static
-publication are merged to `main`; the static site is not deployed and no research source is approved. Earlier entries
-below are historical.
+Last updated 2026-10-29. Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+
+## Phase 4E: approved data activation and release validation, 29 October 2026
+
+Report: [readiness matrix and actual results](phase-4e-release.md), [machine evidence](phase-4e-evidence/README.md), [monitoring/rollback runbook](phase-4e-operations.md), [production-data screenshots](screenshots/phase-4e/README.md).
+
+Revalidated the seven-release/30-GET plan offline before requesting and receiving explicit owner approval. Fresh online DB/raw backup and independent restore passed. All seven live calendar identities/dates agreed; then each release ingested and reconciled before the next. Actual usage: **30 logical GETs / 30 attempts, no redirects or retries**, minimum 10-second pacing. Added **268 series-vintages and 24,093 observations**, including the approved previously uncaptured CPI workbooks. Production schema 10 now has 187 releases, 450 series, 791 vintages, 76,402 observations and 43 hash-verified raw artifacts. All pre-existing observation/vintage/historical-definition rows are unchanged.
+
+Independent macro arithmetic/source-to-SQL fidelity, eight CPI index vintages / 1,607 outcomes, and all three underlying-workbook comparisons pass. No unexplained statistical discrepancies. All seven historical captures remain earliest stored and excluded from first-published scoring. Real research tables remain empty; synthetic in-memory forecast checks confirm provenance/look-ahead exclusions without writing claims.
+
+Local CI: backend 2,809; frontend 478; Ruff/types/lint/build/schema/audit; live browser 150; static 312 + three expected skips; synthetic research 18 + three expected skips. Populated local production snapshot validates, every latest macro point matches SQL, and six desktop/mobile views plus twelve CSV/PNG exports pass. Snapshot `75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66`; ECT/migration and latest September CPI points preserved. Canonical origin is still reserved/provisional; no upload occurred.
+
+Merge-commit hosted run `40835493335` failed before steps because of account billing; Docker skipped and no local daemon. Required owner/account actions: recover hosted CI, supply Docker runtime, choose/confirm Netlify site + canonical origin, then separately approve draft upload, accept draft and approve production. External monitoring delivery and real-site rollback remain untested. No new merge, deployment, restricted-source access or paid LLM call. This documentation/audit branch records the completed activation for separate PR review.
 
 ## Phase 4D: integration and release preparation, 29 October 2026
 

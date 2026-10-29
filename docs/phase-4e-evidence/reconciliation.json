@@ -1,0 +1,1304 @@
+{
+  "schema_version": 1,
+  "assessed_at": "2026-10-29T08:03:59.811109+00:00",
+  "commit_sha": "3ac92addea52908d926a93e4015c217cf6cde125",
+  "verdict": "NO_GO_FOR_PRODUCTION_DEPLOYMENT",
+  "data_activation": "PASSED_APPROVED_SEVEN_RELEASE_BATCH",
+  "production": {
+    "checked_at": "2026-10-29T08:00:09.132027+00:00",
+    "production_backup_check": {
+      "path": "data/phase-4e/post-backfill-copy/nzstats.db",
+      "schema_version": 10,
+      "expected_schema_version": 10,
+      "counts": {
+        "ingest_run": 22,
+        "observation": 76402,
+        "raw_artifact": 43,
+        "release": 187,
+        "research_document_version": 0,
+        "research_forecast_claim": 0,
+        "research_institution": 0,
+        "research_llm_reservation": 0,
+        "research_llm_run": 0,
+        "research_llm_usage": 0,
+        "research_manual_import": 0,
+        "research_publication": 0,
+        "research_purge": 0,
+        "research_purge_artifact": 0,
+        "research_run": 0,
+        "research_run_item": 0,
+        "research_section": 0,
+        "research_source_health": 0,
+        "research_summary": 0,
+        "research_summary_publication": 0,
+        "research_summary_review": 0,
+        "schema_version": 10,
+        "series": 450,
+        "source_health": 8,
+        "vintage": 791,
+        "vintage_series_definition": 791
+      },
+      "count_differences": {},
+      "missing_raw": 0,
+      "problems": []
+    },
+    "protected_pre_existing_rows": [
+      {
+        "table": "observation",
+        "rows_preserved": 52309,
+        "sha256": "4f2b51fa93cc40b0f5f687d11a2e5baf1059c03e10ff93501361d5acd214438c",
+        "unchanged": true
+      },
+      {
+        "table": "vintage",
+        "rows_preserved": 523,
+        "sha256": "f095b790cfa2f4c8d1d1f1cc59670bf6f4d7875f1f5977baf1af486db16fe63b",
+        "unchanged": true
+      },
+      {
+        "table": "vintage_series_definition",
+        "rows_preserved": 523,
+        "sha256": "05a1f2f6eb37f38f0a56d87b28c72ea486fcc932a9e9025ce56ac819b919c776",
+        "unchanged": true
+      }
+    ],
+    "raw_artifacts": [
+      {
+        "url": "https://www.stats.govt.nz/information-releases/international-migration-august-2026/",
+        "sha256": "a2e9fabc227c677c7eb6757123ccecfa996f84fdb2b9245e3da4bffe5f26e910",
+        "fetched_at": "2026-10-15T19:27:53Z",
+        "size_bytes": 159920
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/International-migration/International-migration-August-2026/Download-data/international-migration-august-2026-estimated-migration-by-age-and-sex.csv",
+        "sha256": "2a472f52356a99b9ae14ed77972609901d12d87bf09b6841d8c73ec0637dc413",
+        "fetched_at": "2026-10-15T19:28:03Z",
+        "size_bytes": 4685916
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/International-migration/International-migration-August-2026/Download-data/international-migration-august-2026-citizenship-by-visa-by-country-of-last-permanent-residence.csv",
+        "sha256": "48c295a82bb2a376631d6c9fa7f0a579dcbb0161bc306ea8e0b6ad8b6c9ec6f3",
+        "fetched_at": "2026-10-15T19:28:17Z",
+        "size_bytes": 30321697
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/electronic-card-transactions-august-2026/",
+        "sha256": "90eb65440beb005e6bae15076729ab687edeb7befc27b82a9265b6cc3ee04545",
+        "fetched_at": "2026-10-17T20:10:46Z",
+        "size_bytes": 72697
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Electronic-card-transactions/Electronic-card-transactions-August-2026/Download-data/electronic-card-transactions-august-2026.zip",
+        "sha256": "ade397fbeffa1f01ccaafb98f7f2a91d537c829ccbd8aa4982e1eb56087ab88c",
+        "fetched_at": "2026-10-17T20:10:56Z",
+        "size_bytes": 157420
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/electronic-card-transactions-september-2026/",
+        "sha256": "af4424af79beb788ca3cc0ab53b25516da324f1e6cc245e7d62fe3b9cc49dab6",
+        "fetched_at": "2026-10-17T20:11:06Z",
+        "size_bytes": 74967
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Electronic-card-transactions/Electronic-card-transactions-September-2026/Download-data/electronic-card-transactions-september-2026.zip",
+        "sha256": "a89b02ba61b127baf3894bb333961710e4b4d6486dfcdc012d18c0655aa970c2",
+        "fetched_at": "2026-10-17T20:11:17Z",
+        "size_bytes": 158264
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "bd042851765c0af776b8d5560b73edef99b298e9c5731f5dd7e143cbbf1f233a",
+        "fetched_at": "2026-10-21T22:24:20Z",
+        "size_bytes": 87900
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-September-2026-quarter/Download-data/consumers-price-index-september-2026-quarter-seasonally-adjusted.csv",
+        "sha256": "bfd3707bced4d70474f4dee3d0f8ca1cc8aea3c6cf2cf5f784bcfd1e3406aa05",
+        "fetched_at": "2026-10-21T22:55:55Z",
+        "size_bytes": 1974076
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-September-2026-quarter/Download-data/consumers-price-index-september-2026-quarter-index-numbers.csv",
+        "sha256": "89d272e1139e66f0626e6016806aaa76b10359330a36d2ac409b9954a7c1c5cf",
+        "fetched_at": "2026-10-21T23:13:16Z",
+        "size_bytes": 2936812
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-September-2026-quarter/Download-data/consumers-price-index-september-2026-quarter-tradeables-and-non-tradeables.csv",
+        "sha256": "f30385cfb1e52b6f7459f92fdf657ae51da799d215429f572aea7a1823c5cc8c",
+        "fetched_at": "2026-10-21T23:25:28Z",
+        "size_bytes": 2545294
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-September-2026-quarter/Download-data/consumers-price-index-september-2026-quarter.xlsx",
+        "sha256": "806f4832f5344e356a866f458753013ee226fa2d419cc6ce5ffb3a1a77757b5d",
+        "fetched_at": "2026-10-21T23:42:47Z",
+        "size_bytes": 197626
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "e03b8eddddc149886dcfa096122b3695a6552e3704a837cb66406190172acdf4",
+        "fetched_at": "2026-10-22T00:12:01Z",
+        "size_bytes": 87901
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "f78a2635176fe17c9cbfe60d8319fcb0085fefe69180e65006adbe77a881ea9d",
+        "fetched_at": "2026-10-22T00:12:56Z",
+        "size_bytes": 87900
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "f1b9575356afbdec88f3ae40327b39d9f39a851ca4817e947a428eb30b51173d",
+        "fetched_at": "2026-10-22T00:13:56Z",
+        "size_bytes": 87900
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "6ea613eaba21ae97f9c85030f4981b81fa180b9e1f4f57efc0e38b305f0b6a23",
+        "fetched_at": "2026-10-22T00:14:56Z",
+        "size_bytes": 87767
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "ec462a227db164fd18f8197333f65336ad97124f810c7ec358127b99035b3fb3",
+        "fetched_at": "2026-10-22T00:17:56Z",
+        "size_bytes": 87767
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "660bd0d076de00eb9f5870affb42c302632dc56a9b806b2e5e454eb0afff1698",
+        "fetched_at": "2026-10-22T00:45:56Z",
+        "size_bytes": 87900
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "361368243948ed6e1d4034fa4987577b583ec14675215f18421f577b8dac13e0",
+        "fetched_at": "2026-10-22T05:47:50Z",
+        "size_bytes": 87901
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-september-2026-quarter/",
+        "sha256": "f93912d83018510bc2ce614fe7658a5a79fef76d77f35d8690957658f342842f",
+        "fetched_at": "2026-10-22T08:03:30Z",
+        "size_bytes": 87900
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-december-2025-quarter/",
+        "sha256": "936e5f5320c19105de5c679d2436ed806957b21bf57f07aa83a8a96b89f75959",
+        "fetched_at": "2026-10-29T07:49:09Z",
+        "size_bytes": 82001
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-seasonally-adjusted.csv",
+        "sha256": "7f69b00ca7031d18d8d4ac13358371dfb2351cba77154f8b6699e6856667d66a",
+        "fetched_at": "2026-10-29T07:49:23Z",
+        "size_bytes": 1955767
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-index-numbers.csv",
+        "sha256": "b92fc82b4f9ed78b30c5042755eae5fa5002bfca1800df864d096e628bbeff38",
+        "fetched_at": "2026-10-29T07:49:34Z",
+        "size_bytes": 2877599
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-tradeables-and-non-tradeables.csv",
+        "sha256": "bc7fb7d6a5bc6af790232c46b3e6bf9c6cd681b80cbc5a55eb1ac986509c82ce",
+        "fetched_at": "2026-10-29T07:49:45Z",
+        "size_bytes": 2457379
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-corrected.xlsx",
+        "sha256": "b939bc6b1e78fa1b90fe70eac797b5118aa1858da1ef3b0e004f209025a5f9d7",
+        "fetched_at": "2026-10-29T07:49:56Z",
+        "size_bytes": 235426
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-march-2026-quarter/",
+        "sha256": "9b8909041154a8c1b7e8028b841eb4e1d62a90e962cb02d74783aafc8e2735c7",
+        "fetched_at": "2026-10-29T07:51:05Z",
+        "size_bytes": 82455
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-seasonally-adjusted.csv",
+        "sha256": "5e33ea4d17da2ca7b4e6b820272ed882b43572aba6b90602512e6fa03696c564",
+        "fetched_at": "2026-10-29T07:51:17Z",
+        "size_bytes": 1961874
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-index-numbers.csv",
+        "sha256": "f77271a1c465c7f6ede6891a49e9e636f6eb555dbff304255989e359503c2bbe",
+        "fetched_at": "2026-10-29T07:51:28Z",
+        "size_bytes": 2897337
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-tradeables-and-non-tradeables.csv",
+        "sha256": "203a0ae6591634bebd226d9c665d148f0a1521d4894223a03ab494b0a3488ce9",
+        "fetched_at": "2026-10-29T07:51:38Z",
+        "size_bytes": 2486684
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter.xlsx",
+        "sha256": "0362c758a53a83528a1e91f349f7021a1d3be20e7f32442b3987a76b731d6c0b",
+        "fetched_at": "2026-10-29T07:51:49Z",
+        "size_bytes": 211430
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-march-2026-quarter/",
+        "sha256": "143f7bb6d46095edec669184a4c5528967dc5d655d01c3d740b8dce258db1f6c",
+        "fetched_at": "2026-10-29T07:52:06Z",
+        "size_bytes": 106256
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-March-2026-quarter/Download-data/labour-market-statistics-march-2026-quarter-revised.zip",
+        "sha256": "53d702b134b416b81735eb2a0c5a1253a7fd1b6b2a2e3bb021c557c22b1e545e",
+        "fetched_at": "2026-10-29T07:52:22Z",
+        "size_bytes": 18448536
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-march-2026-quarter/",
+        "sha256": "44a52a1569bb6fff798b486c33a11b5daec886a5898732e74f49a04c362fe5c8",
+        "fetched_at": "2026-10-29T07:53:29Z",
+        "size_bytes": 121212
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-March-2026-quarter/Download-data/gross-domestic-product-march-2026-quarter.csv",
+        "sha256": "1576eb1443c1fad22ee260a0f5ec690b26d84aa2c673533f3b22c0a5c5f66fda",
+        "fetched_at": "2026-10-29T07:53:44Z",
+        "size_bytes": 20884435
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/",
+        "sha256": "133938ec1d0d1cc7713b324414769d6d5efec8ea3c7861e51597728460e1d999",
+        "fetched_at": "2026-10-29T07:55:29Z",
+        "size_bytes": 86498
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-seasonally-adjusted.csv",
+        "sha256": "af55b49ed53365bb151dab7b5110ec41cd6361406c23858965321cd7d47294d3",
+        "fetched_at": "2026-10-29T07:55:40Z",
+        "size_bytes": 1967987
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-index-numbers.csv",
+        "sha256": "f474a6a3bfbe9b6377c3c68cc94a4cb494335130af3940fe538f5a0dd1274e9d",
+        "fetched_at": "2026-10-29T07:55:50Z",
+        "size_bytes": 2917074
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-tradeables-and-non-tradeables.csv",
+        "sha256": "f6fa38eeb10d7575fd690d3ff995e4afc2867ce5cd620eb7c248320b9bbc83e8",
+        "fetched_at": "2026-10-29T07:56:01Z",
+        "size_bytes": 2515987
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter.xlsx",
+        "sha256": "56ed2ed8edf6247ab599b88593cea967e2afce3a921bc95de0a962f45d664037",
+        "fetched_at": "2026-10-29T07:56:11Z",
+        "size_bytes": 212556
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-june-2026-quarter/",
+        "sha256": "25652db0a47740330728a2b308a532aeb69b3c6db7e4105ca76fd1c099c7eede",
+        "fetched_at": "2026-10-29T07:56:50Z",
+        "size_bytes": 115169
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-June-2026-quarter/Download-data/labour-market-statistics-june-2026-quarter.zip",
+        "sha256": "f7f867ab76b6bae2177ba1c3960f9a4ca7f7fb01a8325b5cdd7ee37b5cecab26",
+        "fetched_at": "2026-10-29T07:57:06Z",
+        "size_bytes": 18623903
+      },
+      {
+        "url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-june-2026-quarter/",
+        "sha256": "9b5b3321c9503bc7e12d8511232069c1a68dd7aa8c84780d5173caf4fcba519a",
+        "fetched_at": "2026-10-29T07:57:28Z",
+        "size_bytes": 121804
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-June-2026-quarter/Download-data/gross-domestic-product-june-2026-quarter.csv",
+        "sha256": "4e88dc85c4406665bcbbb6f3c8e851f38a968a76550772b85cedac4f7d95eab3",
+        "fetched_at": "2026-10-29T07:57:42Z",
+        "size_bytes": 21024914
+      }
+    ],
+    "releases": [
+      {
+        "release_key": "consumers-price-index:december 2025 quarter",
+        "vintage_ids": [
+          524,
+          525,
+          526,
+          527,
+          528,
+          529,
+          530,
+          531,
+          532,
+          533,
+          534,
+          535,
+          536,
+          537,
+          538,
+          539,
+          540,
+          541,
+          542,
+          543,
+          544,
+          545,
+          546,
+          547,
+          548,
+          549,
+          550,
+          551,
+          552,
+          553,
+          554,
+          555,
+          556,
+          557,
+          558,
+          559,
+          560,
+          561,
+          562,
+          563,
+          564,
+          565,
+          566,
+          567,
+          568,
+          569,
+          570,
+          571,
+          572,
+          573,
+          574,
+          575,
+          576,
+          577,
+          578,
+          579,
+          580,
+          581,
+          582,
+          583,
+          584,
+          585,
+          586,
+          587,
+          588,
+          589,
+          590,
+          591,
+          592,
+          593,
+          594,
+          595,
+          596,
+          597
+        ],
+        "bundle_identities": [
+          "data-v1:2e005c46ec11b22c32ac5bfeda529c32b3b84ba92abe81b5adc8e5ef57119803"
+        ],
+        "captured_at": [
+          "2026-10-29T07:49:56Z"
+        ],
+        "source_kind": [
+          "release_files"
+        ],
+        "first_publication_eligible": false,
+        "series_vintages": 74,
+        "observations": 5673,
+        "requests": 5,
+        "reconciliation": {
+          "kind": "cpi_official_csv_decimal",
+          "vintages": 4,
+          "outcomes": 1607,
+          "discrepancies": []
+        }
+      },
+      {
+        "release_key": "consumers-price-index:march 2026 quarter",
+        "vintage_ids": [
+          598,
+          599,
+          600,
+          601,
+          602,
+          603,
+          604,
+          605,
+          606,
+          607,
+          608,
+          609,
+          610,
+          611,
+          612,
+          613,
+          614,
+          615,
+          616,
+          617,
+          618,
+          619,
+          620,
+          621,
+          622,
+          623,
+          624,
+          625,
+          626,
+          627,
+          628,
+          629,
+          630,
+          631,
+          632,
+          633,
+          634,
+          635,
+          636,
+          637,
+          638,
+          639,
+          640,
+          641,
+          642,
+          643,
+          644,
+          645,
+          646,
+          647,
+          648,
+          649,
+          650,
+          651,
+          652,
+          653,
+          654,
+          655,
+          656,
+          657,
+          658,
+          659,
+          660,
+          661,
+          662,
+          663,
+          664,
+          665,
+          666,
+          667,
+          668,
+          669,
+          670,
+          671
+        ],
+        "bundle_identities": [
+          "data-v1:19df481509dd1207090103a6e5892670283a6bdc6c6c3f6735b4bee0857c3660"
+        ],
+        "captured_at": [
+          "2026-10-29T07:51:49Z"
+        ],
+        "source_kind": [
+          "release_files"
+        ],
+        "first_publication_eligible": false,
+        "series_vintages": 74,
+        "observations": 5718,
+        "requests": 5,
+        "reconciliation": {
+          "kind": "cpi_official_csv_decimal",
+          "vintages": 6,
+          "outcomes": 1607,
+          "discrepancies": []
+        }
+      },
+      {
+        "release_key": "labour-market-statistics:march 2026 quarter",
+        "vintage_ids": [
+          672,
+          673,
+          674,
+          675,
+          676,
+          677,
+          678,
+          679,
+          680,
+          681,
+          682
+        ],
+        "bundle_identities": [
+          "data-v1:ed18ca0dc3447efd75f3da0af5523cf1acf03d33f239f4319847cf5447bf5544"
+        ],
+        "captured_at": [
+          "2026-10-29T07:52:25Z"
+        ],
+        "source_kind": [
+          "release_files"
+        ],
+        "first_publication_eligible": false,
+        "series_vintages": 11,
+        "observations": 1613,
+        "requests": 2,
+        "reconciliation": {
+          "kind": "all_selected_official_rows_to_sql_decimal",
+          "points": 1613,
+          "series": 11,
+          "discrepancies": []
+        }
+      },
+      {
+        "release_key": "gross-domestic-product:march 2026 quarter",
+        "vintage_ids": [
+          683,
+          684,
+          685,
+          686,
+          687,
+          688,
+          689,
+          690,
+          691,
+          692,
+          693,
+          694
+        ],
+        "bundle_identities": [
+          "data-v1:a54d89ae5d3e8f7baed39a1c23471469e9e67286255c20b3aae4f1606eeb381f"
+        ],
+        "captured_at": [
+          "2026-10-29T07:53:44Z"
+        ],
+        "source_kind": [
+          "release_files"
+        ],
+        "first_publication_eligible": false,
+        "series_vintages": 12,
+        "observations": 1845,
+        "requests": 2,
+        "reconciliation": {
+          "kind": "all_selected_official_rows_to_sql_decimal",
+          "points": 1845,
+          "series": 12,
+          "discrepancies": []
+        }
+      },
+      {
+        "release_key": "consumers-price-index:june 2026 quarter",
+        "vintage_ids": [
+          695,
+          696,
+          697,
+          698,
+          699,
+          700,
+          701,
+          702,
+          703,
+          704,
+          705,
+          706,
+          707,
+          708,
+          709,
+          710,
+          711,
+          712,
+          713,
+          714,
+          715,
+          716,
+          717,
+          718,
+          719,
+          720,
+          721,
+          722,
+          723,
+          724,
+          725,
+          726,
+          727,
+          728,
+          729,
+          730,
+          731,
+          732,
+          733,
+          734,
+          735,
+          736,
+          737,
+          738,
+          739,
+          740,
+          741,
+          742,
+          743,
+          744,
+          745,
+          746,
+          747,
+          748,
+          749,
+          750,
+          751,
+          752,
+          753,
+          754,
+          755,
+          756,
+          757,
+          758,
+          759,
+          760,
+          761,
+          762,
+          763,
+          764,
+          765,
+          766,
+          767,
+          768
+        ],
+        "bundle_identities": [
+          "data-v1:a109c1035626f028826ac5b233386644d17364832ae4278dfb47ee9f7947832a"
+        ],
+        "captured_at": [
+          "2026-10-29T07:56:11Z"
+        ],
+        "source_kind": [
+          "release_files"
+        ],
+        "first_publication_eligible": false,
+        "series_vintages": 74,
+        "observations": 5763,
+        "requests": 5,
+        "reconciliation": {
+          "kind": "cpi_official_csv_decimal",
+          "vintages": 8,
+          "outcomes": 1607,
+          "discrepancies": []
+        }
+      },
+      {
+        "release_key": "labour-market-statistics:june 2026 quarter",
+        "vintage_ids": [
+          769,
+          770,
+          771,
+          772,
+          773,
+          774,
+          775,
+          776,
+          777,
+          778,
+          779
+        ],
+        "bundle_identities": [
+          "data-v1:c81b0d5c076633780b05475fb954a0aeb608000c7d75e98feb666746a793261c"
+        ],
+        "captured_at": [
+          "2026-10-29T07:57:10Z"
+        ],
+        "source_kind": [
+          "release_files"
+        ],
+        "first_publication_eligible": false,
+        "series_vintages": 11,
+        "observations": 1624,
+        "requests": 2,
+        "reconciliation": {
+          "kind": "all_selected_official_rows_to_sql_decimal",
+          "points": 1624,
+          "series": 11,
+          "discrepancies": []
+        }
+      },
+      {
+        "release_key": "gross-domestic-product:june 2026 quarter",
+        "vintage_ids": [
+          780,
+          781,
+          782,
+          783,
+          784,
+          785,
+          786,
+          787,
+          788,
+          789,
+          790,
+          791
+        ],
+        "bundle_identities": [
+          "data-v1:417e83afd950aeb45baf196cc768df8a0bfc96cb561b81bc8557975137ffb6f0"
+        ],
+        "captured_at": [
+          "2026-10-29T07:57:42Z"
+        ],
+        "source_kind": [
+          "release_files"
+        ],
+        "first_publication_eligible": false,
+        "series_vintages": 12,
+        "observations": 1857,
+        "requests": 2,
+        "reconciliation": {
+          "kind": "all_selected_official_rows_to_sql_decimal",
+          "points": 1857,
+          "series": 12,
+          "discrepancies": []
+        }
+      }
+    ],
+    "new_series_vintages": 268,
+    "new_observations": 24093,
+    "cpi": {
+      "official_files": 12,
+      "vintages": 8,
+      "outcomes": 1607,
+      "genuine_first_quarters": [
+        "2026-09"
+      ],
+      "discrepancies": []
+    },
+    "forecast_provenance_checks": [
+      {
+        "indicator": "gdp",
+        "scope": "in_memory_synthetic_claim_against_actual_production_outcomes_no_research_rows_written",
+        "first_stored": 0.8,
+        "latest": 0.9,
+        "first_publication_eligible": false,
+        "first_error": null,
+        "first_revision": null,
+        "release_day_claim_excluded": true
+      },
+      {
+        "indicator": "unemployment",
+        "scope": "in_memory_synthetic_claim_against_actual_production_outcomes_no_research_rows_written",
+        "first_stored": 5.3,
+        "latest": 5.4,
+        "first_publication_eligible": false,
+        "first_error": null,
+        "first_revision": null,
+        "release_day_claim_excluded": true
+      }
+    ],
+    "request_accounting": {
+      "logical_gets": 30,
+      "network_attempts": 30,
+      "redirects": 0,
+      "retries": 0,
+      "min_observed_start_gap_seconds": 10.0,
+      "configured_min_interval_seconds": 10
+    },
+    "unexplained_discrepancies": []
+  },
+  "independent_macro": {
+    "scope": "retained_official_captures_not_populated_production",
+    "arithmetic": "standard_library_csv_zip_decimal_no_application_calculation_helpers",
+    "source_identity": [
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-March-2026-quarter/Download-data/gross-domestic-product-march-2026-quarter.csv",
+        "sha256": "1576eb1443c1fad22ee260a0f5ec690b26d84aa2c673533f3b22c0a5c5f66fda",
+        "selection": [
+          {
+            "selected_series": 12,
+            "rows": 1855,
+            "exact_match": true
+          }
+        ]
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-March-2026-quarter/Download-data/labour-market-statistics-march-2026-quarter-revised.zip",
+        "sha256": "53d702b134b416b81735eb2a0c5a1253a7fd1b6b2a2e3bb021c557c22b1e545e",
+        "selection": [
+          {
+            "member": "labour market statistics march 2026 quarter updated/hlfs-mar26qtr-tables.csv",
+            "selected_series": 8,
+            "rows": 1216,
+            "exact_match": true
+          },
+          {
+            "member": "labour market statistics march 2026 quarter updated/lci-mar26qtr-tables.csv",
+            "selected_series": 3,
+            "rows": 397,
+            "exact_match": true
+          },
+          {
+            "member": "labour market statistics march 2026 quarter updated/lms-mar26qtr-tables.csv",
+            "selected_series": 0,
+            "rows": 0,
+            "exact_match": true
+          },
+          {
+            "member": "labour market statistics march 2026 quarter updated/qes-mar26qtr-tables.csv",
+            "selected_series": 0,
+            "rows": 0,
+            "exact_match": true
+          }
+        ]
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-June-2026-quarter/Download-data/gross-domestic-product-june-2026-quarter.csv",
+        "sha256": "4e88dc85c4406665bcbbb6f3c8e851f38a968a76550772b85cedac4f7d95eab3",
+        "selection": [
+          {
+            "selected_series": 12,
+            "rows": 1867,
+            "exact_match": true
+          }
+        ]
+      },
+      {
+        "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-June-2026-quarter/Download-data/labour-market-statistics-june-2026-quarter.zip",
+        "sha256": "f7f867ab76b6bae2177ba1c3960f9a4ca7f7fb01a8325b5cdd7ee37b5cecab26",
+        "selection": [
+          {
+            "member": "labour-market-statistics-june-2026/hlfs-jun26qtr-csv.csv",
+            "selected_series": 8,
+            "rows": 1224,
+            "exact_match": true
+          },
+          {
+            "member": "labour-market-statistics-june-2026/lci-jun26qtr-csv.csv",
+            "selected_series": 3,
+            "rows": 400,
+            "exact_match": true
+          },
+          {
+            "member": "labour-market-statistics-june-2026/lms-jun26qtr-tables.csv",
+            "selected_series": 0,
+            "rows": 0,
+            "exact_match": true
+          },
+          {
+            "member": "labour-market-statistics-june-2026/qes-jun26qtr-csv.csv",
+            "selected_series": 0,
+            "rows": 0,
+            "exact_match": true
+          }
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG01RSC01B01PC",
+        "checks": 155,
+        "max_difference_pp": "0.049210127677991776671716100",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG01RSC01B01AC",
+        "checks": 152,
+        "max_difference_pp": "0.050123315580655538478035500",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG01RAC01B01AC",
+        "checks": 149,
+        "max_difference_pp": "0.049555284528661094089300100",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG02RSC31B15PC",
+        "checks": 155,
+        "max_difference_pp": "0.053341148886283704572098500",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-03",
+        "check": "labour_force_identity",
+        "checks": 161,
+        "max_difference_thousands": "1",
+        "tolerance_thousands": "1.5",
+        "ok": true
+      },
+      {
+        "release": "2026-03",
+        "check": "hlfs_rates",
+        "checks": 483,
+        "max_difference_pp": "0.07064160725858716785482826",
+        "tolerance_pp": "0.08",
+        "ok": true
+      },
+      {
+        "release": "2026-03",
+        "series": "LCIQ.SG53Z9PC",
+        "checks": 133,
+        "max_difference_pp": "0.049955105742097177522111700",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-03",
+        "series": "LCIQ.SG53Z9AC",
+        "checks": 130,
+        "max_difference_pp": "0.049440715883668903803132000",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG01RSC01B01PC",
+        "checks": 156,
+        "max_difference_pp": "0.049912703401075494098749900",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG01RSC01B01AC",
+        "checks": 153,
+        "max_difference_pp": "0.050123315580655538478035500",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG01RAC01B01AC",
+        "checks": 150,
+        "max_difference_pp": "0.049852721216403461280820700",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG02RSC31B15PC",
+        "checks": 156,
+        "max_difference_pp": "0.053341148886283704572098500",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "check": "labour_force_identity",
+        "checks": 162,
+        "max_difference_thousands": "1",
+        "tolerance_thousands": "1.5",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "check": "hlfs_rates",
+        "checks": 486,
+        "max_difference_pp": "0.07064160725858716785482826",
+        "tolerance_pp": "0.08",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "series": "LCIQ.SG53Z9PC",
+        "checks": 134,
+        "max_difference_pp": "0.049955105742097177522111700",
+        "tolerance_pp": "0.06",
+        "ok": true
+      },
+      {
+        "release": "2026-06",
+        "series": "LCIQ.SG53Z9AC",
+        "checks": 131,
+        "max_difference_pp": "0.049440715883668903803132000",
+        "tolerance_pp": "0.06",
+        "ok": true
+      }
+    ],
+    "headlines": [
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG01RSC01B01PC",
+        "numerator": "71471",
+        "denominator": "70904",
+        "calculated": "0.799672797021324607920568700",
+        "published": "0.8"
+      },
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG01RSC01B01AC",
+        "numerator": "71471",
+        "denominator": "70435",
+        "calculated": "1.470859657840562220486973800",
+        "published": "1.5"
+      },
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG01RAC01B01AC",
+        "numerator": "282969",
+        "denominator": "280703",
+        "calculated": "0.807258917788552313299109700",
+        "published": "0.8"
+      },
+      {
+        "release": "2026-03",
+        "series": "SNEQ.SG02RSC31B15PC",
+        "numerator": "73699",
+        "denominator": "72963",
+        "calculated": "1.008730452421090141578608300",
+        "published": "1"
+      },
+      {
+        "release": "2026-03",
+        "series": "HLFQ.S1F3S",
+        "numerator": "163",
+        "denominator": "3052",
+        "calculated": "5.340760157273918741808650066",
+        "published": "5.3"
+      },
+      {
+        "release": "2026-03",
+        "series": "HLFQ.S1H3S",
+        "numerator": "2889",
+        "denominator": "4335",
+        "calculated": "66.64359861591695501730103806",
+        "published": "66.7"
+      },
+      {
+        "release": "2026-03",
+        "series": "HLFQ.S1E3S",
+        "numerator": "3052",
+        "denominator": "4335",
+        "calculated": "70.40369088811995386389850058",
+        "published": "70.4"
+      },
+      {
+        "release": "2026-03",
+        "series": "LCIQ.SG53Z9PC",
+        "numerator": "1450",
+        "denominator": "1443",
+        "calculated": "0.485100485100485100485100500",
+        "published": "0.5"
+      },
+      {
+        "release": "2026-03",
+        "series": "LCIQ.SG53Z9AC",
+        "numerator": "1450",
+        "denominator": "1422",
+        "calculated": "1.969057665260196905766526000",
+        "published": "2"
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG01RSC01B01PC",
+        "numerator": "71805",
+        "denominator": "71628",
+        "calculated": "0.247110068688222482827944400",
+        "published": "0.2"
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG01RSC01B01AC",
+        "numerator": "71805",
+        "denominator": "70019",
+        "calculated": "2.550736228737913994772847400",
+        "published": "2.6"
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG01RAC01B01AC",
+        "numerator": "285049",
+        "denominator": "280164",
+        "calculated": "1.743621593066917948058994000",
+        "published": "1.7"
+      },
+      {
+        "release": "2026-06",
+        "series": "SNEQ.SG02RSC31B15PC",
+        "numerator": "74135",
+        "denominator": "73869",
+        "calculated": "0.360096928346126250524577300",
+        "published": "0.4"
+      },
+      {
+        "release": "2026-06",
+        "series": "HLFQ.S1F3S",
+        "numerator": "171",
+        "denominator": "3076",
+        "calculated": "5.559167750325097529258777633",
+        "published": "5.6"
+      },
+      {
+        "release": "2026-06",
+        "series": "HLFQ.S1H3S",
+        "numerator": "2905",
+        "denominator": "4353",
+        "calculated": "66.73558465426142889960946474",
+        "published": "66.7"
+      },
+      {
+        "release": "2026-06",
+        "series": "HLFQ.S1E3S",
+        "numerator": "3076",
+        "denominator": "4353",
+        "calculated": "70.66390994716287617734895474",
+        "published": "70.7"
+      },
+      {
+        "release": "2026-06",
+        "series": "LCIQ.SG53Z9PC",
+        "numerator": "1459",
+        "denominator": "1450",
+        "calculated": "0.620689655172413793103448300",
+        "published": "0.6"
+      },
+      {
+        "release": "2026-06",
+        "series": "LCIQ.SG53Z9AC",
+        "numerator": "1459",
+        "denominator": "1431",
+        "calculated": "1.956673654786862334032145400",
+        "published": "2"
+      }
+    ],
+    "unexplained_discrepancies": []
+  },
+  "cpi_workbook_source_fidelity": {
+    "method": "stdlib_XLSX_XML_and_Decimal_independent_of_application_workbook_reader",
+    "checks": [
+      {
+        "release_key": "consumers-price-index:december 2025 quarter",
+        "source_url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-corrected.xlsx",
+        "sha256": "b939bc6b1e78fa1b90fe70eac797b5118aa1858da1ef3b0e004f209025a5f9d7",
+        "series": 11,
+        "observations": 176,
+        "representation_differences": 15,
+        "maximum_decimal_to_sqlite_real_difference": "4E-16",
+        "exact_float_conversion_match": true,
+        "exact_published_one_decimal_match": true,
+        "discrepancies": []
+      },
+      {
+        "release_key": "consumers-price-index:march 2026 quarter",
+        "source_url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter.xlsx",
+        "sha256": "0362c758a53a83528a1e91f349f7021a1d3be20e7f32442b3987a76b731d6c0b",
+        "series": 11,
+        "observations": 187,
+        "representation_differences": 17,
+        "maximum_decimal_to_sqlite_real_difference": "4E-16",
+        "exact_float_conversion_match": true,
+        "exact_published_one_decimal_match": true,
+        "discrepancies": []
+      },
+      {
+        "release_key": "consumers-price-index:june 2026 quarter",
+        "source_url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter.xlsx",
+        "sha256": "56ed2ed8edf6247ab599b88593cea967e2afce3a921bc95de0a962f45d664037",
+        "series": 11,
+        "observations": 198,
+        "representation_differences": 16,
+        "maximum_decimal_to_sqlite_real_difference": "4E-16",
+        "exact_float_conversion_match": true,
+        "exact_published_one_decimal_match": true,
+        "discrepancies": []
+      }
+    ]
+  },
+  "snapshot_fidelity": {
+    "macro_snapshot_sql": [
+      {
+        "file": "gdp.json",
+        "series": 12,
+        "points": 1857,
+        "latest_vintage_sql_exact_match": true,
+        "reference_period": "2026-06"
+      },
+      {
+        "file": "labour-market.json",
+        "series": 11,
+        "points": 1624,
+        "latest_vintage_sql_exact_match": true,
+        "reference_period": "2026-06"
+      }
+    ],
+    "migration_ect_payloads_unchanged": [
+      "ect.json",
+      "migration/countries.json",
+      "series/mig.ry.net.nonnz.json",
+      "series/mig.ry.arrivals.json",
+      "series/mig.ry.arrivals.nonnz.json",
+      "series/mig.ry.departures.nonnz.json",
+      "series/mig.ry.departures.nz.json",
+      "series/mig.ry.net.nz.json",
+      "series/mig.m.net.json",
+      "series/mig.ry.departures.json",
+      "series/mig.ry.arrivals.nz.json",
+      "series/mig.m.departures.json",
+      "series/mig.ry.net.json",
+      "series/mig.m.arrivals.nonnz.json",
+      "series/mig.m.arrivals.json",
+      "series/mig.m.arrivals.nz.json",
+      "revisions/mig.ry.net.nonnz.json",
+      "revisions/mig.ry.arrivals.json",
+      "revisions/mig.ry.arrivals.nonnz.json",
+      "revisions/mig.ry.departures.nonnz.json",
+      "revisions/mig.ry.departures.nz.json",
+      "revisions/mig.ry.net.nz.json",
+      "revisions/mig.m.net.json",
+      "revisions/mig.ry.departures.json",
+      "revisions/mig.ry.arrivals.nz.json",
+      "revisions/mig.m.departures.json",
+      "revisions/mig.ry.net.json",
+      "revisions/mig.m.arrivals.nonnz.json",
+      "revisions/mig.m.arrivals.json",
+      "revisions/mig.m.arrivals.nz.json"
+    ],
+    "latest_cpi_points_unchanged": true,
+    "cpi_revision_history_update_authorised": true,
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66"
+  },
+  "schema_match": {
+    "schema_version": 10,
+    "expected_schema_version": 10,
+    "objects_checked": 74,
+    "differences": {}
+  },
+  "pre_activation_backup": {
+    "created_at": "2026-10-29T07:45:30.534880+00:00",
+    "role": "approved_pre_activation_backup",
+    "commit_sha": "3ac92addea52908d926a93e4015c217cf6cde125",
+    "backup_dir": "data/backups/phase-4e-20261029T074530Z",
+    "restore_verified": true,
+    "protected_rows": {
+      "observation": {
+        "rows": 52309,
+        "sha256": "4f2b51fa93cc40b0f5f687d11a2e5baf1059c03e10ff93501361d5acd214438c"
+      },
+      "vintage": {
+        "rows": 523,
+        "sha256": "f095b790cfa2f4c8d1d1f1cc59670bf6f4d7875f1f5977baf1af486db16fe63b"
+      },
+      "vintage_series_definition": {
+        "rows": 523,
+        "sha256": "05a1f2f6eb37f38f0a56d87b28c72ea486fcc932a9e9025ce56ac819b919c776"
+      }
+    },
+    "database_sha256": "ae1fb49cdc5960a938e2135e2b06f6f7601651089cec39bbabdce47a8ec85d0a",
+    "sources_sha256": "dc125b6b3b13c5f30746fac12309635138a78bdfec6728a716456cd4e767121f"
+  },
+  "limitations": [
+    "Seven historical release captures are earliest stored, not proven first publication",
+    "No real institutional forecasts or research rows exist",
+    "Underutilisation identity unavailable from selected headline components",
+    "GDP chain-volume reference year unverified and not asserted",
+    "Hosted CI billing-blocked before job execution",
+    "Docker application/publisher image builds and smoke checks not run: no daemon",
+    "Canonical Netlify origin/site undecided; no draft or production deployment",
+    "Unattended scheduler/runtime, monitoring delivery and Netlify rollback not validated"
+  ]
+}

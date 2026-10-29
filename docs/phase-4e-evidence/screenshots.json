@@ -1,0 +1,51 @@
+[
+  {
+    "path": "screenshots/phase-4e/gdp-desktop-viewport.png",
+    "bytes": 108380,
+    "sha256": "a543d1f9c2ef8eca68ef08a341c0893ceec4ccaa5c81c4b0f3d1d44554578724",
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "scope": "loopback_populated_production_snapshot_no_Netlify_deployment"
+  },
+  {
+    "path": "screenshots/phase-4e/gdp-desktop.png",
+    "bytes": 351660,
+    "sha256": "6eef7dc60c7d387d172882824c056019d4c7da22f98e7bc72e8b2fdcfd4e7310",
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "scope": "loopback_populated_production_snapshot_no_Netlify_deployment"
+  },
+  {
+    "path": "screenshots/phase-4e/gdp-mobile.png",
+    "bytes": 339410,
+    "sha256": "93ec7c181aa47f6dfafd5b82948e6c0f879d2a39bf4935fb6bea38cd78343fa5",
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "scope": "loopback_populated_production_snapshot_no_Netlify_deployment"
+  },
+  {
+    "path": "screenshots/phase-4e/inflation-desktop.png",
+    "bytes": 744277,
+    "sha256": "e30200bb04d4a0c105f5965cca4b5027334fe0c94a72c3e50de1e03b4b6d1938",
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "scope": "loopback_populated_production_snapshot_no_Netlify_deployment"
+  },
+  {
+    "path": "screenshots/phase-4e/inflation-mobile.png",
+    "bytes": 719861,
+    "sha256": "95ea79e4cd92ea2711e00dfb47488399ad8dd6dd9bed968c652a9d0855ad366e",
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "scope": "loopback_populated_production_snapshot_no_Netlify_deployment"
+  },
+  {
+    "path": "screenshots/phase-4e/labour-market-desktop.png",
+    "bytes": 403422,
+    "sha256": "c8c7801f9a54b1140f8fdff99b896f81050084007c6b3e8e5885d947ec4cc6cd",
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "scope": "loopback_populated_production_snapshot_no_Netlify_deployment"
+  },
+  {
+    "path": "screenshots/phase-4e/labour-market-mobile.png",
+    "bytes": 380558,
+    "sha256": "7779730267afa7597895d5e6bf2acd6b3d310c582f35c8b6ffbf658ee4240e2c",
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "scope": "loopback_populated_production_snapshot_no_Netlify_deployment"
+  }
+]

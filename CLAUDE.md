@@ -1,9 +1,10 @@
 # NZ Stats Intelligence Dashboard: project instructions
 
 Self-hosted dashboard that ingests Stats NZ releases and explains them. Migration, card spending and CPI are built;
-the Phase 4D branch integrates GDP, labour and the Outlook stack for release review. OCR remains synthetic-only
+Phase 4D integrates GDP, labour and the Outlook stack on main. Phase 4E has activated and reconciled the approved
+seven-release official backfill; production deployment remains gated. OCR remains synthetic-only
 and institutional research publishing remains permission-gated. Resume from [docs/progress.md](docs/progress.md);
-current release gates and evidence are in [docs/phase-4d-release.md](docs/phase-4d-release.md).
+current release gates and evidence are in [docs/phase-4e-release.md](docs/phase-4e-release.md).
 
 ## Stack and layout
 

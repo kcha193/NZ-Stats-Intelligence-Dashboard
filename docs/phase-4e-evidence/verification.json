@@ -1,0 +1,102 @@
+{
+  "commit_sha": "3ac92addea52908d926a93e4015c217cf6cde125",
+  "local": {
+    "python": "3.12.13",
+    "node": "20.20.2",
+    "npm": "10.8.2",
+    "backend": {
+      "passed": 2809,
+      "warnings": 1
+    },
+    "ruff_lint": "passed",
+    "ruff_format": "passed",
+    "frontend": {
+      "files": 47,
+      "passed": 478
+    },
+    "frontend_types": "passed",
+    "frontend_lint": "passed_with_three_existing_fast_refresh_warnings",
+    "api_schema_parity": "passed",
+    "npm_audit": "zero_vulnerabilities_at_low",
+    "live_build": "passed_existing_large_chunk_warning",
+    "static_build": "passed_existing_large_chunk_warning",
+    "live_browser": {
+      "passed": 150
+    },
+    "static_browser": {
+      "passed": 312,
+      "skipped": 3
+    },
+    "synthetic_research_browser": {
+      "passed": 18,
+      "skipped": 3,
+      "first_attempt": "port_in_use_before_tests",
+      "accepted_retry": "passed_on_isolated_port"
+    },
+    "focused_release_checks": {
+      "passed": 164,
+      "warnings": 1
+    },
+    "production_snapshot_browser": {
+      "views": 6,
+      "csv_exports": 6,
+      "png_exports": 6,
+      "passed": true
+    },
+    "production_local_http_checks": 14
+  },
+  "hosted": {
+    "status": "BLOCKED_BEFORE_EXECUTION",
+    "run_id": 40835493335,
+    "url": "https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40835493335",
+    "jobs": [
+      {
+        "conclusion": "failure",
+        "html_url": "https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40835493335/job/123319174204",
+        "id": 123319174204,
+        "name": "backend",
+        "runner_id": 0,
+        "runner_name": "",
+        "steps": 0
+      },
+      {
+        "conclusion": "failure",
+        "html_url": "https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40835493335/job/123319174589",
+        "id": 123319174589,
+        "name": "frontend",
+        "runner_id": 0,
+        "runner_name": "",
+        "steps": 0
+      },
+      {
+        "conclusion": "failure",
+        "html_url": "https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40835493335/job/123319174638",
+        "id": 123319174638,
+        "name": "static-site",
+        "runner_id": 0,
+        "runner_name": "",
+        "steps": 0
+      },
+      {
+        "conclusion": "skipped",
+        "html_url": "https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40835493335/job/123319196515",
+        "id": 123319196515,
+        "name": "docker",
+        "runner_id": null,
+        "runner_name": null,
+        "steps": 0
+      }
+    ],
+    "blocking_annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased."
+  },
+  "docker": {
+    "client": "29.6.2_darwin_arm64",
+    "daemon": "UNAVAILABLE_no_socket",
+    "compose_plugin": "unavailable",
+    "separate_docker_compose_syntax": "passed_app_and_publisher_no_env_resolution",
+    "application_build": "NOT_RUN",
+    "application_smoke": "NOT_RUN",
+    "publisher_build": "NOT_RUN",
+    "publisher_smoke": "NOT_RUN"
+  }
+}
