@@ -6,9 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nzstats.api.app import create_app
+from nzstats.domain import Observation
 from nzstats.insights.gdp import build_gdp_analysis, build_gdp_dashboard
 from nzstats.store import repo
-from tests.macro_support import ingest_gdp
+from nzstats.store.db import transaction
+from tests.macro_support import NOW, ingest, ingest_gdp
 
 
 @pytest.fixture()
@@ -97,6 +99,84 @@ def test_revision_table_is_unavailable_with_one_release(rt, site):
     ingest_gdp(rt, site, "2026-06")
     table = build_gdp_dashboard(rt.conn).revisions[0]
     assert table.available is False and table.rows == []
+
+
+def _store_correction(rt, release_id, key, period, value):
+    """Simulate a corrected stored bundle; leave the approved fixture files untouched."""
+    original = repo.release_bundle(rt.conn, release_id)
+    corrected = f"test-correction-{release_id}"
+    with transaction(rt.conn):
+        for definition, obs in repo.bundle_series(rt.conn, release_id, original):
+            sid = repo.upsert_series(rt.conn, definition)
+            vid = repo.create_vintage(
+                rt.conn, release_id, sid, NOW, "release_files", "gdp-csv-v1", corrected
+            )
+            repo.insert_observations(
+                rt.conn,
+                vid,
+                [
+                    Observation(
+                        definition.key,
+                        o.period,
+                        value if definition.key == key and o.period == period else o.value,
+                        o.status,
+                        o.std_error,
+                        o.released_in,
+                    )
+                    for o in obs
+                ],
+            )
+    return original, corrected
+
+
+@pytest.mark.parametrize(
+    "key", ["gdp.production.cv.sa.pct_qoq", "gdp.production.cv.nsa.pct_annual_avg"]
+)
+@pytest.mark.parametrize("backfill", [False, True])
+def test_first_published_survives_correction_and_restoration(rt, site, key, backfill):
+    # Also cover a newer release ingested before its older publication is backfilled.
+    if backfill:
+        ingest_gdp(rt, site, "2026-06")
+    march_key = ingest_gdp(rt, site, "2026-03")["2026-03"]
+    march_id = repo.get_release(rt.conn, march_key)["id"]
+    original, corrected = _store_correction(rt, march_id, key, "2026-03", 1.0)
+    correction = repo.bundle_vintage(rt.conn, key, march_id, corrected)
+    assert repo.vintage_points(rt.conn, correction.vintage_id)["2026-03"].value == 1.0
+
+    # Re-ingesting the original 0.8 bundle reactivates it, without inserting new vintages.
+    assert ingest(rt, march_key).outcome == "ingested"
+    assert repo.release_bundle(rt.conn, march_id) == original
+    assert ingest(rt, march_key).outcome == "unchanged"
+    if not backfill:
+        ingest_gdp(rt, site, "2026-06")
+
+    # Repeatedly reactivate both bundles after the subsequent release exists, too.
+    for bundle in (original, corrected, original):
+        with transaction(rt.conn):
+            repo.reactivate_bundle(rt.conn, march_id, bundle)
+        dashboard = build_gdp_dashboard(rt.conn)
+        table = next(t for t in dashboard.revisions if t.series_key == key)
+        rows = {r.period: r for r in table.rows}
+        march = rows["2026-03"]
+        assert (march.first_value, march.latest_value, march.revision) == (0.8, 0.9, 0.1)
+        assert march.first_is_publication is True
+        assert march.first_release == "Gross domestic product: March 2026 quarter"
+        june = rows["2026-06"]
+        assert (june.first_value, june.latest_value, june.revision) == (
+            (0.2, 0.2, 0.0) if key.endswith("pct_qoq") else (1.7, 1.7, 0.0)
+        )
+        december = rows["2025-12"]
+        assert december.first_is_publication is False
+        assert december.first_release == "Gross domestic product: March 2026 quarter"
+        # The shared current-vintage lookup still follows activation, including corrections.
+        previous = repo.previous_vintage(rt.conn, key, "2026-09-16T22:45:00Z")
+        assert repo.vintage_points(rt.conn, previous.vintage_id)["2026-03"].value == (
+            1.0 if bundle == corrected else 0.8
+        )
+
+    assert len(repo.list_vintages(rt.conn, key)) == 3
+    assert repo.vintage_points(rt.conn, correction.vintage_id)["2026-03"].value == 1.0
+    assert ingest(rt, march_key).outcome == "unchanged"
 
 
 def test_analysis_revisions_block_compares_with_the_previous_release(rt, site):
