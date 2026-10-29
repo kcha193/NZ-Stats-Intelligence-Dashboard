@@ -291,6 +291,51 @@ class CpiDashboardOut(BaseModel):
     caveats: list[str]
 
 
+class GdpSeriesOut(BaseModel):
+    key: str
+    name: str
+    unit: str
+    measure: Literal["level", "quarterly_change", "annual_change", "annual_average_change"]
+    approach: Literal["production", "expenditure"]
+    price_basis: Literal["chain_volume", "current_prices"]
+    adjustment: str
+    per_capita: bool
+    definition: str
+    points: list[PointOut]
+    source_url: str | None
+
+
+class GdpRevisionRow(BaseModel):
+    period: str
+    first_value: float
+    first_release: str  # title of the release the first value comes from
+    first_is_publication: (
+        bool  # False: the quarter's own release is not stored (earliest stored instead)
+    )
+    latest_value: float
+    latest_release: str
+    revision: float  # percentage points, latest minus first, as published to 1 d.p.
+
+
+class GdpRevisionTable(BaseModel):
+    series_key: str
+    label: str
+    available: bool
+    note: str
+    rows: list[GdpRevisionRow]
+
+
+class GdpDashboardOut(BaseModel):
+    analysis: ReleaseAnalysis
+    reference_period: str
+    published_at: str
+    captured_at: str
+    series: list[GdpSeriesOut]
+    revisions: list[GdpRevisionTable]
+    sources: list[str]
+    caveats: list[str]
+
+
 class RevisionHistoryRow(BaseModel):
     release_key: str
     title: str

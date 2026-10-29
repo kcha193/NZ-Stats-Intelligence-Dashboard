@@ -7,6 +7,10 @@ with full historical coverage and genuine August/September publication vintages.
 Phase 2B CPI was verified on 19 October 2026: three official CSVs, embedded charts, the workbook and the September 2026 methodology update, with Dec 2025/Mar 2026/Jun 2026 fixtures.
 [CPI source details, measured tolerances and limitations](data-sources/cpi.md).
 
+Phase 4C GDP was verified on 28 October 2026: the official quarterly CSV and the release page's growth charts, with
+March and June 2026 quarter fixtures and a measured reconciliation tolerance.
+[GDP source details, the three annual measures and revisions](data-sources/gdp.md).
+
 Phase 3A institutional research sources (RBNZ, Treasury, banks, consultancies) were probed on 25 October 2026. They are a
 separate domain with their own registry and runbook, and none is approved for automated access yet.
 [Research source registry, approval checklist and runbook](data-sources/research.md).

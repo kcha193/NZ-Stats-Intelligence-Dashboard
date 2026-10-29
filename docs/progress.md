@@ -5,6 +5,31 @@ Phases 3A to 3E (PRs #11 to #16), Phase 4B dashboard UX remediation (PR #17) and
 (PR #10) are merged to `main`; the static site is not deployed and no research source is approved. Earlier entries
 below are historical.
 
+## PR #19: GDP review remediation, 29 October 2026
+
+Finding ledger (all paginated conversation comments, review submissions and inline threads inspected):
+
+| Finding | Severity | Root cause | Required fix | Status |
+|---|---|---|---|---|
+| [First-published vintage chronology](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/19#discussion_r4407901334) | P2 | `list_vintages()` follows mutable activation order; restoring an original bundle moves it after its correction | Select each release's original vintage by insertion ID, retaining publication order across releases | Fixed; four failing-first regression cases now pass |
+
+GDP's first-published lookup now sorts by `(published_at, vintage_id)` before choosing one vintage per release.
+The schema's vintage ID is assigned on insertion; `reactivate_bundle()` changes only activation. Shared current-vintage
+queries, storage, source validation and approved fixtures are unchanged. No upstream data was fetched.
+
+Regression coverage: March 0.8 → hypothetical stored correction 1.0 → re-ingested original 0.8 → June release (0.9 for
+March). First-published remains 0.8 and the revision remains +0.1 pp. Both quarterly and annual-average growth are tested
+with chronological ingestion and out-of-order backfills, repeated correction/original reactivations, unchanged re-ingests,
+earliest-stored attribution and preservation of all three vintages. Capture timestamps deliberately tie.
+
+Local verification: 2,608 backend tests (including 216 focused GDP/storage tests), 464 frontend unit tests and 126 live
+Playwright tests pass. Backend Ruff lint/format, frontend typecheck/lint/build, dependency audit and API schema drift
+check pass. Existing warnings: Starlette/httpx deprecation, three frontend Fast Refresh exports, Vite chunk size.
+Docker build/smoke not run: the local daemon is unavailable. Static/research browser suites are outside this GDP-only fix.
+Review outcome is recorded in the PR thread replies and the head-specific Codex review summary.
+Hosted CI on the original head failed before jobs started: GitHub's annotation cites failed account payments or the
+spending limit. This is not an executable test result. No merge, deployment or changes to the other stacked PRs.
+
 ## Phase 3F: pilot and release acceptance, 28 October 2026
 
 Report, blocker register, readiness matrix and recommendation: [Phase 3F](superpowers/specs/2026-10-28-phase-3f-pilot-acceptance.md).
