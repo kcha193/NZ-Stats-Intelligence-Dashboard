@@ -81,7 +81,10 @@ test("forecast history and the CPI track record, with explicit states", async ({
   await track.getByLabel("Target").selectOption("cpi_inflation|percent|annual_change|year_to:2026-06|central");
   await expect(track).toContainText("Official outcome (first published)");
   await page.getByRole("region", { name: "Forecast comparison" }).getByRole("group", { name: "Indicator" }).getByText("GDP", { exact: true }).click();
-  await expect(track).toContainText("No official GDP series is ingested here");
+  // Phase 4C: GDP forecasts are checked against official Stats NZ GDP; these target March 2027, not yet released.
+  await expect(track).toContainText("Outcomes as of Gross domestic product: June 2026 quarter");
+  await expect(track).toContainText("2 waiting for their quarter");
+  await expect(track.getByRole("link", { name: "Official GDP figures" })).toHaveAttribute("href", "/gdp");
   await noHorizontalScroll(page);
   expect(errors).toEqual([]);
 });

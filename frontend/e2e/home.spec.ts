@@ -13,9 +13,10 @@ test("homepage layers: glance, lead story, collection, topics, indicators, then 
   await expect(page.getByRole("region", { name: "Explore by topic" })).toBeVisible();
 
   const indicators = page.getByRole("region", { name: "Key indicators" });
-  await expect(indicators.getByRole("article")).toHaveCount(3);
-  await indicators.getByRole("button", { name: "Explore all 10 indicators" }).click();
-  await expect(indicators.getByRole("article")).toHaveCount(10);
+  // Phase 4C: GDP and labour market groups join the three topic groups (one headline each when collapsed).
+  await expect(indicators.getByRole("article")).toHaveCount(5);
+  await indicators.getByRole("button", { name: "Explore all 12 indicators" }).click();
+  await expect(indicators.getByRole("article")).toHaveCount(12);
   await expect(page.getByRole("region", { name: "Data freshness" })).toBeVisible();
   expect(errors).toEqual([]);
 });

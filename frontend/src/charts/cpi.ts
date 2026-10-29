@@ -78,7 +78,7 @@ function rateTooltip(name: string, byPeriod: Map<string, number | null>) {
 const rates = (points: CpiPoint[], key: "annual_pct" | "quarterly_pct"): Row[] =>
   points.map((p) => ({ period: p.period, value: p[key] ?? null }));
 
-function lineRates(name: string, data: Row[], yName: string, theme: ChartTheme, band = false): EChartsCoreOption {
+export function lineRates(name: string, data: Row[], yName: string, theme: ChartTheme, band = false): EChartsCoreOption {
   const periods = quarterAxis(data.map((r) => r.period));
   const byPeriod = new Map(data.map((r) => [r.period, r.value]));
   const latest = [...data].reverse().find((r) => r.value !== null);
@@ -108,7 +108,7 @@ function lineRates(name: string, data: Row[], yName: string, theme: ChartTheme, 
   };
 }
 
-function barRates(name: string, data: Row[], yName: string, theme: ChartTheme): EChartsCoreOption {
+export function barRates(name: string, data: Row[], yName: string, theme: ChartTheme): EChartsCoreOption {
   const periods = quarterAxis(data.map((r) => r.period));
   const byPeriod = new Map(data.map((r) => [r.period, r.value]));
   return {

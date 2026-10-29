@@ -5,6 +5,9 @@ import { Layout } from "@/components/Layout";
 const Overview = lazy(() => import("@/pages/Overview"));
 const Migration = lazy(() => import("@/pages/Migration"));
 const Inflation = lazy(() => import("@/pages/Inflation"));
+const GrossDomesticProduct = lazy(() => import("@/pages/GrossDomesticProduct"));
+const LabourMarket = lazy(() => import("@/pages/LabourMarket"));
+const OfficialCashRate = lazy(() => import("@/pages/OfficialCashRate"));
 const ElectronicCardTransactions = lazy(() => import('@/pages/ElectronicCardTransactions'));
 const EconomicOutlook = lazy(() => import("@/pages/EconomicOutlook"));
 const ResearchDetail = lazy(() => import("@/pages/ResearchDetail"));
@@ -26,6 +29,9 @@ export default function App() {
           <Route path="/" element={<Overview />} />
           <Route path="/migration" element={<Migration />} />
           <Route path="/inflation" element={<Inflation />} />
+          <Route path="/gdp" element={<GrossDomesticProduct />} />
+          <Route path="/labour-market" element={<LabourMarket />} />
+          <Route path="/ocr" element={<OfficialCashRate />} />
           <Route path="/electronic-card-transactions" element={<ElectronicCardTransactions />} />
           <Route path="/economic-outlook" element={<EconomicOutlook />} />
           <Route path="/economic-outlook/research/:id" element={<ResearchDetail />} />

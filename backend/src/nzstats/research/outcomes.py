@@ -194,6 +194,17 @@ class CpiActuals:
                 for i in sorted(earliest.values(), key=lambda v: (v.published_at, v.vintage_id))
             ]
 
+    indicator = "cpi_inflation"
+    official_series = NSA
+
+    @staticmethod
+    def target(f: ForecastOut) -> Target | str:
+        return cpi_target(f)
+
+    @staticmethod
+    def measure_label(measure: str) -> str:
+        return MEASURES[measure][0]
+
     def release_date(self, quarter: str) -> str | None:
         """When the release for this reference quarter was (or is scheduled to be) published, UTC."""
         found = self._releases.get(quarter)

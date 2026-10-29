@@ -15,6 +15,8 @@ from nzstats.api.app import create_app
 from nzstats.config import load_settings
 from nzstats.insights.cpi import build_cpi_dashboard
 from nzstats.insights.ect import build_ect_dashboard
+from nzstats.insights.gdp import build_gdp_dashboard
+from nzstats.insights.labour import build_labour_dashboard
 from nzstats.pipeline.ingest import ingest_release
 from nzstats.runtime import build_runtime
 from tests.cpi_support import NOW as CPI_NOW
@@ -56,17 +58,31 @@ def dump_cpi_fixture() -> None:
         assert payload["analysis"]["release"]["id"] == ids["2026-06"] and CPI_NOW
 
 
+def dump_macro_fixtures() -> None:
+    """GDP and labour market dashboards from the real March and June 2026 quarter releases (Phase 4C)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from seed_e2e_db import seed_macro_from_fixtures
+
+    with tempfile.TemporaryDirectory() as tmp:
+        seed_macro_from_fixtures(Path(tmp))
+        rt = build_runtime(load_settings({"NZSTATS_DATA_DIR": tmp}), fetcher=FakeSite().fetcher())
+        for name, build in (("gdp", build_gdp_dashboard), ("labour_market", build_labour_dashboard)):
+            payload = build(rt.conn).model_dump(mode="json")
+            (OUT / f"{name}.json").write_text(json.dumps(payload, separators=(",", ":")) + "\n")
+
+
 def dump_research_fixtures() -> None:
     """SYNTHETIC research responses (fictional institutions) from scripts/seed_research_demo.py, served by the real API."""
     from nzstats.research.api import research_router
     from nzstats.research.registry import load_registry
 
     sys.path.insert(0, str(ROOT / "scripts"))
-    from seed_e2e_db import seed_cpi_from_fixtures
+    from seed_e2e_db import seed_cpi_from_fixtures, seed_macro_from_fixtures
     from seed_research_demo import main as seed_research
 
     with tempfile.TemporaryDirectory() as tmp:
         seed_cpi_from_fixtures(Path(tmp))  # real CPI releases, so forecast evaluation has official outcomes
+        seed_macro_from_fixtures(Path(tmp))  # real GDP and labour releases (Phase 4C)
         seed_research(Path(tmp))
         registry = load_registry(Path(tmp) / "research_sources.synthetic.toml")
         app = create_app(
@@ -157,3 +173,5 @@ if __name__ == "__main__":
         dump_ect_fixture()
     if not only or "--cpi-only" in only:
         dump_cpi_fixture()
+    if not only or "--macro-only" in only:
+        dump_macro_fixtures()

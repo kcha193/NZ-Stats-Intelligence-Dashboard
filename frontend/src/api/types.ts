@@ -46,3 +46,9 @@ export type AccuracySummary = S["AccuracySummaryOut"];
 export type Ranking = S["RankingOut"];
 export type Consensus = S["ConsensusOut"];
 export type ConsensusGroup = S["ConsensusGroupOut"];
+// Phase 4C: official GDP and labour market dashboards.
+export type GdpDashboard = S["GdpDashboardOut"];
+export type GdpSeries = S["GdpSeriesOut"];
+export type LabourDashboard = S["LabourDashboardOut"];
+export type LabourSeries = S["LabourSeriesOut"];
+export type FirstLatestTable = S["FirstLatestTable"];

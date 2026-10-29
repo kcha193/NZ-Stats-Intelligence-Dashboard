@@ -8,6 +8,8 @@ from nzstats.catalog import INACTIVE_CATEGORIES
 from nzstats.clock import to_akl_iso, to_utc_iso
 from nzstats.insights.cpi import build_cpi_overview_kpi
 from nzstats.insights.ect import build_ect_overview_kpi
+from nzstats.insights.gdp import build_gdp_overview_kpi
+from nzstats.insights.labour import build_labour_overview_kpi
 from nzstats.insights.migration import SLUG, build_release_analysis
 from nzstats.insights.summary import release_summary
 from nzstats.models import FeaturedOut, InactiveCategory, Kpi, OverviewOut, SourceHealthOut
@@ -66,10 +68,22 @@ def build_overview(
         data_updated_at = max(filter(None, [data_updated_at, captured_at]))
 
     cpi = build_cpi_overview_kpi(conn)
-    if cpi is not None:
-        kpi, captured_at = cpi
-        kpis.append(kpi)
-        data_updated_at = max(filter(None, [data_updated_at, captured_at]))
+    gdp = build_gdp_overview_kpi(conn)
+    labour = build_labour_overview_kpi(conn)
+    for found in (cpi, gdp, labour):
+        if found is not None:
+            kpi, captured_at = found
+            kpis.append(kpi)
+            data_updated_at = max(filter(None, [data_updated_at, captured_at]))
+    active = {
+        name
+        for name, found in (
+            ("Prices and inflation", cpi),
+            ("Economic growth", gdp),
+            ("Labour market", labour),
+        )
+        if found is not None
+    }
 
     def summaries(sql: str, params: tuple) -> list:
         return [
@@ -96,8 +110,6 @@ def build_overview(
         freshness=health_rows(conn),
         featured=featured,
         inactive_categories=[
-            InactiveCategory(name=n, reason=r)
-            for n, r in INACTIVE_CATEGORIES
-            if not (cpi is not None and n == "Prices and inflation")
+            InactiveCategory(name=n, reason=r) for n, r in INACTIVE_CATEGORIES if n not in active
         ],
     )
