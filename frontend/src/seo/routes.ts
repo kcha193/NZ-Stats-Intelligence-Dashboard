@@ -26,6 +26,18 @@ export const ROUTE_META: Record<string, PageMeta> = {
     title: "Card spending: electronic card transactions",
     description: "Monthly electronic card transactions from Stats NZ: retail spending, industries and how the figures are revised.",
   },
+  "/gdp": {
+    title: "GDP: economic growth",
+    description: "Quarterly gross domestic product from Stats NZ: quarterly, annual average and annual growth, each named, with first-published and revised figures.",
+  },
+  "/labour-market": {
+    title: "Labour market: unemployment and wages",
+    description: "Household Labour Force Survey rates and the Labour Cost Index from Stats NZ, with first-published and revised unemployment figures.",
+  },
+  "/ocr": {
+    title: "Official Cash Rate",
+    description: "Why no Official Cash Rate figure is shown yet, and how decision dates, effective dates and monthly figures will be distinguished.",
+  },
   "/migration": {
     title: "Migration: arrivals and departures",
     description: "Monthly and year-ended international migration from Stats NZ: net migration, arrivals, departures, citizenship and countries.",

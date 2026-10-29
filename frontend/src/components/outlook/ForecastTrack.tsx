@@ -128,11 +128,14 @@ function RankingView({ r }: { r: Ranking }) {
   );
 }
 
+/** The dashboard with each indicator's official Stats NZ figures, for outcomes the Outlook checks forecasts against. */
+const OFFICIAL_PAGES: Record<string, string> = { cpi_inflation: "/inflation", gdp: "/gdp", unemployment: "/labour-market" };
+
 function Evaluation({ data, indicator }: { data: ForecastEvaluation; indicator: string }) {
   const theme = useChartTheme();
   const name = NAMES[indicator] ?? indicator.replace(/_/g, " ");
   if (data.state === "no_official_series") {
-    return <Empty>No official {name} series is ingested here, so these forecasts are not checked against outcomes. Nothing is estimated in its place.</Empty>;
+    return <Empty>{data.unavailable_reason ?? `No official ${name} series is ingested here, so these forecasts are not checked against outcomes.`} Nothing is estimated in its place.</Empty>;
   }
   if (data.state === "nothing_to_evaluate") return <Empty>No {name} forecast is published here yet, so there is nothing to check.</Empty>;
   const matched = data.evaluated.filter((e) => e.status === "matched") as EvaluatedForecast[];
@@ -142,9 +145,12 @@ function Evaluation({ data, indicator }: { data: ForecastEvaluation; indicator: 
     <div className="mt-4">
       <p className="max-w-[72ch] text-sm text-muted-foreground">
         {matched.length} forecast{matched.length === 1 ? "" : "s"} matched to an official outcome, {pending} waiting for their quarter&rsquo;s release,
-        {" "}{data.excluded.length} not evaluated. {data.actuals_as_of ? `Outcomes as of ${data.actuals_as_of}, published ${formatCivilDate(data.actuals_released_on)}` : "No CPI release is stored yet"}
+        {" "}{data.excluded.length} not evaluated. {data.actuals_as_of ? `Outcomes as of ${data.actuals_as_of}, published ${formatCivilDate(data.actuals_released_on)}` : indicator === "cpi_inflation" ? "No CPI release is stored yet" : `No official ${name} release is stored yet`}
         {data.vintages_from ? `; forecasts published ${formatCivilDate(data.vintages_from)} to ${formatCivilDate(data.vintages_to)}` : ""}.
       </p>
+      {OFFICIAL_PAGES[data.indicator] && (
+        <p className="mt-1 text-sm"><Link className="underline underline-offset-2" to={OFFICIAL_PAGES[data.indicator]}>Official {NAMES[data.indicator] ?? data.indicator} figures</Link></p>
+      )}
       {matched.length === 0 ? <Empty>No forecast has an official outcome yet.</Empty> : (
         <figure aria-labelledby="errors-title" className="mt-4">
           <figcaption id="errors-title" className="text-sm font-medium">Forecast minus first-published outcome</figcaption>
@@ -235,7 +241,7 @@ export function ForecastTrack({ indicator }: { indicator: string }) {
       <details className="mt-6 max-w-[72ch] text-sm">
         <summary className="cursor-pointer text-xs font-medium text-accent-ink">How forecasts are checked</summary>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted-foreground">
-          <li>Only CPI has an official series here. A forecast is checked only on the measure it states (annual change, annual average change, or quarterly change with its seasonal adjustment stated) and only for the quarter it names.</li>
+          <li>CPI, GDP and the unemployment rate have official Stats NZ series here; the Official Cash Rate does not (no approved source). A forecast is checked only on the measure it states and only for the quarter it names: for CPI, annual change, annual average change, or quarterly change with its seasonal adjustment stated; for GDP, real quarterly growth, annual average growth, or the seasonally adjusted annual change of a quarter; for unemployment, the seasonally adjusted rate for a quarter. GDP growth and the unemployment rate are Stats NZ&rsquo;s seasonally adjusted headline series.</li>
           <li>The outcome is the first published figure for that quarter, with the latest figure beside it. A forecast published on or after that release is not checked.</li>
           <li>Scenarios, ambiguous wording and calendar or fiscal-year horizons are not checked, and each says why.</li>
           <li>Averages need at least {evaluation.data?.min_for_summary ?? 4} distinct target quarters in a horizon band, each scored on the institution&rsquo;s latest forecast in that band. A ranking needs at least {evaluation.data?.min_for_ranking ?? 8} targets that every ranked institution forecast at the same horizon. No significance test is run.</li>

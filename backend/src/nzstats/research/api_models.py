@@ -242,7 +242,8 @@ class ForecastHistoryOut(_Out):
 
 
 EVALUATION_NOTE = (
-    "Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the"
+    "Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the"
+    " OCR cannot (no approved source). Each forecast is matched to the"
     " quarter it names, on the measure it states, and only if it was published before that quarter's figure was released."
     " Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every"
     " ranked institution at the same horizon. No significance test is run."
@@ -317,7 +318,8 @@ class ForecastEvaluationOut(_Out):
     indicator: str
     state: Literal["available", "no_official_series", "nothing_to_evaluate"]
     official_series: str | None
-    actuals_as_of: str | None  # the newest stored CPI release's title
+    unavailable_reason: str | None = None  # set with state "no_official_series"
+    actuals_as_of: str | None  # the newest stored release's title for the indicator
     actuals_released_on: str | None  # its Pacific/Auckland publication date
     vintages_from: str | None
     vintages_to: str | None

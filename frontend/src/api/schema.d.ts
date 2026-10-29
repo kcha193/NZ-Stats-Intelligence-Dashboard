@@ -902,6 +902,8 @@ export interface components {
             state: "available" | "no_official_series" | "nothing_to_evaluate";
             /** Official Series */
             official_series: string | null;
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
             /** Actuals As Of */
             actuals_as_of: string | null;
             /** Actuals Released On */
@@ -926,7 +928,7 @@ export interface components {
             min_for_ranking: number;
             /**
              * Note
-             * @default Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
+             * @default Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the OCR cannot (no approved source). Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
              */
             note: string;
         };

@@ -17,8 +17,11 @@ const EXPLORE: { group: string; links: Dest[] }[] = [
     group: "Dashboards",
     links: [
       { to: "/inflation", label: "Inflation", note: "Consumers price index, quarterly" },
+      { to: "/gdp", label: "GDP", note: "Gross domestic product, quarterly" },
+      { to: "/labour-market", label: "Labour market", note: "Unemployment and wage rates, quarterly" },
       { to: "/electronic-card-transactions", label: "Card spending", note: "Electronic card transactions, monthly" },
       { to: "/migration", label: "Migration", note: "International migration, monthly" },
+      { to: "/ocr", label: "Official Cash Rate", note: "Not shown yet: source not approved" },
     ],
   },
   {

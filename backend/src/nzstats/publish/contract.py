@@ -12,7 +12,9 @@ from nzstats.models import (
     CountriesOut,
     CpiDashboardOut,
     EctDashboardOut,
+    GdpDashboardOut,
     HealthOut,
+    LabourDashboardOut,
     OverviewOut,
     ReleaseDetail,
     ReleaseSummary,
@@ -37,6 +39,8 @@ REQUIRED_FILES = (
     "overview.json", "cpi.json", "ect.json", "health.json", "releases.json", "calendar.json",
     "migration/countries.json",
 )  # fmt: skip
+# Dashboards written only once their category has been ingested (Phase 4C); the site shows "not yet ingested" otherwise.
+OPTIONAL_DASHBOARDS = {"gdp.json": "/api/gdp", "labour-market.json": "/api/labour-market"}
 
 # Fields that change on every export without the data changing; excluded from the content hash.
 VOLATILE_KEYS = frozenset({"generated_at"})
@@ -74,7 +78,7 @@ def kind_of(path: str) -> str:
 
 # Every kind the exporter writes. Anything else in a snapshot (research data, for example) is refused.
 KNOWN_KINDS = frozenset(
-    "overview cpi ect health calendar releases release series revisions countries".split()
+    "overview cpi ect gdp labour-market health calendar releases release series revisions countries".split()
 )
 
 
@@ -92,7 +96,8 @@ def validate_payload(kind: str, payload: Any) -> Any:
     if kind == "releases":
         return _RELEASES.validate_python(payload)
     model = {
-        "overview": OverviewOut, "cpi": CpiDashboardOut, "ect": EctDashboardOut, "health": HealthOut,
+        "overview": OverviewOut, "cpi": CpiDashboardOut, "ect": EctDashboardOut, "gdp": GdpDashboardOut,
+        "labour-market": LabourDashboardOut, "health": HealthOut,
         "calendar": CalendarMeta, "release": ReleaseDetail, "series": SeriesDataOut,
         "revisions": RevisionsOut, "countries": CountriesOut,
     }[kind]  # fmt: skip

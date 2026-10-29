@@ -53,6 +53,11 @@ def reconcile_with_database(payloads: dict[str, Any], conn: sqlite3.Connection) 
         values = {p["period"]: p["index"] for p in s["points"]}
         if not _matches_some_vintage(conn, s["key"], values):
             problems.append(f"{s['key']}: published index values match no stored vintage")
+    for name in ("gdp.json", "labour-market.json"):
+        for s in payloads.get(name, {}).get("series", []):
+            values = {p["period"]: p["value"] for p in s["points"]}
+            if not _matches_some_vintage(conn, s["key"], values):
+                problems.append(f"{s['key']}: published values match no stored vintage")
     stored_releases = conn.execute("SELECT COUNT(*) FROM release").fetchone()[0]
     if len(payloads["releases.json"]) != stored_releases:
         problems.append(

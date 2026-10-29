@@ -55,6 +55,6 @@ describe("Layout", () => {
   it("lists every destination in the footer, so no page depends on the disclosure", () => {
     renderAt("/");
     const all = screen.getByRole("list", { name: "All pages" });
-    expect(within(all).getAllByRole("link")).toHaveLength(8);
+    expect(within(all).getAllByRole("link")).toHaveLength(11);
   });
 });

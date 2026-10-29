@@ -1,17 +1,213 @@
 {
  "indicator": "gdp",
- "state": "no_official_series",
- "official_series": null,
- "actuals_as_of": "Consumers price index: June 2026 quarter",
- "actuals_released_on": "2026-07-21",
- "vintages_from": null,
- "vintages_to": null,
- "evaluated": [],
- "excluded": [],
+ "state": "available",
+ "official_series": "gdp.production.cv.sa.pct_qoq",
+ "unavailable_reason": null,
+ "actuals_as_of": "Gross domestic product: June 2026 quarter",
+ "actuals_released_on": "2026-09-17",
+ "vintages_from": "2026-09-24",
+ "vintages_to": "2026-10-08",
+ "evaluated": [
+  {
+   "forecast": {
+    "summary_id": 1,
+    "institution": {
+     "key": "harbourside",
+     "name": "Harbourside Bank (synthetic)",
+     "kind": "bank"
+    },
+    "document_title": "Quarterly Economic Outlook, October 2026 (synthetic)",
+    "published_on": "2026-10-08",
+    "indicator": "gdp",
+    "indicator_label": "Real GDP, annual average growth",
+    "horizon": "year to March 2027",
+    "value": 1.8,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "We expect real GDP annual average growth of 1.8% in the year to March 2027"
+     }
+    ]
+   },
+   "measure": "gdp_annual_average",
+   "measure_label": "GDP annual average growth (real, production measure)",
+   "target_quarter": "2027-03",
+   "target_label": "March 2027 quarter",
+   "horizon_quarters": 1,
+   "band": "h1_2",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  },
+  {
+   "forecast": {
+    "summary_id": 4,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "published_on": "2026-09-24",
+    "indicator": "gdp",
+    "indicator_label": "Real GDP, annual average growth",
+    "horizon": "year to March 2027",
+    "value": 1.5,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 2,
+      "page": 3,
+      "quote": "real GDP growth is forecast at 1.5% in the year to March 2027"
+     }
+    ]
+   },
+   "measure": "gdp_annual_average",
+   "measure_label": "GDP annual average growth (real, production measure)",
+   "target_quarter": "2027-03",
+   "target_label": "March 2027 quarter",
+   "horizon_quarters": 2,
+   "band": "h1_2",
+   "status": "pending",
+   "first": null,
+   "latest": null,
+   "error_first": null,
+   "error_latest": null,
+   "outcome_revision": null
+  }
+ ],
+ "excluded": [
+  {
+   "forecast": {
+    "summary_id": 4,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "published_on": "2026-09-24",
+    "indicator": "gdp",
+    "indicator_label": "Economic growth",
+    "horizon": "next year",
+    "value": null,
+    "unit": null,
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 5,
+      "page": 6,
+      "quote": "Growth should improve next year"
+     }
+    ]
+   },
+   "reason": "States a direction only, with no number to compare."
+  },
+  {
+   "forecast": {
+    "summary_id": 4,
+    "institution": {
+     "key": "kauri",
+     "name": "Kauri Economics (synthetic)",
+     "kind": "consultancy"
+    },
+    "document_title": "Economic Forecasts, Spring 2026 (synthetic)",
+    "published_on": "2026-09-24",
+    "indicator": "gdp",
+    "indicator_label": "Real GDP growth (y/y)",
+    "horizon": "year to March 2027",
+    "value": 2.0,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027"
+     }
+    ]
+   },
+   "reason": "The annual change of a quarter needs a single quarter. The horizon does not name a single quarter (a calendar or fiscal year, or a month), so it is not matched."
+  },
+  {
+   "forecast": {
+    "summary_id": 5,
+    "institution": {
+     "key": "southern",
+     "name": "Southern Treasury Office (synthetic)",
+     "kind": "government"
+    },
+    "document_title": "Fiscal and Economic Update 2026 (synthetic)",
+    "published_on": "2026-10-15",
+    "indicator": "gdp",
+    "indicator_label": "Economic growth",
+    "horizon": "year to March 2027",
+    "value": 1.2,
+    "unit": "percent",
+    "direction": "up",
+    "scenario": null,
+    "qualification": null,
+    "evidence": [
+     {
+      "section_ordinal": 1,
+      "page": 2,
+      "quote": null
+     }
+    ]
+   },
+   "reason": "The statistical basis is not stated clearly enough to compare: GDP growth can be real or nominal, and an annual average or a change through the year."
+  }
+ ],
  "summaries": [],
  "rankings": [],
- "coverage": [],
+ "coverage": [
+  {
+   "institution": {
+    "key": "harbourside",
+    "name": "Harbourside Bank (synthetic)",
+    "kind": "bank"
+   },
+   "matched": 0,
+   "pending": 1,
+   "excluded": 0
+  },
+  {
+   "institution": {
+    "key": "kauri",
+    "name": "Kauri Economics (synthetic)",
+    "kind": "consultancy"
+   },
+   "matched": 0,
+   "pending": 1,
+   "excluded": 2
+  },
+  {
+   "institution": {
+    "key": "southern",
+    "name": "Southern Treasury Office (synthetic)",
+    "kind": "government"
+   },
+   "matched": 0,
+   "pending": 0,
+   "excluded": 1
+  }
+ ],
  "min_for_summary": 4,
  "min_for_ranking": 8,
- "note": "Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
+ "note": "Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the OCR cannot (no approved source). Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
 }

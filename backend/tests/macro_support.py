@@ -13,7 +13,7 @@ from nzstats.store import repo
 from tests.conftest import fixture_bytes, fixture_text
 from tests.support import BASE
 
-NOW = datetime(2026, 10, 28, tzinfo=UTC)
+NOW = datetime(2026, 10, 18, tzinfo=UTC)  # the clock of the other fixture captures (CPI, ECT)
 CONTENT_TYPES = {"csv": "text/csv", "zip": "application/zip"}
 
 
@@ -75,3 +75,12 @@ def ingest_labour(rt, site, *months: str) -> dict[str, str]:
         outcome = ingest(rt, keys[month])
         assert outcome.outcome == "ingested", outcome.detail
     return keys
+
+
+def seed_gdp(rt, site, month: str) -> tuple[None, str]:
+    """`seeder(rt, site, month)` shape used by the publication fixtures: (unused, release key)."""
+    return None, seed(rt, site, f"gdp_{month}_page.html", gdp_files(month))
+
+
+def seed_labour(rt, site, month: str) -> tuple[None, str]:
+    return None, seed(rt, site, f"labour_{month}_page.html", labour_files(month))
