@@ -38,20 +38,29 @@ fi
 
 if [[ -f "$ROOT/.env" ]]; then
   # .env supplies defaults; settings the caller exported win, so NZSTATS_DATA_DIR=/isolated/copy can never
-  # silently fall back to the production ./data that .env names.
-  caller="$(export -p | grep -E '^declare -x (NZSTATS|STATSNZ)_' || true)"
+  # silently fall back to the production ./data that .env names. Values are saved by name and restored with
+  # `export NAME=value`, never evaluated, so quotes, newlines, `$` and backticks arrive unchanged (bash 3.2:
+  # no associative arrays, so two parallel arrays).
+  keep_names=(); keep_values=()
+  while IFS= read -r name; do
+    case "$name" in
+      NZSTATS_*|STATSNZ_*) keep_names+=("$name"); keep_values+=("${!name}") ;;
+    esac
+  done < <(compgen -e)
   set -a; . "$ROOT/.env"; set +a
-  eval "$caller"
+  for ((i = 0; i < ${#keep_names[@]}; i++)); do
+    export "${keep_names[i]}=${keep_values[i]}"
+  done
 fi
 export NZSTATS_STATIC_DIR="${NZSTATS_STATIC_DIR:-$ROOT/frontend/dist}"
 export NZSTATS_DATA_DIR="${NZSTATS_DATA_DIR:-$ROOT/data}"
 mkdir -p "$NZSTATS_DATA_DIR"
 
 case "${args[0]:-}" in
-  migrate|discover|ingest|backfill|health|backup|openapi|research)
-    exec "$VENV/bin/nzstats" "${args[@]}" ;;
+  migrate|discover|ingest|backfill|health|backup|verify-backup|restore-backup|status|alert-check|openapi|research)
+    exec "$VENV/bin/nzstats" ${args[@]+"${args[@]}"} ;;
   *)
     # Loopback only: the container image binds 0.0.0.0, a dev machine should not.
     echo "==> serving on http://localhost:8000 unless --port is given (data: $NZSTATS_DATA_DIR)"
-    exec "$VENV/bin/nzstats" serve --host 127.0.0.1 "${args[@]}" ;;
+    exec "$VENV/bin/nzstats" serve --host 127.0.0.1 ${args[@]+"${args[@]}"} ;;
 esac

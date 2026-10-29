@@ -1358,3 +1358,18 @@ Not done: percentage-change companion chart; checks on seasonally adjusted/trend
    files; register it in `runtime.py`; move the category out of `INACTIVE_CATEGORIES`.
 5. Reuse `ChartCard` and the option builders; add the Data Explorer and Revision Explorer once two categories exist.
 6. Run the real-site integration check again for the new category and expect surprises: the Phase 1 run found three.
+
+
+## Phase 4F: native monitoring and operational reliability (30 Oct 2026)
+
+Branch `feat/phase-4f-native-monitoring`, stacked on PR #25 (not merged; its hosted CI is blocked by GitHub billing, not code).
+Specification [phase-4f-operational-health.md](phase-4f-operational-health.md), runbook [phase-4f-runbook.md](phase-4f-runbook.md),
+evidence [phase-4f-evidence/](phase-4f-evidence/).
+
+- `scripts/run.sh`: caller environment restored without `eval` (multi-line values used to abort startup); plain
+  `scripts/run.sh` no longer fails on macOS bash 3.2.
+- Heartbeat and job state recorded by `serve` (migration 011); `nzstats status`, `/api/ops/status`, `alert-check`.
+- Native backup bundles (database + raw + manifest), `verify-backup DIR`, `restore-backup`.
+- Data health page shows collection, application, next release, calendar, currency per release and actions.
+- Economic Outlook no longer requests `/api/research/*` while public research is off (was five 404s per load).
+- Recommendation: internal operation GO WITH CONDITIONS (conditions in the specification).

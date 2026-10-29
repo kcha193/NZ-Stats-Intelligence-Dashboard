@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -17,6 +17,10 @@ from nzstats.scheduler.planner import mark_unavailable, poll_candidates, release
 
 log = logging.getLogger(__name__)
 NowFn = Callable[[], datetime]
+
+# Auckland wall-clock times of the daily jobs; `nzstats.ops.schedule` reads them to know when a refresh is overdue.
+CALENDAR_REFRESH_AT = time(6, 0)
+CATCH_UP_AT = time(7, 30)
 
 
 def job_refresh_calendar(rt: Runtime, *, now_fn: NowFn = utc_now) -> DiscoveryResult:
@@ -57,7 +61,7 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     common = {"coalesce": True, "max_instances": 1, "misfire_grace_time": 3600}
     sched.add_job(
         job_refresh_calendar,
-        CronTrigger(hour=6, minute=0, timezone=AKL),
+        CronTrigger(hour=CALENDAR_REFRESH_AT.hour, minute=CALENDAR_REFRESH_AT.minute, timezone=AKL),
         args=[rt],
         id="refresh_calendar",
         **common,
@@ -67,7 +71,7 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     )
     sched.add_job(
         job_catch_up,
-        CronTrigger(hour=7, minute=30, timezone=AKL),
+        CronTrigger(hour=CATCH_UP_AT.hour, minute=CATCH_UP_AT.minute, timezone=AKL),
         args=[rt],
         id="catch_up",
         **common,

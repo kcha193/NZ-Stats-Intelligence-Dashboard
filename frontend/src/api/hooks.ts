@@ -1,10 +1,10 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { ApiError, getJson } from "./client";
-import { pollEvery } from "./mode";
+import { isStaticMode, pollEvery } from "./mode";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
   SeriesData, EctDashboard, CpiDashboard, GdpDashboard, LabourDashboard, ResearchFeed, ResearchDetail, ForecastComparison, ForecastHistory,
-  ForecastEvaluation, Consensus,
+  ForecastEvaluation, Consensus, OpsStatus, Capabilities,
 } from "./types";
 
 const qs = (params: Record<string, string | number | undefined>): string => {
@@ -85,6 +85,17 @@ export const useCountries = (months = 12, top = 15) =>
 export const useHealth = () =>
   useQuery({ queryKey: ["health"], queryFn: ({ signal }) => getJson<Health>("/api/health", signal), refetchInterval: pollEvery(30_000) });
 
+/** Operational status is a live, local-operator feature: a published snapshot has no scheduler to report on. */
+export const useOpsStatus = () =>
+  useQuery({
+    queryKey: ["ops-status"],
+    queryFn: ({ signal }) => getJson<OpsStatus>("/api/ops/status", signal),
+    refetchInterval: pollEvery(30_000),
+    enabled: !isStaticMode(),
+    retry: false,
+  });
+
+
 /**
  * Research is "not published" (null) when the API answers 404: public research is switched off, nothing is eligible
  * for that address, or (static site) research is never in a snapshot. Every other failure is still an error.
@@ -103,45 +114,77 @@ export type FeedParams = {
   sort?: "newest" | "oldest" | "institution"; limit?: number; offset?: number;
 };
 
-export const useResearchFeed = (params: FeedParams = {}) =>
-  useQuery({
+/**
+ * Live mode asks the server once whether public research is switched on. While it is off, the research hooks resolve to
+ * "not published" without sending a request, so the browser does not log a 404 for every panel. The answer is cached
+ * for the session; if the server cannot say (older server, network error) they try as before. The static site is
+ * unchanged. Waiting for the answer happens inside each query, so its loading state stays truthful.
+ */
+async function researchIsOn(client: QueryClient): Promise<boolean> {
+  if (isStaticMode()) return true;
+  try {
+    const caps = await client.ensureQueryData({ queryKey: ["capabilities"], queryFn: ({ signal }) => getJson<Capabilities>("/api/capabilities", signal), staleTime: Infinity });
+    return caps.research_public;
+  } catch {
+    return true;
+  }
+}
+
+async function research<T>(client: QueryClient, request: () => Promise<T>): Promise<T | null> {
+  return (await researchIsOn(client)) ? orUnpublished(request()) : null;
+}
+
+export const useResearchFeed = (params: FeedParams = {}) => {
+  const client = useQueryClient();
+  return useQuery({
     queryKey: ["research-feed", params],
-    queryFn: ({ signal }) => orUnpublished(getJson<ResearchFeed>(`/api/research/feed${qs(params)}`, signal)),
+    queryFn: ({ signal }) => research(client, () => getJson<ResearchFeed>(`/api/research/feed${qs(params)}`, signal)),
     placeholderData: keepPreviousData,
   });
+};
 
-export const useResearchSummary = (id: number) =>
-  useQuery({
+export const useResearchSummary = (id: number) => {
+  const client = useQueryClient();
+  return useQuery({
     queryKey: ["research-summary", id],
-    queryFn: ({ signal }) => orUnpublished(getJson<ResearchDetail>(`/api/research/summaries/${id}`, signal)),
+    queryFn: ({ signal }) => research(client, () => getJson<ResearchDetail>(`/api/research/summaries/${id}`, signal)),
     enabled: Number.isInteger(id) && id > 0,
   });
+};
 
 export type ForecastParams = { indicator?: string; institution?: string; horizon?: string };
 
-export const useForecasts = (params: ForecastParams = {}) =>
-  useQuery({
+export const useForecasts = (params: ForecastParams = {}) => {
+  const client = useQueryClient();
+  return useQuery({
     queryKey: ["research-forecasts", params],
-    queryFn: ({ signal }) => orUnpublished(getJson<ForecastComparison>(`/api/research/forecasts${qs(params)}`, signal)),
+    queryFn: ({ signal }) => research(client, () => getJson<ForecastComparison>(`/api/research/forecasts${qs(params)}`, signal)),
     placeholderData: keepPreviousData,
   });
+};
 
-export const useForecastHistory = (indicator: string) =>
-  useQuery({
+export const useForecastHistory = (indicator: string) => {
+  const client = useQueryClient();
+  return useQuery({
     queryKey: ["research-forecast-history", indicator],
-    queryFn: ({ signal }) => orUnpublished(getJson<ForecastHistory>(`/api/research/forecast-history${qs({ indicator })}`, signal)),
+    queryFn: ({ signal }) => research(client, () => getJson<ForecastHistory>(`/api/research/forecast-history${qs({ indicator })}`, signal)),
     placeholderData: keepPreviousData,
   });
+};
 
-export const useForecastEvaluation = (indicator: string) =>
-  useQuery({
+export const useForecastEvaluation = (indicator: string) => {
+  const client = useQueryClient();
+  return useQuery({
     queryKey: ["research-forecast-evaluation", indicator],
-    queryFn: ({ signal }) => orUnpublished(getJson<ForecastEvaluation>(`/api/research/forecast-evaluation${qs({ indicator })}`, signal)),
+    queryFn: ({ signal }) => research(client, () => getJson<ForecastEvaluation>(`/api/research/forecast-evaluation${qs({ indicator })}`, signal)),
     placeholderData: keepPreviousData,
   });
+};
 
-export const useConsensus = (indicator: string) =>
-  useQuery({
+export const useConsensus = (indicator: string) => {
+  const client = useQueryClient();
+  return useQuery({
     queryKey: ["research-consensus", indicator],
-    queryFn: ({ signal }) => orUnpublished(getJson<Consensus>(`/api/research/consensus${qs({ indicator })}`, signal)),
+    queryFn: ({ signal }) => research(client, () => getJson<Consensus>(`/api/research/consensus${qs({ indicator })}`, signal)),
   });
+};

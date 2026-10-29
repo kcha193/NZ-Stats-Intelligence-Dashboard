@@ -123,6 +123,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ops/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ops Status
+         * @description Operational status for the local operator (Data health page). Read-only; never starts the scheduler or fetches.
+         */
+        get: operations["ops_status_api_ops_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capabilities */
+        get: operations["capabilities_api_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/overview": {
         parameters: {
             query?: never;
@@ -382,6 +419,85 @@ export interface components {
             /** First Release */
             first_release: boolean;
         };
+        /**
+         * AlertDelivery
+         * @description Whether alerts reach the operator. Kept apart from `overall`: a failing channel is not a failing dashboard.
+         */
+        AlertDelivery: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "none_recorded" | "ok" | "failing";
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Failures */
+            failures: number;
+            /** Rate Limited */
+            rate_limited: number;
+            /** Window Hours */
+            window_hours: number;
+        };
+        /** BackupEntry */
+        BackupEntry: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bundle" | "file";
+            /** Created At */
+            created_at: string;
+            /** Age Hours */
+            age_hours: number;
+            /**
+             * Verification
+             * @enum {string}
+             */
+            verification: "verified" | "unverified" | "failed" | "incomplete";
+            /** Raw Artifacts */
+            raw_artifacts: number | null;
+            /** Problems */
+            problems: string[];
+        };
+        /** BackupInfo */
+        BackupInfo: {
+            /** Directory */
+            directory: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "stale" | "none" | "failed";
+            latest: components["schemas"]["BackupEntry"] | null;
+            latest_good: components["schemas"]["BackupEntry"] | null;
+            /** Entries Seen */
+            entries_seen: number;
+        };
+        /** CalendarInfo */
+        CalendarInfo: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "current" | "missed" | "stale" | "never";
+            /** Last Checked At */
+            last_checked_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Last Success Age Hours */
+            last_success_age_hours: number | null;
+            /**
+             * Missed Refreshes
+             * @default 0
+             */
+            missed_refreshes: number;
+            /** Next Refresh At */
+            next_refresh_at?: string | null;
+        };
         /** CalendarOut */
         CalendarOut: {
             /** Items */
@@ -390,6 +506,14 @@ export interface components {
             last_checked_at: string | null;
             /** Last Success At */
             last_success_at: string | null;
+        };
+        /**
+         * CapabilitiesOut
+         * @description Feature switches the UI reads so it does not request routes the server has not turned on.
+         */
+        CapabilitiesOut: {
+            /** Research Public */
+            research_public: boolean;
         };
         /** ChangeOut */
         ChangeOut: {
@@ -403,6 +527,16 @@ export interface components {
             absolute: number;
             /** Percent */
             percent: number | null;
+        };
+        /** CollectionInfo */
+        CollectionInfo: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "enabled" | "disabled" | "paused" | "unknown";
+            /** Summary */
+            summary: string;
         };
         /** ConsensusGroupOut */
         ConsensusGroupOut: {
@@ -720,6 +854,23 @@ export interface components {
             /** Points */
             points: components["schemas"]["PointOut"][];
         };
+        /** DatabaseInfo */
+        DatabaseInfo: {
+            /** Readable */
+            readable: boolean;
+            /** Schema Version */
+            schema_version: number | null;
+            /** Expected Schema Version */
+            expected_schema_version: number;
+            /** Instrumented */
+            instrumented: boolean;
+            /**
+             * Integrity
+             * @default not_checked
+             * @enum {string}
+             */
+            integrity: "not_checked" | "ok" | "failed";
+        };
         /** Decomposition */
         Decomposition: {
             /** Label */
@@ -834,6 +985,19 @@ export interface components {
             label: string;
             /** Count */
             count: number;
+        };
+        /** FailedRun */
+        FailedRun: {
+            /** Release Key */
+            release_key: string;
+            /** Series Slug */
+            series_slug: string;
+            /** Started At */
+            started_at: string | null;
+            /** Outcome */
+            outcome: string | null;
+            /** Error Class */
+            error_class: string | null;
         };
         /** FeaturedOut */
         FeaturedOut: {
@@ -1075,6 +1239,32 @@ export interface components {
             /** Revision */
             revision: number | null;
         };
+        /** FreshnessRow */
+        FreshnessRow: {
+            /** Series Slug */
+            series_slug: string;
+            /** Label */
+            label: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "current" | "overdue" | "no_data";
+            /** Latest Release Key */
+            latest_release_key: string | null;
+            /** Latest Reference Period */
+            latest_reference_period: string | null;
+            /** Latest Published At */
+            latest_published_at: string | null;
+            /** Latest Captured At */
+            latest_captured_at: string | null;
+            /** Overdue */
+            overdue: components["schemas"]["OverdueRelease"][];
+            /** Next Release At */
+            next_release_at: string | null;
+            /** Next Reference Period */
+            next_reference_period: string | null;
+        };
         /** GdpDashboardOut */
         GdpDashboardOut: {
             analysis: components["schemas"]["ReleaseAnalysis"];
@@ -1183,6 +1373,54 @@ export interface components {
             /** Kind */
             kind: string;
         };
+        /** Issue */
+        Issue: {
+            /** Key */
+            key: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "attention" | "critical";
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "database" | "process" | "scheduler" | "calendar" | "release" | "source" | "backup" | "freshness";
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+            /** Action */
+            action: string;
+        };
+        /** JobInfo */
+        JobInfo: {
+            /** Job Id */
+            job_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "running" | "idle" | "never_ran";
+            /** Running For Seconds */
+            running_for_seconds?: number | null;
+            /** Last Started At */
+            last_started_at?: string | null;
+            /** Last Finished At */
+            last_finished_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Last Outcome */
+            last_outcome?: string | null;
+            /** Last Error Class */
+            last_error_class?: string | null;
+            /**
+             * Consecutive Failures
+             * @default 0
+             */
+            consecutive_failures: number;
+        };
         /** Kpi */
         Kpi: {
             metric: components["schemas"]["Metric"];
@@ -1237,6 +1475,15 @@ export interface components {
             points: components["schemas"]["PointOut"][];
             /** Source Url */
             source_url: string | null;
+        };
+        /** LatestIngestion */
+        LatestIngestion: {
+            /** Release Key */
+            release_key: string;
+            /** Finished At */
+            finished_at: string;
+            /** Outcome */
+            outcome: string;
         };
         /** MeasureChangeOut */
         MeasureChangeOut: {
@@ -1307,6 +1554,55 @@ export interface components {
             change_prior: components["schemas"]["ChangeOut"] | null;
             change_year_ago: components["schemas"]["ChangeOut"] | null;
         };
+        /** OpsStatus */
+        OpsStatus: {
+            /** Generated At */
+            generated_at: string;
+            /**
+             * Overall
+             * @enum {string}
+             */
+            overall: "ok" | "attention" | "critical";
+            /** Summary */
+            summary: string;
+            database: components["schemas"]["DatabaseInfo"];
+            process: components["schemas"]["ProcessInfo"];
+            collection: components["schemas"]["CollectionInfo"];
+            /** Jobs */
+            jobs: components["schemas"]["JobInfo"][];
+            calendar: components["schemas"]["CalendarInfo"];
+            next_release: components["schemas"]["ReleaseRefInfo"] | null;
+            /** Known Upcoming Releases */
+            known_upcoming_releases: number;
+            latest_ingestion: components["schemas"]["LatestIngestion"] | null;
+            /** Failed Runs */
+            failed_runs: components["schemas"]["FailedRun"][];
+            /** Freshness */
+            freshness: components["schemas"]["FreshnessRow"][];
+            /** Sources */
+            sources: components["schemas"]["SourceStatus"][];
+            backup: components["schemas"]["BackupInfo"];
+            alert_delivery: components["schemas"]["AlertDelivery"];
+            /** Issues */
+            issues: components["schemas"]["Issue"][];
+            /** Notes */
+            notes: string[];
+        };
+        /** OverdueRelease */
+        OverdueRelease: {
+            /** Release Key */
+            release_key: string;
+            /** Published At */
+            published_at: string;
+            /** Hours Late */
+            hours_late: number;
+            /** Status */
+            status: string;
+            /** Last Outcome */
+            last_outcome: string | null;
+            /** Last Error Class */
+            last_error_class: string | null;
+        };
         /** OverviewOut */
         OverviewOut: {
             /** Generated At */
@@ -1348,6 +1644,40 @@ export interface components {
             previous_release_title: string | null;
             /** Decompositions */
             decompositions: components["schemas"]["Decomposition"][];
+        };
+        /** ProcessInfo */
+        ProcessInfo: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "never_started" | "running" | "stalled" | "lost" | "stopped";
+            /** Pid */
+            pid?: number | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Last Heartbeat At */
+            last_heartbeat_at?: string | null;
+            /** Heartbeat Age Seconds */
+            heartbeat_age_seconds?: number | null;
+            /** Scheduler Enabled */
+            scheduler_enabled?: boolean | null;
+            /** Stop Reason */
+            stop_reason?: string | null;
+            /**
+             * Suspend Count
+             * @default 0
+             */
+            suspend_count: number;
+            /** Last Suspend At */
+            last_suspend_at?: string | null;
+            /** Last Suspend Seconds */
+            last_suspend_seconds?: number | null;
+            /**
+             * Unexpected Restarts 7D
+             * @default 0
+             */
+            unexpected_restarts_7d: number;
         };
         /** ProcessingOut */
         ProcessingOut: {
@@ -1445,6 +1775,21 @@ export interface components {
             analysis: components["schemas"]["ReleaseAnalysis"] | null;
             /** Unavailable Reason */
             unavailable_reason: string | null;
+        };
+        /** ReleaseRefInfo */
+        ReleaseRefInfo: {
+            /** Release Key */
+            release_key: string;
+            /** Title */
+            title: string;
+            /** Series Slug */
+            series_slug: string;
+            /** Reference Period */
+            reference_period: string | null;
+            /** Scheduled At */
+            scheduled_at: string;
+            /** Status */
+            status: string;
         };
         /** ReleaseSummary */
         ReleaseSummary: {
@@ -1666,6 +2011,26 @@ export interface components {
             last_success_at: string | null;
             /** Detail */
             detail: string | null;
+        };
+        /** SourceStatus */
+        SourceStatus: {
+            /** Source */
+            source: string;
+            /** State */
+            state: string;
+            /** Last Checked At */
+            last_checked_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Age Hours */
+            age_hours: number | null;
+            /**
+             * Expected
+             * @enum {string}
+             */
+            expected: "daily" | "per_release";
+            /** Expired */
+            expired: boolean;
         };
         /** StatementOut */
         StatementOut: {
@@ -1934,6 +2299,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+        };
+    };
+    ops_status_api_ops_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsStatus"];
+                };
+            };
+        };
+    };
+    capabilities_api_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilitiesOut"];
                 };
             };
         };

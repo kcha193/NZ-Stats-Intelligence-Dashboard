@@ -1,14 +1,16 @@
-import { useHealth } from "@/api/hooks";
+import { useHealth, useOpsStatus } from "@/api/hooks";
 import { isStaticMode } from "@/api/mode";
 import { ROUTE_META } from "@/seo/routes";
 import { useDocumentTitle } from "@/seo/useDocumentTitle";
 import { QueryBoundary } from "@/components/QueryBoundary";
+import { OperationsPanel } from "@/components/health/OperationsPanel";
 import { formatAklDateTime } from "@/lib/format";
 
 export default function Health() {
   const snapshot = isStaticMode();
   useDocumentTitle(ROUTE_META["/health"].title);
   const q = useHealth();
+  const ops = useOpsStatus();
   return (
     <QueryBoundary query={q}>
       {(d) => {
@@ -23,6 +25,12 @@ export default function Health() {
                   : `What the monitor has checked, and whether it worked. ${d.series_count} series, ${d.vintage_count} stored vintages. Database ${d.database_ok ? "OK" : "unavailable"}.`}
               </p>
             </div>
+            {!snapshot && ops.data && <OperationsPanel status={ops.data} />}
+            {!snapshot && ops.isError && (
+              <p role="status" className="rounded-md border border-amber-600/50 p-3 text-sm">
+                Operational status could not be loaded. The tables below still show what the dashboard last stored.
+              </p>
+            )}
             {degraded.length > 0 && (
               <p role="status" className="rounded-md border border-amber-600/50 p-3 text-sm">
                 {degraded.length} source{degraded.length > 1 ? "s are" : " is"} degraded. The last known good data is still being shown; nothing has been overwritten by a failed update.

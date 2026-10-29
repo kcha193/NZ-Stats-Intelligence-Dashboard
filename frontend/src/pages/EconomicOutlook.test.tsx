@@ -54,6 +54,31 @@ describe("Economic outlook, nothing published (the real default)", () => {
   });
 });
 
+describe("Economic outlook asks the server before asking for research", () => {
+  const researchCalls = (fn: ReturnType<typeof vi.fn>) => urls(fn).filter((u) => u.includes("/api/research/"));
+
+  it("sends no research request at all while public research is switched off", async () => {
+    const fn = mockApi({ "/api/overview": withCpi, "/api/capabilities": { research_public: false } });
+    renderWithProviders(<EconomicOutlook />);
+    expect(await screen.findByText("No institutional research is published here yet")).toBeInTheDocument();
+    expect(await screen.findByText(/No forecasts are published here yet/)).toBeInTheDocument();
+    expect(researchCalls(fn)).toEqual([]);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("still asks for research when the server says it is on", async () => {
+    const fn = mockApi({ "/api/overview": withCpi, "/api/capabilities": { research_public: true }, "/api/research/feed": feed });
+    renderWithProviders(<EconomicOutlook />);
+    await waitFor(() => expect(researchCalls(fn).length).toBeGreaterThan(0));
+  });
+
+  it("falls back to asking when the server cannot say", async () => {
+    const fn = mockApi({ "/api/overview": withCpi }); // /api/capabilities answers 404
+    renderWithProviders(<EconomicOutlook />);
+    await waitFor(() => expect(researchCalls(fn).length).toBeGreaterThan(0));
+  });
+});
+
 describe("Economic outlook with published research (SYNTHETIC)", () => {
   const routes = { "/api/overview": withCpi, "/api/research/feed": feed, "/api/research/forecasts": forecasts };
 
