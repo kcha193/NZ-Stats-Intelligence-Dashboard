@@ -29,11 +29,18 @@ def unemployment(label="Unemployment rate", horizon="June 2026 quarter", **kw):
 
 @pytest.mark.parametrize(("label", "horizon", "measure", "quarter"), [
     ("Real GDP growth, quarterly", "June 2026 quarter", "gdp_quarterly_production", "2026-06"),
+    ("Real GDP growth, production measure, quarterly", "June 2026 quarter", "gdp_quarterly_production", "2026-06"),
+    ("Real GDP growth, measure production, quarterly", "Q1 2026", "gdp_quarterly_production", "2026-03"),
     ("Real production GDP quarterly growth, seasonally adjusted", "Q1 2026", "gdp_quarterly_production", "2026-03"),
     ("Real GDP growth, expenditure measure, quarterly", "June 2026 quarter", "gdp_quarterly_expenditure", "2026-06"),
+    ("Real GDP growth, measure expenditure, quarterly", "Q1 2026", "gdp_quarterly_expenditure", "2026-03"),
     ("Real GDP, annual average growth", "year to June 2026", "gdp_annual_average", "2026-06"),
+    ("Real GDP, production measure, annual average growth", "year to June 2026", "gdp_annual_average", "2026-06"),
+    ("Real GDP, measure production, annual average growth", "year to March 2026", "gdp_annual_average", "2026-03"),
     ("Real GDP growth (annual average)", "March 2026 quarter", "gdp_annual_average", "2026-03"),
     ("Real GDP, year-on-year growth, seasonally adjusted", "June 2026 quarter", "gdp_annual_change_sa", "2026-06"),
+    ("Real GDP, production measure, year-on-year growth, seasonally adjusted", "June 2026 quarter", "gdp_annual_change_sa", "2026-06"),
+    ("Real GDP, measure production, year-on-year growth, seasonally adjusted", "Q1 2026", "gdp_annual_change_sa", "2026-03"),
 ])  # fmt: skip
 def test_gdp_targets_on_a_stated_basis(label, horizon, measure, quarter):
     target = gdp_target(gdp(label, horizon))
@@ -48,6 +55,14 @@ def test_gdp_targets_on_a_stated_basis(label, horizon, measure, quarter):
     ("Real GDP, year-on-year growth", "June 2026 quarter", "seasonally adjusted"),
     ("Real GDP, annual average growth, seasonally adjusted", "year to June 2026", "actual"),
     ("Real GDP, annual average growth, expenditure", "year to June 2026", "expenditure"),
+    ("Real GDP, production measure, year-on-year growth", "June 2026 quarter", "does not say seasonally adjusted"),
+    ("Real GDP, production measure, annual average growth, seasonally adjusted", "year to June 2026", "actual (unadjusted) values"),
+    ("Real GDP, expenditure measure, annual average growth", "year to June 2026", "annual average series is ingested for the expenditure measure"),
+    ("Real GDP, measure expenditure, year-on-year growth, seasonally adjusted", "June 2026 quarter", "annual change series is ingested for the expenditure measure"),
+    ("Real GDP, production measure, quarterly growth", "2026", "single quarter"),
+    ("Real GDP, production and expenditure measure, quarterly growth", "June 2026 quarter", "not stated clearly"),
+    ("Real GDP, production measure excluding agriculture, quarterly growth", "June 2026 quarter", "not stated clearly"),
+    ("Real GDP, Auckland production measure, quarterly growth", "June 2026 quarter", "part of GDP"),
     ("Real Auckland GDP growth, quarterly", "June 2026 quarter", "part of GDP"),
     ("Real GDP per capita growth, quarterly", "June 2026 quarter", "not stated clearly"),
 ])  # fmt: skip
@@ -78,6 +93,28 @@ def test_other_indicators_are_not_matched_by_these_rules():
     assert isinstance(
         unemployment_target(gdp("Real GDP growth, quarterly", "June 2026 quarter")), str
     )
+
+
+@pytest.mark.parametrize(("label", "measure", "actual"), [
+    ("Real GDP growth, production measure, quarterly", "gdp_quarterly_production", 0.2),
+    ("Real GDP, production measure, annual average growth", "gdp_annual_average", 1.7),
+    ("Real GDP, production measure, year-on-year growth, seasonally adjusted", "gdp_annual_change_sa", 2.6),
+    ("Real GDP growth, expenditure measure, quarterly", "gdp_quarterly_expenditure", 0.4),
+])  # fmt: skip
+def test_explicit_gdp_measures_evaluate_against_their_official_series(
+    rt, site, label, measure, actual
+):
+    ingest_gdp(rt, site, "2026-06")
+    forecast = gdp(label, "June 2026 quarter", value=0.5, published_on="2026-05-01")
+    out = evaluate_forecasts([forecast], gdp_actuals(rt.conn), indicator="gdp")
+    assert out.excluded == [] and len(out.evaluated) == 1
+    evaluated = out.evaluated[0]
+    assert (evaluated.measure, evaluated.target_quarter, evaluated.status) == (
+        measure,
+        "2026-06",
+        "matched",
+    )
+    assert (evaluated.first.value, evaluated.latest.value) == (actual, actual)
 
 
 def test_gdp_first_published_and_latest_are_the_official_figures(rt, site):

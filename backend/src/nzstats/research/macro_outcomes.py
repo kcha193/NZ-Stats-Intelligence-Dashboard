@@ -54,8 +54,9 @@ UNEMPLOYMENT_MEASURES = {
     ),
 }
 _SA = re.compile(r"\bseasonally[- ]adjusted\b|\bs\.?a\.?\b", re.IGNORECASE)
+# basis_of() sorts qualifier words, regardless of their order in the label.
 _PRODUCTION, _EXPENDITURE = (
-    ("", "production", "production-measure"),
+    ("", "production", "measure-production"),
     ("expenditure", "expenditure-measure"),
 )
 UNCLEAR = "The statistical basis is not stated clearly enough to match an official figure."
