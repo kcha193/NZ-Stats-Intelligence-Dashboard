@@ -30,7 +30,7 @@ def test_definitions_are_snapshotted_with_the_source_file(rt, site):
         " JOIN vintage v ON v.id = d.vintage_id JOIN series s ON s.id = v.series_id WHERE s.key = ?",
         (HEADLINE,),
     ).fetchone()
-    assert row["unit"] == "NZD million (2009/10 prices)"
+    assert row["unit"] == "NZD million (chain volume)"
     assert row["source_url"].endswith("gross-domestic-product-june-2026-quarter.csv")
 
 

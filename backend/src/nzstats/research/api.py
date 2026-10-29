@@ -44,6 +44,7 @@ from nzstats.research.compare import INDICATOR_NAMES, compare_forecasts, indicat
 from nzstats.research.consensus import consensus
 from nzstats.research.contract import ForecastClaim, Statement
 from nzstats.research.history import forecast_history
+from nzstats.research.macro_outcomes import gdp_actuals, unemployment_actuals
 from nzstats.research.outcomes import CpiActuals
 from nzstats.research.public import PublicSummary, public_summaries, topics
 from nzstats.research.registry import Institution, PublicDisplay, RegistryError, load_registry
@@ -337,10 +338,11 @@ def research_router(
         indicator: Annotated[str, Query(pattern=r"^[a-z_]{1,40}$")] = "cpi_inflation",
         institution: Institutions = None,
     ) -> ForecastEvaluationOut:
-        # Official CPI vintages are public Stats NZ data; read here through the same read-only connection.
-        return evaluate_forecasts(
-            claims(c, indicator, institution), CpiActuals(c), indicator=indicator
-        )
+        # Official Stats NZ vintages are public data; read here through the same read-only connection.
+        actuals = {"gdp": gdp_actuals, "unemployment": unemployment_actuals}.get(
+            indicator, CpiActuals
+        )(c)
+        return evaluate_forecasts(claims(c, indicator, institution), actuals, indicator=indicator)
 
     @router.get("/research/consensus", response_model=ConsensusOut, dependencies=deps)
     def consensus_view(c: Conn, indicator: Indicator = None) -> ConsensusOut:

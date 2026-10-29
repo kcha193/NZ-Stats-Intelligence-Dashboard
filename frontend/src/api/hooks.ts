@@ -3,7 +3,7 @@ import { ApiError, getJson } from "./client";
 import { pollEvery } from "./mode";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
-  SeriesData, EctDashboard, CpiDashboard, ResearchFeed, ResearchDetail, ForecastComparison, ForecastHistory,
+  SeriesData, EctDashboard, CpiDashboard, GdpDashboard, LabourDashboard, ResearchFeed, ResearchDetail, ForecastComparison, ForecastHistory,
   ForecastEvaluation, Consensus,
 } from "./types";
 
@@ -28,6 +28,20 @@ export const useCpi = () =>
   useQuery({
     queryKey: ["cpi"],
     queryFn: ({ signal }) => getJson<CpiDashboard>("/api/cpi", signal),
+    refetchInterval: pollEvery(60_000),
+  });
+
+export const useGdp = () =>
+  useQuery({
+    queryKey: ["gdp"],
+    queryFn: ({ signal }) => getJson<GdpDashboard>("/api/gdp", signal),
+    refetchInterval: pollEvery(60_000),
+  });
+
+export const useLabourMarket = () =>
+  useQuery({
+    queryKey: ["labour-market"],
+    queryFn: ({ signal }) => getJson<LabourDashboard>("/api/labour-market", signal),
     refetchInterval: pollEvery(60_000),
   });
 

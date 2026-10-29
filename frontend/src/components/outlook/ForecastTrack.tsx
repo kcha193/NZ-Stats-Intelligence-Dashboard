@@ -128,28 +128,37 @@ function RankingView({ r }: { r: Ranking }) {
   );
 }
 
+/** The dashboard with each indicator's official Stats NZ figures, for outcomes the Outlook checks forecasts against. */
+const OFFICIAL_PAGES: Record<string, string> = { cpi_inflation: "/inflation", gdp: "/gdp", unemployment: "/labour-market" };
+
 function Evaluation({ data, indicator }: { data: ForecastEvaluation; indicator: string }) {
   const theme = useChartTheme();
   const name = NAMES[indicator] ?? indicator.replace(/_/g, " ");
   if (data.state === "no_official_series") {
-    return <Empty>No official {name} series is ingested here, so these forecasts are not checked against outcomes. Nothing is estimated in its place.</Empty>;
+    return <Empty>{data.unavailable_reason ?? `No official ${name} series is ingested here, so these forecasts are not checked against outcomes.`} Nothing is estimated in its place.</Empty>;
   }
   if (data.state === "nothing_to_evaluate") return <Empty>No {name} forecast is published here yet, so there is nothing to check.</Empty>;
   const matched = data.evaluated.filter((e) => e.status === "matched") as EvaluatedForecast[];
+  const scored = matched.filter((e) => e.first?.first_release && e.error_first != null);
   const pending = data.evaluated.length - matched.length;
   const names = new Set(matched.map((e) => e.forecast.institution.key));
   return (
     <div className="mt-4">
       <p className="max-w-[72ch] text-sm text-muted-foreground">
         {matched.length} forecast{matched.length === 1 ? "" : "s"} matched to an official outcome, {pending} waiting for their quarter&rsquo;s release,
-        {" "}{data.excluded.length} not evaluated. {data.actuals_as_of ? `Outcomes as of ${data.actuals_as_of}, published ${formatCivilDate(data.actuals_released_on)}` : "No CPI release is stored yet"}
+        {" "}{data.excluded.length} not evaluated. {data.actuals_as_of ? `Outcomes as of ${data.actuals_as_of}, published ${formatCivilDate(data.actuals_released_on)}` : indicator === "cpi_inflation" ? "No CPI release is stored yet" : `No official ${name} release is stored yet`}
         {data.vintages_from ? `; forecasts published ${formatCivilDate(data.vintages_from)} to ${formatCivilDate(data.vintages_to)}` : ""}.
       </p>
-      {matched.length === 0 ? <Empty>No forecast has an official outcome yet.</Empty> : (
+      {OFFICIAL_PAGES[data.indicator] && (
+        <p className="mt-1 text-sm"><Link className="underline underline-offset-2" to={OFFICIAL_PAGES[data.indicator]}>Official {NAMES[data.indicator] ?? data.indicator} figures</Link></p>
+      )}
+      {matched.length === 0 ? <Empty>No forecast has an official outcome yet.</Empty> : scored.length === 0 ? (
+        <Empty>First-published outcomes are unverified. Stored outcomes remain available below; first-published errors and accuracy statistics are not scored.</Empty>
+      ) : (
         <figure aria-labelledby="errors-title" className="mt-4">
           <figcaption id="errors-title" className="text-sm font-medium">Forecast minus first-published outcome</figcaption>
-          <EChart option={errorOption(matched, theme)} height={forecastChartHeight(names.size)}
-            ariaLabel={`Forecast errors: ${matched.map((e) => `${e.forecast.institution.name} ${e.target_label} ${pp(e.error_first)} points`).join("; ")}.`} />
+          <EChart option={errorOption(scored, theme)} height={forecastChartHeight(names.size)}
+            ariaLabel={`Forecast errors: ${scored.map((e) => `${e.forecast.institution.name} ${e.target_label} ${pp(e.error_first)} points`).join("; ")}.`} />
           <p className="text-xs text-muted-foreground">Right of zero: the forecast was too high. Left: too low.</p>
         </figure>
       )}
@@ -179,7 +188,7 @@ function Evaluation({ data, indicator }: { data: ForecastEvaluation; indicator: 
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[44rem] text-left text-sm">
               <caption className="sr-only">Forecasts matched to official outcomes</caption>
-              <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-1.5 pr-3 font-medium">Institution</th><th scope="col" className="py-1.5 pr-3 font-medium">Target</th><th scope="col" className="py-1.5 pr-3 font-medium">Published</th><th scope="col" className="py-1.5 pr-3 font-medium">Forecast</th><th scope="col" className="py-1.5 pr-3 font-medium">First published</th><th scope="col" className="py-1.5 pr-3 font-medium">Latest</th><th scope="col" className="py-1.5 font-medium">Error</th></tr></thead>
+              <thead className="text-xs text-muted-foreground"><tr><th scope="col" className="py-1.5 pr-3 font-medium">Institution</th><th scope="col" className="py-1.5 pr-3 font-medium">Target</th><th scope="col" className="py-1.5 pr-3 font-medium">Published</th><th scope="col" className="py-1.5 pr-3 font-medium">Forecast</th><th scope="col" className="py-1.5 pr-3 font-medium">Stored baseline</th><th scope="col" className="py-1.5 pr-3 font-medium">Latest</th><th scope="col" className="py-1.5 font-medium">Error</th></tr></thead>
               <tbody className="divide-y">{matched.map((e) => (
                 <tr key={`${e.forecast.summary_id}-${e.measure}-${e.target_quarter}`}>
                   <th scope="row" className="py-2 pr-3 font-medium">{e.forecast.institution.name}</th>
@@ -188,7 +197,7 @@ function Evaluation({ data, indicator }: { data: ForecastEvaluation; indicator: 
                   <td className="py-2 pr-3 tabular-nums">{formatForecastValue(e.forecast.value ?? 0, "%")}</td>
                   <td className="py-2 pr-3 tabular-nums">{formatForecastValue(e.first?.value ?? 0, "%")}{e.first && !e.first.first_release ? " (earliest stored)" : ""}</td>
                   <td className="py-2 pr-3 tabular-nums">{formatForecastValue(e.latest?.value ?? 0, "%")}{e.outcome_revision ? ` (revised ${pp(e.outcome_revision)})` : ""}</td>
-                  <td className="py-2 tabular-nums">{pp(e.error_first)}</td>
+                  <td className="py-2 tabular-nums">{e.error_first == null ? "Not scored" : pp(e.error_first)}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -235,7 +244,7 @@ export function ForecastTrack({ indicator }: { indicator: string }) {
       <details className="mt-6 max-w-[72ch] text-sm">
         <summary className="cursor-pointer text-xs font-medium text-accent-ink">How forecasts are checked</summary>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted-foreground">
-          <li>Only CPI has an official series here. A forecast is checked only on the measure it states (annual change, annual average change, or quarterly change with its seasonal adjustment stated) and only for the quarter it names.</li>
+          <li>CPI, GDP and the unemployment rate have official Stats NZ series here; the Official Cash Rate does not (no approved source). A forecast is checked only on the measure it states and only for the quarter it names: for CPI, annual change, annual average change, or quarterly change with its seasonal adjustment stated; for GDP, real quarterly growth, annual average growth, or the seasonally adjusted annual change of a quarter; for unemployment, the seasonally adjusted rate for a quarter. GDP growth and the unemployment rate are Stats NZ&rsquo;s seasonally adjusted headline series.</li>
           <li>The outcome is the first published figure for that quarter, with the latest figure beside it. A forecast published on or after that release is not checked.</li>
           <li>Scenarios, ambiguous wording and calendar or fiscal-year horizons are not checked, and each says why.</li>
           <li>Averages need at least {evaluation.data?.min_for_summary ?? 4} distinct target quarters in a horizon band, each scored on the institution&rsquo;s latest forecast in that band. A ranking needs at least {evaluation.data?.min_for_ranking ?? 8} targets that every ranked institution forecast at the same horizon. No significance test is run.</li>

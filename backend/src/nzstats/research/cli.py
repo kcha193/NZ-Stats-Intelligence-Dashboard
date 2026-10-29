@@ -562,7 +562,7 @@ def _cpi_vintages(
         _emit(
             f"{r.reference_period:<8} {to_akl_iso(r.published_at):<26} {r.bundles:>7}  {to_akl_iso(r.earliest_captured_at)}"
         )
-    _emit(f"Quarters listed have their own release stored: their first-published values are genuine. Every quarter"
+    _emit(f"Quarters listed have their own release stored, but historical captures do not prove first publication. Every quarter"
           f" before {rows[0].reference_period} uses the earliest stored value, from {_safe(rows[0].title)}, and is"
           " labelled earliest stored. Backfilling older releases (a throttled real-site run) needs approval:"
           " docs/cpi-release-runbook.md.")  # fmt: skip

@@ -46,10 +46,13 @@ describe("revision panels", () => {
 });
 
 describe("forecast errors", () => {
-  const matched = e.evaluated.filter((r) => r.status === "matched") as EvaluatedForecast[];
+  // Simulated verified scores test the drawing primitive; real historical fixture outcomes remain unscored.
+  const matched = e.evaluated.filter((r) => r.status === "matched").map((r) => ({ ...r,
+    first: { ...r.first!, first_release: true }, error_first: r.forecast.value! - r.first!.value,
+  })) as EvaluatedForecast[];
 
   it("place one dot per matched forecast on a symmetric axis around zero", () => {
-    const o = errorOption(e.evaluated as EvaluatedForecast[], TEST_THEME) as unknown as Dots;
+    const o = errorOption(matched, TEST_THEME) as unknown as Dots;
     expect(o.series[0].data).toHaveLength(matched.length);
     expect(o.xAxis.min).toBe(-o.xAxis.max);
     expect(o.xAxis.max).toBeGreaterThanOrEqual(Math.max(...matched.map((r) => Math.abs(r.error_first!))));

@@ -13,6 +13,12 @@ describe("indicator groups", () => {
     expect(groups.flatMap((g) => g.kpis)).toHaveLength(5);
   });
 
+  it("groups official GDP and labour market indicators with their dashboards (Phase 4C)", () => {
+    const groups = groupIndicators([kpi("hlfs.rate.unemployment.sa"), kpi("gdp.production.cv.sa.pct_qoq"), kpi("cpi.index.nsa.all_groups")]);
+    expect(groups.map((g) => [g.key, g.dashboard?.to])).toEqual([["inflation", "/inflation"], ["growth", "/gdp"], ["labour", "/labour-market"]]);
+    expect(groups.find((g) => g.key === "growth")!.tone).toBeNull();
+  });
+
   it("omits empty groups and never drops an indicator from the real overview", () => {
     const kpis = (overview as unknown as { kpis: Kpi[] }).kpis;
     const groups = groupIndicators(kpis);

@@ -11,6 +11,7 @@ from typing import Any
 
 from nzstats.publish.contract import (
     MANIFEST,
+    OPTIONAL_DASHBOARDS,
     ORIGIN_FIXTURE,
     ORIGIN_PRODUCTION,
     REQUIRED_FILES,
@@ -170,7 +171,10 @@ def _consistency(payloads: dict[str, Any], report: Report) -> None:
                         f"{where}: evidence cites {ev['release_key']!r}, which is not a published release"
                     )
 
-    for name, dash in (("cpi.json", payloads["cpi.json"]), ("ect.json", payloads["ect.json"])):
+    dashboards = [
+        (n, payloads[n]) for n in ("cpi.json", "ect.json", *OPTIONAL_DASHBOARDS) if n in payloads
+    ]
+    for name, dash in dashboards:
         a = dash["analysis"]
         check_evidence(name, a["executive_summary"] + a["context"] + a["interpretation"])
         if a["release"]["release_key"] not in by_key:
@@ -186,9 +190,17 @@ def _consistency(payloads: dict[str, Any], report: Report) -> None:
         for p, v in payloads.items()
         if p.startswith("series/")
     }
+    macro = {
+        s["key"]: s["points"]
+        for name in OPTIONAL_DASHBOARDS
+        for s in payloads.get(name, {}).get("series", [])
+    }
     for kpi in payloads["overview.json"]["kpis"]:
         m = kpi["metric"]
-        pts = mig.get(m["series_key"]) or ect.get(m["series_key"])
+        if m["series_key"].startswith(("gdp.", "hlfs.", "lci.")) and m["series_key"] not in macro:
+            err(f"overview KPI {m['series_key']} has no published dashboard series")
+            continue
+        pts = mig.get(m["series_key"]) or ect.get(m["series_key"]) or macro.get(m["series_key"])
         if pts is None:
             continue
         match = [p for p in pts if p["period"] == m["period"]]

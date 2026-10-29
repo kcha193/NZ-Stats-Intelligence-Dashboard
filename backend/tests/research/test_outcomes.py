@@ -68,7 +68,7 @@ def test_annual_change_matches_the_published_figures(actuals):
     # Stats NZ chart data, "CPI all groups (annual)": March 2026 3.1, June 2026 4.1, September 2026 3.7.
     for quarter, published in (("2026-03", 3.1), ("2026-06", 4.1), ("2026-09", 3.7)):
         out = actuals.outcome(cpi_target(cpi(horizon=f"year to {quarter_name(quarter)}")))
-        assert out.first.value == published and out.first.first_release
+        assert out.first.value == published and not out.first.first_release
 
 
 def test_quarterly_unadjusted_change_matches_the_published_figures(actuals):
@@ -92,7 +92,7 @@ def test_a_revised_seasonally_adjusted_quarter_reports_first_and_latest(actuals)
     out = actuals.outcome(
         cpi_target(cpi("CPI, quarterly change, seasonally adjusted", "June 2026 quarter"))
     )
-    assert out.first.value == 1.5 and out.first.first_release
+    assert out.first.value == 1.5 and not out.first.first_release
     assert "June 2026" in out.first.release
     assert out.latest.value == 1.6 and "September 2026" in out.latest.release
     assert out.revision == pytest.approx(0.1)
@@ -158,8 +158,8 @@ def test_a_corrected_release_keeps_the_original_as_first_published(rt, site, jun
     key, _ = june
     correct_june_sa_index(rt, site, key, 1362.0)  # 1362.0 / 1339.6379152 -> 1.67 -> 1.7
     out = CpiActuals(rt.conn).outcome(june_target())
-    assert out.first.value == 1.5 and out.first.first_release
-    assert out.latest.value == 1.7 and out.latest.first_release
+    assert out.first.value == 1.5 and not out.first.first_release
+    assert out.latest.value == 1.7 and not out.latest.first_release
     assert out.revision == pytest.approx(0.2)
 
 

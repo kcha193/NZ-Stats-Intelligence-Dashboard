@@ -16,6 +16,7 @@ from nzstats.insights.cpi import build_cpi_analysis, build_cpi_dashboard
 from nzstats.insights.ect import CAVEATS as ECT_CAVEATS
 from nzstats.insights.ect import build_ect_analysis, build_ect_dashboard
 from nzstats.insights.gdp import build_gdp_analysis, build_gdp_dashboard
+from nzstats.insights.labour import build_labour_analysis, build_labour_dashboard
 from nzstats.insights.migration import build_release_analysis
 from nzstats.insights.overview import build_overview, health_rows
 from nzstats.insights.revisions import revision_view, series_out, vintage_out
@@ -27,6 +28,7 @@ from nzstats.models import (
     EctDashboardOut,
     GdpDashboardOut,
     HealthOut,
+    LabourDashboardOut,
     OverviewOut,
     PointOut,
     ReleaseDetail,
@@ -146,6 +148,7 @@ def release_detail(release_id: int, request: Request, conn: Conn) -> ReleaseDeta
         "electronic-card-transactions": build_ect_analysis,
         "consumers-price-index": build_cpi_analysis,
         "gross-domestic-product": build_gdp_analysis,
+        "labour-market-statistics": build_labour_analysis,
     }
     builder = builders.get(row["series_slug"])
     analysis = (
@@ -277,6 +280,7 @@ def series_csv(
     to: str | None = None,
 ) -> Response:
     row, v, obs, _ = _series_data(conn, key, vintage, from_, to)
+    unit = series_out(row, 0, None).unit
     release = repo.get_release(conn, v.release_key)
     source = f"Stats NZ (CC BY 4.0) {release['page_url'] or ''}".strip()
     buf = io.StringIO()
@@ -302,7 +306,7 @@ def series_csv(
             [
                 _csv_text(key),
                 _csv_text(row["name"]),
-                _csv_text(row["unit"]),
+                _csv_text(unit),
                 _csv_text(row["frequency"]),
                 _csv_text(o.period),
                 o.value,
@@ -361,6 +365,14 @@ def gdp_dashboard(conn: Conn) -> GdpDashboardOut:
     result = build_gdp_dashboard(conn)
     if result is None:
         raise HTTPException(404, "GDP data has not been ingested yet")
+    return result
+
+
+@router.get("/labour-market", response_model=LabourDashboardOut)
+def labour_dashboard(conn: Conn) -> LabourDashboardOut:
+    result = build_labour_dashboard(conn)
+    if result is None:
+        raise HTTPException(404, "Labour market data has not been ingested yet")
     return result
 
 

@@ -2,6 +2,7 @@
  "indicator": "cpi_inflation",
  "state": "available",
  "official_series": "cpi.index.nsa.all_groups",
+ "unavailable_reason": null,
  "actuals_as_of": "Consumers price index: June 2026 quarter",
  "actuals_released_on": "2026-07-21",
  "vintages_from": "2026-02-12",
@@ -83,7 +84,7 @@
     "value": 3.1,
     "release": "Consumers price index: March 2026 quarter",
     "released_on": "2026-04-21",
-    "first_release": true
+    "first_release": false
    },
    "latest": {
     "value": 3.1,
@@ -91,9 +92,9 @@
     "released_on": "2026-07-21",
     "first_release": false
    },
-   "error_first": 0.1,
+   "error_first": null,
    "error_latest": 0.1,
-   "outcome_revision": 0.0
+   "outcome_revision": null
   },
   {
    "forecast": {
@@ -132,17 +133,17 @@
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
    "latest": {
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
-   "error_first": -1.1,
+   "error_first": null,
    "error_latest": -1.1,
-   "outcome_revision": 0.0
+   "outcome_revision": null
   },
   {
    "forecast": {
@@ -181,17 +182,17 @@
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
    "latest": {
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
-   "error_first": -0.5,
+   "error_first": null,
    "error_latest": -0.5,
-   "outcome_revision": 0.0
+   "outcome_revision": null
   },
   {
    "forecast": {
@@ -230,17 +231,17 @@
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
    "latest": {
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
-   "error_first": -0.2,
+   "error_first": null,
    "error_latest": -0.2,
-   "outcome_revision": 0.0
+   "outcome_revision": null
   },
   {
    "forecast": {
@@ -279,17 +280,17 @@
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
    "latest": {
     "value": 4.1,
     "release": "Consumers price index: June 2026 quarter",
     "released_on": "2026-07-21",
-    "first_release": true
+    "first_release": false
    },
-   "error_first": -0.7,
+   "error_first": null,
    "error_latest": -0.7,
-   "outcome_revision": 0.0
+   "outcome_revision": null
   },
   {
    "forecast": {
@@ -556,75 +557,14 @@
    "reason": "A scenario is conditional on its own assumptions, so it is not scored against the outcome."
   }
  ],
- "summaries": [
-  {
-   "institution": {
-    "key": "harbourside",
-    "name": "Harbourside Bank (synthetic)",
-    "kind": "bank"
-   },
-   "measure": "annual_change",
-   "measure_label": "Annual change (through the year)",
-   "band": "h0",
-   "n": 2,
-   "sufficient": false,
-   "mean_error": null,
-   "mae": null,
-   "rmse": null
-  },
-  {
-   "institution": {
-    "key": "harbourside",
-    "name": "Harbourside Bank (synthetic)",
-    "kind": "bank"
-   },
-   "measure": "annual_change",
-   "measure_label": "Annual change (through the year)",
-   "band": "h1_2",
-   "n": 1,
-   "sufficient": false,
-   "mean_error": null,
-   "mae": null,
-   "rmse": null
-  },
-  {
-   "institution": {
-    "key": "kauri",
-    "name": "Kauri Economics (synthetic)",
-    "kind": "consultancy"
-   },
-   "measure": "annual_change",
-   "measure_label": "Annual change (through the year)",
-   "band": "h0",
-   "n": 1,
-   "sufficient": false,
-   "mean_error": null,
-   "mae": null,
-   "rmse": null
-  },
-  {
-   "institution": {
-    "key": "southern",
-    "name": "Southern Treasury Office (synthetic)",
-    "kind": "government"
-   },
-   "measure": "annual_change",
-   "measure_label": "Annual change (through the year)",
-   "band": "h0",
-   "n": 1,
-   "sufficient": false,
-   "mean_error": null,
-   "mae": null,
-   "rmse": null
-  }
- ],
+ "summaries": [],
  "rankings": [
   {
    "measure": "annual_change",
    "measure_label": "Annual change (through the year)",
    "available": false,
-   "reason": "Only 1 target was forecast by every institution at the same horizon; a ranking needs at least 8.",
-   "matched_cells": 1,
+   "reason": "A ranking needs at least two institutions with evaluated forecasts.",
+   "matched_cells": 0,
    "entries": []
   }
  ],
@@ -662,5 +602,5 @@
  ],
  "min_for_summary": 4,
  "min_for_ranking": 8,
- "note": "Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
+ "note": "Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the OCR cannot (no approved source). Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. First-published scores require an uncorrected source captured on the official release day; historical captures are earliest stored and are not scored as first published. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
 }

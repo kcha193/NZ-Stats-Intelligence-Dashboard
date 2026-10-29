@@ -45,8 +45,8 @@ _DEFAULT = CategoryInfo("Other", "low")
 # Categories shown as inactive on the overview until a verified source is wired in (Phase 2).
 INACTIVE_CATEGORIES: tuple[tuple[str, str], ...] = (
     ("Prices and inflation", "Planned for Phase 2: CPI release files are being verified."),
-    ("Labour market", "Planned for Phase 2."),
-    ("Economic growth", "Planned for Phase 2."),
+    ("Labour market", "Pipeline ready (Phase 4C); no labour market release has been ingested yet."),
+    ("Economic growth", "Pipeline ready (Phase 4C); no GDP release has been ingested yet."),
     ("Housing and building", "Planned for Phase 2."),
     ("Trade", "Planned for Phase 2."),
     ("Population", "Planned for Phase 2."),

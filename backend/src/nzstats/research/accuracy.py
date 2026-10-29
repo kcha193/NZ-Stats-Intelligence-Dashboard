@@ -18,6 +18,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
+from typing import Protocol
 
 from nzstats.research.api_models import (
     AccuracySummaryOut,
@@ -31,23 +32,39 @@ from nzstats.research.api_models import (
     RankingOut,
 )
 from nzstats.research.compare import resolve
-from nzstats.research.outcomes import (
-    MEASURES,
-    NSA,
-    Actual,
-    CpiActuals,
-    Target,
-    akl_date,
-    cpi_target,
-    look_ahead,
-)
+from nzstats.research.outcomes import NSA, Actual, Outcome, Target, akl_date, look_ahead
 
 MIN_FOR_SUMMARY = 4
 SCENARIO_REASON = (
     "A scenario is conditional on its own assumptions, so it is not scored against the outcome."
 )
 MIN_FOR_RANKING = 8
-EVALUATED_INDICATORS = {"cpi_inflation": NSA}
+EVALUATED_INDICATORS = {
+    "cpi_inflation": NSA,
+    "gdp": "gdp.production.cv.sa.pct_qoq",
+    "unemployment": "hlfs.rate.unemployment.sa",
+}
+UNAVAILABLE = {
+    "ocr": "No official OCR series is ingested: access to the Reserve Bank's (RBNZ) data is not yet approved "
+    "(docs/data-sources/ocr.md), so OCR forecasts cannot be evaluated.",
+}
+NO_SERIES = (
+    "No official series for this indicator is ingested here, so its forecasts cannot be evaluated."
+)
+
+
+class Actuals(Protocol):
+    """Stored official outcomes for one indicator (`outcomes.CpiActuals`, `macro_outcomes.OfficialActuals`)."""
+
+    indicator: str
+
+    def target(self, f: ForecastOut) -> Target | str: ...
+    def measure_label(self, measure: str) -> str: ...
+    def release_date(self, quarter: str) -> str | None: ...
+    def newest_release(self) -> tuple[str, str] | None: ...
+    def outcome(self, target: Target) -> Outcome | None: ...
+
+
 BANDS = (("h0", None, 0), ("h1_2", 1, 2), ("h3_4", 3, 4), ("h5_8", 5, 8), ("h9", 9, None))
 _MONTHS = ("March", "June", "September", "December")
 
@@ -145,10 +162,11 @@ def _target_label(t: Target) -> str:
 
 
 def evaluate_forecasts(
-    forecasts: list[ForecastOut], actuals: CpiActuals, *, indicator: str
+    forecasts: list[ForecastOut], actuals: Actuals, *, indicator: str
 ) -> ForecastEvaluationOut:
     chosen = [f for f in forecasts if f.indicator == indicator]
-    newest = actuals.newest_release()
+    evaluated_here = indicator in EVALUATED_INDICATORS and actuals.indicator == indicator
+    newest = actuals.newest_release() if evaluated_here else None
     base = dict(indicator=indicator, official_series=EVALUATED_INDICATORS.get(indicator),
                 actuals_as_of=newest[0] if newest else None,
                 actuals_released_on=akl_date(newest[1]) if newest else None,
@@ -162,8 +180,11 @@ def evaluate_forecasts(
         rankings=[],
         coverage=[],
     )
-    if indicator not in EVALUATED_INDICATORS:
-        return ForecastEvaluationOut(state="no_official_series", **base, **empty)
+    if not evaluated_here:
+        reason = UNAVAILABLE.get(indicator, NO_SERIES)
+        return ForecastEvaluationOut(
+            state="no_official_series", unavailable_reason=reason, **base, **empty
+        )
     if not chosen:
         return ForecastEvaluationOut(state="nothing_to_evaluate", **base, **empty)
 
@@ -173,7 +194,7 @@ def evaluate_forecasts(
         if f.scenario:
             excluded.append(ExcludedForecastOut(forecast=f, reason=SCENARIO_REASON))
             continue
-        target = cpi_target(f)
+        target = actuals.target(f)
         if isinstance(target, str):
             excluded.append(ExcludedForecastOut(forecast=f, reason=target))
             continue
@@ -185,13 +206,13 @@ def evaluate_forecasts(
         outcome = actuals.outcome(target)
         assert f.value is not None
         evaluated.append(EvaluatedForecastOut(
-            forecast=f, measure=target.measure, measure_label=MEASURES[target.measure][0],
+            forecast=f, measure=target.measure, measure_label=actuals.measure_label(target.measure),
             target_quarter=target.quarter, target_label=_target_label(target), horizon_quarters=h, band=band_of(h),
             status="matched" if outcome else "pending",
             first=_actual(outcome.first) if outcome else None, latest=_actual(outcome.latest) if outcome else None,
-            error_first=_r(f.value - outcome.first.value) if outcome else None,
+            error_first=_r(f.value - outcome.first.value) if outcome and outcome.first.first_release else None,
             error_latest=_r(f.value - outcome.latest.value) if outcome else None,
-            outcome_revision=outcome.revision if outcome else None,
+            outcome_revision=outcome.revision if outcome and outcome.first.first_release else None,
         ))  # fmt: skip
     evaluated.sort(key=lambda e: (e.measure, e.target_quarter, e.forecast.institution.key, e.forecast.published_on or "",
                                   e.forecast.summary_id))  # fmt: skip
@@ -209,6 +230,8 @@ def evaluate_forecasts(
         tuple[str, str, str, str], EvaluatedForecastOut
     ] = {}  # one vintage per outcome quarter
     for e in sorted(matched, key=lambda e: (e.forecast.published_on or "", e.forecast.summary_id)):
+        if e.error_first is None:
+            continue
         sample[(e.forecast.institution.key, e.measure, e.band, e.target_quarter)] = (
             e  # the latest vintage wins
         )
@@ -219,7 +242,7 @@ def evaluate_forecasts(
     for (inst, measure, band), errors in sorted(groups.items()):
         s = error_stats(errors)
         summaries.append(AccuracySummaryOut(
-            institution=institutions[inst], measure=measure, measure_label=MEASURES[measure][0], band=band, n=s.n,
+            institution=institutions[inst], measure=measure, measure_label=actuals.measure_label(measure), band=band, n=s.n,
             sufficient=s.sufficient, mean_error=s.mean_error, mae=s.mae, rmse=s.rmse,
         ))  # fmt: skip
 
@@ -228,6 +251,8 @@ def evaluate_forecasts(
         cells: dict[tuple, EvaluatedForecastOut] = {}
         for e in sorted((e for e in matched if e.measure == measure),
                         key=lambda e: (e.forecast.published_on or "", e.forecast.summary_id)):  # fmt: skip
+            if e.error_first is None:
+                continue
             cells[(e.forecast.institution.key, e.target_quarter, e.horizon_quarters)] = (
                 e  # latest vintage per cell
             )
@@ -235,7 +260,7 @@ def evaluate_forecasts(
             {"institution": k[0], "cell": k[1:], "error": e.error_first} for k, e in cells.items()
         )
         rankings.append(RankingOut(
-            measure=measure, measure_label=MEASURES[measure][0], available=result.available, reason=result.reason,
+            measure=measure, measure_label=actuals.measure_label(measure), available=result.available, reason=result.reason,
             matched_cells=result.matched_cells,
             entries=[RankingEntryOut(institution=institutions[x.institution], n=x.n, mae=x.mae, rmse=x.rmse,
                                      mean_error=x.mean_error) for x in result.entries],

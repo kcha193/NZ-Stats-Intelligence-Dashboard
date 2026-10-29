@@ -13,15 +13,16 @@ from statistics import mean
 from nzstats.adapters.gdp.series import HEADLINE, KEYS, SLUG
 from nzstats.clock import to_akl_iso
 from nzstats.insights.migration import _corrections
+from nzstats.insights.revisions import gdp_display_metadata
 from nzstats.insights.summary import release_summary
+from nzstats.insights.vintages import first_latest_table
 from nzstats.models import (
     ChangeOut,
     Evidence,
     GdpDashboardOut,
-    GdpRevisionRow,
-    GdpRevisionTable,
     GdpSeriesOut,
     Insight,
+    Kpi,
     Methodology,
     Metric,
     PointOut,
@@ -40,16 +41,16 @@ AVG = "gdp.production.cv.nsa.pct_annual_avg"
 EXP_QOQ = "gdp.expenditure.cv.sa.pct_qoq"
 PER_CAPITA = "gdp.per_capita.production.cv.sa"
 NOMINAL = "gdp.expenditure.cp.sa"
-REVISION_QUARTERS = 8
 CAVEATS = [
     "Gross domestic product (GDP) measures the value of goods and services produced in New Zealand. Stats NZ's "
-    "headline is the production measure in chain-volume terms (real, 2009/10 prices), seasonally adjusted.",
+    "headline is the production measure in chain-volume terms (real), seasonally adjusted.",
     "Three growth measures are shown and are never interchangeable: quarterly growth compares a quarter with the "
     "previous quarter (seasonally adjusted); the annual change of a quarter compares it with the same quarter a "
     "year earlier (seasonally adjusted); annual average growth compares the four quarters to date with the four "
     "before them (actual values). Stats NZ's release page calls the last one 'Annual growth'.",
     "Chain-volume (real) values remove the effect of price changes; current-price (nominal) values do not. "
-    "Seasonally adjusted and actual values are different series. They are kept on separate charts.",
+    "Seasonally adjusted and actual values are different series. They are kept on separate charts. "
+    "The chain-volume reference year is not stated in the captured CSV metadata and is not assigned here.",
     "The production and expenditure measures are estimated independently from different data and usually "
     "differ; neither is a correction of the other.",
     "National accounts are revised as more complete information arrives, and seasonal adjustment re-estimates "
@@ -142,6 +143,22 @@ def _metric(stored, key: str) -> Metric:
         std_error=None,
         change_prior=compare(3),
         change_year_ago=compare(12),
+    )
+
+
+def build_gdp_overview_kpi(conn: sqlite3.Connection) -> tuple[Kpi, str] | None:
+    loaded = _load(conn, None)
+    if loaded is None:
+        return None
+    row, _, stored, _, captured = loaded
+    return (
+        Kpi(
+            metric=_metric(stored, QOQ),
+            release_id=row["id"],
+            published_at=to_akl_iso(row["published_at"]),
+            source_url=row["page_url"],
+        ),
+        to_akl_iso(captured),
     )
 
 
@@ -264,68 +281,6 @@ def _revision_block(conn, row, stored) -> RevisionBlock:
     )
 
 
-def _first_published(
-    conn, key: str, published_at: str
-) -> list[tuple[str, str | None, dict[str, float]]]:
-    """Each stored release up to `published_at`, oldest first, with its first stored values of `key`."""
-    references = dict(
-        conn.execute(
-            "SELECT release_key, reference_period FROM release WHERE series_slug = ?", (SLUG,)
-        ).fetchall()
-    )
-    seen: dict[str, tuple[str, str | None, dict[str, float]]] = {}
-    # Activation changes when a bundle is restored; ids retain the original insertion order.
-    vintages = sorted(repo.list_vintages(conn, key), key=lambda v: (v.published_at, v.vintage_id))
-    for v in vintages:
-        if v.published_at > published_at or v.release_key in seen:
-            continue  # later releases cannot be "first published" for this view; keep each release's original
-        points = {p: pt.value for p, pt in repo.vintage_points(conn, v.vintage_id).items()}
-        seen[v.release_key] = (v.title, references.get(v.release_key), points)
-    return list(seen.values())
-
-
-def _revision_table(conn, row, stored, key: str) -> GdpRevisionTable:
-    d = stored[key][0]
-    releases = _first_published(conn, key, row["published_at"])
-    if len(releases) < 2:
-        return GdpRevisionTable(
-            series_key=key,
-            label=d.name,
-            available=False,
-            note="Only one GDP release is stored, so first-published and latest figures cannot be compared.",
-            rows=[],
-        )
-    latest = _values(stored, key)
-    ref = max(latest)
-    rows = []
-    for period in (add_months(ref, -3 * k) for k in range(REVISION_QUARTERS)):
-        if period not in latest:
-            continue
-        own = next((r for r in releases if r[1] == period and period in r[2]), None)
-        first = own or next((r for r in releases if period in r[2]), None)
-        if first is None:
-            continue
-        rows.append(
-            GdpRevisionRow(
-                period=period,
-                first_value=first[2][period],
-                first_release=first[0],
-                first_is_publication=own is not None,
-                latest_value=latest[period],
-                latest_release=row["title"],
-                revision=round_1dp(latest[period] - first[2][period]),
-            )
-        )
-    return GdpRevisionTable(
-        series_key=key,
-        label=d.name,
-        available=True,
-        note="First published: the figure in the release for that quarter. Where that release is not stored, the "
-        f"earliest stored figure is shown and marked as earliest stored. Latest: {row['title']}.",
-        rows=rows,
-    )
-
-
 def _build(
     conn: sqlite3.Connection, release_id: int | None, *, full: bool
 ) -> GdpDashboardOut | None:
@@ -360,17 +315,18 @@ def _build(
         for key in KEYS:
             d, obs = stored[key]
             measure, approach, basis, per_capita = _describe(key)
+            unit, definition = gdp_display_metadata(key, d.unit, d.definition)
             series.append(
                 GdpSeriesOut(
                     key=key,
                     name=d.name,
-                    unit=d.unit,
+                    unit=unit,
                     measure=measure,
                     approach=approach,
                     price_basis=basis,
                     adjustment=d.adjustment.value,
                     per_capita=per_capita,
-                    definition=d.definition,
+                    definition=definition,
                     points=[
                         PointOut(
                             period=o.period,
@@ -390,7 +346,12 @@ def _build(
         published_at=to_akl_iso(row["published_at"]),
         captured_at=to_akl_iso(captured),
         series=series,
-        revisions=[_revision_table(conn, row, stored, k) for k in (QOQ, AVG)] if full else [],
+        revisions=[
+            first_latest_table(conn, SLUG, row, k, stored[k][0].name, _values(stored, k))
+            for k in (QOQ, AVG)
+        ]
+        if full
+        else [],
         sources=sorted(
             {d.source_url for d, _ in stored.values() if d.source_url}
             | {row["page_url"] or ""} - {""}

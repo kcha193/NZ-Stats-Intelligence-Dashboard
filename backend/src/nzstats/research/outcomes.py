@@ -26,7 +26,12 @@ from decimal import ROUND_HALF_UP, Decimal
 from nzstats.clock import AKL, from_utc_iso
 from nzstats.research.api_models import ForecastOut
 from nzstats.research.compare import basis_of, horizon_of
-from nzstats.store.repo import VintageInfo, list_vintages, vintage_points
+from nzstats.store.repo import (
+    VintageInfo,
+    list_vintages,
+    supports_first_publication,
+    vintage_points,
+)
 
 CPI_SLUG = "consumers-price-index"
 NSA, SA = "cpi.index.nsa.all_groups", "cpi.index.sa.all_groups"
@@ -43,7 +48,7 @@ _SA = re.compile(r"\bseasonally[- ]adjusted\b|\bs\.?a\.?\b", re.IGNORECASE)
 
 
 _Vintage = tuple[
-    VintageInfo, str | None, dict[str, float]
+    VintageInfo, str | None, dict[str, float], bool
 ]  # vintage, its release's reference period, points
 
 
@@ -58,7 +63,7 @@ class Actual:
     value: float
     release: str  # the release title
     released_at: str  # UTC ISO
-    first_release: bool  # from the release whose reference period is the target
+    first_release: bool  # own quarter and supported original-publication provenance
 
 
 @dataclass(frozen=True)
@@ -185,6 +190,7 @@ class CpiActuals:
                         info,
                         reference.get(info.release_key),
                         {p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()},
+                        supports_first_publication(conn, info),
                     )
                 return _loaded[info.vintage_id]
 
@@ -193,6 +199,17 @@ class CpiActuals:
                 load(i)
                 for i in sorted(earliest.values(), key=lambda v: (v.published_at, v.vintage_id))
             ]
+
+    indicator = "cpi_inflation"
+    official_series = NSA
+
+    @staticmethod
+    def target(f: ForecastOut) -> Target | str:
+        return cpi_target(f)
+
+    @staticmethod
+    def measure_label(measure: str) -> str:
+        return MEASURES[measure][0]
 
     def release_date(self, quarter: str) -> str | None:
         """When the release for this reference quarter was (or is scheduled to be) published, UTC."""
@@ -214,10 +231,15 @@ class CpiActuals:
     @staticmethod
     def _actual(vintages: list[_Vintage], target: Target, *, earliest: bool) -> Actual | None:
         """The first (earliest=True) or last release in `vintages` that holds enough of the series for the target."""
-        for info, reference, points in vintages if earliest else reversed(vintages):
+        for info, reference, points, is_publication in vintages if earliest else reversed(vintages):
             value = compute(target.measure, points, target.quarter)
             if value is not None:
-                return Actual(value, info.title, info.published_at, reference == target.quarter)
+                return Actual(
+                    value,
+                    info.title,
+                    info.published_at,
+                    reference == target.quarter and is_publication,
+                )
         return None
 
 
@@ -235,8 +257,8 @@ class StoredRelease:
 def stored_cpi_releases(conn: sqlite3.Connection) -> list[StoredRelease]:
     """CPI releases with a stored all-groups vintage, oldest first (Phase 3E vintage audit; read-only).
 
-    Only these quarters can have a genuine first-published value; every earlier quarter's "first" value is the
-    earliest stored one, read from the oldest release listed here.
+    Listing a quarter is necessary but insufficient for genuine first-publication provenance. Historical captures
+    remain earliest stored; a release-day original capture is required as well.
     """
     rows = conn.execute(
         "SELECT r.reference_period, r.title, r.published_at, COUNT(v.id) AS bundles,"

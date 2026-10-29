@@ -80,8 +80,15 @@ def test_evaluation_states_are_explicit(make):
     build, conn = make
     _two_institutions(conn)
     client = build(reg=_reg())
+    ocr = client.get("/api/research/forecast-evaluation?indicator=ocr").json()
+    assert ocr["state"] == "no_official_series" and ocr["evaluated"] == []
+    assert "RBNZ" in ocr["unavailable_reason"] and ocr["actuals_as_of"] is None
+    # Phase 4C: GDP is evaluated against official Stats NZ GDP; none is stored here, so nothing is matched.
     gdp = client.get("/api/research/forecast-evaluation?indicator=gdp").json()
-    assert gdp["state"] == "no_official_series" and gdp["evaluated"] == []
+    assert gdp["state"] in ("available", "nothing_to_evaluate") and gdp[
+        "official_series"
+    ].startswith("gdp.")
+    assert all(e["status"] == "pending" for e in gdp["evaluated"])
     cpi = client.get("/api/research/forecast-evaluation?indicator=cpi_inflation").json()
     # No CPI release is stored in this database: the June 2027 forecasts are pending, never matched to another quarter.
     assert cpi["state"] == "available" and cpi["actuals_as_of"] is None

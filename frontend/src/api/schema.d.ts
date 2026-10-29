@@ -327,6 +327,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/labour-market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Labour Dashboard */
+        get: operations["labour_dashboard_api_labour_market_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -826,6 +843,36 @@ export interface components {
             /** First Insight */
             first_insight: string | null;
         };
+        /** FirstLatestRow */
+        FirstLatestRow: {
+            /** Period */
+            period: string;
+            /** First Value */
+            first_value: number;
+            /** First Release */
+            first_release: string;
+            /** First Is Publication */
+            first_is_publication: boolean;
+            /** Latest Value */
+            latest_value: number;
+            /** Latest Release */
+            latest_release: string;
+            /** Revision */
+            revision: number;
+        };
+        /** FirstLatestTable */
+        FirstLatestTable: {
+            /** Series Key */
+            series_key: string;
+            /** Label */
+            label: string;
+            /** Available */
+            available: boolean;
+            /** Note */
+            note: string;
+            /** Rows */
+            rows: components["schemas"]["FirstLatestRow"][];
+        };
         /** ForecastComparisonOut */
         ForecastComparisonOut: {
             /** Groups */
@@ -855,6 +902,8 @@ export interface components {
             state: "available" | "no_official_series" | "nothing_to_evaluate";
             /** Official Series */
             official_series: string | null;
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
             /** Actuals As Of */
             actuals_as_of: string | null;
             /** Actuals Released On */
@@ -879,7 +928,7 @@ export interface components {
             min_for_ranking: number;
             /**
              * Note
-             * @default Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
+             * @default Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the OCR cannot (no approved source). Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. First-published scores require an uncorrected source captured on the official release day; historical captures are earliest stored and are not scored as first published. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
              */
             note: string;
         };
@@ -1038,41 +1087,11 @@ export interface components {
             /** Series */
             series: components["schemas"]["GdpSeriesOut"][];
             /** Revisions */
-            revisions: components["schemas"]["GdpRevisionTable"][];
+            revisions: components["schemas"]["FirstLatestTable"][];
             /** Sources */
             sources: string[];
             /** Caveats */
             caveats: string[];
-        };
-        /** GdpRevisionRow */
-        GdpRevisionRow: {
-            /** Period */
-            period: string;
-            /** First Value */
-            first_value: number;
-            /** First Release */
-            first_release: string;
-            /** First Is Publication */
-            first_is_publication: boolean;
-            /** Latest Value */
-            latest_value: number;
-            /** Latest Release */
-            latest_release: string;
-            /** Revision */
-            revision: number;
-        };
-        /** GdpRevisionTable */
-        GdpRevisionTable: {
-            /** Series Key */
-            series_key: string;
-            /** Label */
-            label: string;
-            /** Available */
-            available: boolean;
-            /** Note */
-            note: string;
-            /** Rows */
-            rows: components["schemas"]["GdpRevisionRow"][];
         };
         /** GdpSeriesOut */
         GdpSeriesOut: {
@@ -1171,6 +1190,51 @@ export interface components {
             release_id: number;
             /** Published At */
             published_at: string;
+            /** Source Url */
+            source_url: string | null;
+        };
+        /** LabourDashboardOut */
+        LabourDashboardOut: {
+            analysis: components["schemas"]["ReleaseAnalysis"];
+            /** Reference Period */
+            reference_period: string;
+            /** Published At */
+            published_at: string;
+            /** Captured At */
+            captured_at: string;
+            /** Series */
+            series: components["schemas"]["LabourSeriesOut"][];
+            /** Revisions */
+            revisions: components["schemas"]["FirstLatestTable"][];
+            /** Sources */
+            sources: string[];
+            /** Caveats */
+            caveats: string[];
+        };
+        /** LabourSeriesOut */
+        LabourSeriesOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /**
+             * Survey
+             * @enum {string}
+             */
+            survey: "hlfs" | "lci";
+            /**
+             * Measure
+             * @enum {string}
+             */
+            measure: "rate" | "level" | "index" | "quarterly_change" | "annual_change";
+            /** Adjustment */
+            adjustment: string;
+            /** Definition */
+            definition: string;
+            /** Points */
+            points: components["schemas"]["PointOut"][];
             /** Source Url */
             source_url: string | null;
         };
@@ -2214,6 +2278,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GdpDashboardOut"];
+                };
+            };
+        };
+    };
+    labour_dashboard_api_labour_market_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabourDashboardOut"];
                 };
             };
         };

@@ -1,12 +1,15 @@
 # NZ Stats Intelligence Dashboard: project instructions
 
-Self-hosted dashboard that ingests Stats NZ releases and explains them. Phase 1 (International migration)
-is built; Phases 2 and 3 are in the spec. Resume from [docs/progress.md](docs/progress.md).
+Self-hosted dashboard that ingests Stats NZ releases and explains them. Migration, card spending and CPI are built;
+the Phase 4D branch integrates GDP, labour and the Outlook stack for release review. OCR remains synthetic-only
+and institutional research publishing remains permission-gated. Resume from [docs/progress.md](docs/progress.md);
+current release gates and evidence are in [docs/phase-4d-release.md](docs/phase-4d-release.md).
 
 ## Stack and layout
 
 - `backend/src/nzstats/`: Python 3.12 (3.11+ works), FastAPI, Pydantic, pandas, httpx, SQLite (WAL), APScheduler.
-  `sources/` (calendar, release page, throttled fetcher) · `adapters/` (file layouts, one per category: migration, ect, cpi) ·
+  `sources/` (calendar, release page, throttled fetcher) · `adapters/` (file layouts, one per category: migration, ect, cpi,
+  gdp, labour) · `ocr/` (OCR domain model on synthetic data only; source not approved, see `docs/data-sources/ocr.md`) ·
   `validate/` · `stats/` (pure number functions) · `insights/` (deterministic findings with evidence) ·
   `store/` (SQL migrations, repositories) · `pipeline/` (discover, ingest, backfill) · `scheduler/` ·
   `api/` (read-only, serves the built SPA) · `cli.py` · `research/` (Phase 3A institutional commentary and Phase 3B

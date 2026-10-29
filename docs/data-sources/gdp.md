@@ -36,8 +36,12 @@ adapter checks the declared value as observed and never scales by it.
 
 ## Stored series
 
-See the table in the spec. Levels are NZ$ million (chain volume in 2009/10 prices, or current prices) or NZ$ per
-person; the four percentage series are stored exactly as published (1 d.p.).
+See the table in the spec. Levels are NZ$ million (chain volume or current prices) or NZ$ per person; the four
+percentage series are stored exactly as published (1 d.p.). The captured CSV metadata and release pages identify
+chain-volume measures but do not state their reference year. Phase 4D therefore removes the earlier unsubstantiated
+2009/10 label from the application; no alternative reference year is inferred. The original Phase 4C spec records
+that historical assumption and is superseded on this point by this source note and the
+[independent Phase 4D reconciliation](../phase-4d-statistical-reconciliation.md).
 
 ## Three "annual" measures
 

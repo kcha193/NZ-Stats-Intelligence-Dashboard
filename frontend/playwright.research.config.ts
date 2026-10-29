@@ -12,7 +12,7 @@ export default defineConfig({
     command:
       `rm -rf ${dataDir} && python ../scripts/seed_e2e_db.py ${dataDir} && python ../scripts/seed_research_demo.py ${dataDir} && ` +
       `NZSTATS_DATA_DIR=${dataDir} NZSTATS_STATIC_DIR=dist NZSTATS_PUBLIC_RESEARCH=1 ` +
-      `NZSTATS_RESEARCH_SOURCES_FILE=${dataDir}/research_sources.synthetic.toml nzstats serve --no-scheduler --port ${port}`,
+      `NZSTATS_RESEARCH_SOURCES_FILE=${dataDir}/research_sources.synthetic.toml nzstats serve --no-scheduler --host 127.0.0.1 --port ${port}`,
     url: `http://127.0.0.1:${port}/api/health`,
     reuseExistingServer: false,
     timeout: 180_000,

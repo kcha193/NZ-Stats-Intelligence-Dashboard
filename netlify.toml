@@ -53,6 +53,18 @@
   to = "/_pages/app-shell.html"
   status = 200
 [[redirects]]
+  from = "/gdp"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/labour-market"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
+  from = "/ocr"
+  to = "/_pages/app-shell.html"
+  status = 200
+[[redirects]]
   from = "/migration"
   to = "/_pages/app-shell.html"
   status = 200

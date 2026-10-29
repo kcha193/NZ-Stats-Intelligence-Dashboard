@@ -277,7 +277,7 @@ describe("forecast history, track record and agreement (SYNTHETIC research, real
     await within(section).findAllByRole("figure", { name: /Year to June 2027$/ });
     expect(within(section).queryByText(/Official outcome/)).not.toBeInTheDocument();
     await user.selectOptions(within(section).getByLabelText("Target"), "cpi_inflation|percent|annual_change|year_to:2026-06|central");
-    expect(await within(section).findByText("Official outcome (first published)")).toBeInTheDocument();
+    expect(await within(section).findByText("Official outcome (earliest stored)")).toBeInTheDocument();
   });
 
   it("checks CPI forecasts against outcomes and refuses to rank a small sample", async () => {
@@ -286,8 +286,9 @@ describe("forecast history, track record and agreement (SYNTHETIC research, real
     renderWithProviders(<EconomicOutlook />);
     const section = await screen.findByRole("region", { name: "Forecast history and track record" });
     expect(await within(section).findByText(/5 forecasts matched to an official outcome/)).toBeInTheDocument();
-    expect(within(section).getByRole("figure", { name: "Forecast minus first-published outcome" })).toBeInTheDocument();
-    expect(within(section).getAllByText(/Too few outcomes \(\d of 4 needed\)/).length).toBeGreaterThan(0);
+    expect(within(section).queryByRole("figure", { name: "Forecast minus first-published outcome" })).not.toBeInTheDocument();
+    expect(within(section).getByText(/First-published outcomes are unverified/)).toBeInTheDocument();
+    expect(within(section).queryByText(/Too few outcomes/)).not.toBeInTheDocument();
     expect(within(section).getByText(/No ranking \(annual change \(through the year\)\)/)).toBeInTheDocument();
     await user.click(within(section).getByText(/Matched forecasts \(5\)/));
     const rows = within(within(section).getByRole("table", { name: "Forecasts matched to official outcomes" })).getAllByRole("row").slice(1);
@@ -295,14 +296,16 @@ describe("forecast history, track record and agreement (SYNTHETIC research, real
     expect(within(section).getByText(/Not evaluated/)).toBeInTheDocument(); // the scenario, with its reason
   });
 
-  it("says plainly that GDP has no official series here and invents nothing", async () => {
+  it("checks GDP forecasts against official Stats NZ GDP and links to it (Phase 4C)", async () => {
     mockApi(routes);
     const user = userEvent.setup();
     renderWithProviders(<EconomicOutlook />);
     await cpiJune2027();
     await user.click(screen.getByRole("radio", { name: "GDP" }));
-    expect(await screen.findByText(/No official GDP series is ingested here/)).toBeInTheDocument();
-    expect(screen.getByText(/Nothing is estimated in its place/)).toBeInTheDocument();
+    // The synthetic GDP forecasts target March 2027, which no stored release covers: they wait, nothing is estimated.
+    expect(await screen.findByText(/2 waiting for their quarter/)).toBeInTheDocument();
+    expect(screen.getByText(/Outcomes as of Gross domestic product: June 2026 quarter/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Official GDP figures" })).toHaveAttribute("href", "/gdp");
   });
 
   it("is absent when research is not published", async () => {
