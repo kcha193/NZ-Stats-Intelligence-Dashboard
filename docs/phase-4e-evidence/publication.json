@@ -1,0 +1,361 @@
+{
+  "local_publication": {
+    "checked_at_scope": "local_Netlify_rules_emulator_not_Netlify_edge",
+    "canonical_origin": "https://nzstats-release.example",
+    "canonical_origin_confirmed": false,
+    "snapshot_id": "75b42648f75c34e0635ff8a6fa8d6a61e0b12a84abe67c2920cef07823578d66",
+    "origin": "production",
+    "generated_at": "2026-10-29T07:59:39Z",
+    "data_updated_at": "2026-10-29T20:57:42+13:00",
+    "counts": {
+      "bytes": 3579047,
+      "files": 224,
+      "published_releases": 51,
+      "releases": 187,
+      "releases_with_analysis": 11,
+      "series_files": 14
+    },
+    "http": [
+      {
+        "route": "/",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000",
+        "canonical": "https://nzstats-release.example/"
+      },
+      {
+        "route": "/gdp",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000",
+        "canonical": "https://nzstats-release.example/gdp"
+      },
+      {
+        "route": "/labour-market",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000",
+        "canonical": "https://nzstats-release.example/labour-market"
+      },
+      {
+        "route": "/inflation",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000",
+        "canonical": "https://nzstats-release.example/inflation"
+      },
+      {
+        "route": "/migration",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000",
+        "canonical": "https://nzstats-release.example/migration"
+      },
+      {
+        "route": "/electronic-card-transactions",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000",
+        "canonical": "https://nzstats-release.example/electronic-card-transactions"
+      },
+      {
+        "route": "/data/v1/manifest.json",
+        "status": 200,
+        "content_type": "application/json",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      },
+      {
+        "route": "/data/v1/gdp.json",
+        "status": 200,
+        "content_type": "application/json",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      },
+      {
+        "route": "/data/v1/labour-market.json",
+        "status": 200,
+        "content_type": "application/json",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      },
+      {
+        "route": "/data/v1/nope.json",
+        "status": 404,
+        "content_type": "application/json",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      },
+      {
+        "route": "/api/research",
+        "status": 404,
+        "content_type": "application/json",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      },
+      {
+        "route": "/no-such-page",
+        "status": 404,
+        "content_type": "text/html; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      },
+      {
+        "route": "/sitemap.xml",
+        "status": 200,
+        "content_type": "application/xml",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      },
+      {
+        "route": "/robots.txt",
+        "status": 200,
+        "content_type": "text/plain; charset=utf-8",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        "nosniff": "nosniff",
+        "hsts": "max-age=31536000"
+      }
+    ],
+    "draft_deployment": null,
+    "production_deployment": null,
+    "edge_compression_tls_and_deployed_headers": "NOT_RUN_no_site_or_upload_approval"
+  },
+  "production_browser": {
+    "scope": "loopback_populated_production_snapshot_provisional_canonical_origin",
+    "results": [
+      {
+        "route": "/gdp",
+        "viewport": "desktop",
+        "width": 1440,
+        "height": 900,
+        "heading": "Gross domestic product",
+        "kpi": "0.2%",
+        "overflow": 0,
+        "screenshot": "gdp-desktop.png"
+      },
+      {
+        "route": "/labour-market",
+        "viewport": "desktop",
+        "width": 1440,
+        "height": 900,
+        "heading": "Labour market",
+        "kpi": "5.6%",
+        "overflow": 0,
+        "screenshot": "labour-market-desktop.png"
+      },
+      {
+        "route": "/inflation",
+        "viewport": "desktop",
+        "width": 1440,
+        "height": 900,
+        "heading": "Inflation",
+        "kpi": null,
+        "overflow": 0,
+        "screenshot": "inflation-desktop.png"
+      },
+      {
+        "route": "/gdp",
+        "viewport": "mobile",
+        "width": 390,
+        "height": 844,
+        "heading": "Gross domestic product",
+        "kpi": "0.2%",
+        "overflow": 0,
+        "screenshot": "gdp-mobile.png"
+      },
+      {
+        "route": "/labour-market",
+        "viewport": "mobile",
+        "width": 390,
+        "height": 844,
+        "heading": "Labour market",
+        "kpi": "5.6%",
+        "overflow": 0,
+        "screenshot": "labour-market-mobile.png"
+      },
+      {
+        "route": "/inflation",
+        "viewport": "mobile",
+        "width": 390,
+        "height": 844,
+        "heading": "Inflation",
+        "kpi": null,
+        "overflow": 0,
+        "screenshot": "inflation-mobile.png"
+      }
+    ],
+    "exports": [
+      {
+        "route": "/gdp",
+        "viewport": "desktop",
+        "kind": "csv",
+        "filename": "gdp-growth.csv",
+        "bytes": 47602,
+        "sha256": "dba09994fddf09117be950164f02f5fe17860822ce8bd4d500ccf24b6cf7e769"
+      },
+      {
+        "route": "/gdp",
+        "viewport": "desktop",
+        "kind": "png",
+        "filename": "gdp-growth.png",
+        "bytes": 192845,
+        "sha256": "96698182af5f5a8d2bdf78345b6d7cc6c9205adf4b9c3ebeedbd7069a5ad52d8"
+      },
+      {
+        "route": "/labour-market",
+        "viewport": "desktop",
+        "kind": "csv",
+        "filename": "labour-market-rate.csv",
+        "bytes": 48170,
+        "sha256": "3a9662ed9306b5e4bd51c3c782471ee019921d1b60c0750feaccc255817d70cb"
+      },
+      {
+        "route": "/labour-market",
+        "viewport": "desktop",
+        "kind": "png",
+        "filename": "labour-market-rate.png",
+        "bytes": 218973,
+        "sha256": "1489e8f44a0653ff497758380a9dc030e6e902862af63ba1af9bc098388c2731"
+      },
+      {
+        "route": "/inflation",
+        "viewport": "desktop",
+        "kind": "csv",
+        "filename": "cpi-annual-inflation.csv",
+        "bytes": 11771,
+        "sha256": "1bf1bbd35f609edcf1796621ec1869a3a794778136e8ca294b97386a1a917d22"
+      },
+      {
+        "route": "/inflation",
+        "viewport": "desktop",
+        "kind": "png",
+        "filename": "cpi-annual-inflation.png",
+        "bytes": 204768,
+        "sha256": "f692f20aed2291431c827987c17744cdb5dda39d83a646e14c75b4ebe7d01de5"
+      },
+      {
+        "route": "/gdp",
+        "viewport": "mobile",
+        "kind": "csv",
+        "filename": "gdp-growth.csv",
+        "bytes": 47602,
+        "sha256": "dba09994fddf09117be950164f02f5fe17860822ce8bd4d500ccf24b6cf7e769"
+      },
+      {
+        "route": "/gdp",
+        "viewport": "mobile",
+        "kind": "png",
+        "filename": "gdp-growth.png",
+        "bytes": 180456,
+        "sha256": "19b80f4de0e1b30199417b6f5ab1dc16095e940d8d9c85ab13b68596565e30fe"
+      },
+      {
+        "route": "/labour-market",
+        "viewport": "mobile",
+        "kind": "csv",
+        "filename": "labour-market-rate.csv",
+        "bytes": 48170,
+        "sha256": "3a9662ed9306b5e4bd51c3c782471ee019921d1b60c0750feaccc255817d70cb"
+      },
+      {
+        "route": "/labour-market",
+        "viewport": "mobile",
+        "kind": "png",
+        "filename": "labour-market-rate.png",
+        "bytes": 185549,
+        "sha256": "a8ca3084e8e0bf15dd26dd96dadb783a0364530488db61eafe046db7c02b582c"
+      },
+      {
+        "route": "/inflation",
+        "viewport": "mobile",
+        "kind": "csv",
+        "filename": "cpi-annual-inflation.csv",
+        "bytes": 11771,
+        "sha256": "1bf1bbd35f609edcf1796621ec1869a3a794778136e8ca294b97386a1a917d22"
+      },
+      {
+        "route": "/inflation",
+        "viewport": "mobile",
+        "kind": "png",
+        "filename": "cpi-annual-inflation.png",
+        "bytes": 196456,
+        "sha256": "b173cf0a5e711c1b922589134b1dcb1489ad20476956e65feae47bb67e42f1a2"
+      }
+    ],
+    "page_errors": [],
+    "external_requests": []
+  },
+  "health": {
+    "scope": "loopback_production_copy_no_scheduler_not_deployed_container",
+    "checks": [
+      {
+        "route": "/api/health",
+        "status": 200,
+        "database_ok": true,
+        "series_count": 450,
+        "vintage_count": 791,
+        "release_counts": {
+          "published": 51,
+          "scheduled": 136
+        },
+        "source_states": {
+          "calendar_ics": "ok",
+          "calendar_month": "ok",
+          "calendar_refresh": "ok",
+          "release:consumers-price-index": "ok",
+          "release:electronic-card-transactions": "ok",
+          "release:gross-domestic-product": "ok",
+          "release:international-migration": "ok",
+          "release:labour-market-statistics": "ok"
+        }
+      },
+      {
+        "route": "/api/gdp",
+        "status": 200
+      },
+      {
+        "route": "/api/labour-market",
+        "status": 200
+      },
+      {
+        "route": "/api/cpi",
+        "status": 200
+      }
+    ]
+  },
+  "scheduler_registration": {
+    "jobs": [
+      "catch_up",
+      "refresh_calendar",
+      "release_watch",
+      "startup_catch_up",
+      "startup_refresh"
+    ],
+    "timezone": "Pacific/Auckland",
+    "running": false,
+    "network_requests": 0,
+    "runtime_scope": "isolated_empty_database_no_scheduler_start"
+  },
+  "actual_netlify_draft": null,
+  "actual_netlify_production": null,
+  "rollback_deploy_reference": null
+}

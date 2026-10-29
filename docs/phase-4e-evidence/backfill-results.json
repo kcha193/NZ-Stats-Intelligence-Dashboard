@@ -1,0 +1,687 @@
+{
+  "approval": "owner approved exact seven-release batch and provenance limits in this session",
+  "started_at": "2026-10-29T07:46:12Z",
+  "commit_sha": "3ac92addea52908d926a93e4015c217cf6cde125",
+  "logical_budget": 30,
+  "requests": [
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-01",
+      "requested_at": "2026-10-29T07:46:12Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:46:12Z",
+      "content_type": "application/json",
+      "bytes": 20550,
+      "sha256": "0e21fea1f8543c287a135a8947b95c0d3237b7acd41e11b441f894538bb16cad"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-04",
+      "requested_at": "2026-10-29T07:46:22Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:46:22Z",
+      "content_type": "application/json",
+      "bytes": 33590,
+      "sha256": "c1853e3ebacbc5459e0a963a75f2b01d4e42dde45c99a3695c830523ff23b5d5"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-05",
+      "requested_at": "2026-10-29T07:46:32Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:46:33Z",
+      "content_type": "application/json",
+      "bytes": 29964,
+      "sha256": "ffcd326eb47c5cff561a822fbb48c9bc65efb45228ef7326287fcfdad56b0bb0"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-06",
+      "requested_at": "2026-10-29T07:46:43Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:46:43Z",
+      "content_type": "application/json",
+      "bytes": 27778,
+      "sha256": "214edc69b8f4eb26ed20eb4c4d43bd4e9bd226ff33534525ca25867e92720f4c"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-07",
+      "requested_at": "2026-10-29T07:46:53Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:46:53Z",
+      "content_type": "application/json",
+      "bytes": 22948,
+      "sha256": "c9f5b8ac97968597c2b376988d6d5f1be5f6c516af55c82793473487afeb5d28"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-08",
+      "requested_at": "2026-10-29T07:47:03Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:47:04Z",
+      "content_type": "application/json",
+      "bytes": 31225,
+      "sha256": "8caf7e3f1782e4b5d99a27d3671d8198627869b54c09025b2e41c1b6d3903b87"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-09",
+      "requested_at": "2026-10-29T07:47:14Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:47:14Z",
+      "content_type": "application/json",
+      "bytes": 23156,
+      "sha256": "be106fb57faaeb71d2a045471645674c8596c85688606192779c89d74b383751"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-december-2025-quarter/",
+      "requested_at": "2026-10-29T07:49:07Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:49:09Z",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 82001,
+      "sha256": "936e5f5320c19105de5c679d2436ed806957b21bf57f07aa83a8a96b89f75959"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-seasonally-adjusted.csv",
+      "requested_at": "2026-10-29T07:49:19Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:49:23Z",
+      "content_type": "application/octet-stream",
+      "bytes": 1955767,
+      "sha256": "7f69b00ca7031d18d8d4ac13358371dfb2351cba77154f8b6699e6856667d66a"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-index-numbers.csv",
+      "requested_at": "2026-10-29T07:49:33Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:49:34Z",
+      "content_type": "application/octet-stream",
+      "bytes": 2877599,
+      "sha256": "b92fc82b4f9ed78b30c5042755eae5fa5002bfca1800df864d096e628bbeff38"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-tradeables-and-non-tradeables.csv",
+      "requested_at": "2026-10-29T07:49:44Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:49:45Z",
+      "content_type": "application/octet-stream",
+      "bytes": 2457379,
+      "sha256": "bc7fb7d6a5bc6af790232c46b3e6bf9c6cd681b80cbc5a55eb1ac986509c82ce"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-corrected.xlsx",
+      "requested_at": "2026-10-29T07:49:55Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:49:56Z",
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 235426,
+      "sha256": "b939bc6b1e78fa1b90fe70eac797b5118aa1858da1ef3b0e004f209025a5f9d7"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-march-2026-quarter/",
+      "requested_at": "2026-10-29T07:51:05Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:51:05Z",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 82455,
+      "sha256": "9b8909041154a8c1b7e8028b841eb4e1d62a90e962cb02d74783aafc8e2735c7"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-seasonally-adjusted.csv",
+      "requested_at": "2026-10-29T07:51:15Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:51:17Z",
+      "content_type": "application/octet-stream",
+      "bytes": 1961874,
+      "sha256": "5e33ea4d17da2ca7b4e6b820272ed882b43572aba6b90602512e6fa03696c564"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-index-numbers.csv",
+      "requested_at": "2026-10-29T07:51:27Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:51:28Z",
+      "content_type": "application/octet-stream",
+      "bytes": 2897337,
+      "sha256": "f77271a1c465c7f6ede6891a49e9e636f6eb555dbff304255989e359503c2bbe"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-tradeables-and-non-tradeables.csv",
+      "requested_at": "2026-10-29T07:51:38Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:51:38Z",
+      "content_type": "application/octet-stream",
+      "bytes": 2486684,
+      "sha256": "203a0ae6591634bebd226d9c665d148f0a1521d4894223a03ab494b0a3488ce9"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter.xlsx",
+      "requested_at": "2026-10-29T07:51:48Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:51:49Z",
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 211430,
+      "sha256": "0362c758a53a83528a1e91f349f7021a1d3be20e7f32442b3987a76b731d6c0b"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-march-2026-quarter/",
+      "requested_at": "2026-10-29T07:52:06Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:52:06Z",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 106256,
+      "sha256": "143f7bb6d46095edec669184a4c5528967dc5d655d01c3d740b8dce258db1f6c"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-March-2026-quarter/Download-data/labour-market-statistics-march-2026-quarter-revised.zip",
+      "requested_at": "2026-10-29T07:52:16Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:52:22Z",
+      "content_type": "application/zip",
+      "bytes": 18448536,
+      "sha256": "53d702b134b416b81735eb2a0c5a1253a7fd1b6b2a2e3bb021c557c22b1e545e"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-march-2026-quarter/",
+      "requested_at": "2026-10-29T07:53:28Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:53:29Z",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 121212,
+      "sha256": "44a52a1569bb6fff798b486c33a11b5daec886a5898732e74f49a04c362fe5c8"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-March-2026-quarter/Download-data/gross-domestic-product-march-2026-quarter.csv",
+      "requested_at": "2026-10-29T07:53:39Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:53:44Z",
+      "content_type": "application/octet-stream",
+      "bytes": 20884435,
+      "sha256": "1576eb1443c1fad22ee260a0f5ec690b26d84aa2c673533f3b22c0a5c5f66fda"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/",
+      "requested_at": "2026-10-29T07:55:29Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:55:29Z",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 86498,
+      "sha256": "133938ec1d0d1cc7713b324414769d6d5efec8ea3c7861e51597728460e1d999"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-seasonally-adjusted.csv",
+      "requested_at": "2026-10-29T07:55:39Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:55:40Z",
+      "content_type": "application/octet-stream",
+      "bytes": 1967987,
+      "sha256": "af55b49ed53365bb151dab7b5110ec41cd6361406c23858965321cd7d47294d3"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-index-numbers.csv",
+      "requested_at": "2026-10-29T07:55:50Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:55:50Z",
+      "content_type": "application/octet-stream",
+      "bytes": 2917074,
+      "sha256": "f474a6a3bfbe9b6377c3c68cc94a4cb494335130af3940fe538f5a0dd1274e9d"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-tradeables-and-non-tradeables.csv",
+      "requested_at": "2026-10-29T07:56:00Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:56:01Z",
+      "content_type": "application/octet-stream",
+      "bytes": 2515987,
+      "sha256": "f6fa38eeb10d7575fd690d3ff995e4afc2867ce5cd620eb7c248320b9bbc83e8"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter.xlsx",
+      "requested_at": "2026-10-29T07:56:11Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:56:11Z",
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 212556,
+      "sha256": "56ed2ed8edf6247ab599b88593cea967e2afce3a921bc95de0a962f45d664037"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-june-2026-quarter/",
+      "requested_at": "2026-10-29T07:56:50Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:56:50Z",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 115169,
+      "sha256": "25652db0a47740330728a2b308a532aeb69b3c6db7e4105ca76fd1c099c7eede"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-June-2026-quarter/Download-data/labour-market-statistics-june-2026-quarter.zip",
+      "requested_at": "2026-10-29T07:57:00Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:57:06Z",
+      "content_type": "application/zip",
+      "bytes": 18623903,
+      "sha256": "f7f867ab76b6bae2177ba1c3960f9a4ca7f7fb01a8325b5cdd7ee37b5cecab26"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-june-2026-quarter/",
+      "requested_at": "2026-10-29T07:57:28Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:57:28Z",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 121804,
+      "sha256": "9b5b3321c9503bc7e12d8511232069c1a68dd7aa8c84780d5173caf4fcba519a"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-June-2026-quarter/Download-data/gross-domestic-product-june-2026-quarter.csv",
+      "requested_at": "2026-10-29T07:57:38Z",
+      "status": 200,
+      "captured_at": "2026-10-29T07:57:42Z",
+      "content_type": "application/octet-stream",
+      "bytes": 21024914,
+      "sha256": "4e88dc85c4406665bcbbb6f3c8e851f38a968a76550772b85cedac4f7d95eab3"
+    }
+  ],
+  "logical_gets": [
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-01",
+      "started_at": "2026-10-29T07:46:12Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-04",
+      "started_at": "2026-10-29T07:46:12Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-05",
+      "started_at": "2026-10-29T07:46:22Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-06",
+      "started_at": "2026-10-29T07:46:33Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-07",
+      "started_at": "2026-10-29T07:46:43Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-08",
+      "started_at": "2026-10-29T07:46:53Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/api/v1/releaseCalendarMonth/2026-09",
+      "started_at": "2026-10-29T07:47:04Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-december-2025-quarter/",
+      "started_at": "2026-10-29T07:49:07Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-seasonally-adjusted.csv",
+      "started_at": "2026-10-29T07:49:09Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-index-numbers.csv",
+      "started_at": "2026-10-29T07:49:23Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-tradeables-and-non-tradeables.csv",
+      "started_at": "2026-10-29T07:49:34Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-December-2025-quarter/Download-data/consumers-price-index-december-2025-quarter-corrected.xlsx",
+      "started_at": "2026-10-29T07:49:45Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-march-2026-quarter/",
+      "started_at": "2026-10-29T07:51:05Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-seasonally-adjusted.csv",
+      "started_at": "2026-10-29T07:51:05Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-index-numbers.csv",
+      "started_at": "2026-10-29T07:51:17Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter-tradeables-and-non-tradeables.csv",
+      "started_at": "2026-10-29T07:51:28Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-March-2026-quarter/Download-data/consumers-price-index-march-2026-quarter.xlsx",
+      "started_at": "2026-10-29T07:51:38Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-march-2026-quarter/",
+      "started_at": "2026-10-29T07:52:06Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-March-2026-quarter/Download-data/labour-market-statistics-march-2026-quarter-revised.zip",
+      "started_at": "2026-10-29T07:52:06Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-march-2026-quarter/",
+      "started_at": "2026-10-29T07:53:28Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-March-2026-quarter/Download-data/gross-domestic-product-march-2026-quarter.csv",
+      "started_at": "2026-10-29T07:53:29Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/",
+      "started_at": "2026-10-29T07:55:29Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-seasonally-adjusted.csv",
+      "started_at": "2026-10-29T07:55:29Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-index-numbers.csv",
+      "started_at": "2026-10-29T07:55:40Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter-tradeables-and-non-tradeables.csv",
+      "started_at": "2026-10-29T07:55:50Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Consumers-price-index/Consumers-price-index-June-2026-quarter/Download-data/consumers-price-index-june-2026-quarter.xlsx",
+      "started_at": "2026-10-29T07:56:01Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-june-2026-quarter/",
+      "started_at": "2026-10-29T07:56:50Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Labour-market-statistics/Labour-market-statistics-June-2026-quarter/Download-data/labour-market-statistics-june-2026-quarter.zip",
+      "started_at": "2026-10-29T07:56:50Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-june-2026-quarter/",
+      "started_at": "2026-10-29T07:57:28Z"
+    },
+    {
+      "url": "https://www.stats.govt.nz/assets/Uploads/Gross-domestic-product/Gross-domestic-product-June-2026-quarter/Download-data/gross-domestic-product-june-2026-quarter.csv",
+      "started_at": "2026-10-29T07:57:28Z"
+    }
+  ],
+  "registrations_committed": true,
+  "checked_releases": [
+    {
+      "release_key": "consumers-price-index:december 2025 quarter",
+      "reference_period": "2025-12",
+      "published_at": "2026-01-22T21:45:00Z",
+      "page_url": "https://www.stats.govt.nz/information-releases/consumers-price-index-december-2025-quarter/",
+      "status": "published"
+    },
+    {
+      "release_key": "consumers-price-index:march 2026 quarter",
+      "reference_period": "2026-03",
+      "published_at": "2026-04-20T22:45:00Z",
+      "page_url": "https://www.stats.govt.nz/information-releases/consumers-price-index-march-2026-quarter/",
+      "status": "published"
+    },
+    {
+      "release_key": "labour-market-statistics:march 2026 quarter",
+      "reference_period": "2026-03",
+      "published_at": "2026-05-05T22:45:00Z",
+      "page_url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-march-2026-quarter/",
+      "status": "published"
+    },
+    {
+      "release_key": "gross-domestic-product:march 2026 quarter",
+      "reference_period": "2026-03",
+      "published_at": "2026-06-17T22:45:00Z",
+      "page_url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-march-2026-quarter/",
+      "status": "published"
+    },
+    {
+      "release_key": "consumers-price-index:june 2026 quarter",
+      "reference_period": "2026-06",
+      "published_at": "2026-07-20T22:45:00Z",
+      "page_url": "https://www.stats.govt.nz/information-releases/consumers-price-index-june-2026-quarter/",
+      "status": "published"
+    },
+    {
+      "release_key": "labour-market-statistics:june 2026 quarter",
+      "reference_period": "2026-06",
+      "published_at": "2026-08-04T22:45:00Z",
+      "page_url": "https://www.stats.govt.nz/information-releases/labour-market-statistics-june-2026-quarter/",
+      "status": "published"
+    },
+    {
+      "release_key": "gross-domestic-product:june 2026 quarter",
+      "reference_period": "2026-06",
+      "published_at": "2026-09-16T22:45:00Z",
+      "page_url": "https://www.stats.govt.nz/information-releases/gross-domestic-product-june-2026-quarter/",
+      "status": "published"
+    }
+  ],
+  "stop": null,
+  "finished_at": "2026-10-29T07:57:42Z",
+  "release_results": [
+    {
+      "release_key": "consumers-price-index:december 2025 quarter",
+      "started_at": "2026-10-29T07:49:07Z",
+      "request_start": 7,
+      "outcome": {
+        "release_key": "consumers-price-index:december 2025 quarter",
+        "outcome": "ingested",
+        "error_class": null,
+        "detail": null,
+        "warnings": [
+          "Large CPI movement requires review: cpi.index.nsa.fruit_vegetables",
+          "Large CPI movement requires review: cpi.index.nsa.gas",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.communication ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.education ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.health ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.household_contents ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.housing ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.miscellaneous ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.transport ends 2023-03"
+        ]
+      },
+      "independent_reconciliation": {
+        "kind": "cpi_official_csv_decimal",
+        "vintages": 4,
+        "outcomes": 1607,
+        "discrepancies": []
+      },
+      "counts": {
+        "vintages": 74,
+        "observations": 5673
+      },
+      "finished_at": "2026-10-29T07:49:56Z",
+      "requests_used": 5
+    },
+    {
+      "release_key": "consumers-price-index:march 2026 quarter",
+      "started_at": "2026-10-29T07:51:05Z",
+      "request_start": 12,
+      "outcome": {
+        "release_key": "consumers-price-index:march 2026 quarter",
+        "outcome": "ingested",
+        "error_class": null,
+        "detail": null,
+        "warnings": [
+          "Historical revisions captured: cpi.index.sa.all_groups",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.communication ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.education ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.health ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.household_contents ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.housing ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.miscellaneous ends 2023-03",
+          "Historical revisions captured: cpi.index.sa.non_tradables",
+          "Historical revisions captured: cpi.index.sa.tradables",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.transport ends 2023-03"
+        ]
+      },
+      "independent_reconciliation": {
+        "kind": "cpi_official_csv_decimal",
+        "vintages": 6,
+        "outcomes": 1607,
+        "discrepancies": []
+      },
+      "counts": {
+        "vintages": 74,
+        "observations": 5718
+      },
+      "finished_at": "2026-10-29T07:51:49Z",
+      "requests_used": 5
+    },
+    {
+      "release_key": "labour-market-statistics:march 2026 quarter",
+      "started_at": "2026-10-29T07:52:06Z",
+      "request_start": 17,
+      "outcome": {
+        "release_key": "labour-market-statistics:march 2026 quarter",
+        "outcome": "ingested",
+        "error_class": null,
+        "detail": null,
+        "warnings": []
+      },
+      "independent_reconciliation": {
+        "kind": "all_selected_official_rows_to_sql_decimal",
+        "points": 1613,
+        "series": 11,
+        "discrepancies": []
+      },
+      "counts": {
+        "vintages": 11,
+        "observations": 1613
+      },
+      "finished_at": "2026-10-29T07:52:30Z",
+      "requests_used": 2
+    },
+    {
+      "release_key": "gross-domestic-product:march 2026 quarter",
+      "started_at": "2026-10-29T07:53:28Z",
+      "request_start": 19,
+      "outcome": {
+        "release_key": "gross-domestic-product:march 2026 quarter",
+        "outcome": "ingested",
+        "error_class": null,
+        "detail": null,
+        "warnings": [
+          "gdp.production.cv.sa.pct_qoq: 1 leading quarters unpublished before 1986-09",
+          "gdp.production.cv.sa.pct_yoy: 4 leading quarters unpublished before 1987-06",
+          "gdp.production.cv.nsa.pct_annual_avg: 4 leading quarters unpublished before 1988-03",
+          "gdp.expenditure.cv.sa.pct_qoq: 1 leading quarters unpublished before 1986-09"
+        ]
+      },
+      "independent_reconciliation": {
+        "kind": "all_selected_official_rows_to_sql_decimal",
+        "points": 1845,
+        "series": 12,
+        "discrepancies": []
+      },
+      "counts": {
+        "vintages": 12,
+        "observations": 1845
+      },
+      "finished_at": "2026-10-29T07:53:44Z",
+      "requests_used": 2
+    },
+    {
+      "release_key": "consumers-price-index:june 2026 quarter",
+      "started_at": "2026-10-29T07:55:29Z",
+      "request_start": 21,
+      "outcome": {
+        "release_key": "consumers-price-index:june 2026 quarter",
+        "outcome": "ingested",
+        "error_class": null,
+        "detail": null,
+        "warnings": [
+          "Large CPI movement requires review: cpi.index.nsa.petrol",
+          "Large CPI movement requires review: cpi.index.nsa.private_transport",
+          "Large CPI movement requires review: cpi.index.nsa.transport",
+          "Historical revisions captured: cpi.index.sa.all_groups",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.communication ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.education ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.health ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.household_contents ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.housing ends 2023-03",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.miscellaneous ends 2023-03",
+          "Historical revisions captured: cpi.index.sa.non_tradables",
+          "Historical revisions captured: cpi.index.sa.tradables",
+          "Optional CPI series is stale or discontinued: cpi.index.sa.transport ends 2023-03"
+        ]
+      },
+      "independent_reconciliation": {
+        "kind": "cpi_official_csv_decimal",
+        "vintages": 8,
+        "outcomes": 1607,
+        "discrepancies": []
+      },
+      "counts": {
+        "vintages": 74,
+        "observations": 5763
+      },
+      "finished_at": "2026-10-29T07:56:12Z",
+      "requests_used": 5
+    },
+    {
+      "release_key": "labour-market-statistics:june 2026 quarter",
+      "started_at": "2026-10-29T07:56:50Z",
+      "request_start": 26,
+      "outcome": {
+        "release_key": "labour-market-statistics:june 2026 quarter",
+        "outcome": "ingested",
+        "error_class": null,
+        "detail": null,
+        "warnings": [
+          "Historical revisions captured: hlfs.rate.unemployment.sa (2 quarters)",
+          "Historical revisions captured: hlfs.level.employed.sa (7 quarters)",
+          "Historical revisions captured: hlfs.level.unemployed.sa (5 quarters)",
+          "Historical revisions captured: hlfs.level.labour_force.sa (9 quarters)",
+          "Historical revisions captured: hlfs.level.working_age_population.sa (7 quarters)"
+        ]
+      },
+      "independent_reconciliation": {
+        "kind": "all_selected_official_rows_to_sql_decimal",
+        "points": 1624,
+        "series": 11,
+        "discrepancies": []
+      },
+      "counts": {
+        "vintages": 11,
+        "observations": 1624
+      },
+      "finished_at": "2026-10-29T07:57:14Z",
+      "requests_used": 2
+    },
+    {
+      "release_key": "gross-domestic-product:june 2026 quarter",
+      "started_at": "2026-10-29T07:57:28Z",
+      "request_start": 28,
+      "outcome": {
+        "release_key": "gross-domestic-product:june 2026 quarter",
+        "outcome": "ingested",
+        "error_class": null,
+        "detail": null,
+        "warnings": [
+          "gdp.production.cv.sa.pct_qoq: 1 leading quarters unpublished before 1986-09",
+          "gdp.production.cv.sa.pct_yoy: 4 leading quarters unpublished before 1987-06",
+          "gdp.production.cv.nsa.pct_annual_avg: 4 leading quarters unpublished before 1988-03",
+          "gdp.expenditure.cv.sa.pct_qoq: 1 leading quarters unpublished before 1986-09",
+          "Historical revisions captured: gdp.production.cv.sa (53 quarters)",
+          "Historical revisions captured: gdp.production.cv.nsa (45 quarters)",
+          "Historical revisions captured: gdp.expenditure.cv.sa (64 quarters)",
+          "Historical revisions captured: gdp.expenditure.cv.nsa (52 quarters)",
+          "Historical revisions captured: gdp.expenditure.cp.sa (62 quarters)",
+          "Historical revisions captured: gdp.expenditure.cp.nsa (49 quarters)",
+          "Historical revisions captured: gdp.per_capita.production.cv.sa (43 quarters)",
+          "Historical revisions captured: gdp.per_capita.expenditure.cp.sa (57 quarters)",
+          "Historical revisions captured: gdp.production.cv.sa.pct_qoq (7 quarters)",
+          "Historical revisions captured: gdp.production.cv.sa.pct_yoy (11 quarters)",
+          "Historical revisions captured: gdp.production.cv.nsa.pct_annual_avg (4 quarters)",
+          "Historical revisions captured: gdp.expenditure.cv.sa.pct_qoq (32 quarters)"
+        ]
+      },
+      "independent_reconciliation": {
+        "kind": "all_selected_official_rows_to_sql_decimal",
+        "points": 1857,
+        "series": 12,
+        "discrepancies": []
+      },
+      "counts": {
+        "vintages": 12,
+        "observations": 1857
+      },
+      "finished_at": "2026-10-29T07:57:42Z",
+      "requests_used": 2
+    }
+  ]
+}
