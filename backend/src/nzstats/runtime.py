@@ -11,6 +11,7 @@ from nzstats.adapters.base import Adapter
 from nzstats.adapters.cpi.adapter import CpiAdapter
 from nzstats.adapters.ect.adapter import EctAdapter
 from nzstats.adapters.gdp.adapter import GdpAdapter
+from nzstats.adapters.labour.adapter import LabourAdapter
 from nzstats.adapters.migration.adapter import MigrationAdapter
 from nzstats.config import Settings
 from nzstats.publish.provenance import mark_fixture_data
@@ -24,11 +25,13 @@ def build_adapters(settings: Settings) -> dict[str, Adapter]:
     ect = EctAdapter()
     cpi = CpiAdapter()
     gdp = GdpAdapter()
+    labour = LabourAdapter()
     return {
         migration.series_slug: migration,
         ect.series_slug: ect,
         cpi.series_slug: cpi,
         gdp.series_slug: gdp,
+        labour.series_slug: labour,
     }
 
 

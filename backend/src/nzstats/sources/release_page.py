@@ -87,6 +87,8 @@ def classify_download(url: str) -> str | None:
         return _classify_cpi(name)
     if _GDP_CSV.fullmatch(name):
         return "gdp_csv"
+    if _LABOUR_ZIP.fullmatch(name):
+        return "labour_zip"
     if name.endswith(".xlsx"):
         return "workbook"
     if not name.endswith(".csv"):
@@ -117,6 +119,9 @@ def pick_downloads(urls: Iterable[str], kinds: Iterable[str]) -> dict[str, str]:
 
 _GDP_CSV = re.compile(
     r"gross-domestic-product-[a-z]+-[0-9]{4}-quarter(?:-corrected|-revised)?\.csv"
+)
+_LABOUR_ZIP = re.compile(
+    r"labour-market-statistics-[a-z]+-[0-9]{4}-quarter(?:-corrected|-revised)?\.zip"
 )
 _CPI_CSV = (
     ("cpi_index_numbers", re.compile(r"-index-numbers(?:-corrected)?\.csv$")),

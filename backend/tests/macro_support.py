@@ -61,3 +61,17 @@ def ingest_gdp(rt, site, *months: str) -> dict[str, str]:
         outcome = ingest(rt, keys[month])
         assert outcome.outcome == "ingested", outcome.detail
     return keys
+
+
+def labour_files(month: str) -> dict[str, bytes]:
+    return {"labour_zip": fixture_bytes(f"labour_{month}.zip")}
+
+
+def ingest_labour(rt, site, *months: str) -> dict[str, str]:
+    """Seed and ingest real labour market releases, oldest first; returns {month: release key}."""
+    keys = {}
+    for month in months:
+        keys[month] = seed(rt, site, f"labour_{month}_page.html", labour_files(month))
+        outcome = ingest(rt, keys[month])
+        assert outcome.outcome == "ingested", outcome.detail
+    return keys
