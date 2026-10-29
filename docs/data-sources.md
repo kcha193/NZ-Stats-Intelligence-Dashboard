@@ -15,6 +15,9 @@ Phase 4C labour market statistics (HLFS headline rates and the Labour Cost Index
 from the official release zip, streamed, with March (revised) and June 2026 quarter fixtures.
 [Labour market source details, identities and revisions](data-sources/labour-market.md).
 
+Phase 4C Official Cash Rate (RBNZ): **blocked**, no documented access decision; a tested domain model and CSV contract
+exist on synthetic data only, and nothing is acquired or shown. [OCR access assessment](data-sources/ocr.md).
+
 Phase 3A institutional research sources (RBNZ, Treasury, banks, consultancies) were probed on 25 October 2026. They are a
 separate domain with their own registry and runbook, and none is approved for automated access yet.
 [Research source registry, approval checklist and runbook](data-sources/research.md).
