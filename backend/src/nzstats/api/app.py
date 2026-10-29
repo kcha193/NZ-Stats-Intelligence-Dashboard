@@ -52,13 +52,14 @@ def create_app(
     routers: Sequence[APIRouter] = (),
     record_ops: bool = False,
     capabilities: Mapping[str, bool] | None = None,
+    ops_status_enabled: bool = True,
 ) -> FastAPI:
     """The API and built UI. `routers` are extra `/api` routes (the CLI adds research); they come before the
     catch-all, so the snapshot exporter, which passes none, can never serve them.
 
     `record_ops` (the CLI's `serve` sets it) makes the process record its heartbeat, whether the scheduler is on and its
     job states in the database, so `nzstats status` can tell a stopped, a deliberately idle and a stalled dashboard
-    apart. `capabilities` are feature flags the UI may ask about (`/api/capabilities`); none are on by default."""
+    apart. `ops_status_enabled` gates `/api/ops/status`, which is unauthenticated. `capabilities` are feature flags the UI may ask about (`/api/capabilities`); none are on by default."""
     settings = settings or load_settings()
     bootstrap = connect(settings.db_path)
     try:
@@ -109,6 +110,9 @@ def create_app(
     app = FastAPI(title="NZ Stats Intelligence Dashboard", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.capabilities = dict(capabilities or {})
+    app.state.ops_status_enabled = (
+        ops_status_enabled  # `serve` turns it off for a non-loopback bind
+    )
     app.state.analysable_slugs = set(build_adapters(settings))
     for extra in routers:
         app.include_router(extra, prefix="/api")

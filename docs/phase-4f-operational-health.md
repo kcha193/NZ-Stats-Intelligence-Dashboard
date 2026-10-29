@@ -239,9 +239,10 @@ DEST/raw/ab/<sha256> every raw artifact the database references (content-address
   scheduler behaviour change that would send requests at a new time, so it needs the owner's approval; it was not made.
 - **Process id reuse** can make a process that died in a power cut look alive until its heartbeat goes stale (5 minutes),
   and then `stalled` instead of `lost` until the id is free again.
-- **Endpoints are unauthenticated.** `/api/ops/status` and `/api/capabilities` expose the process id, sleep pattern, backup
-  folder names and release error classes to anything that can reach the port. `scripts/run.sh` binds loopback; `nzstats serve`
-  binds `0.0.0.0` by default (the container's choice). Use `run.sh` for native operation. There is no Host-header check.
+- **`/api/ops/status` is unauthenticated**, so `serve` registers it only when bound to loopback (`scripts/run.sh` always is);
+  a non-loopback bind answers 404 unless `NZSTATS_OPS_STATUS=1`. When enabled it exposes the process id, sleep pattern,
+  backup folder names and release error classes to whatever can reach the port; there is no Host-header check, so keep it
+  on loopback. `/api/capabilities` only says whether public research is on.
 - `alert-check` runs `migrate` (idempotent DDL) before recording alert state, like other write commands. `alert-check` with an
   unreadable database sends the current issues with no de-duplication, on purpose.
 - Backup raw files are hash-verified but not fsynced before the final rename, so a power loss during `backup --bundle` is

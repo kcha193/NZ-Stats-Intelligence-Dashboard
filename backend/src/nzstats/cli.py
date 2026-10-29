@@ -417,6 +417,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 start_scheduler=not args.no_scheduler,
                 routers=[research_router()],
                 record_ops=True,
+                # Unauthenticated, and it names the process, backups and errors: loopback binds only, unless opted in.
+                ops_status_enabled=args.host in ("127.0.0.1", "::1", "localhost")
+                or os.environ.get("NZSTATS_OPS_STATUS") == "1",
                 capabilities={"research_public": public_research_enabled()},
             ),
             host=args.host,

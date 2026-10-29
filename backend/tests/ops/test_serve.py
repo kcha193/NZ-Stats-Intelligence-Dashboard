@@ -221,3 +221,9 @@ def test_a_failed_startup_still_records_a_clean_stop_and_stops_the_heartbeat(
             pass
     (row,) = rows(rt.settings.db_path)
     assert row["stop_reason"] == "clean"
+
+
+def test_ops_status_is_not_served_when_the_server_is_bound_beyond_loopback(settings) -> None:
+    off = TestClient(create_app(settings, ops_status_enabled=False))
+    assert off.get("/api/ops/status").status_code == 404
+    assert off.get("/api/capabilities").status_code == 200  # a feature flag, not operational detail

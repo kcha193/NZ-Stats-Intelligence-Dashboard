@@ -1,5 +1,7 @@
 import sqlite3
 
+import pytest
+
 from nzstats.cli import main
 
 
@@ -134,3 +136,29 @@ def test_an_explicit_release_key_without_an_adapter_makes_the_cli_exit_nonzero(
     )
     assert cli.main(["ingest", "--release-key", "gdp:june 2026"]) == 1
     assert "gdp:june 2026: skipped_no_adapter" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("host", "env", "enabled"),
+    [
+        ("127.0.0.1", {}, True),
+        ("0.0.0.0", {}, False),
+        ("0.0.0.0", {"NZSTATS_OPS_STATUS": "1"}, True),
+    ],
+)
+def test_serve_exposes_ops_status_only_on_loopback_unless_opted_in(
+    tmp_path, monkeypatch, host, env, enabled
+) -> None:
+    import uvicorn
+
+    import nzstats.api.app as app_module
+
+    captured: dict[str, object] = {}
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("NZSTATS_OPS_STATUS", raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(app_module, "create_app", lambda settings, **kw: captured.update(kw))
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    assert main(["serve", "--no-scheduler", "--host", host, "--port", "9"]) == 0
+    assert captured["ops_status_enabled"] is enabled

@@ -90,6 +90,10 @@ def health(conn: Conn, now: Now) -> HealthOut:
 @router.get("/ops/status", response_model=OpsStatus)
 def ops_status(request: Request, now: Now) -> OpsStatus:
     """Operational status for the local operator (Data health page). Read-only; never starts the scheduler or fetches."""
+    if (
+        not request.app.state.ops_status_enabled
+    ):  # answers like an unknown path: `serve` is bound beyond loopback
+        raise HTTPException(404, "not found")
     return collect_status(request.app.state.settings, now=now)
 
 
