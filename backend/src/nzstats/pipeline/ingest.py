@@ -103,6 +103,17 @@ def _bundle_digest(
     """Versioned statistical identity, independent of source titles, markup and CSV formatting."""
     data = []
     for definition, observations in series:
+        unit = definition.unit
+        # Phase 4D removed an unsupported reference year from these four GDP level labels.
+        # This exact legacy wording denotes the same pinned chain-volume series, not a rebase.
+        # Normalise only for comparison; retain stored digests, definitions and observations.
+        if unit == "NZD million (2009/10 prices)" and definition.key in {
+            "gdp.production.cv.sa",
+            "gdp.production.cv.nsa",
+            "gdp.expenditure.cv.sa",
+            "gdp.expenditure.cv.nsa",
+        }:
+            unit = "NZD million (chain volume)"
         points = sorted(
             (
                 o.period,
@@ -118,7 +129,7 @@ def _bundle_digest(
         data.append(
             (
                 definition.key,
-                definition.unit,
+                unit,
                 definition.frequency.value,
                 definition.adjustment.value,
                 definition.definition_id,
