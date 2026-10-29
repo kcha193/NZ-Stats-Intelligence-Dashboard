@@ -6,7 +6,8 @@ is built; Phases 2 and 3 are in the spec. Resume from [docs/progress.md](docs/pr
 ## Stack and layout
 
 - `backend/src/nzstats/`: Python 3.12 (3.11+ works), FastAPI, Pydantic, pandas, httpx, SQLite (WAL), APScheduler.
-  `sources/` (calendar, release page, throttled fetcher) · `adapters/` (file layouts, one per category: migration, ect, cpi) ·
+  `sources/` (calendar, release page, throttled fetcher) · `adapters/` (file layouts, one per category: migration, ect, cpi,
+  gdp, labour) · `ocr/` (OCR domain model on synthetic data only; source not approved, see `docs/data-sources/ocr.md`) ·
   `validate/` · `stats/` (pure number functions) · `insights/` (deterministic findings with evidence) ·
   `store/` (SQL migrations, repositories) · `pipeline/` (discover, ingest, backfill) · `scheduler/` ·
   `api/` (read-only, serves the built SPA) · `cli.py` · `research/` (Phase 3A institutional commentary and Phase 3B

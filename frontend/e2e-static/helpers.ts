@@ -4,7 +4,7 @@ import path from "node:path";
 const DIST = path.resolve(import.meta.dirname, "../dist-static");
 
 /** Dashboards and listings that exist on the published site. */
-export const PAGES = ["/", "/economic-outlook", "/stories", "/inflation", "/electronic-card-transactions", "/migration", "/calendar", "/health"];
+export const PAGES = ["/", "/economic-outlook", "/stories", "/inflation", "/gdp", "/labour-market", "/ocr", "/electronic-card-transactions", "/migration", "/calendar", "/health"];
 
 /** Story addresses the build prerendered, read from the build output so the list cannot go stale. */
 export const STORIES = readdirSync(path.join(DIST, "_pages/stories"))

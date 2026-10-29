@@ -15,6 +15,8 @@ from tests.cpi_support import NOW as CPI_NOW
 from tests.cpi_support import seed_cpi
 from tests.ect_support import NOW as ECT_NOW
 from tests.ect_support import seed_ect
+from tests.macro_support import NOW as MACRO_NOW
+from tests.macro_support import seed_gdp, seed_labour
 from tests.support import FakeSite, seed_from_fixtures
 
 EXPORT_NOW = datetime(2026, 10, 24, 8, 0, tzinfo=UTC)
@@ -31,8 +33,20 @@ def _ingest(data_dir: Path, seeder, months, now) -> None:
 
 @pytest.fixture(scope="session")
 def full_dir(tmp_path_factory) -> Path:
-    """Migration + ECT + CPI, as `scripts/seed_e2e_db.py` builds them."""
+    """Migration + ECT + CPI + GDP + labour market, as `scripts/seed_e2e_db.py` builds them."""
     target = tmp_path_factory.mktemp("full")
+    seed_from_fixtures(target)
+    _ingest(target, seed_ect, ("2026-08", "2026-09"), ECT_NOW)
+    _ingest(target, seed_cpi, ("2026-03", "2026-06"), CPI_NOW)
+    _ingest(target, seed_gdp, ("2026-03", "2026-06"), MACRO_NOW)
+    _ingest(target, seed_labour, ("2026-03", "2026-06"), MACRO_NOW)
+    return target
+
+
+@pytest.fixture(scope="session")
+def without_macro_dir(tmp_path_factory) -> Path:
+    """Migration + ECT + CPI only: the categories published before Phase 4C."""
+    target = tmp_path_factory.mktemp("without-macro")
     seed_from_fixtures(target)
     _ingest(target, seed_ect, ("2026-08", "2026-09"), ECT_NOW)
     _ingest(target, seed_cpi, ("2026-03", "2026-06"), CPI_NOW)

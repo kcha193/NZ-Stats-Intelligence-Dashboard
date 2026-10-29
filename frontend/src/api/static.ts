@@ -131,6 +131,8 @@ function route(path: string, q: URLSearchParams): Resolved | null {
   if (a === "overview" && only(2)) return { file: "overview.json", kind: "overview", shape: "object" };
   if (a === "cpi" && only(2)) return { file: "cpi.json", kind: "cpi", shape: "object" };
   if (a === "ect" && only(2)) return { file: "ect.json", kind: "ect", shape: "object" };
+  if (a === "gdp" && only(2)) return { file: "gdp.json", kind: "gdp", shape: "object" };
+  if (a === "labour-market" && only(2)) return { file: "labour-market.json", kind: "labour-market", shape: "object" };
   if (a === "health" && only(2)) return { file: "health.json", kind: "health", shape: "object" };
   if (a === "releases" && only(2)) return { file: "releases.json", kind: "releases", shape: "list" };
   if (a === "releases" && only(3) && /^\d+$/.test(b)) return { file: `releases/${b}.json`, kind: "release", shape: "object" };

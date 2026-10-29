@@ -18,6 +18,7 @@ from nzstats.models import (
     ChangeOut,
     Evidence,
     Insight,
+    Kpi,
     LabourDashboardOut,
     LabourSeriesOut,
     Methodology,
@@ -122,6 +123,22 @@ def _metric(stored, key: str) -> Metric:
         std_error=None,
         change_prior=compare(3),
         change_year_ago=compare(12),
+    )
+
+
+def build_labour_overview_kpi(conn: sqlite3.Connection) -> tuple[Kpi, str] | None:
+    loaded = _load(conn, None)
+    if loaded is None:
+        return None
+    row, _, stored, _, captured = loaded
+    return (
+        Kpi(
+            metric=_metric(stored, UNEMPLOYMENT),
+            release_id=row["id"],
+            published_at=to_akl_iso(row["published_at"]),
+            source_url=row["page_url"],
+        ),
+        to_akl_iso(captured),
     )
 
 

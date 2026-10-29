@@ -1,8 +1,8 @@
 # Progress and verification record
 
-Last updated 2026-10-28. Phase 3F (pilot and release acceptance) is on `feat/phase-3f-pilot-acceptance` (PR open, not merged).
-Phases 3A to 3E (PRs #11 to #16), Phase 4B dashboard UX remediation (PR #17) and the Netlify static publication
-(PR #10) are merged to `main`; the static site is not deployed and no research source is approved. Earlier entries
+Last updated 2026-10-29. Phase 4D reconciles the completed Phase 4C stack on `feat/phase-4d-release`.
+Only PR #19 reached `main`; PRs #20–#22 merged into feature branches. The final integration remains unmerged. Phases 3A to 3F, 4B and the Netlify static
+publication are merged to `main`; the static site is not deployed and no research source is approved. Earlier entries
 below are historical.
 
 ## PR #19: GDP review remediation, 29 October 2026
@@ -29,6 +29,51 @@ Docker build/smoke not run: the local daemon is unavailable. Static/research bro
 Review outcome is recorded in the PR thread replies and the head-specific Codex review summary.
 Hosted CI on the original head failed before jobs started: GitHub's annotation cites failed account payments or the
 spending limit. This is not an executable test result. No merge, deployment or changes to the other stacked PRs.
+
+## Phase 4C: official GDP, labour market and OCR, 28 to 29 October 2026
+
+Spec: [Phase 4C design](superpowers/specs/2026-10-28-phase-4c-macro-data-design.md). Plan:
+[Phase 4C plan](superpowers/plans/2026-10-28-phase-4c-macro-data.md). Sources: [GDP](data-sources/gdp.md),
+[labour market](data-sources/labour-market.md), [OCR access assessment](data-sources/ocr.md).
+
+- **Live requests (owner-authorised, this session only)**: 8 requests to stats.govt.nz through the paced fetcher (four
+  release pages, two GDP CSVs, two labour market zips), for fixtures and reconciliation. None to RBNZ, no model call,
+  no deployment, nothing merged. The live database was not written (SHA-256 prefix `398b0f1e99cb90ee` before and after).
+- **GDP** (`adapters/gdp/`, `/api/gdp`): twelve pinned series; published growth reconciled with the levels (tolerance
+  0.06 pp, measured max 0.0533) and with the release page's charts, which proves the page's "Annual growth" is annual
+  average growth (1.7 for June 2026), not the seasonally adjusted annual change (2.6). Real revisions captured (March
+  2026 quarterly growth 0.8 first published, 0.9 in June).
+- **Labour market** (`adapters/labour/`, `/api/labour-market`): eight HLFS headline series and the headline LCI from
+  the 756 MB (unpacked) zip, streamed with archive, member, row and per-line caps (the per-line cap was added after an
+  automated security review). Identities: labour force 1.5 thousand, rates 0.08 pp, LCI 0.06 pp (measured 1.0, 0.0706,
+  0.0500). Real revision: unemployment March 2026 5.3% first published, 5.4% in June; the summary says so. QES not
+  stored.
+- **OCR**: blocked. No documented access decision; the evidence on file is restrictive. A domain model (announcement
+  vs effective dates, basis points, month-end vs monthly average) and a strict CSV contract are tested on synthetic
+  2031 decisions only; nothing reaches ingestion, the API, the snapshot or a page.
+- **Economic Outlook** (`research/macro_outcomes.py`): GDP and unemployment forecasts matched to Stats NZ's published
+  figures on a stated basis and a single quarter, first-published vs latest, with look-ahead exclusion. CPI rules and
+  tests unchanged. GDP growth and the unemployment rate match Stats NZ's seasonally adjusted headline when the label
+  does not say otherwise (CPI's quarterly change still must state it, because CPI is headlined unadjusted); this is a
+  deliberate, documented decision. OCR shows an explicit unavailable reason.
+- **Pages**: `/gdp`, `/labour-market`, `/ocr`; overview KPIs and indicator groups; Outlook links to the official pages.
+  Chart colours reuse the validated navy/amber pair; dataviz validator re-run 29 Oct: light `#2b66a8,#c75f0c` on
+  `#ffffff` and dark `#4a8ccb,#d47a36` on `#1c1917` pass all checks (worst CVD ΔE 21.8 light, 21.0 dark). Screenshots:
+  `docs/screenshots/phase-4c/` (desktop and mobile, light and dark).
+- **Publication**: `gdp.json` and `labour-market.json` are optional snapshot files (written once their data exists),
+  validated, reconciled with the database and covered by the parity spec. A real-database snapshot from this branch
+  equals `main`'s except the two corrected inactive-category sentences and five GDP/labour release details whose
+  unavailable reason is now specific (all vetted sentences); it validates for publication.
+
+Verification (this machine, 29 Oct): backend 2,729 tests (baseline on `main` 2,514 in Phase 3F), Ruff and format clean;
+frontend 476 unit tests, typecheck, lint (existing warnings), build; Playwright live 138, research 18 (3 skipped),
+static 300. Not run: hosted CI (billing), Docker build and smoke (no container runtime). Fixed on the way: the research
+Playwright config could not start since the Phase 3F loopback guard (now binds 127.0.0.1).
+
+Known limitations: national totals only; QES, sampling errors and trend series not stored; first-published figures only
+from the earliest stored release; the June 2026 GDP and labour releases are not in the live database (older than the
+7-day catch-up, so a deliberate backfill, which is a live fetch, is needed); the September 2026 labour release
+(4 Nov 2026) will be the adapter's first unseen release and fails closed on any layout change.
 
 ## Phase 3F: pilot and release acceptance, 28 October 2026
 

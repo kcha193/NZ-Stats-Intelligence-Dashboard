@@ -2,6 +2,7 @@
  "indicator": "cpi_inflation",
  "state": "available",
  "official_series": "cpi.index.nsa.all_groups",
+ "unavailable_reason": null,
  "actuals_as_of": "Consumers price index: June 2026 quarter",
  "actuals_released_on": "2026-07-21",
  "vintages_from": "2026-02-12",
@@ -662,5 +663,5 @@
  ],
  "min_for_summary": 4,
  "min_for_ranking": 8,
- "note": "Errors are forecast minus the official outcome. Only CPI can be evaluated here. Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
+ "note": "Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the OCR cannot (no approved source). Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run."
 }

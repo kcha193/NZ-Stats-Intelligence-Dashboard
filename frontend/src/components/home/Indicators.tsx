@@ -6,7 +6,6 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { groupIndicators } from "@/lib/indicators";
 import { formatAklDate, formatNumber } from "@/lib/format";
 import { formatMetricValue, isRate } from "@/lib/metric";
-import { TOPICS } from "@/stories/topics";
 
 function IndicatorRow({ kpi }: { kpi: Kpi }) {
   const m = kpi.metric;
@@ -56,7 +55,7 @@ export function Indicators({ kpis }: { kpis: Kpi[] }) {
           <div key={g.key}>
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule-strong/30 pb-2">
               <h3 className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
-                {g.key !== "other" && <span aria-hidden className={`cat-rule ${TOPICS[g.key].tone}`} />}
+                {g.tone && <span aria-hidden className={`cat-rule ${g.tone}`} />}
                 {g.title}
               </h3>
               {g.dashboard && <Link className="text-sm font-medium text-accent-ink underline-offset-4 hover:underline" to={g.dashboard.to}>{g.dashboard.label}</Link>}

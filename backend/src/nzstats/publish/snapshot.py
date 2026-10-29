@@ -24,6 +24,7 @@ from nzstats.config import load_settings
 from nzstats.publish.contract import (
     ATTRIBUTION,
     MANIFEST,
+    OPTIONAL_DASHBOARDS,
     ORIGIN_FIXTURE,
     ORIGIN_PRODUCTION,
     REQUIRED_REVISIONS,
@@ -118,6 +119,7 @@ def _collect(api: TestClient, conn: sqlite3.Connection) -> _Collector:
     health = get("/api/health")
     cpi = get("/api/cpi")
     ect = get("/api/ect")
+    optional = {name: get(url, required=False) for name, url in OPTIONAL_DASHBOARDS.items()}
     countries = get("/api/migration/countries", COUNTRY_WINDOW)
     listing: list[dict[str, Any]] = []
     while True:
@@ -157,6 +159,9 @@ def _collect(api: TestClient, conn: sqlite3.Connection) -> _Collector:
     out.add("health.json", _public_health(health))
     out.add("cpi.json", cpi)
     out.add("ect.json", ect)
+    for name, dashboard in optional.items():
+        if dashboard is not None:
+            out.add(name, dashboard)
     out.add("releases.json", listing)
     out.add("calendar.json", CalendarMeta.model_validate(calendar).model_dump(mode="json"))
     out.add("migration/countries.json", countries)
