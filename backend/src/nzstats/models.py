@@ -310,7 +310,7 @@ class FirstLatestRow(BaseModel):
     first_value: float
     first_release: str  # title of the release the first value comes from
     first_is_publication: (
-        bool  # False: the quarter's own release is not stored (earliest stored instead)
+        bool  # False: original-publication provenance is unverified (earliest stored instead)
     )
     latest_value: float
     latest_release: str

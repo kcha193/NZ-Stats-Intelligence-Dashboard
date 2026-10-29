@@ -14,7 +14,6 @@ from nzstats.domain import Adjustment, Frequency, SeriesDef
 SLUG = "gross-domestic-product"
 CSV_FILE = "gdp_csv"
 SUBJECT = "National Accounts - SNA 2008 - SNE"
-PRICE_BASE = "2009/10 prices"
 
 _PRODUCTION = "Gross Domestic Product - production measure"
 _EXPENDITURE = "Gross Domestic Product - expenditure measure"
@@ -53,7 +52,7 @@ def _def(key: str, name: str, unit: str, adjustment: Adjustment, definition: str
 
 
 SA, NSA = Adjustment.SEASONALLY_ADJUSTED, Adjustment.NONE
-MILLION_REAL = f"NZD million ({PRICE_BASE})"
+MILLION_REAL = "NZD million (chain volume)"
 MILLION_NOMINAL = "NZD million (current prices)"
 PER_PERSON = "NZD per person"
 
@@ -65,7 +64,7 @@ PINNED: tuple[Pinned, ...] = (
             "GDP, production measure, real, seasonally adjusted",
             MILLION_REAL,
             SA,
-            f"Gross domestic product, production measure, chain volume ({PRICE_BASE}), seasonally adjusted, "
+            "Gross domestic product, production measure, chain volume, seasonally adjusted, "
             "quarterly, NZ$ million. Stats NZ's headline GDP measure.",
         ),
         Expected(
@@ -79,7 +78,7 @@ PINNED: tuple[Pinned, ...] = (
             "GDP, production measure, real, actual",
             MILLION_REAL,
             NSA,
-            f"Gross domestic product, production measure, chain volume ({PRICE_BASE}), actual (not seasonally "
+            "Gross domestic product, production measure, chain volume, actual (not seasonally "
             "adjusted), quarterly, NZ$ million.",
         ),
         Expected("Dollars", "6", "Series, GDP(P), Chain volume, Actual, Total", _PRODUCTION),
@@ -91,7 +90,7 @@ PINNED: tuple[Pinned, ...] = (
             "GDP, expenditure measure, real, seasonally adjusted",
             MILLION_REAL,
             SA,
-            f"Gross domestic product, expenditure measure, chain volume ({PRICE_BASE}), seasonally adjusted, "
+            "Gross domestic product, expenditure measure, chain volume, seasonally adjusted, "
             "quarterly, NZ$ million.",
         ),
         Expected(
@@ -105,7 +104,7 @@ PINNED: tuple[Pinned, ...] = (
             "GDP, expenditure measure, real, actual",
             MILLION_REAL,
             NSA,
-            f"Gross domestic product, expenditure measure, chain volume ({PRICE_BASE}), actual (not seasonally "
+            "Gross domestic product, expenditure measure, chain volume, actual (not seasonally "
             "adjusted), quarterly, NZ$ million.",
         ),
         Expected("Dollars", "6", "Series, GDP(E), Chain volume, Actual, Total", _EXPENDITURE),
@@ -149,7 +148,7 @@ PINNED: tuple[Pinned, ...] = (
             "GDP per capita, production measure, real, seasonally adjusted",
             PER_PERSON,
             SA,
-            f"Gross domestic product per person, production measure, chain volume ({PRICE_BASE}), seasonally "
+            "Gross domestic product per person, production measure, chain volume, seasonally "
             "adjusted, quarterly, NZ$ per person. The quarter's GDP divided by Stats NZ's population estimate.",
         ),
         Expected(

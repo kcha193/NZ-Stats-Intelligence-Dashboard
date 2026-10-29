@@ -17,6 +17,9 @@ it("GDP: names each growth measure, its period and source", async () => {
   mockApi({ "/api/gdp": gdp });
   renderWithProviders(<GrossDomesticProduct />);
   expect(await screen.findByRole("heading", { name: "Gross domestic product", level: 1 })).toBeInTheDocument();
+  const header = screen.getByRole("heading", { name: "Gross domestic product", level: 1 }).closest("header")!;
+  expect(header).toHaveTextContent("Real (chain-volume), production measure");
+  expect(header).not.toHaveTextContent("2009/10");
   const kpis = screen.getByRole("region", { name: "GDP key indicators" });
   expect(kpis).toHaveTextContent("Quarterly GDP growth");
   expect(kpis).toHaveTextContent("0.2%");
@@ -44,9 +47,9 @@ it("GDP: switches between measures without putting two on one axis", async () =>
 it("GDP: shows first-published against latest growth with the revision", async () => {
   mockApi({ "/api/gdp": gdp });
   renderWithProviders(<GrossDomesticProduct />);
-  const chart = await screen.findByRole("img", { name: "GDP growth, first published and latest" });
+  const chart = await screen.findByRole("img", { name: "GDP growth, stored baseline and latest" });
   const opt = JSON.parse(chart.getAttribute("data-option")!);
-  expect(opt.series.map((s: { name: string }) => s.name)).toEqual(["First published", "Latest"]);
+  expect(opt.series.map((s: { name: string }) => s.name)).toEqual(["Stored baseline", "Latest"]);
   expect(screen.getAllByText(/earliest stored/).length).toBeGreaterThan(0);
 });
 
@@ -63,7 +66,7 @@ it("Labour market: HLFS rates and the LCI stay separate", async () => {
   const kpis = screen.getByRole("region", { name: "Labour market key indicators" });
   expect(kpis).toHaveTextContent("5.6%");
   expect(kpis).toHaveTextContent("Labour Cost Index, annual change");
-  expect(screen.getByText(/first published as 5.3%/)).toBeInTheDocument();
+  expect(screen.getByText(/earlier stored release showed 5.3%/)).toBeInTheDocument();
   expect(option("Labour market rate history").series).toHaveLength(1);
   expect(option("Labour Cost Index annual change").series[0].name).toBe("Labour Cost Index, annual change");
   expect(screen.getAllByText(/not average earnings/).length).toBeGreaterThan(0);

@@ -5,6 +5,27 @@ Only PR #19 reached `main`; PRs #20–#22 merged into feature branches. The fina
 publication are merged to `main`; the static site is not deployed and no research source is approved. Earlier entries
 below are historical.
 
+## Phase 4D: integration and release preparation, 29 October 2026
+
+Report: [release evidence and owner gates](phase-4d-release.md). Supporting reports:
+[statistical reconciliation](phase-4d-statistical-reconciliation.md), [backfill dry run](phase-4d-backfill-plan.md),
+[operations](phase-4d-operations.md), [screenshots](screenshots/phase-4d/README.md).
+
+Reconciled the full branch DAG: only #19 reached main; #20–#22 merged into feature bases. Merged both completed
+remote tips, retaining the GDP chronology fix and final Outlook fix, through integration merge `dd0d5c8` on
+`feat/phase-4d-release`. The progress-record conflict retained both historical sections. Nothing was merged to main.
+
+Offline independent calculations reproduce the official GDP/HLFS/LCI figures within existing tolerances. Fixed
+historical-capture provenance: uncertain original values remain earliest stored and cannot enter first-published
+forecast scoring. Fixed unsupported GDP reference-year wording, including presentation of old persisted metadata.
+The independent review's two P2 findings were reproduced failing-first and fixed; final verification is recorded
+in the release report. Existing source permissions, observations and all stored historical definitions are preserved.
+
+Production remains unpopulated for GDP/labour; a seven-release, 30-logical-request backfill plan is prepared but
+not authorised or run. Restored production copy/raw artifacts and a local Stats NZ-only static candidate validate.
+Candidate canonicals are provisional; no Netlify upload occurred. Production release **NO-GO** pending data,
+provenance and operational gates. Hosted CI is billing-blocked; Docker daemon unavailable. No RBNZ/research activation.
+
 ## PR #19: GDP review remediation, 29 October 2026
 
 Finding ledger (all paginated conversation comments, review submissions and inline threads inspected):

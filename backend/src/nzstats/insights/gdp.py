@@ -13,6 +13,7 @@ from statistics import mean
 from nzstats.adapters.gdp.series import HEADLINE, KEYS, SLUG
 from nzstats.clock import to_akl_iso
 from nzstats.insights.migration import _corrections
+from nzstats.insights.revisions import gdp_display_metadata
 from nzstats.insights.summary import release_summary
 from nzstats.insights.vintages import first_latest_table
 from nzstats.models import (
@@ -42,13 +43,14 @@ PER_CAPITA = "gdp.per_capita.production.cv.sa"
 NOMINAL = "gdp.expenditure.cp.sa"
 CAVEATS = [
     "Gross domestic product (GDP) measures the value of goods and services produced in New Zealand. Stats NZ's "
-    "headline is the production measure in chain-volume terms (real, 2009/10 prices), seasonally adjusted.",
+    "headline is the production measure in chain-volume terms (real), seasonally adjusted.",
     "Three growth measures are shown and are never interchangeable: quarterly growth compares a quarter with the "
     "previous quarter (seasonally adjusted); the annual change of a quarter compares it with the same quarter a "
     "year earlier (seasonally adjusted); annual average growth compares the four quarters to date with the four "
     "before them (actual values). Stats NZ's release page calls the last one 'Annual growth'.",
     "Chain-volume (real) values remove the effect of price changes; current-price (nominal) values do not. "
-    "Seasonally adjusted and actual values are different series. They are kept on separate charts.",
+    "Seasonally adjusted and actual values are different series. They are kept on separate charts. "
+    "The chain-volume reference year is not stated in the captured CSV metadata and is not assigned here.",
     "The production and expenditure measures are estimated independently from different data and usually "
     "differ; neither is a correction of the other.",
     "National accounts are revised as more complete information arrives, and seasonal adjustment re-estimates "
@@ -313,17 +315,18 @@ def _build(
         for key in KEYS:
             d, obs = stored[key]
             measure, approach, basis, per_capita = _describe(key)
+            unit, definition = gdp_display_metadata(key, d.unit, d.definition)
             series.append(
                 GdpSeriesOut(
                     key=key,
                     name=d.name,
-                    unit=d.unit,
+                    unit=unit,
                     measure=measure,
                     approach=approach,
                     price_basis=basis,
                     adjustment=d.adjustment.value,
                     per_capita=per_capita,
-                    definition=d.definition,
+                    definition=definition,
                     points=[
                         PointOut(
                             period=o.period,

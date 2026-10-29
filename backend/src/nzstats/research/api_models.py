@@ -245,6 +245,7 @@ EVALUATION_NOTE = (
     "Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the"
     " OCR cannot (no approved source). Each forecast is matched to the"
     " quarter it names, on the measure it states, and only if it was published before that quarter's figure was released."
+    " First-published scores require an uncorrected source captured on the official release day; historical captures are earliest stored and are not scored as first published."
     " Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every"
     " ranked institution at the same horizon. No significance test is run."
 )
@@ -259,7 +260,7 @@ class ActualOut(_Out):
     value: float
     release: str  # the Stats NZ release title
     released_on: str  # Pacific/Auckland date
-    first_release: bool  # False: the release that first published the quarter is not stored here
+    first_release: bool  # False: original-publication provenance is unverified (earliest stored)
 
 
 class EvaluatedForecastOut(_Out):

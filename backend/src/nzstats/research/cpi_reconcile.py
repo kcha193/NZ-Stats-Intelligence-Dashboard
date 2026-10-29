@@ -7,8 +7,8 @@ Two independent checks, neither of which uses the Stats NZ adapter or `outcomes.
    Decimal). A vintage no kept file reproduces is a discrepancy.
 2. Outcomes. For each measure and quarter, the first-published and latest values the dashboard reports
    (`CpiActuals`) must equal the value calculated here from the official files of the matching releases: first from
-   the earliest stored bundle of the release that holds enough of the series (labelled a genuine first release only
-   when it is the quarter's own release), latest from the newest release's current bundle. Rounding is half away
+   the earliest stored bundle of the release that holds enough of the series (labelled genuine only when it is the quarter's own release
+   and the shared provenance guard supports an original-publication capture), latest from the newest release's current bundle. Rounding is half away
    from zero to one decimal place, the convention Stats NZ uses.
 """
 
@@ -23,7 +23,12 @@ from pathlib import Path
 
 from nzstats.research.outcomes import CPI_SLUG, MEASURES, NSA, SA, CpiActuals, Target
 from nzstats.sources.artifacts import valid_rel
-from nzstats.store.repo import VintageInfo, list_vintages, vintage_points
+from nzstats.store.repo import (
+    VintageInfo,
+    list_vintages,
+    supports_first_publication,
+    vintage_points,
+)
 
 SERIES_REF = {NSA: "CPIQ.SE9A", SA: "CPIQ.SE9SA"}
 _SCAN_BYTES = 64 * 1024 * 1024
@@ -203,7 +208,9 @@ def reconcile(conn: sqlite3.Connection, raw_dir: Path) -> Reconciliation:
                     f"{measure} {quarter}: the official files give it, but it is not reported"
                 )
                 continue
-            genuine = reference.get(exp_first[0].release_key) == quarter
+            genuine = reference.get(
+                exp_first[0].release_key
+            ) == quarter and supports_first_publication(conn, exp_first[0])
             ok = (got.first.value, got.latest.value, got.first.first_release) == (
                 exp_first[1],
                 exp_latest[1],

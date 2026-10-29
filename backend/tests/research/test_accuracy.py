@@ -154,6 +154,10 @@ def test_consensus_takes_each_institutions_latest_vintage_once():
 @pytest.fixture()
 def cpi_actuals(rt, site):
     ingest_cpi(rt, site, "2025-12", "2026-03", "2026-06", "2026-09")
+    # Simulated publication-day capture for scoring arithmetic; no historical provenance claim.
+    rt.conn.execute(
+        "UPDATE vintage SET captured_at = (SELECT published_at FROM release WHERE id = release_id)"
+    )
     return CpiActuals(rt.conn)
 
 

@@ -1,8 +1,8 @@
 """First-published against latest figures of a quarterly series, from the stored release vintages.
 
-"First published" is the figure in the release whose reference period is the quarter, as originally captured (that
-release's earliest stored vintage, even if a correction later replaced it). Where that release is not stored, the
-earliest stored figure is used and labelled as such; no other quarter or release stands in silently.
+The baseline is each release's earliest inserted vintage. Original-publication labels additionally require its
+own quarter, a release-day original-source capture and no earlier bundle. Other captures remain earliest stored;
+no later vintage silently becomes an original publication.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from nzstats.models import FirstLatestRow, FirstLatestTable
 from nzstats.stats.gdp import round_1dp
 from nzstats.stats.periods import add_months
 from nzstats.store import repo
+from nzstats.store.repo import supports_first_publication
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class ReleaseValues:
     title: str
     reference_period: str | None
     values: dict[str, float]
+    is_publication: bool
 
 
 def first_stored(
@@ -45,6 +47,7 @@ def first_stored(
             v.title,
             references.get(v.release_key),
             {p: pt.value for p, pt in repo.vintage_points(conn, v.vintage_id).items()},
+            supports_first_publication(conn, v),
         )
         for v in ordered
     ]
@@ -86,7 +89,7 @@ def first_latest_table(
                 period=period,
                 first_value=first.values[period],
                 first_release=first.title,
-                first_is_publication=own is not None,
+                first_is_publication=own is not None and own.is_publication,
                 latest_value=latest[period],
                 latest_release=row["title"],
                 revision=round_1dp(latest[period] - first.values[period]),
@@ -96,7 +99,8 @@ def first_latest_table(
         series_key=key,
         label=label,
         available=True,
-        note="First published: the figure in the release for that quarter. Where that release is not stored, "
-        f"the earliest stored figure is shown and marked as earliest stored. Latest: {row['title']}.",
+        note="First published requires an uncorrected source captured on the quarter's release day. "
+        "Late captures, corrected files and missing original releases are marked as earliest stored; "
+        f"their differences are stored-vintage changes, not verified revisions since first publication. Latest: {row['title']}.",
         rows=rows,
     )

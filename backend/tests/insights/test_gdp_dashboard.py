@@ -77,6 +77,39 @@ def test_series_keep_measures_bases_and_adjustments_apart(rt, site):
     assert series["gdp.production.cv.sa"].points[-1].value == 71805
 
 
+def test_dashboard_does_not_assign_an_unverified_chain_volume_reference_year(rt, site):
+    ingest_gdp(rt, site, "2026-06")
+    dashboard = build_gdp_dashboard(rt.conn)
+    series = {s.key: s for s in dashboard.series}
+    assert series["gdp.production.cv.sa"].unit == "NZD million (chain volume)"
+    assert "2009/10" not in dashboard.model_dump_json()
+    assert any("reference year" in caveat for caveat in dashboard.caveats)
+
+
+def test_pre_phase4d_metadata_is_corrected_in_presentation_without_rewriting_history(
+    rt, site, client
+):
+    ingest_gdp(rt, site, "2026-06")
+    key = "gdp.production.cv.sa"
+    for table in ("series", "vintage_series_definition"):
+        rt.conn.execute(
+            f"UPDATE {table} SET unit = 'NZD million (2009/10 prices)', "
+            "definition = 'GDP chain volume (2009/10 prices)' WHERE key = ?",
+            (key,),
+        )
+    before = list(rt.conn.execute("SELECT * FROM observation"))
+    assert "2009/10" not in client.get("/api/gdp").text
+    assert "2009/10" not in client.get(f"/api/series/{key}").text
+    assert "2009/10" not in client.get(f"/api/series/{key}/csv").text
+    assert list(rt.conn.execute("SELECT * FROM observation")) == before
+    assert (
+        "2009/10"
+        in rt.conn.execute(
+            "SELECT unit FROM vintage_series_definition WHERE key = ?", (key,)
+        ).fetchone()[0]
+    )
+
+
 def test_revision_table_separates_first_published_from_latest(rt, site):
     ingest_gdp(rt, site, "2026-03", "2026-06")
     table = next(
@@ -85,7 +118,7 @@ def test_revision_table_separates_first_published_from_latest(rt, site):
     rows = {r.period: r for r in table.rows}
     march = rows["2026-03"]
     assert (march.first_value, march.latest_value, march.revision) == (0.8, 0.9, 0.1)
-    assert march.first_is_publication is True
+    assert march.first_is_publication is False
     assert march.first_release == "Gross domestic product: March 2026 quarter"
     assert march.latest_release == "Gross domestic product: June 2026 quarter"
     june = rows["2026-06"]
@@ -140,6 +173,12 @@ def test_first_published_survives_correction_and_restoration(rt, site, key, back
     march_key = ingest_gdp(rt, site, "2026-03")["2026-03"]
     march_id = repo.get_release(rt.conn, march_key)["id"]
     original, corrected = _store_correction(rt, march_id, key, "2026-03", 1.0)
+    # Simulate two publication-day captures with tied times to test immutable original selection.
+    rt.conn.execute(
+        "UPDATE vintage SET captured_at = (SELECT published_at FROM release WHERE id = release_id) "
+        "WHERE release_id = ?",
+        (march_id,),
+    )
     correction = repo.bundle_vintage(rt.conn, key, march_id, corrected)
     assert repo.vintage_points(rt.conn, correction.vintage_id)["2026-03"].value == 1.0
 

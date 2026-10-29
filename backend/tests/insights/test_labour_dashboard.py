@@ -48,7 +48,8 @@ def test_summary_states_the_revision_of_the_previous_quarter(rt, site):
     text = build_labour_dashboard(rt.conn).analysis.executive_summary[0].text
     assert "5.6% in the June 2026 quarter" in text
     assert "5.4% in the March 2026 quarter" in text
-    assert "first published as 5.3%" in text
+    assert "earlier stored release showed 5.3%" in text
+    assert "first published" not in text
 
 
 def test_summary_does_not_claim_a_revision_with_one_release(rt, site):
@@ -105,7 +106,7 @@ def test_first_latest_table_for_the_unemployment_rate(rt, site):
         5.3,
         5.4,
         0.1,
-        True,
+        False,
     )
 
 

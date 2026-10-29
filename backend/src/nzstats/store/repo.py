@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import unquote, urlsplit
 
-from nzstats.clock import to_utc_iso
+from nzstats.clock import AKL, from_utc_iso, to_utc_iso
 from nzstats.domain import (
     Adjustment,
     Frequency,
@@ -44,6 +46,29 @@ class VintageInfo:
     captured_at: str
     source_kind: str
     layout_version: str
+
+
+def supports_first_publication(conn: sqlite3.Connection, vintage: VintageInfo) -> bool:
+    """Require the earliest bundle, a release-day capture and an uncorrected source.
+
+    A historical URL or the quarter's own release title does not establish the original bytes. There is no
+    historical attestation mechanism yet, so even a corroborated late capture is conservatively unverified.
+    """
+    if vintage.source_kind != "release_files":
+        return False
+    published, captured = map(from_utc_iso, (vintage.published_at, vintage.captured_at))
+    if captured < published or captured.astimezone(AKL).date() != published.astimezone(AKL).date():
+        return False
+    row = conn.execute(
+        "SELECT d.source_url FROM vintage_series_definition d JOIN vintage v ON v.id = d.vintage_id "
+        "WHERE v.id = ? AND v.id = (SELECT MIN(original.id) FROM vintage original "
+        "WHERE original.release_id = v.release_id AND original.series_id = v.series_id)",
+        (vintage.vintage_id,),
+    ).fetchone()
+    if row is None or not row["source_url"]:
+        return False
+    path = unquote(urlsplit(row["source_url"]).path).lower()
+    return not re.search(r"(?:^|[^a-z])(corrected|revised|correction)(?:[^a-z]|$)", path)
 
 
 def upsert_release(conn: sqlite3.Connection, ref: ReleaseRef, now: datetime) -> int:

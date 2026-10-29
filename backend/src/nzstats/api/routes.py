@@ -280,6 +280,7 @@ def series_csv(
     to: str | None = None,
 ) -> Response:
     row, v, obs, _ = _series_data(conn, key, vintage, from_, to)
+    unit = series_out(row, 0, None).unit
     release = repo.get_release(conn, v.release_key)
     source = f"Stats NZ (CC BY 4.0) {release['page_url'] or ''}".strip()
     buf = io.StringIO()
@@ -305,7 +306,7 @@ def series_csv(
             [
                 _csv_text(key),
                 _csv_text(row["name"]),
-                _csv_text(row["unit"]),
+                _csv_text(unit),
                 _csv_text(row["frequency"]),
                 _csv_text(o.period),
                 o.value,

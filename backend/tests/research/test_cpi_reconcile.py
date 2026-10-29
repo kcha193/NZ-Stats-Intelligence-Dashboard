@@ -16,15 +16,13 @@ def test_every_stored_vintage_and_outcome_reconciles_with_the_official_files(rt,
     assert len(result.vintages) == len(RELEASES) * 2 and all(v.file_sha256 for v in result.vintages)
     assert result.outcomes and all(o.ok for o in result.outcomes)
     genuine = {(o.measure, o.quarter) for o in result.outcomes if o.genuine_first_release}
-    assert {q for _, q in genuine} == set(RELEASES)  # only the four quarters with their own release
+    assert genuine == set()  # historical captures do not prove original publication
 
 
 def test_with_only_the_newest_release_no_earlier_quarter_is_a_genuine_first(rt, site):
     ingest_cpi(rt, site, "2026-09")
     result = reconcile(rt.conn, rt.settings.raw_dir)
-    assert result.ok and {o.quarter for o in result.outcomes if o.genuine_first_release} == {
-        "2026-09"
-    }
+    assert result.ok and not any(o.genuine_first_release for o in result.outcomes)
 
 
 def test_a_backfill_in_any_order_reconciles_the_same(rt, site):
@@ -78,10 +76,7 @@ def test_cli_cpi_reconcile_reports_success_and_failure_by_exit_status(
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(rt.settings.data_dir))
     assert main(["research", "cpi-reconcile"]) == 0
     out = capsys.readouterr().out
-    assert (
-        "reconciled: no discrepancies" in out
-        and "genuine first release only for: 2026-06, 2026-09" in out
-    )
+    assert "reconciled: no discrepancies" in out and "genuine first release only for: none" in out
     for p in rt.settings.raw_dir.rglob("*/*"):
         p.unlink()
     assert main(["research", "cpi-reconcile"]) == 1

@@ -36,8 +36,8 @@ describe("firstLatestOption", () => {
   const table = g.revisions[0];
   it("pairs first-published and latest values for each quarter, oldest first, with a legend", () => {
     const o = firstLatestOption(table, TEST_THEME, "%") as unknown as Opt;
-    expect(o.series.map((s) => s.name)).toEqual(["First published", "Latest"]);
-    expect(o.legend!.data).toEqual(["First published", "Latest"]);
+    expect(o.series.map((s) => s.name)).toEqual(["Stored baseline", "Latest"]);
+    expect(o.legend!.data).toEqual(["Stored baseline", "Latest"]);
     const quarters = [...table.rows].map((r) => r.period).sort();
     const march = quarters.indexOf("2026-03");
     expect((o.series[0].data as number[])[march]).toBe(0.8);

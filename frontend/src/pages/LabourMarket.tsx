@@ -64,10 +64,10 @@ function Dashboard({ data }: { data: LabourDashboard }) {
       </section>
       {revisions?.available ? (
         <ChartCard
-          title="Unemployment rate: first published and latest"
-          question="How much have recent quarters' unemployment rates been revised since they were first published?"
+          title="Unemployment rate: stored baseline and latest"
+          question="How have recent unemployment rates changed across stored vintages?"
           unit="percent" source={source} caveat={revisions.note}
-          option={firstLatestOption(revisions, theme, "%")} ariaLabel="Unemployment rate, first published and latest"
+          option={firstLatestOption(revisions, theme, "%")} ariaLabel="Unemployment rate, stored baseline and latest"
           csvFilename="unemployment-first-published-latest.csv" csvRows={firstLatestRows(revisions, meta)}
         />
       ) : (

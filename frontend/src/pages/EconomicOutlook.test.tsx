@@ -277,7 +277,7 @@ describe("forecast history, track record and agreement (SYNTHETIC research, real
     await within(section).findAllByRole("figure", { name: /Year to June 2027$/ });
     expect(within(section).queryByText(/Official outcome/)).not.toBeInTheDocument();
     await user.selectOptions(within(section).getByLabelText("Target"), "cpi_inflation|percent|annual_change|year_to:2026-06|central");
-    expect(await within(section).findByText("Official outcome (first published)")).toBeInTheDocument();
+    expect(await within(section).findByText("Official outcome (earliest stored)")).toBeInTheDocument();
   });
 
   it("checks CPI forecasts against outcomes and refuses to rank a small sample", async () => {
@@ -286,8 +286,9 @@ describe("forecast history, track record and agreement (SYNTHETIC research, real
     renderWithProviders(<EconomicOutlook />);
     const section = await screen.findByRole("region", { name: "Forecast history and track record" });
     expect(await within(section).findByText(/5 forecasts matched to an official outcome/)).toBeInTheDocument();
-    expect(within(section).getByRole("figure", { name: "Forecast minus first-published outcome" })).toBeInTheDocument();
-    expect(within(section).getAllByText(/Too few outcomes \(\d of 4 needed\)/).length).toBeGreaterThan(0);
+    expect(within(section).queryByRole("figure", { name: "Forecast minus first-published outcome" })).not.toBeInTheDocument();
+    expect(within(section).getByText(/First-published outcomes are unverified/)).toBeInTheDocument();
+    expect(within(section).queryByText(/Too few outcomes/)).not.toBeInTheDocument();
     expect(within(section).getByText(/No ranking \(annual change \(through the year\)\)/)).toBeInTheDocument();
     await user.click(within(section).getByText(/Matched forecasts \(5\)/));
     const rows = within(within(section).getByRole("table", { name: "Forecasts matched to official outcomes" })).getAllByRole("row").slice(1);

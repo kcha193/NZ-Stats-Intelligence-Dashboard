@@ -1,7 +1,9 @@
 # NZ Stats Intelligence Dashboard: project instructions
 
-Self-hosted dashboard that ingests Stats NZ releases and explains them. Phase 1 (International migration)
-is built; Phases 2 and 3 are in the spec. Resume from [docs/progress.md](docs/progress.md).
+Self-hosted dashboard that ingests Stats NZ releases and explains them. Migration, card spending and CPI are built;
+the Phase 4D branch integrates GDP, labour and the Outlook stack for release review. OCR remains synthetic-only
+and institutional research publishing remains permission-gated. Resume from [docs/progress.md](docs/progress.md);
+current release gates and evidence are in [docs/phase-4d-release.md](docs/phase-4d-release.md).
 
 ## Stack and layout
 

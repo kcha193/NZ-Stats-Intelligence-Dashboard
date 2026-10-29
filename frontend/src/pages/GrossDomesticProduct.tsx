@@ -40,7 +40,7 @@ function Dashboard({ data }: { data: GdpDashboard }) {
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Economic growth</p>
         <h1 className="text-xl font-semibold tracking-tight">Gross domestic product</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Reference period: {monthLabel(data.reference_period)} quarter · Published {formatAklDateTime(data.published_at)} · Real (chain-volume, 2009/10 prices), production measure
+          Reference period: {monthLabel(data.reference_period)} quarter · Published {formatAklDateTime(data.published_at)} · Real (chain-volume), production measure
         </p>
       </header>
       <MetricTiles label="GDP key indicators" metrics={a.headline_metrics} />
@@ -65,10 +65,10 @@ function Dashboard({ data }: { data: GdpDashboard }) {
           options={data.revisions.map((_, i) => ({ value: String(i), label: i === 0 ? "Quarterly growth" : "Annual average growth" }))} />
         {revisions?.available ? (
           <ChartCard
-            title={`${revisions.label}: first published and latest`}
-            question="How much have recent quarters been revised since they were first published?"
+            title={`${revisions.label}: stored baseline and latest`}
+            question="How do recent quarters compare with their earliest stored values?"
             unit="percent" source={source} caveat={revisions.note}
-            option={firstLatestOption(revisions, theme, "%")} ariaLabel="GDP growth, first published and latest"
+            option={firstLatestOption(revisions, theme, "%")} ariaLabel="GDP growth, stored baseline and latest"
             csvFilename="gdp-first-published-latest.csv" csvRows={firstLatestRows(revisions, meta)}
           />
         ) : (

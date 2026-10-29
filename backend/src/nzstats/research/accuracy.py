@@ -210,9 +210,9 @@ def evaluate_forecasts(
             target_quarter=target.quarter, target_label=_target_label(target), horizon_quarters=h, band=band_of(h),
             status="matched" if outcome else "pending",
             first=_actual(outcome.first) if outcome else None, latest=_actual(outcome.latest) if outcome else None,
-            error_first=_r(f.value - outcome.first.value) if outcome else None,
+            error_first=_r(f.value - outcome.first.value) if outcome and outcome.first.first_release else None,
             error_latest=_r(f.value - outcome.latest.value) if outcome else None,
-            outcome_revision=outcome.revision if outcome else None,
+            outcome_revision=outcome.revision if outcome and outcome.first.first_release else None,
         ))  # fmt: skip
     evaluated.sort(key=lambda e: (e.measure, e.target_quarter, e.forecast.institution.key, e.forecast.published_on or "",
                                   e.forecast.summary_id))  # fmt: skip
@@ -230,6 +230,8 @@ def evaluate_forecasts(
         tuple[str, str, str, str], EvaluatedForecastOut
     ] = {}  # one vintage per outcome quarter
     for e in sorted(matched, key=lambda e: (e.forecast.published_on or "", e.forecast.summary_id)):
+        if e.error_first is None:
+            continue
         sample[(e.forecast.institution.key, e.measure, e.band, e.target_quarter)] = (
             e  # the latest vintage wins
         )
@@ -249,6 +251,8 @@ def evaluate_forecasts(
         cells: dict[tuple, EvaluatedForecastOut] = {}
         for e in sorted((e for e in matched if e.measure == measure),
                         key=lambda e: (e.forecast.published_on or "", e.forecast.summary_id)):  # fmt: skip
+            if e.error_first is None:
+                continue
             cells[(e.forecast.institution.key, e.target_quarter, e.horizon_quarters)] = (
                 e  # latest vintage per cell
             )

@@ -26,7 +26,7 @@ from collections.abc import Callable, Mapping
 from nzstats.research.api_models import ForecastOut
 from nzstats.research.compare import basis_of, horizon_of
 from nzstats.research.outcomes import Actual, Outcome, Target
-from nzstats.store.repo import list_vintages, vintage_points
+from nzstats.store.repo import list_vintages, supports_first_publication, vintage_points
 
 GDP_SLUG, LABOUR_SLUG = "gross-domestic-product", "labour-market-statistics"
 GDP_MEASURES = {
@@ -177,7 +177,12 @@ class OfficialActuals:
 
             def load(info):
                 points = {p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()}
-                return info, reference.get(info.release_key), points
+                return (
+                    info,
+                    reference.get(info.release_key),
+                    points,
+                    supports_first_publication(conn, info),
+                )
 
             self._latest[series] = [load(i) for i in current.values()]
             self._first[series] = [
@@ -206,9 +211,14 @@ class OfficialActuals:
 
 
 def _actual(vintages: list, quarter: str) -> Actual | None:
-    for info, reference, points in vintages:
+    for info, reference, points, is_publication in vintages:
         if quarter in points:
-            return Actual(points[quarter], info.title, info.published_at, reference == quarter)
+            return Actual(
+                points[quarter],
+                info.title,
+                info.published_at,
+                reference == quarter and is_publication,
+            )
     return None
 
 

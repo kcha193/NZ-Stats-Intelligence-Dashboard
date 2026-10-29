@@ -16,15 +16,24 @@ from nzstats.stats.revision import revisions, summarise
 from nzstats.store import repo
 
 
+def gdp_display_metadata(key: str, unit: str, definition: str) -> tuple[str, str]:
+    """Remove the old unsupported reference-year assertion without altering immutable source records."""
+    if key.startswith("gdp."):
+        unit = unit.replace("NZD million (2009/10 prices)", "NZD million (chain volume)")
+        definition = definition.replace(" (2009/10 prices)", "")
+    return unit, definition
+
+
 def series_out(row: sqlite3.Row, n_vintages: int, latest_period: str | None) -> SeriesOut:
+    unit, definition = gdp_display_metadata(row["key"], row["unit"], row["definition"])
     return SeriesOut(
         key=row["key"],
         name=row["name"],
-        unit=row["unit"],
+        unit=unit,
         frequency=row["frequency"],
         adjustment=row["seasonal_adjustment"],
         category=row["category"],
-        definition=row["definition"],
+        definition=definition,
         definition_id=row["definition_id"],
         latest_period=latest_period,
         n_vintages=n_vintages,

@@ -20,7 +20,7 @@ export function rateOption(series: LabourSeries, range: CpiRange, theme: ChartTh
   return lineRates(series.name, rows(rangeFilter(series.points, range)), series.unit === "percent" ? "Percent" : series.unit, theme);
 }
 
-const LABELS = ["First published", "Latest"] as const;
+const LABELS = ["Stored baseline", "Latest"] as const;
 
 /** First-published against latest value of each recent quarter: the revision, shown as paired bars. */
 export function firstLatestOption(table: FirstLatestTable, theme: ChartTheme, unit: string): EChartsCoreOption {

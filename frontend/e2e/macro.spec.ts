@@ -15,7 +15,7 @@ test("GDP dashboard: three named measures, revisions, CSV, no overflow, light an
   await page.screenshot({ path: info.outputPath("gdp-light.png"), fullPage: true });
   await page.getByRole("group", { name: "Growth measure" }).getByText("Annual average", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Annual average GDP growth (production, real)" }).first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: /first published and latest/ }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: /stored baseline and latest/ }).first()).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /download data/i }).nth(1).click()]);
   expect(download.suggestedFilename()).toBe("gdp-first-published-latest.csv");
   expect(await noOverflow(page)).toBeLessThanOrEqual(1);
@@ -34,7 +34,7 @@ test("Labour market dashboard: HLFS rates and LCI kept apart, revision stated", 
   await page.goto("/labour-market");
   await expect(page.getByRole("heading", { level: 1, name: "Labour market" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Labour market key indicators" })).toContainText("5.6%");
-  await expect(page.getByText(/first published as 5.3%/).first()).toBeVisible();
+  await expect(page.getByText(/earlier stored release showed 5.3%/).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Wage rates: Labour Cost Index" })).toBeVisible();
   await page.getByRole("group", { name: "Rate" }).getByText("Underutilisation", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Underutilisation rate (HLFS, seasonally adjusted)" }).first()).toBeVisible();

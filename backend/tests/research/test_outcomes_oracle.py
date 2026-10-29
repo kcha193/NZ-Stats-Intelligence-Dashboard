@@ -69,7 +69,7 @@ def test_first_published_and_latest_match_the_official_files(rt, site, measure):
     for quarter in RELEASES:
         out = actuals.outcome(Target(measure, quarter))
         assert out is not None, quarter
-        assert out.first.first_release, quarter
+        assert not out.first.first_release, quarter  # all captures are historical
         assert out.first.value == expected(measure, quarter, quarter), (measure, quarter)
         assert out.latest.value == expected(measure, "2026-09", quarter), (measure, quarter)
         assert out.revision == pytest.approx(out.latest.value - out.first.value)
@@ -83,7 +83,7 @@ def test_with_only_the_newest_release_stored_earlier_quarters_are_earliest_store
     actuals = CpiActuals(rt.conn)
     for quarter in RELEASES:
         out = actuals.outcome(Target(measure, quarter))
-        assert out.first.first_release is (quarter == "2026-09"), quarter
+        assert out.first.first_release is False, quarter
         assert out.first.value == expected(measure, "2026-09", quarter)
         assert out.revision == 0
 
@@ -116,6 +116,7 @@ def test_cli_cpi_vintages_reports_the_earliest_stored_boundary(rt, site, capsys,
     assert main(["research", "cpi-vintages"]) == 0
     out = capsys.readouterr().out
     assert "2026-09" in out and "before 2026-09" in out and "earliest stored" in out
+    assert "their first-published values are genuine" not in out
 
 
 @pytest.mark.parametrize("measure", MEASURES)
@@ -128,6 +129,8 @@ def test_backfilling_older_releases_after_the_newest_gives_the_in_order_result(r
     actuals = CpiActuals(rt.conn)
     for quarter in RELEASES:
         out = actuals.outcome(Target(measure, quarter))
-        assert out.first.first_release and out.first.value == expected(measure, quarter, quarter)
+        assert not out.first.first_release and out.first.value == expected(
+            measure, quarter, quarter
+        )
         assert out.latest.value == expected(measure, "2026-09", quarter)
     assert max(latest_points(rt.conn, "cpi.index.nsa.all_groups")) == "2026-09"

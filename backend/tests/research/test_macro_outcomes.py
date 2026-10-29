@@ -124,7 +124,7 @@ def test_gdp_first_published_and_latest_are_the_official_figures(rt, site):
     # Release pages: 0.8 in the March 2026 release, revised to 0.9 in June 2026.
     assert (march.first.value, march.latest.value, march.revision) == (0.8, 0.9, 0.1)
     assert (
-        march.first.first_release
+        not march.first.first_release
         and march.first.release == "Gross domestic product: March 2026 quarter"
     )
     assert march.latest.release == "Gross domestic product: June 2026 quarter"
@@ -165,7 +165,7 @@ def test_evaluation_scores_against_first_published_and_latest(rt, site):
     assert out.state == "available" and out.official_series == "hlfs.rate.unemployment.sa"
     e = out.evaluated[0]
     assert e.status == "matched" and e.measure_label.startswith("Unemployment rate")
-    assert (e.error_first, e.error_latest) == (-0.3, -0.4)
+    assert (e.error_first, e.error_latest) == (None, -0.4)
 
 
 def test_look_ahead_forecasts_are_excluded(rt, site):
@@ -185,7 +185,8 @@ def test_gdp_evaluation_never_uses_cpi_actuals(rt, site):
         == "no_official_series"
     )
     out = evaluate_forecasts(forecasts, gdp_actuals(rt.conn), indicator="gdp")
-    assert out.evaluated[0].error_first == 0.3
+    assert out.evaluated[0].error_first is None
+    assert out.evaluated[0].error_latest == 0.3
 
 
 def test_ocr_has_no_official_series_and_says_why(rt):

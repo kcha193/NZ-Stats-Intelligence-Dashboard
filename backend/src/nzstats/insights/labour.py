@@ -175,7 +175,7 @@ def _insights(conn, row, stored, ref: str) -> tuple[list[Insight], list[Insight]
         evidence.append(ev(UNEMPLOYMENT, prior))
         first = _first_published(conn, row, UNEMPLOYMENT, prior)
         if first is not None and abs(first - rate[prior]) > 1e-9:
-            text += f" (as revised in this release; first published as {first:.1f}%)"
+            text += f" (the earlier stored release showed {first:.1f}%; its original-publication provenance is not assumed)"
     executive = [Insight(id="unemployment", kind="observation", text=text + ".", evidence=evidence)]
     er, pr = _values(stored, EMPLOYMENT), _values(stored, PARTICIPATION)
     employed, unemployed = _values(stored, EMPLOYED), _values(stored, UNEMPLOYED)

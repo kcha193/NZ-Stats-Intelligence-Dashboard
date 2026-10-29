@@ -76,10 +76,11 @@ test("forecast history and the CPI track record, with explicit states", async ({
   await expect(panels.locator("canvas")).toHaveCount(3);
   await expect(track).toContainText("Changes of measure (not revisions)");
   await expect(track).toContainText("5 forecasts matched to an official outcome");
-  await expect(track.getByRole("figure", { name: "Forecast minus first-published outcome" }).locator("canvas")).toHaveCount(1);
+  await expect(track.getByText(/First-published outcomes are unverified/)).toBeVisible();
+  await expect(track.getByRole("figure", { name: "Forecast minus first-published outcome" })).toHaveCount(0);
   await expect(track).toContainText(/No ranking/);
   await track.getByLabel("Target").selectOption("cpi_inflation|percent|annual_change|year_to:2026-06|central");
-  await expect(track).toContainText("Official outcome (first published)");
+  await expect(track).toContainText("Official outcome (earliest stored)");
   await page.getByRole("region", { name: "Forecast comparison" }).getByRole("group", { name: "Indicator" }).getByText("GDP", { exact: true }).click();
   // Phase 4C: GDP forecasts are checked against official Stats NZ GDP; these target March 2027, not yet released.
   await expect(track).toContainText("Outcomes as of Gross domestic product: June 2026 quarter");
@@ -122,7 +123,7 @@ test("review screenshots, light and dark", async ({ browser }, testInfo) => {
     await p.evaluate(() => document.fonts.ready);
     await p.screenshot({ path: `${SHOTS}/outlook-${testInfo.project.name}-${scheme}.png`, fullPage: true });
     const track = p.getByRole("region", { name: "Forecast history and track record" });
-    await track.getByRole("figure", { name: "Forecast minus first-published outcome" }).locator("canvas").waitFor();
+    await track.getByText(/First-published outcomes are unverified/).waitFor();
     await track.screenshot({ path: `${SHOTS}/track-${testInfo.project.name}-${scheme}.png` });
     await p.getByRole("region", { name: "Forecast comparison" }).screenshot({ path: `${SHOTS}/comparison-${testInfo.project.name}-${scheme}.png` });
     if (scheme === "light") {
