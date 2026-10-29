@@ -274,7 +274,9 @@ def _first_published(
         ).fetchall()
     )
     seen: dict[str, tuple[str, str | None, dict[str, float]]] = {}
-    for v in repo.list_vintages(conn, key):
+    # Activation changes when a bundle is restored; ids retain the original insertion order.
+    vintages = sorted(repo.list_vintages(conn, key), key=lambda v: (v.published_at, v.vintage_id))
+    for v in vintages:
         if v.published_at > published_at or v.release_key in seen:
             continue  # later releases cannot be "first published" for this view; keep each release's original
         points = {p: pt.value for p, pt in repo.vintage_points(conn, v.vintage_id).items()}
