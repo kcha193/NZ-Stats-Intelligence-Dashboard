@@ -36,10 +36,16 @@ if [[ $rebuild -eq 1 || ! -f "$ROOT/frontend/dist/index.html" ]]; then
   (cd frontend && { [[ -d node_modules && $rebuild -eq 0 ]] || npm ci; } && npm run build)
 fi
 
+if [[ -f "$ROOT/.env" ]]; then
+  # .env supplies defaults; settings the caller exported win, so NZSTATS_DATA_DIR=/isolated/copy can never
+  # silently fall back to the production ./data that .env names.
+  caller="$(export -p | grep -E '^declare -x (NZSTATS|STATSNZ)_' || true)"
+  set -a; . "$ROOT/.env"; set +a
+  eval "$caller"
+fi
 export NZSTATS_STATIC_DIR="${NZSTATS_STATIC_DIR:-$ROOT/frontend/dist}"
 export NZSTATS_DATA_DIR="${NZSTATS_DATA_DIR:-$ROOT/data}"
 mkdir -p "$NZSTATS_DATA_DIR"
-[[ -f "$ROOT/.env" ]] && { set -a; . "$ROOT/.env"; set +a; }
 
 case "${args[0]:-}" in
   migrate|discover|ingest|backfill|health|backup|openapi|research)
