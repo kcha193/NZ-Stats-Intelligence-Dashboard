@@ -21,8 +21,10 @@ stack. The only merge conflict was in `docs/progress.md`; both historical review
 retained. All four feature heads, all four merge commits and GDP chronology fix `48c34a0` are ancestors of
 the integrated tree. No Phase 4C database migration was missing; the current schema remains 10.
 
-The final Phase 4D commit and draft PR are recorded in the PR itself and the session handoff; `dd0d5c8` is the
-integration merge, not a claim that later Phase 4D fixes are absent. Main remains unchanged pending approval.
+The implementation commit is **`9cc55e2fd99dde5cf1f29be356eea6f20f43dd2a`**, in
+[draft PR #23](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/23), targeting main.
+GitHub confirms the PR has no merge conflict; it remains draft and unmerged. A documentation-only follow-up
+records the PR/check evidence; current PR head is authoritative for that follow-up. Main remains unchanged.
 
 ## Statistical reconciliation and fixes
 
@@ -117,6 +119,11 @@ Hosted Actions are billing-blocked before steps execute; existing runs are not g
 configuration checks are available, but no daemon exists: image builds and container smoke are NOT RUN.
 Neither absence is waived by local tests. Institutional research has no production rows and remains disabled;
 OCR remains synthetic-only with no RBNZ acquisition path.
+
+The implementation-head PR run [40832127618](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40832127618)
+was triggered by opening #23. Backend, frontend and static-site each failed **before starting**, with zero steps,
+empty runner names and runner ID 0; Docker was skipped. Each check's failure annotation cites failed account
+payments or the spending limit. This is fresh head-specific evidence of the billing block, not executed CI.
 
 ## Netlify draft preparation
 

@@ -59,8 +59,9 @@ read-only gaps were checked using authenticated `gh api`; no account settings we
 | Main `8f9f2a0d0932173020815bedab389048664a4f5e` | [40804674662](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40804674662) | Backend, frontend and static-site failed **before execution**; zero steps and empty runner names. Docker skipped. |
 | PR #20 `a9c76f2b601536bc603e87794e958a3e7e456033` | [40807221672](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40807221672) | Same pre-execution failure; zero steps. Docker skipped. |
 | PR #22 `33091a94b125a07bfc181729bbb3be3864caa21f` | [40805826557](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40805826557) | Same pre-execution failure; zero steps. Docker skipped. |
+| Phase 4D implementation `9cc55e2fd99dde5cf1f29be356eea6f20f43dd2a`, draft PR #23 | [40832127618](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40832127618) | Newly triggered: backend/frontend/static zero-step billing failures, empty runner names/runner ID 0; Docker skipped. |
 
-The backend check annotations for all three runs state that the job did not start because account payments failed
+The backend check annotations for these runs state that the job did not start because account payments failed
 or the spending limit must be increased. This is an account billing block, **not a green CI result or an executed
 test failure**. Account billing usage endpoints returned 404 to this credential, so the exact balance/limit is
 unavailable and is not inferred. The repository self-hosted-runner endpoint returned **zero registered runners**;
