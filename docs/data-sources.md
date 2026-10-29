@@ -11,6 +11,13 @@ Phase 4C GDP was verified on 28 October 2026: the official quarterly CSV and the
 March and June 2026 quarter fixtures and a measured reconciliation tolerance.
 [GDP source details, the three annual measures and revisions](data-sources/gdp.md).
 
+Phase 4C labour market statistics (HLFS headline rates and the Labour Cost Index) were verified on 28 October 2026
+from the official release zip, streamed, with March (revised) and June 2026 quarter fixtures.
+[Labour market source details, identities and revisions](data-sources/labour-market.md).
+
+Phase 4C Official Cash Rate (RBNZ): **blocked**, no documented access decision; a tested domain model and CSV contract
+exist on synthetic data only, and nothing is acquired or shown. [OCR access assessment](data-sources/ocr.md).
+
 Phase 3A institutional research sources (RBNZ, Treasury, banks, consultancies) were probed on 25 October 2026. They are a
 separate domain with their own registry and runbook, and none is approved for automated access yet.
 [Research source registry, approval checklist and runbook](data-sources/research.md).

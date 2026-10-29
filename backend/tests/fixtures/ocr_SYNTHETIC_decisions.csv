@@ -1,0 +1,8 @@
+# SYNTHETIC: invented OCR decisions dated 2031 for tests only. Not Reserve Bank of New Zealand data.
+announced_on,effective_on,ocr_percent,change_bp,decision,source_url
+2031-02-19,2031-02-20,3.00,,unchanged,https://www.rbnz.govt.nz/synthetic/2031-02-19
+2031-04-09,2031-04-10,3.25,25,increase,https://www.rbnz.govt.nz/synthetic/2031-04-09
+2031-05-28,2031-05-29,3.25,0,unchanged,https://www.rbnz.govt.nz/synthetic/2031-05-28
+2031-07-09,2031-07-10,3.00,-25,decrease,https://www.rbnz.govt.nz/synthetic/2031-07-09
+2031-07-23,2031-07-23,2.50,-50,decrease,https://www.rbnz.govt.nz/synthetic/2031-07-23
+2031-08-20,2031-08-21,2.50,0,unchanged,https://www.rbnz.govt.nz/synthetic/2031-08-20
