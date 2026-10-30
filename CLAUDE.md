@@ -2,7 +2,8 @@
 
 Self-hosted dashboard that ingests Stats NZ releases and explains them. Migration, card spending and CPI are built;
 Phase 4D integrates GDP, labour and the Outlook stack on main. Phase 4E has activated and reconciled the approved
-seven-release official backfill; production deployment remains gated. OCR remains synthetic-only
+seven-release official backfill; production deployment remains gated. Phase 4G replaces native scheduled collection with
+a bounded on-open refresh (`docs/phase-4g-on-open-refresh.md`); `--offline` never contacts Stats NZ. OCR remains synthetic-only
 and institutional research publishing remains permission-gated. Resume from [docs/progress.md](docs/progress.md);
 current release gates and evidence are in [docs/phase-4e-release.md](docs/phase-4e-release.md).
 

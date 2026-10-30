@@ -10,9 +10,13 @@ Nothing here schedules anything or contacts anyone. Commands marked **contacts S
 ## 1. Choose how you run it
 
 ```sh
-scripts/run.sh --no-scheduler   # serve only. Makes no requests to stats.govt.nz. Collection: "off by choice".
-scripts/run.sh                  # serve AND the scheduler. Contacts Stats NZ. Needs owner approval (see the spec).
+scripts/run.sh                  # normal use: serve; each time you open the dashboard it checks Stats NZ once (on-open)
+scripts/run.sh --offline        # serve stored data only. Makes no requests to stats.govt.nz. Collection: "off by choice"
 ```
+
+The on-open refresh (Phase 4G) replaced the scheduler for native use: nothing runs on a timer, and opening the page is
+what asks for a check. How it works, its limits and what it does after a long absence:
+[phase-4g-on-open-refresh.md](phase-4g-on-open-refresh.md). `--refresh scheduler` still exists for the container.
 
 Closing the terminal window is a clean stop. Killing the process or losing power is not, and the next start records an
 "unexpected restart" for 24 hours.
@@ -43,11 +47,14 @@ old is normal until Stats NZ publishes again.
 
 | Issue | Do this |
 |---|---|
-| `process:lost` | Start it again (`scripts/run.sh --no-scheduler`). If you did not expect it, read the terminal output it was running in for a crash |
+| `process:lost` | Start it again (`scripts/run.sh`). If you did not expect it, read the terminal output it was running in for a crash |
 | `process:stalled` | The process is alive but silent. Look at its terminal. If unresponsive, Ctrl+C (or `kill <pid>`), then start it again. Interrupted ingestion rolls back; last-known-good data is kept |
 | `scheduler:no_progress`, `scheduler:job_running_long` | Same: restart. Then check `status` again after 5 minutes |
 | `calendar:missed` | The laptop slept through 06:00, or the dashboard was off. Restart (it refreshes the calendar on start), or **contacts Stats NZ**: `scripts/run.sh discover` |
-| `calendar:stale` / `calendar:never` | Collection is off. **Contacts Stats NZ**: `scripts/run.sh discover` |
+| `calendar:stale` / `calendar:never` | On-open: open the dashboard, or press **Check now** in its header. Offline: **contacts Stats NZ**: `scripts/run.sh discover` |
+| `refresh:failed` | The last on-open check failed; the dashboard shows the last verified data. Press **Check now** after 10 minutes. `blocked`: do nothing for 30 minutes. `backup_failed`: free disk space |
+| `refresh:running_long` | A check is taking too long: restart the dashboard. Interrupted ingestion rolls back |
+| `release:overdue:<key>` and collection is on-open | Open the dashboard or press **Check now**. A check fetches a few releases at a time; the rest are listed as pending |
 | `release:overdue:<key>` and collection is off | **Contacts Stats NZ**: `scripts/run.sh ingest --due`, or for one release `scripts/run.sh ingest --release-key <key>` |
 | `release:overdue:<key>` with `validation_failed` / `layout_changed` | Stats NZ published but the file was rejected. Last-known-good data is still shown. Do **not** retry in a loop and do **not** loosen a validation threshold; this needs a code review with the real file |
 | `source:blocked` | Do nothing. Polling pauses 30 minutes. If it persists for a day, check `NZSTATS_CONTACT` and that `NZSTATS_MIN_INTERVAL_SECONDS` is not below 10 |
@@ -107,14 +114,19 @@ credential decision first.
 
 ## 7. When the laptop sleeps
 
-Sleep is detected and recorded, not treated as a fault. After waking, the scheduler gets 10 minutes to catch up. A sleep
-across 06:00 drops that day's calendar refresh; `status` reports `calendar:missed` with the fix (restart or `discover`).
-A release that came due while asleep is recovered by the startup catch-up within 7 days, and reported as overdue until
-then.
+Sleep is detected and recorded, not treated as a fault. With the on-open refresh there is nothing to miss: returning
+to a dashboard tab after more than 5 minutes asks for a check, and the server runs one if the last was over 30 minutes
+ago (wall-clock time, so a night asleep always counts). A check interrupted by sleep carries on when the machine wakes;
+one interrupted by a restart is recorded as interrupted and the next opening checks again.
+
+With `--refresh scheduler`, the scheduler gets 10 minutes to catch up after waking. A sleep across 06:00 drops that day's
+calendar refresh; `status` reports `calendar:missed` with the fix (restart or `discover`). A release that came due while
+asleep is recovered by the startup catch-up within 7 days, and reported as overdue until then.
 
 ## 8. Do not
 
-- Run the scheduler, `discover`, `ingest` or `backfill` against `data/` for testing. Use an isolated copy.
+- Run the scheduler, `discover`, `ingest` or `backfill` against `data/` for testing, or open a test server in on-open
+  mode on `data/`. Use an isolated copy, or `--offline`.
 - Lower the 10-second crawl delay or add parallel requests.
 - Copy `data/nzstats.db` with `cp` while the dashboard is running (use `backup`).
 - Delete `data/`, `data/backups/` or any `-wal` file by hand.

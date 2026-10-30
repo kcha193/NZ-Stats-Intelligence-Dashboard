@@ -53,6 +53,7 @@ class OpsRecorder:
         db_path: Path | str,
         *,
         scheduler_enabled: bool,
+        collection_mode: str | None = None,
         version: str = "",
         thresholds: Thresholds | None = None,
         clock: Callable[[], datetime] = utc_now,
@@ -62,6 +63,7 @@ class OpsRecorder:
     ) -> None:
         self._conn = connect(db_path)
         self._enabled = scheduler_enabled
+        self._mode = collection_mode or ("scheduler" if scheduler_enabled else "off")
         self._version = version
         self._t = thresholds or Thresholds()
         self._clock, self._mono, self._pid, self._alive = clock, mono, pid, alive
@@ -82,7 +84,7 @@ class OpsRecorder:
                 unclean = self._stamp_dead_processes(now)
                 self._conn.execute(
                     "INSERT INTO ops_process(boot_id, pid, started_at, scheduler_enabled, last_heartbeat_at,"
-                    " prior_unclean, version) VALUES (?,?,?,?,?,?,?)",
+                    " prior_unclean, version, collection_mode) VALUES (?,?,?,?,?,?,?,?)",
                     (
                         self.boot_id,
                         self._pid(),
@@ -91,6 +93,7 @@ class OpsRecorder:
                         to_utc_iso(now),
                         unclean,
                         self._version,
+                        self._mode,
                     ),
                 )
             self._last_wall, self._last_mono = now, self._mono()

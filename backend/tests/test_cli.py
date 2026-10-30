@@ -32,7 +32,7 @@ def test_health_prints_json(tmp_path, monkeypatch, capsys) -> None:
     assert '"sources"' in capsys.readouterr().out
 
 
-def test_serve_accepts_no_scheduler_flag(tmp_path, monkeypatch) -> None:
+def _capture_serve(tmp_path, monkeypatch) -> dict[str, object]:
     import uvicorn
 
     import nzstats.api.app as app_module
@@ -42,35 +42,27 @@ def test_serve_accepts_no_scheduler_flag(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         app_module,
         "create_app",
-        lambda settings, start_scheduler, routers=(), **kw: captured.update(
-            s=start_scheduler, r=routers, **kw
-        ),
+        lambda settings, routers=(), **kw: captured.update(r=routers, **kw),
     )
-    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: captured.update(run=k))
+    return captured
+
+
+def test_serve_accepts_no_scheduler_flag(tmp_path, monkeypatch) -> None:
+    captured = _capture_serve(tmp_path, monkeypatch)
     assert main(["serve", "--no-scheduler", "--port", "9"]) == 0
-    assert captured["s"] is False
+    assert captured["collection_mode"] == "off"
     assert captured["record_ops"] is True and captured["capabilities"] == {"research_public": False}
     # The research routes are always mounted by serve (off unless NZSTATS_PUBLIC_RESEARCH=1).
     assert [r.routes[0].path for r in captured["r"]] == ["/research/feed"]
 
 
-def test_serve_starts_the_scheduler_by_default(tmp_path, monkeypatch) -> None:
-    import uvicorn
-
-    import nzstats.api.app as app_module
-
-    captured: dict[str, object] = {}
-    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setattr(
-        app_module,
-        "create_app",
-        lambda settings, start_scheduler, routers=(), **kw: captured.update(
-            s=start_scheduler, r=routers, **kw
-        ),
-    )
-    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+def test_serve_refreshes_on_open_on_loopback_by_default(tmp_path, monkeypatch) -> None:
+    """Phase 4G: no scheduler by default; the dashboard asks for a check when it is opened."""
+    captured = _capture_serve(tmp_path, monkeypatch)
     assert main(["serve", "--port", "9"]) == 0
-    assert captured["s"] is True
+    assert captured["collection_mode"] == "on_open"
+    assert captured["run"]["host"] == "127.0.0.1" and captured["ops_status_enabled"] is True
 
 
 def test_backfill_exits_nonzero_and_names_a_failed_month(tmp_path, monkeypatch, capsys) -> None:

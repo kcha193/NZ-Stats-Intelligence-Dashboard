@@ -186,6 +186,64 @@ class CapabilitiesOut(BaseModel):
     research_public: bool
 
 
+class RefreshRequest(BaseModel):
+    manual: bool = False  # "Check now": skips the recent-check window, not the failure cooldown
+
+
+class RefreshFailureOut(BaseModel):
+    key: str  # a release key, or "calendar"
+    outcome: str
+    error_class: str | None
+
+
+class RefreshPendingOut(BaseModel):
+    release_key: str
+    reason: Literal[
+        "not_published_yet",
+        "rejected_today",
+        "blocked_cooldown",
+        "catch_up_limit",
+        "request_budget",
+        "stopped",
+    ]
+    series_slug: str | None
+    label: str | None
+    reference_period: str | None
+    period_label: str | None
+    published_at: str | None
+
+
+class LatestStatisticOut(BaseModel):
+    series_slug: str
+    label: str
+    reference_period: str | None  # what the statistics describe, not when they were checked
+    period_label: str | None  # as Stats NZ words it, e.g. "June 2026 quarter"
+    published_at: str
+
+
+class RefreshStatusOut(BaseModel):
+    """The on-open refresh as the dashboard header shows it. Times are Pacific/Auckland ISO-8601."""
+
+    mode: Literal["on_open", "scheduler", "off"]
+    state: Literal["never", "running", "completed", "failed", "interrupted"]
+    phase: Literal["checking", "downloading", "validating"] | None = None
+    run_id: int | None = None
+    trigger: Literal["open", "manual"] | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    last_success_at: str | None = None
+    discovered: int = 0
+    ingested: int = 0
+    unchanged: int = 0
+    requests: int = 0
+    failures: list[RefreshFailureOut] = []
+    pending: list[RefreshPendingOut] = []
+    error_class: str | None = None
+    data_version: str | None = None  # changes whenever verified data is committed, by any process
+    latest: list[LatestStatisticOut] = []
+    started: bool = False  # this request started a check (a reuse leaves it False)
+
+
 class CalendarOut(BaseModel):
     items: list[ReleaseSummary]
     last_checked_at: str | None

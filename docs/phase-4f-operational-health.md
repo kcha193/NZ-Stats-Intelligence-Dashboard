@@ -61,8 +61,9 @@ The recorder stores whether the scheduler was enabled with each process. The rea
 
 | Collection mode | Meaning | Shown when |
 |---|---|---|
-| `enabled` | The scheduler is meant to be checking Stats NZ by itself | Process `running`/`stalled` and started with the scheduler |
-| `disabled` | Off by choice (`--no-scheduler`) | Process `running`/`stalled` and started without it. **Not a fault** |
+| `enabled` | The scheduler is meant to be checking Stats NZ by itself | Process `running`/`stalled` and started with `--refresh scheduler` |
+| `on_open` | Phase 4G default: one bounded check each time the dashboard is opened, no scheduler ([phase-4g-on-open-refresh.md](phase-4g-on-open-refresh.md)) | Process `running`/`stalled` and `ops_process.collection_mode = on_open`. Judged by its last check, never by missed timers |
+| `disabled` | Offline by choice (`--offline` / `--no-scheduler`) | Process `running`/`stalled` and started without collection. **Not a fault** |
 | `paused` | The dashboard is not running, so nothing is collected | Process `stopped`/`lost` |
 | `unknown` | Never recorded | `never_started` |
 
@@ -109,8 +110,10 @@ from keys, counts, times and error classes only, never from upstream response te
 | `scheduler:no_progress` | Enabled and running, but `release_watch` has not finished for 5 / 15 min | ATTENTION / CRITICAL | Restart; read the terminal for `release_watch` errors |
 | `scheduler:job_running_long:<job>` | One run longer than 20 / 60 min | ATTENTION / CRITICAL | Watch the terminal; restart if hung (ingestion rolls back) |
 | `scheduler:job_failing:<job>` | Unhandled exception; 3 in a row | ATTENTION / CRITICAL | Read the traceback in the log |
+| `refresh:failed` | The last on-open check failed as a whole (calendar unreachable, blocked, backup failed, unexpected error) | ATTENTION | Nothing is lost; last verified data is shown. Press Check now later; never retry a block in a loop |
+| `refresh:running_long` | One on-open check running longer than 20 / 60 min | ATTENTION / CRITICAL | Watch the terminal; restart if hung (ingestion rolls back) |
 | `calendar:missed` | Enabled and running; 06:00 refreshes with no complete refresh after them (3 = CRITICAL) | ATTENTION / CRITICAL | Restart (startup refresh) or `scripts/run.sh discover` |
-| `calendar:stale` | Collection off or stopped; last refresh older than 7 days | ATTENTION | `scripts/run.sh discover` |
+| `calendar:stale` | Collection on-open, off or stopped; last refresh older than 7 days | ATTENTION | On-open: open the dashboard or press Check now. Otherwise `scripts/run.sh discover` |
 | `calendar:never` | No complete refresh ever (after startup grace) | ATTENTION | `scripts/run.sh discover` |
 | `release:overdue:<key>` | Due, past grace, no data, newer than newest ingested (7 days = CRITICAL) | ATTENTION / CRITICAL | Depends on mode and last error class; rejected files need review, not retries |
 | `freshness:no_data` | A supported series has no vintage | ATTENTION | `discover` then `backfill` |

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { isStaticMode } from "@/api/mode";
+import { RefreshIndicator } from "@/components/RefreshIndicator";
 import { SnapshotStamp } from "@/components/SnapshotStamp";
 
 type Dest = { to: string; label: string; note: string; end?: boolean };
@@ -161,6 +162,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <li key={d.to}><NavLink to={d.to} end={d.end} className={linkClass}>{d.label}</NavLink></li>
               ))}
             </ul>
+            {!isStaticMode() && <RefreshIndicator />}
             <ExploreDisclosure />
           </nav>
         </div>

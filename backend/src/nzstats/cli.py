@@ -237,11 +237,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_back.add_argument("--since", help="oldest reference period, YYYY-MM")
     p_back.add_argument("--until", help="latest reference period, YYYY-MM")
     p_back.add_argument("--series-slug", help="restrict backfill to a supported release series")
-    p_serve = sub.add_parser("serve", help="run the API, UI and scheduler")
-    p_serve.add_argument("--host", default="0.0.0.0")  # noqa: S104 - container default
+    p_serve = sub.add_parser(
+        "serve", help="run the API and UI, checking Stats NZ when the dashboard is opened"
+    )
+    # Loopback by default; the container passes --host 0.0.0.0 (with --refresh scheduler) explicitly.
+    p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8000)
     p_serve.add_argument(
-        "--no-scheduler", action="store_true", help="serve the API and UI without background jobs"
+        "--refresh",
+        choices=("on-open", "scheduler", "off"),
+        default="on-open",
+        help="on-open: one bounded check when the dashboard is opened (loopback binds only; the default);"
+        " scheduler: the APScheduler jobs (the container); off: never contact Stats NZ",
+    )
+    p_serve.add_argument(
+        "--no-scheduler",
+        "--offline",
+        dest="offline",
+        action="store_true",
+        help="same as --refresh off: serve stored data only, never contact Stats NZ",
     )
     sub.add_parser("health", help="print source health as JSON")
     p_status = sub.add_parser(
@@ -407,19 +421,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             research_router,
         )  # off unless NZSTATS_PUBLIC_RESEARCH=1
 
+        loopback = args.host in ("127.0.0.1", "::1", "localhost")
+        mode = "off" if args.offline else args.refresh.replace("-", "_")
         refusal = bind_refusal(args.host)
+        if refusal is None and mode == "on_open" and not loopback:
+            refusal = (
+                f"refusing to serve on {args.host}: on-open refresh lets the page start downloads, so it is for"
+                " loopback binds only; use --refresh scheduler or --refresh off"
+            )
         if refusal is not None:  # before the app, the database or the scheduler exist
             print(refusal, file=sys.stderr)
             return 2
         uvicorn.run(
             create_app(
                 settings,
-                start_scheduler=not args.no_scheduler,
+                collection_mode=mode,
                 routers=[research_router()],
                 record_ops=True,
                 # Unauthenticated, and it names the process, backups and errors: loopback binds only, unless opted in.
-                ops_status_enabled=args.host in ("127.0.0.1", "::1", "localhost")
-                or os.environ.get("NZSTATS_OPS_STATUS") == "1",
+                ops_status_enabled=loopback or os.environ.get("NZSTATS_OPS_STATUS") == "1",
                 capabilities={"research_public": public_research_enabled()},
             ),
             host=args.host,

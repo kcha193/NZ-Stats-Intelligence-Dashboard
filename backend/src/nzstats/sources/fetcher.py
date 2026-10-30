@@ -8,6 +8,7 @@ import logging
 import math
 import os
 import re
+import threading
 import time
 import zlib
 from collections.abc import Callable, Iterator
@@ -33,6 +34,21 @@ MAX_COMPRESSION_OVERHEAD = 1024 * 1024
 BLOCKED_COOLDOWN_SECONDS = 30 * 60
 REDIRECT_STATUSES = (301, 302, 303, 307, 308)
 MAX_REDIRECTS = 5
+REQUEST_TIMEOUT_SECONDS = 120.0
+
+
+def _check_stop(stop: threading.Event | None) -> None:
+    if stop is not None and stop.is_set():
+        raise RequestRefused(ErrorClass.NETWORK, "not requested: the dashboard is stopping")
+
+
+def _wait(seconds: float, sleep: Callable[[float], None], stop: threading.Event | None) -> None:
+    _check_stop(stop)
+    if stop is not None and sleep is time.sleep:
+        stop.wait(seconds)
+    else:
+        sleep(seconds)
+    _check_stop(stop)
 
 
 @dataclass(frozen=True)
@@ -49,7 +65,7 @@ def build_client(user_agent: str) -> httpx.Client:
         headers={"User-Agent": user_agent},
         # Redirects are followed by `Fetcher.get`, one paced request per hop, never by the client.
         follow_redirects=False,
-        timeout=httpx.Timeout(120.0, connect=15.0),
+        timeout=httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=15.0),
     )
 
 
@@ -143,7 +159,8 @@ class FilePacer:
             self._storage_refusal()
 
     @contextmanager
-    def turn(self) -> Iterator[PaceTurn]:
+    def turn(self, *, stop: threading.Event | None = None) -> Iterator[PaceTurn]:
+        _check_stop(stop)
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             fd = os.open(self._path, os.O_RDWR | os.O_CREAT, 0o666)
@@ -152,7 +169,16 @@ class FilePacer:
             self._storage_refusal()
         try:
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX)
+                if stop is None:
+                    fcntl.flock(fd, fcntl.LOCK_EX)
+                else:
+                    while True:
+                        _check_stop(stop)
+                        try:
+                            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            break
+                        except BlockingIOError:
+                            stop.wait(0.1)
                 # A file fsync alone cannot make a newly created directory entry durable. Sync
                 # every turn so a later healthy process also repairs a previous directory-sync failure.
                 directory_fd = os.open(self._path.parent, os.O_RDONLY)
@@ -187,11 +213,12 @@ class FilePacer:
                         )
                 return
             if turn.retry_wait:
-                self._sleep(turn.retry_wait)
+                _wait(turn.retry_wait, self._sleep, stop)
             if state.last is not None:
                 wait = min(self._min_interval - (self._wall() - state.last), self._min_interval)
                 if wait > 0:
-                    self._sleep(wait)
+                    _wait(wait, self._sleep, stop)
+            _check_stop(stop)
             self._required_save(fd, _PaceState(state.last, pending=True))
             try:
                 yield turn
@@ -322,11 +349,11 @@ class Fetcher:
         self._blocked_until: float | None = None
         self._retry_until: float | None = None
 
-    def _throttle(self) -> None:
+    def _throttle(self, stop: threading.Event | None = None) -> None:
         if self._last_request is not None:
             wait = self._min_interval - (self._clock() - self._last_request)
             if wait > 0:
-                self._sleep(wait)
+                _wait(wait, self._sleep, stop)
 
     def get(
         self,
@@ -335,26 +362,35 @@ class Fetcher:
         expect: tuple[str, ...] = (),
         url_check: Callable[[str], object] | None = None,
         _hops: int = 0,
+        stop: threading.Event | None = None,
     ) -> FetchResult:
         """Fetch `url`. `url_check`, when given, runs on this URL and on every redirect target before
         it is requested and must raise ValueError to refuse (the refusal text is not echoed)."""
+        _check_stop(stop)
         if url_check is not None:
             try:
                 url_check(url)
             except ValueError:
                 raise IngestError(ErrorClass.UNEXPECTED, f"url refused: {url}", url=url) from None
-        self._refuse_if_cooling_down(url)
+        self._refuse_if_cooling_down(url, stop)
         last_problem = "no response"
         for attempt in range(self._max_retries + 1):
-            with self._pacer.turn() if self._pacer else nullcontext() as turn:
+            _check_stop(stop)
+            with self._pacer.turn(stop=stop) if self._pacer else nullcontext() as turn:
                 if turn is not None and turn.blocked_until is not None:
                     # Another process (or an earlier turn of ours) was blocked: send nothing.
                     self._refuse(url)
                 if turn is not None and turn.retry_wait > MAX_INLINE_RETRY_SECONDS:
                     self._refuse_retry(url)
-                self._throttle()
+                self._throttle(stop)
+                _check_stop(stop)
                 try:
-                    resp = self._send(url)
+                    resp = self._send(
+                        url,
+                        deadline=self._clock() + REQUEST_TIMEOUT_SECONDS
+                        if stop is not None
+                        else None,
+                    )
                     transport_error = None
                 except httpx.TransportError as exc:
                     resp, transport_error = None, exc
@@ -384,13 +420,13 @@ class Fetcher:
                 # Only the exception type goes into the stored/served detail; the text may name hosts.
                 last_problem = f"transport error ({type(transport_error).__name__})"
                 log.warning("fetch %s failed: %r (attempt %d)", url, transport_error, attempt + 1)
-                self._backoff(attempt)
+                self._backoff(attempt, stop=stop)
                 continue
             status = resp.status_code
             if status == 404:
                 raise IngestError(ErrorClass.NOT_FOUND, f"404 for {url}", url=url)
             if status in REDIRECT_STATUSES and "location" in resp.headers:
-                return self._follow(url, resp.headers["location"], expect, _hops, url_check)
+                return self._follow(url, resp.headers["location"], expect, _hops, url_check, stop)
             if status == 429 or status >= 500:
                 last_problem = f"HTTP {status}"
                 log.warning("fetch %s -> %s, attempt %d", url, status, attempt + 1)
@@ -398,7 +434,7 @@ class Fetcher:
                     raise IngestError(
                         ErrorClass.NETWORK, "retry deferred by server Retry-After", url=url
                     )
-                self._backoff(attempt, retry_after)
+                self._backoff(attempt, retry_after, stop)
                 continue
             if status >= 400:
                 raise IngestError(ErrorClass.UNEXPECTED, f"HTTP {status} for {url}", url=url)
@@ -430,9 +466,33 @@ class Fetcher:
         if turn.persistence_failed:
             log.error("the block cooldown could not be saved to the shared pacing state")
 
-    def _send(self, url: str) -> httpx.Response:
+    def _send(self, url: str, *, deadline: float | None = None) -> httpx.Response:
         if self._max_bytes is None:
-            return self._client.get(url, follow_redirects=False)
+            if deadline is None:
+                return self._client.get(url, follow_redirects=False)
+            # On-open shutdown waits for this operation. HTTPX's per-read timeout alone
+            # cannot bound a response that keeps trickling bytes without ever finishing.
+            with self._client.stream("GET", url, follow_redirects=False) as resp:
+                body = bytearray()
+                # Check raw chunks: a decompressor can consume indefinitely without yielding
+                # decoded bytes. Mock transports may have already consumed/decoded the response.
+                consumed = resp.is_stream_consumed
+                chunks = (resp.content,) if consumed else resp.iter_raw()
+                for chunk in chunks:
+                    if self._clock() >= deadline:
+                        raise httpx.ReadTimeout("request deadline exceeded", request=resp.request)
+                    body += chunk
+                if self._clock() >= deadline:
+                    raise httpx.ReadTimeout("request deadline exceeded", request=resp.request)
+                headers = [
+                    (k, v)
+                    for k, v in resp.headers.multi_items()
+                    if not consumed
+                    or k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+                ]
+                return httpx.Response(
+                    resp.status_code, headers=headers, content=bytes(body), request=resp.request
+                )
         # Only advertise encodings that can be decompressed with an output limit (see _bounded_body).
         request_headers = {"Accept-Encoding": "gzip, deflate"}
         with self._client.stream(
@@ -539,7 +599,7 @@ class Fetcher:
             ErrorClass.UNEXPECTED, f"response larger than {self._max_bytes} bytes", url=url
         )
 
-    def _refuse_if_cooling_down(self, url: str) -> None:
+    def _refuse_if_cooling_down(self, url: str, stop: threading.Event | None = None) -> None:
         if self._blocked_until is not None and self._clock() < self._blocked_until:
             self._refuse(url)
         if self._retry_until is not None:
@@ -547,7 +607,7 @@ class Fetcher:
             if wait > MAX_INLINE_RETRY_SECONDS:
                 self._refuse_retry(url)
             if wait > 0:
-                self._sleep(wait)
+                _wait(wait, self._sleep, stop)
 
     @staticmethod
     def _refuse_retry(url: str) -> NoReturn:
@@ -611,14 +671,18 @@ class Fetcher:
         expect: tuple[str, ...],
         hops: int,
         url_check: Callable[[str], object] | None = None,
+        stop: threading.Event | None = None,
     ) -> FetchResult:
         target = httpx.URL(url).join(location)
         if target.host != httpx.URL(url).host:
             raise IngestError(ErrorClass.UNEXPECTED, f"redirected off-site from {url}", url=url)
         if hops >= MAX_REDIRECTS:
             raise IngestError(ErrorClass.UNEXPECTED, f"too many redirects from {url}", url=url)
-        return self.get(str(target), expect=expect, url_check=url_check, _hops=hops + 1)
+        return self.get(str(target), expect=expect, url_check=url_check, _hops=hops + 1, stop=stop)
 
-    def _backoff(self, attempt: int, retry_after: float | None = None) -> None:
+    def _backoff(
+        self, attempt: int, retry_after: float | None = None, stop: threading.Event | None = None
+    ) -> None:
+        _check_stop(stop)
         if attempt < self._max_retries:
-            self._sleep(max(self._backoff_base ** (attempt + 1), retry_after or 0.0))
+            _wait(max(self._backoff_base ** (attempt + 1), retry_after or 0.0), self._sleep, stop)

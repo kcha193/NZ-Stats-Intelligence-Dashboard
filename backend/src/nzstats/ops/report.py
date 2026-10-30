@@ -19,7 +19,15 @@ class Issue(BaseModel):
     key: str  # stable across runs: the de-duplication identity of an alert
     severity: IssueLevel
     category: Literal[
-        "database", "process", "scheduler", "calendar", "release", "source", "backup", "freshness"
+        "database",
+        "process",
+        "scheduler",
+        "refresh",
+        "calendar",
+        "release",
+        "source",
+        "backup",
+        "freshness",
     ]
     title: str
     detail: str
@@ -41,6 +49,7 @@ class ProcessInfo(BaseModel):
     last_heartbeat_at: str | None = None
     heartbeat_age_seconds: int | None = None
     scheduler_enabled: bool | None = None
+    collection_mode: Literal["scheduler", "on_open", "off"] | None = None
     stop_reason: str | None = None
     suspend_count: int = 0
     last_suspend_at: str | None = None
@@ -49,8 +58,24 @@ class ProcessInfo(BaseModel):
 
 
 class CollectionInfo(BaseModel):
-    mode: Literal["enabled", "disabled", "paused", "unknown"]
+    # enabled: the scheduler collects; on_open: a check each time the dashboard is opened; disabled: offline mode
+    mode: Literal["enabled", "on_open", "disabled", "paused", "unknown"]
     summary: str
+
+
+class RefreshInfo(BaseModel):
+    """The last on-open check (Phase 4G). `never` on a database that has not had one."""
+
+    state: Literal["never", "running", "completed", "failed", "interrupted"]
+    phase: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    running_for_seconds: int | None = None
+    last_success_at: str | None = None
+    ingested: int = 0
+    pending: int = 0
+    failures: int = 0
+    error_class: str | None = None
 
 
 class JobInfo(BaseModel):
@@ -165,6 +190,7 @@ class OpsStatus(BaseModel):
     database: DatabaseInfo
     process: ProcessInfo
     collection: CollectionInfo
+    refresh: RefreshInfo = RefreshInfo(state="never")
     jobs: list[JobInfo]
     calendar: CalendarInfo
     next_release: ReleaseRefInfo | None

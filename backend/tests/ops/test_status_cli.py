@@ -134,8 +134,8 @@ def test_a_database_behind_the_code_is_read_not_migrated(
     from nzstats.store.db import migrate
 
     migrate(conn)
-    conn.execute("DELETE FROM schema_version WHERE version=11")
-    for t in ("ops_process", "ops_job", "ops_alert", "ops_notification"):
+    conn.execute("DELETE FROM schema_version WHERE version>=11")
+    for t in ("refresh_run", "ops_process", "ops_job", "ops_alert", "ops_notification"):
         conn.execute(f"DROP TABLE {t}")
     conn.close()
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path))

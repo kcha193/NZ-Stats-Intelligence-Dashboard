@@ -95,12 +95,26 @@ describe("Health", () => {
       expect(await screen.findByRole("heading", { level: 2, name: "Operations" })).toBeInTheDocument();
       expect(screen.getByText("OK.").closest("[data-level]")).toHaveAttribute("data-level", "ok");
       expect(screen.getByText(/Everything checked is within its limits/)).toBeInTheDocument();
-      expect(screen.getByText("On")).toBeInTheDocument();
+      expect(screen.getByText("On (scheduler)")).toBeInTheDocument();
       expect(screen.getByText("Running")).toBeInTheDocument();
       expect(screen.getByText("Labour market statistics: September 2026 quarter")).toBeInTheDocument();
       const table = screen.getByRole("table", { name: /is each release current/i });
       expect(within(table).getByText("Current")).toBeInTheDocument();
       expect(screen.getByText("Nothing. Every check is within its limit.")).toBeInTheDocument();
+    });
+
+    it("explains the on-open refresh and its last check", async () => {
+      mockApi({
+        "/api/health": health,
+        "/api/ops/status": opsStatus({
+          collection: { mode: "on_open", summary: "On-open refresh: Stats NZ is checked once each time the dashboard is opened (or on Check now). No scheduler runs, by design." },
+          refresh: { ...opsStatus().refresh, state: "failed", finished_at: "2026-10-30T15:00:00+13:00", last_success_at: "2026-10-29T09:00:00+13:00", error_class: "network" },
+        }),
+      });
+      renderWithProviders(<Health />);
+      expect(await screen.findByText(/checked each time the dashboard is opened/)).toBeInTheDocument();
+      expect(screen.getByText("Failed: showing last verified data")).toBeInTheDocument();
+      expect(screen.getByText(/last successful 29 Oct 2026/)).toBeInTheDocument();
     });
 
     it("says collection is off by choice, and does not call that a fault", async () => {

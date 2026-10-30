@@ -6,8 +6,9 @@ the facts behind it and the action for each problem. The limits are in `threshol
 Two rules shape the whole module:
 
 * A scheduler that is deliberately off is not a fault. Whether collection is meant to be running comes from what the
-  last dashboard process recorded (`ops_process.scheduler_enabled`), and only a scheduler that should be running can
-  be "stalled" or "behind".
+  last dashboard process recorded (`ops_process.collection_mode`, or `scheduler_enabled` on older rows), and only a
+  scheduler that should be running can be "stalled" or "behind". The on-open refresh (Phase 4G) runs no scheduler:
+  it checks when the dashboard is opened, so it is judged by its last check (`refresh_run`), never by missed timers.
 * Old observations are not missed releases. Data is out of date only when the calendar lists a release whose
   publication time has passed and which has no vintage. A series whose latest reference period is old because Stats NZ
   has not published again is current.
@@ -15,6 +16,7 @@ Two rules shape the whole module:
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -36,6 +38,7 @@ from nzstats.ops.report import (
     OpsStatus,
     OverdueRelease,
     ProcessInfo,
+    RefreshInfo,
     ReleaseRefInfo,
     SourceStatus,
     worst,
@@ -47,6 +50,10 @@ from nzstats.store import repo
 from nzstats.store.db import MIGRATIONS_DIR
 
 CALENDAR_SOURCES = ("calendar_refresh", "calendar_ics", "calendar_month")
+OPEN_TO_CHECK = (
+    "The dashboard checks Stats NZ each time it is opened: open it, or press Check now in its header, and the"
+    " missing release is fetched (one request per 10 s, a few releases per check)."
+)
 
 
 def expected_schema_version() -> int:
@@ -165,6 +172,7 @@ def _process(conn, tables, now, t, alive, out):
         last_heartbeat_at=_akl(primary["last_heartbeat_at"]),
         heartbeat_age_seconds=age(primary),
         scheduler_enabled=bool(primary["scheduler_enabled"]),
+        collection_mode=_mode(primary),
         stop_reason=primary["stop_reason"],
         suspend_count=primary["suspend_count"],
         last_suspend_at=_akl(primary["last_suspend_at"]),
@@ -209,26 +217,102 @@ def _process(conn, tables, now, t, alive, out):
     return info, primary
 
 
+def _mode(row) -> str:
+    """How a process collected. Rows written before Phase 4G have no collection_mode: read scheduler_enabled."""
+    recorded = row["collection_mode"] if "collection_mode" in row.keys() else None
+    return recorded or ("scheduler" if row["scheduler_enabled"] else "off")
+
+
 def _collection(process: ProcessInfo) -> CollectionInfo:
     if process.state == "never_started":
         return CollectionInfo(
             mode="unknown", summary="No dashboard process has recorded itself on this database yet."
         )
-    intended = "on" if process.scheduler_enabled else "off"
     if process.state in ("running", "stalled"):
-        if process.scheduler_enabled:
+        if process.collection_mode == "scheduler":
             return CollectionInfo(
                 mode="enabled",
                 summary="Scheduled collection is on: the dashboard checks Stats NZ by itself.",
             )
+        if process.collection_mode == "on_open":
+            return CollectionInfo(
+                mode="on_open",
+                summary="On-open refresh: Stats NZ is checked once each time the dashboard is opened (or on Check now)."
+                " No scheduler runs, by design.",
+            )
         return CollectionInfo(
             mode="disabled",
-            summary="Scheduled collection is deliberately off (started with --no-scheduler). Nothing is fetched until you run it.",
+            summary="Collection is deliberately off (offline mode: started with --offline or --no-scheduler)."
+            " Nothing is fetched until you run it.",
         )
+    intended = {
+        "scheduler": "the scheduler on",
+        "on_open": "on-open refresh",
+        "off": "offline mode",
+    }[process.collection_mode or "off"]
     return CollectionInfo(
         mode="paused",
-        summary=f"The dashboard is not running, so nothing is being collected (scheduler was {intended} when it last ran).",
+        summary=f"The dashboard is not running, so nothing is being collected (it last ran with {intended}).",
     )
+
+
+# --- on-open refresh ---------------------------------------------------------------------------------------------
+
+
+def _refresh(conn, tables, now, t, process, out) -> RefreshInfo:
+    if "refresh_run" not in tables:
+        return RefreshInfo(state="never")
+    row = conn.execute("SELECT * FROM refresh_run ORDER BY id DESC LIMIT 1").fetchone()
+    if row is None:
+        return RefreshInfo(state="never")
+    success = conn.execute(
+        "SELECT MAX(finished_at) FROM refresh_run WHERE state = 'completed'"
+    ).fetchone()[0]
+    running = _secs(now, row["started_at"]) if row["state"] == "running" else None
+    info = RefreshInfo(
+        state=row["state"],
+        phase=row["phase"] if row["state"] == "running" else None,
+        started_at=_akl(row["started_at"]),
+        finished_at=_akl(row["finished_at"]),
+        running_for_seconds=running,
+        last_success_at=_akl(success),
+        ingested=row["ingested"],
+        pending=len(json.loads(row["pending"])),
+        failures=len(json.loads(row["failures"])),
+        error_class=row["error_class"],
+    )
+    if row["state"] == "failed":
+        out.add(
+            "refresh:failed",
+            "attention",
+            "refresh",
+            "The last check for new Stats NZ data failed",
+            f"The check started {akl(from_utc_iso(row['started_at']))} ended with {row['error_class'] or 'an error'};"
+            " the dashboard is showing the last verified data.",
+            "Nothing is lost. `network` or `blocked` usually clear by themselves: press Check now later (a failed check"
+            " waits out a short cooldown; never retry a block in a loop). `backup_failed` means the pre-update backup"
+            " could not be written: free disk space. Otherwise read the dashboard's terminal output.",
+        )
+    elif row["state"] == "interrupted":
+        out.notes.append(
+            "The last check was interrupted (the dashboard stopped mid-check); nothing partial was kept and the next"
+            " opening checks again."
+        )
+    elif (
+        running is not None
+        and process.state == "running"
+        and running > t.job_running_attention_seconds
+    ):
+        out.add(
+            "refresh:running_long",
+            "critical" if running > t.job_running_critical_seconds else "attention",
+            "refresh",
+            f"A check for new data has been running for {duration(running)}",
+            "A check is bounded (a few releases, one request per 10 s), so this one has gone on longer than it should.",
+            "Watch the terminal output. If it is hung, restart the dashboard: an interrupted ingestion rolls back and"
+            " last-known-good data is kept.",
+        )
+    return info
 
 
 # --- scheduler jobs ----------------------------------------------------------------------------------------------
@@ -405,7 +489,10 @@ def _calendar(conn, sources, now, t, collection, primary, out) -> CalendarInfo:
             f"The release calendar has not been refreshed for {age_days} days",
             f"Collection is {collection.mode}; the last complete refresh was {akl(last_success)}."
             " New releases and date changes since then are unknown to the dashboard.",
-            "Run `scripts/run.sh discover` (contacts Stats NZ, one request per 10 s), or start the dashboard with the scheduler.",
+            OPEN_TO_CHECK
+            if collection.mode == "on_open"
+            else "Run `scripts/run.sh discover` (contacts Stats NZ, one request per 10 s), or start the dashboard"
+            " with `scripts/run.sh` (it checks when opened).",
         )
     elif state == "never" and not settling:
         out.add(
@@ -431,6 +518,11 @@ def _freshness(conn, adapters, settings, now, t, collection, out):
         minutes=max(t.release_grace_floor_minutes, max(settings.poll_offsets_minutes) + 60)
     )
     rows, empty = [], []
+    boundaries = (
+        dict(conn.execute("SELECT series_slug, after_published_at FROM refresh_catch_up"))
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'refresh_catch_up'").fetchone()
+        else {}
+    )
     for slug in sorted(adapters):
         latest = conn.execute(
             "SELECT r.release_key, r.title, r.reference_period, r.published_at,"
@@ -457,9 +549,18 @@ def _freshness(conn, adapters, settings, now, t, collection, out):
         if latest is not None:
             for r in conn.execute(
                 "SELECT r.release_key, r.series_slug, r.published_at, r.status, r.reference_period, r.title FROM release r"
-                " WHERE r.series_slug = ? AND r.published_at > ? AND r.published_at <= ?"
-                " AND NOT EXISTS (SELECT 1 FROM vintage v WHERE v.release_id = r.id) ORDER BY r.published_at",
-                (slug, latest["published_at"], to_utc_iso(now - grace)),
+                " WHERE r.series_slug = ? AND r.published_at <= ?"
+                " AND NOT EXISTS (SELECT 1 FROM vintage v WHERE v.release_id = r.id)"
+                # Retain the initial refresh boundary too: a later vintage must not hide a release
+                # discovered after a partial feed failure, or one attempted and never stored.
+                " AND (r.published_at > ? OR EXISTS (SELECT 1 FROM ingest_run i"
+                " WHERE i.release_key = r.release_key AND i.started_at >= r.published_at))"
+                " ORDER BY r.published_at",
+                (
+                    slug,
+                    to_utc_iso(now - grace),
+                    min(latest["published_at"], boundaries.get(slug, latest["published_at"])),
+                ),
             ):
                 run = conn.execute(
                     "SELECT outcome, error_class, started_at FROM ingest_run WHERE release_key = ? ORDER BY id DESC LIMIT 1",
@@ -524,10 +625,12 @@ def _overdue_issue(out, release, run, late_seconds, collection, t) -> None:
             "The scheduler polls for 3 hours after publication, then once a day for a week. Check the Data health page for"
             " the source state; run `scripts/run.sh ingest --release-key <key>` to retry now."
         )
+    elif collection.mode == "on_open":
+        action = OPEN_TO_CHECK
     else:
         action = (
-            "Collection is not running. Run `scripts/run.sh ingest --due` (contacts Stats NZ, one request per 10 s),"
-            " or start the dashboard with the scheduler."
+            "Collection is not running. Start the dashboard with `scripts/run.sh` and open it (it checks when opened),"
+            " or run `scripts/run.sh ingest --due` (contacts Stats NZ, one request per 10 s)."
         )
     out.add(
         f"release:overdue:{release['release_key']}",
@@ -758,6 +861,7 @@ def build_status(
     collection = _collection(process)
     if collection.mode == "paused":
         out.notes.append(collection.summary)
+    refresh = _refresh(conn, tables, now, t, process, out)
     jobs = _jobs(conn, tables, now, t, process, primary, collection, out)
     sources = _sources(conn, now, t, collection) if "source_health" in tables else []
     calendar = _calendar(conn, sources, now, t, collection, primary, out)
@@ -789,6 +893,7 @@ def build_status(
         database=database,
         process=process,
         collection=collection,
+        refresh=refresh,
         jobs=jobs,
         calendar=calendar,
         next_release=upcoming,

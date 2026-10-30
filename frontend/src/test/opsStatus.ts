@@ -6,13 +6,15 @@ export function opsStatus(overrides: Partial<OpsStatus> = {}): OpsStatus {
     generated_at: "2026-10-30T16:00:00+13:00",
     overall: "ok",
     summary: "Everything checked is within its limits.",
-    database: { readable: true, schema_version: 11, expected_schema_version: 11, instrumented: true, integrity: "not_checked" },
+    database: { readable: true, schema_version: 12, expected_schema_version: 12, instrumented: true, integrity: "not_checked" },
     process: {
       state: "running", pid: 4242, started_at: "2026-10-29T09:00:00+13:00", last_heartbeat_at: "2026-10-30T15:59:50+13:00",
-      heartbeat_age_seconds: 10, scheduler_enabled: true, stop_reason: null, suspend_count: 0, last_suspend_at: null,
+      heartbeat_age_seconds: 10, scheduler_enabled: true, collection_mode: "scheduler", stop_reason: null, suspend_count: 0, last_suspend_at: null,
       last_suspend_seconds: null, unexpected_restarts_7d: 0,
     },
     collection: { mode: "enabled", summary: "Scheduled collection is on: the dashboard checks Stats NZ by itself." },
+    refresh: { state: "never", phase: null, started_at: null, finished_at: null, running_for_seconds: null, last_success_at: null,
+      ingested: 0, pending: 0, failures: 0, error_class: null },
     jobs: [],
     calendar: {
       state: "current", last_checked_at: "2026-10-30T06:00:40+13:00", last_success_at: "2026-10-30T06:00:40+13:00",

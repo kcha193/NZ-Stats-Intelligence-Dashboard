@@ -36,3 +36,24 @@ def test_base_url_override_for_tests(tmp_path: Path) -> None:
 def test_nonfinite_crawl_interval_is_rejected(tmp_path, value):
     with pytest.raises(ValueError, match="finite"):
         load_settings({"NZSTATS_DATA_DIR": str(tmp_path), "NZSTATS_MIN_INTERVAL_SECONDS": value})
+
+
+def test_on_open_refresh_defaults_are_bounded(tmp_path: Path) -> None:
+    r = load_settings({"NZSTATS_DATA_DIR": str(tmp_path)}).refresh
+    assert r.fresh_window_minutes == 30
+    assert r.failure_cooldown_minutes == 10
+    assert r.manual_min_interval_seconds == 60
+    assert 1 <= r.max_releases <= 10
+    # The calendar takes four to nine requests; a budget must leave room for at least one release.
+    assert 12 <= r.max_requests <= 60
+
+
+def test_the_recent_check_window_is_configurable(tmp_path: Path) -> None:
+    s = load_settings({"NZSTATS_DATA_DIR": str(tmp_path), "NZSTATS_REFRESH_WINDOW_MINUTES": "120"})
+    assert s.refresh.fresh_window_minutes == 120
+
+
+@pytest.mark.parametrize("value", ["0", "-5", "nan", "x"])
+def test_an_invalid_recent_check_window_is_rejected(tmp_path: Path, value: str) -> None:
+    with pytest.raises(ValueError, match="NZSTATS_REFRESH_WINDOW_MINUTES"):
+        load_settings({"NZSTATS_DATA_DIR": str(tmp_path), "NZSTATS_REFRESH_WINDOW_MINUTES": value})

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -90,14 +91,15 @@ def add_source(conn, source, *, state="ok", checked=None, success=None, detail=N
 
 def add_process(
     conn, *, boot="aaaaaaaa11", pid=100, started, beat, enabled=True, stopped=None, reason=None,
-    prior_unclean=0, suspend_at=None, suspend_seconds=None,
+    prior_unclean=0, suspend_at=None, suspend_seconds=None, mode=None,
 ) -> None:  # fmt: skip
     conn.execute(
         "INSERT INTO ops_process(boot_id, pid, started_at, scheduler_enabled, last_heartbeat_at, stopped_at, stop_reason,"
-        " prior_unclean, suspend_count, last_suspend_at, last_suspend_seconds) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " prior_unclean, suspend_count, last_suspend_at, last_suspend_seconds, collection_mode)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             boot, pid, iso(started), int(enabled), iso(beat), iso(stopped) if stopped else None, reason, prior_unclean,
-            1 if suspend_at else 0, iso(suspend_at) if suspend_at else None, suspend_seconds,
+            1 if suspend_at else 0, iso(suspend_at) if suspend_at else None, suspend_seconds, mode,
         ),
     )  # fmt: skip
 
@@ -140,12 +142,18 @@ def backup(
     )  # type: ignore[arg-type]
 
 
-def healthy_world(conn: sqlite3.Connection, now: datetime, *, enabled: bool = True) -> None:
+def healthy_world(
+    conn: sqlite3.Connection, now: datetime, *, enabled: bool = True, mode: str | None = None
+) -> None:
     """A dashboard that is running, collecting, refreshed this morning and current for every series."""
     refreshed = now.replace(hour=0, minute=0, second=30)  # placeholder, replaced below
     refreshed = now - timedelta(hours=10)  # ~06:00 NZDT when `now` is 16:00 NZDT
     add_process(
-        conn, started=now - timedelta(days=1), beat=now - timedelta(seconds=10), enabled=enabled
+        conn,
+        started=now - timedelta(days=1),
+        beat=now - timedelta(seconds=10),
+        enabled=enabled,
+        mode=mode,
     )
     if enabled:
         add_job(
@@ -183,3 +191,18 @@ def status(conn, tmp_path, now, *, bk=None, **kw) -> OpsStatus:
 
 def keys(s: OpsStatus) -> list[str]:
     return [i.key for i in s.issues]
+
+
+def add_refresh(
+    conn, *, started, finished=None, state="completed", phase="done", ingested=0, pending=(), failures=(),
+    error_class=None,
+) -> None:  # fmt: skip
+    conn.execute(
+        "INSERT INTO refresh_run(trigger, started_at, finished_at, state, phase, ingested, pending, failures, error_class)"
+        " VALUES ('open',?,?,?,?,?,?,?,?)",
+        (
+            iso(started), iso(finished) if finished else None, state, phase, ingested,
+            json.dumps([{"release_key": k, "reason": r} for k, r in pending]),
+            json.dumps([{"key": k, "outcome": "failed", "error_class": e} for k, e in failures]), error_class,
+        ),
+    )  # fmt: skip

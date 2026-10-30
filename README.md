@@ -87,8 +87,10 @@ database or the API. Nothing is published unless you enable it: see [docs/netlif
 
 ## Local development
 
-Quick start without Docker: `scripts/run.sh` (see the header of that script for flags; the first run installs
-dependencies and builds the UI, then serves on http://localhost:8000).
+Quick start without Docker: `scripts/run.sh` (or double-click `Start Dashboard.command`). The first run installs
+dependencies and builds the UI, then serves on http://localhost:8000. Each time you open the dashboard it checks Stats NZ
+once for missing releases and updates the charts; `scripts/run.sh --offline` never contacts Stats NZ. See
+[docs/phase-4g-on-open-refresh.md](docs/phase-4g-on-open-refresh.md).
 
 ```sh
 python3 -m venv backend/.venv && . backend/.venv/bin/activate
@@ -97,7 +99,7 @@ cd backend && pytest && ruff check . && ruff format --check .
 
 cd ../frontend && npm ci
 npm run dev                    # Vite on :5173, proxies /api to :8000
-nzstats serve --no-scheduler   # in another shell: API without background jobs
+nzstats serve --offline        # in another shell: API on stored data, never contacts Stats NZ
 ```
 
 Test and build commands:

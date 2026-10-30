@@ -13,6 +13,17 @@ MIN_CRAWL_DELAY_SECONDS = 10.0
 
 
 @dataclass(frozen=True)
+class RefreshSettings:
+    """Bounds for the on-open refresh (`nzstats.pipeline.refresh`); `[refresh]` in config/sources.toml."""
+
+    fresh_window_minutes: int = 30  # a completed check this recent is reused, not repeated
+    failure_cooldown_minutes: int = 10  # a failed check is retried no sooner than this
+    manual_min_interval_seconds: int = 60  # "Check now" still waits this long after the last check
+    max_releases: int = 6  # releases ingested per refresh; the rest are reported as pending
+    max_requests: int = 40  # logical GETs per refresh, calendar included (10 s apart: under 7 min)
+
+
+@dataclass(frozen=True)
 class Settings:
     data_dir: Path
     base_url: str
@@ -28,6 +39,7 @@ class Settings:
     static_dir: Path | None = None
     timezone: str = "Pacific/Auckland"
     backup_dir_override: Path | None = None
+    refresh: RefreshSettings = RefreshSettings()
 
     @property
     def db_path(self) -> Path:
@@ -54,6 +66,24 @@ def _default_sources_file() -> Path:
         if candidate.exists():
             return candidate
     raise FileNotFoundError("config/sources.toml not found; set NZSTATS_SOURCES_FILE")
+
+
+def _refresh_settings(cfg: Mapping, env: Mapping[str, str]) -> RefreshSettings:
+    values = {**RefreshSettings().__dict__, **cfg}
+    window = env.get("NZSTATS_REFRESH_WINDOW_MINUTES")
+    if window is not None:
+        try:
+            values["fresh_window_minutes"] = int(window)
+        except ValueError:
+            raise ValueError(
+                "NZSTATS_REFRESH_WINDOW_MINUTES must be a whole number of minutes"
+            ) from None
+        if values["fresh_window_minutes"] < 1:
+            raise ValueError("NZSTATS_REFRESH_WINDOW_MINUTES must be at least 1")
+    refresh = RefreshSettings(**{k: int(v) for k, v in values.items()})
+    if min(refresh.__dict__.values()) < 1 or refresh.max_requests < 12:
+        raise ValueError("[refresh] limits must be positive and max_requests at least 12")
+    return refresh
 
 
 def load_settings(env: Mapping[str, str] | None = None) -> Settings:
@@ -85,4 +115,5 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         backfill_since=cfg["migration"]["backfill_since"],
         static_dir=Path(static) if static else None,
         backup_dir_override=Path(e["NZSTATS_BACKUP_DIR"]) if e.get("NZSTATS_BACKUP_DIR") else None,
+        refresh=_refresh_settings(cfg.get("refresh", {}), e),
     )
