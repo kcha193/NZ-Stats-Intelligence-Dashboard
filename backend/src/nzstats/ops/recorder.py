@@ -71,6 +71,8 @@ class OpsRecorder:
         self.boot_id = uuid.uuid4().hex
         self._last_wall: datetime | None = None
         self._last_mono = 0.0
+        self._active_runs: dict[tuple[str, str, datetime], str] = {}
+        self._early_completions: set[tuple[str, str, datetime]] = set()
 
     def start(self) -> str:
         """Register this process. Earlier processes found dead without a clean stop are stamped 'unclean'."""
@@ -197,14 +199,47 @@ class OpsRecorder:
     def on_scheduler_event(self, event: JobEvent) -> None:
         """APScheduler listener. A failure to record is logged and never reaches the job or the scheduler."""
         try:
-            if event.code == EVENT_JOB_SUBMITTED:
-                self.job_started(event.job_id)
-            elif event.code == EVENT_JOB_EXECUTED:
-                self.job_finished(event.job_id)
-            elif event.code == EVENT_JOB_ERROR:
-                self.job_finished(event.job_id, error_class=type(event.exception).__name__)
-            elif event.code == EVENT_JOB_MISSED:
-                self.job_missed(event.job_id)
+            with self._lock, transaction(self._conn):
+                if event.code == EVENT_JOB_SUBMITTED:
+                    for run_time in event.scheduled_run_times:
+                        key = (event.job_id, event.jobstore, run_time)
+                        if key in self._early_completions:
+                            # Executor callbacks can finish before submit_job returns. Retire the
+                            # pair once both events have arrived, without reopening the run.
+                            self._early_completions.remove(key)
+                        else:
+                            self._active_runs[key] = to_utc_iso(self._clock())
+                            self.job_started(event.job_id)
+                elif event.code in (EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED):
+                    key = (event.job_id, event.jobstore, event.scheduled_run_time)
+                    if self._active_runs.pop(key, None) is None:
+                        self._early_completions.add(key)
+                        if event.code != EVENT_JOB_MISSED:
+                            # The first observation of a fast run is its completion. Keep that
+                            # timestamp as its best-known start, rather than a stale prior run.
+                            self.job_started(event.job_id)
+                    if event.code == EVENT_JOB_MISSED:
+                        self.job_missed(event.job_id)
+                    else:
+                        self.job_finished(
+                            event.job_id,
+                            error_class=type(event.exception).__name__
+                            if event.code == EVENT_JOB_ERROR
+                            else None,
+                        )
+                running = min(
+                    (
+                        started
+                        for (job, _, _), started in self._active_runs.items()
+                        if job == event.job_id
+                    ),
+                    default=None,
+                )
+                # Finishing one execution must not hide another overlapping/batched run.
+                self._conn.execute(
+                    "UPDATE ops_job SET running_since=? WHERE job_id=? AND boot_id=?",
+                    (running, event.job_id, self.boot_id),
+                )
         except Exception:
             log.exception("could not record scheduler event for %s", getattr(event, "job_id", "?"))
 

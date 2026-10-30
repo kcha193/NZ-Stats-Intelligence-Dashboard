@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
+from datetime import timedelta
 
 import pytest
 from apscheduler.events import (
@@ -13,9 +15,12 @@ from apscheduler.events import (
     JobExecutionEvent,
     JobSubmissionEvent,
 )
+from apscheduler.schedulers.background import BackgroundScheduler
 
-from nzstats.ops.recorder import OpsRecorder, pid_alive
+from nzstats.clock import utc_now
+from nzstats.ops.recorder import SCHEDULER_EVENTS, OpsRecorder, pid_alive
 from nzstats.ops.thresholds import Thresholds
+from tests.ops.support import keys, status
 
 
 def make(db_path, clock, *, enabled=True, pid=100, alive=lambda p: False) -> OpsRecorder:
@@ -184,7 +189,7 @@ def test_scheduler_events_drive_the_job_state_and_never_store_exception_text(
     rec = make(db_path, clock)
     rec.start()
     rec.on_scheduler_event(
-        JobSubmissionEvent(EVENT_JOB_SUBMITTED, "refresh_calendar", "default", [])
+        JobSubmissionEvent(EVENT_JOB_SUBMITTED, "refresh_calendar", "default", [clock.now])
     )
     assert jobs(conn)["refresh_calendar"]["running_since"] is not None
     boom = RuntimeError("GET https://example.test/?token=SECRET-TOKEN failed")
@@ -222,9 +227,122 @@ def test_a_recording_failure_is_logged_and_never_reaches_the_scheduler(
     rec.stop()  # connection closed
     with caplog.at_level("ERROR"):
         rec.on_scheduler_event(
-            JobSubmissionEvent(EVENT_JOB_SUBMITTED, "release_watch", "default", [])
+            JobSubmissionEvent(EVENT_JOB_SUBMITTED, "release_watch", "default", [clock.now])
         )
     assert "could not record scheduler event for release_watch" in caplog.text
+
+
+@pytest.mark.parametrize("job_id", ["startup_catch_up", "release_watch"])
+@pytest.mark.parametrize("terminal", [EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED])
+@pytest.mark.parametrize("completion_first", [False, True])
+def test_scheduler_run_finishes_in_either_event_order(
+    db_path, conn, clock, tmp_path, job_id, terminal, completion_first
+) -> None:
+    rec = make(db_path, clock)
+    rec.start()
+    for _ in range(2):
+        submitted = JobSubmissionEvent(EVENT_JOB_SUBMITTED, job_id, "default", [clock.now])
+        finished = JobExecutionEvent(
+            terminal,
+            job_id,
+            "default",
+            clock.now,
+            exception=RuntimeError("private text") if terminal == EVENT_JOB_ERROR else None,
+        )
+        events = [finished, submitted] if completion_first else [submitted, finished]
+        for event in events:
+            rec.on_scheduler_event(event)
+        row = jobs(conn)[job_id]
+        assert row["running_since"] is None
+        if terminal != EVENT_JOB_MISSED:
+            assert row["last_started_at"] == row["last_finished_at"]
+        assert (
+            row["last_outcome"]
+            == {EVENT_JOB_EXECUTED: "ok", EVENT_JOB_ERROR: "error", EVENT_JOB_MISSED: "missed"}[
+                terminal
+            ]
+        )
+        clock.advance(hours=2)
+        rec.beat()
+        assert not any("job_running_long" in key for key in keys(status(conn, tmp_path, clock.now)))
+    rec.stop()
+
+
+@pytest.mark.parametrize("terminal", [EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED])
+def test_completion_does_not_clear_an_overlapping_run(db_path, conn, clock, terminal) -> None:
+    rec = make(db_path, clock)
+    rec.start()
+    first = clock.now
+    rec.on_scheduler_event(JobSubmissionEvent(EVENT_JOB_SUBMITTED, "catch_up", "default", [first]))
+    clock.advance(seconds=30)
+    second = clock.now
+    rec.on_scheduler_event(JobSubmissionEvent(EVENT_JOB_SUBMITTED, "catch_up", "default", [second]))
+    rec.on_scheduler_event(JobExecutionEvent(terminal, "catch_up", "default", second))
+    assert jobs(conn)["catch_up"]["running_since"] == "2026-10-30T03:00:00Z"
+    rec.on_scheduler_event(JobExecutionEvent(EVENT_JOB_EXECUTED, "catch_up", "default", first))
+    assert jobs(conn)["catch_up"]["running_since"] is None
+    rec.stop()
+
+
+def test_late_batch_submission_tracks_only_unfinished_runs(db_path, conn, clock) -> None:
+    rec = make(db_path, clock)
+    rec.start()
+    first, second = clock.now - timedelta(minutes=1), clock.now
+    rec.on_scheduler_event(JobExecutionEvent(EVENT_JOB_MISSED, "catch_up", "default", first))
+    rec.on_scheduler_event(
+        JobSubmissionEvent(EVENT_JOB_SUBMITTED, "catch_up", "default", [first, second])
+    )
+    assert jobs(conn)["catch_up"]["running_since"] == "2026-10-30T03:00:00Z"
+    rec.on_scheduler_event(JobExecutionEvent(EVENT_JOB_EXECUTED, "catch_up", "default", second))
+    assert jobs(conn)["catch_up"]["running_since"] is None
+    rec.stop()
+
+
+@pytest.mark.parametrize("job_id", ["startup_catch_up", "release_watch"])
+@pytest.mark.parametrize("completion_first", [False, True])
+def test_fast_jobs_with_real_scheduler_events(
+    db_path, conn, clock, job_id, completion_first
+) -> None:
+    rec = make(db_path, clock)
+    rec.start()
+    submitted, completed = threading.Event(), threading.Event()
+    order = []
+    sched = BackgroundScheduler()
+
+    def gate_submission(event):
+        if completion_first and event.code == EVENT_JOB_SUBMITTED:
+            assert completed.wait(5)
+
+    def observed(event):
+        order.append(event.code)
+        if event.code == EVENT_JOB_SUBMITTED:
+            submitted.set()
+        elif event.code == EVENT_JOB_EXECUTED:
+            completed.set()
+
+    def fast_job():
+        if not completion_first:
+            assert submitted.wait(5)
+        return []  # an empty catch-up, with no runtime, database or network work
+
+    sched.add_listener(gate_submission, SCHEDULER_EVENTS)
+    sched.add_listener(rec.on_scheduler_event, SCHEDULER_EVENTS)
+    sched.add_listener(observed, SCHEDULER_EVENTS)
+    if job_id == "startup_catch_up":
+        sched.add_job(fast_job, "date", run_date=utc_now(), id=job_id)
+    else:
+        sched.add_job(fast_job, "interval", hours=1, next_run_time=utc_now(), id=job_id)
+    try:
+        sched.start()
+        assert completed.wait(5) and submitted.wait(5)
+        expected = [EVENT_JOB_EXECUTED, EVENT_JOB_SUBMITTED]
+        assert order == (expected if completion_first else expected[::-1])
+        assert jobs(conn)[job_id]["running_since"] is None
+        assert jobs(conn)[job_id]["last_outcome"] == "ok"
+        assert not rec._active_runs and not rec._early_completions
+    finally:
+        sched.shutdown(wait=True)
+        rec.stop()
 
 
 @pytest.mark.parametrize(("pid", "expected"), [(1, True), (2**22 + 12345, False)])
