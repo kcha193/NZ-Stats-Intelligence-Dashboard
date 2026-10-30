@@ -325,3 +325,30 @@ def test_shutdown_waits_past_fifteen_seconds_for_inflight_request(rt, site, cloc
     # New process can take the pacer without a recovery cooldown (normal 10-second spacing still applies).
     with FilePacer(pace_path, 10, sleep=lambda _: None).turn() as turn:
         assert turn.blocked_until is None
+
+
+def test_completion_never_exposes_done_phase_with_running_state(rt, site, clock):
+    """Status stays valid while terminal persistence is pending."""
+    c = coordinator(rt, clock)
+    finishing, release = threading.Event(), threading.Event()
+    finish = c._finish
+
+    def paused_finish(run_id, result):
+        finishing.set()
+        assert release.wait(10)
+        finish(run_id, result)
+
+    c._finish = paused_finish
+    assert c.trigger() and finishing.wait(10)
+    try:
+        s = status(rt)
+        assert s.state == "running"
+        assert s.phase in ("checking", "downloading", "validating")
+    finally:
+        release.set()
+        c.join(10)
+    assert status(rt).state == "completed" and status(rt).phase is None
+    assert (
+        rt.conn.execute("SELECT phase FROM refresh_run ORDER BY id DESC LIMIT 1").fetchone()[0]
+        == "done"
+    )

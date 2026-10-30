@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -64,6 +66,63 @@ def test_the_dashboard_starts_a_check_and_gets_its_status_at_once(rt, site) -> N
     assert (done["state"], done["ingested"], done["started"]) == ("completed", 1, False)
     again = c.post("/api/refresh", headers=DASHBOARD, json={}).json()
     assert again["started"] is False and again["run_id"] == done["run_id"]  # reused, not repeated
+
+
+@pytest.mark.parametrize("outcome", ["completed", "failed", "interrupted"])
+def test_status_and_trigger_remain_valid_across_terminal_commit(rt, site, monkeypatch, outcome):
+    import nzstats.pipeline.refresh as refresh
+
+    if outcome == "failed":
+        for url in CALENDAR:
+            site.override(url, 503, b"", "text/html")
+    if outcome == "interrupted":
+        original = refresh.run_refresh
+
+        def interrupted(*args, **kwargs):
+            kwargs["stop"].set()
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(refresh, "run_refresh", interrupted)
+
+    c, coordinator = client(rt.settings, factory=lambda _: rt)
+    before, commit, after, release = (threading.Event() for _ in range(4))
+    finish = coordinator._finish
+
+    def gated_finish(run_id, result):
+        before.set()
+        assert commit.wait(10)
+        finish(run_id, result)
+        after.set()
+        assert release.wait(10)
+
+    coordinator._finish = gated_finish
+    assert coordinator.trigger() and before.wait(10)
+    try:
+        for expected in ("running", outcome):
+            if expected != "running":
+                commit.set()
+                assert after.wait(10)
+            for _ in range(10):
+                for response in (
+                    c.get("/api/refresh/status"),
+                    c.post("/api/refresh", headers=DASHBOARD, json={}),
+                ):
+                    assert response.status_code == 200
+                    body = response.json()
+                    assert body["state"] == expected
+                    assert body["phase"] in (
+                        ("checking", "downloading", "validating")
+                        if expected == "running"
+                        else (None,)
+                    )
+            row = rt.conn.execute(
+                "SELECT state, phase FROM refresh_run ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            assert tuple(row) == (expected, "checking" if expected == "running" else "done")
+    finally:
+        commit.set()
+        release.set()
+        coordinator.join(10)
 
 
 def test_check_now_is_sent_as_manual(rt, site) -> None:

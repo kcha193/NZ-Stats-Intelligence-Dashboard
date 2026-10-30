@@ -487,6 +487,8 @@ class RefreshCoordinator:
             rt = self._rt
 
             def phase(name: str) -> None:
+                if name == "done":
+                    return  # _finish publishes done and the terminal state in one transaction
                 rt.conn.execute("UPDATE refresh_run SET phase = ? WHERE id = ?", (name, run_id))
 
             backup = (
