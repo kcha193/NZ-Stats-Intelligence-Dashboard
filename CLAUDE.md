@@ -28,6 +28,9 @@ current release gates and evidence are in [docs/phase-4e-release.md](docs/phase-
 cd backend && . .venv/bin/activate
 pytest && ruff check . && ruff format --check .
 nzstats serve --no-scheduler        # API + built UI (set NZSTATS_STATIC_DIR=../frontend/dist)
+nzstats status [--json] [--deep]    # read-only operational health; exit 0 OK / 1 ATTENTION / 2 CRITICAL / 3 failed to run
+nzstats alert-check                 # local alerts only (log + data/ops/alerts.jsonl); never a network channel
+nzstats backup --bundle DEST        # database + raw files + checksum manifest; verify-backup DIR; restore-backup SRC NEWDIR
 cd frontend
 npm test && npm run typecheck && npm run build
 npm run gen:api                     # regenerate src/api/schema.d.ts after any API model change
@@ -56,6 +59,9 @@ nzstats export-snapshot ./snapshot && nzstats validate-snapshot ./snapshot --for
   what live mode does (the parity spec). See `docs/netlify-deployment.md`.
 - Research is shown publicly only through `research/public.py` (one gate). Never change a source's access, LLM or
   `public_display` settings without a documented, authorised review, and never add research to a snapshot.
+- Operational monitoring (`nzstats/ops/`) is read-only and offline: `status` opens the database `mode=ro`, never builds a
+  runtime or scheduler, and alert payloads are built only from structured fields (never upstream text). Spec and runbook:
+  `docs/phase-4f-operational-health.md`, `docs/phase-4f-runbook.md`. A scheduler switched off by choice is not a fault.
 - Prefer small, TDD-driven changes. Watch each new test fail first.
 
 ## Design

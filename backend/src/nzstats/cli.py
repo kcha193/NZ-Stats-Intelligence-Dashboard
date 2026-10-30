@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import logging
 import os
@@ -31,6 +32,127 @@ def _health_payload(conn: sqlite3.Connection) -> dict:
         )
     ]
     return {"sources": sources, "recent_runs": runs}
+
+
+STATUS_EXIT = {"ok": 0, "attention": 1, "critical": 2}
+
+
+def _status_command(args: argparse.Namespace, settings) -> int:
+    """Never starts the scheduler, never writes, never makes a network request: it reads local files only."""
+    from nzstats.ops.collect import collect_status
+    from nzstats.ops.render import render_text
+
+    try:
+        report = collect_status(
+            settings, deep=args.deep, backup_dir=Path(args.backup_dir) if args.backup_dir else None
+        )
+    except Exception:  # monitoring must say it failed, not crash into a traceback or a false OK
+        log.exception("status could not be computed")
+        print("status could not be computed; see the log above", file=sys.stderr)
+        return 3
+    print(report.model_dump_json(indent=2) if args.json else render_text(report))
+    return STATUS_EXIT[report.overall]
+
+
+def _alert_command(args: argparse.Namespace, settings) -> int:
+    """Local alerts only. Exit code is the application's state; a delivery failure is reported, never mixed into it."""
+    from nzstats.ops.alerts import DEFAULT_CHANNELS, build_notifiers, deliver_unrecorded, process
+    from nzstats.ops.collect import collect_status
+    from nzstats.ops.render import render_text
+
+    try:
+        notifiers = build_notifiers(
+            args.channels or os.environ.get("NZSTATS_ALERT_CHANNELS") or DEFAULT_CHANNELS, settings
+        )
+        now = utc_now()
+        report = collect_status(
+            settings, now=now, backup_dir=Path(args.backup_dir) if args.backup_dir else None
+        )
+        if not report.database.readable:
+            # No state to keep, and never create a database just to record that it is missing, but do say so.
+            print(render_text(report))
+            result = deliver_unrecorded(report, notifiers)
+            print(
+                f"\nAlerts: delivered {result.sent}, failed {result.failed} (no database: not de-duplicated)"
+            )
+            if result.failed:
+                print(
+                    "ALERT DELIVERY PROBLEM (the application's state above is unaffected)",
+                    file=sys.stderr,
+                )
+            return STATUS_EXIT[report.overall]
+        lock = settings.db_path.with_name(settings.db_path.name + ".alert-lock")
+        with lock.open("a+b") as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                print("alert-check: another alert-check is running; skipped", file=sys.stderr)
+                return 3
+            conn = connect(settings.db_path)
+            try:
+                migrate(conn)
+                result = process(conn, report, notifiers, now=now)
+            finally:
+                conn.close()
+    except ValueError as exc:
+        print(f"alert-check: {exc}", file=sys.stderr)
+        return 3
+    except Exception:
+        log.exception("alert-check could not run")
+        print("alert-check could not run; see the log above", file=sys.stderr)
+        return 3
+    print(render_text(report))
+    print(
+        f"\nAlerts: {len(result.changes)} change(s); delivered {result.sent}, failed {result.failed},"
+        f" rate-limited {result.rate_limited}"
+    )
+    if result.failed:
+        print(
+            "ALERT DELIVERY PROBLEM (the application's state above is unaffected)", file=sys.stderr
+        )
+    return STATUS_EXIT[report.overall]
+
+
+def _bundle_backup(conn: sqlite3.Connection, settings, dest: Path) -> int:
+    from nzstats.store.backup_bundle import BackupError, create_bundle
+
+    try:
+        report = create_bundle(conn, settings.raw_dir, dest)
+    except BackupError as exc:
+        print(f"backup failed: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"backup set written to {report.path}: database plus {report.raw_artifacts} raw artifact(s),"
+        f" verified (schema {report.schema_version})"
+    )
+    return 0
+
+
+def _verify_bundle(path: Path) -> int:
+    from nzstats.store.backup_bundle import verify_bundle
+
+    report = verify_bundle(path)
+    for problem in report.problems:
+        print(f"problem: {problem}")
+    note = "; needs `nzstats migrate` after restoring" if report.needs_migration else ""
+    print(
+        f"{'ok' if report.ok else 'FAILED'}: schema {report.schema_version},"
+        f" {report.raw_artifacts if report.raw_artifacts is not None else '?'} raw artifact(s){note}"
+    )
+    return 0 if report.ok else 1
+
+
+def _restore_backup(src: Path, dest: Path) -> int:
+    from nzstats.store.backup_bundle import BackupError, restore_bundle
+
+    try:
+        report = restore_bundle(src, dest)
+    except BackupError as exc:
+        print(f"restore failed: {exc}", file=sys.stderr)
+        return 1
+    note = " Run `nzstats migrate` against it before use." if report.needs_migration else ""
+    print(f"restored to {report.path}: verified.{note} Point NZSTATS_DATA_DIR at it to use it.")
+    return 0
 
 
 def _publish_command(args: argparse.Namespace, settings) -> int:
@@ -122,14 +244,42 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--no-scheduler", action="store_true", help="serve the API and UI without background jobs"
     )
     sub.add_parser("health", help="print source health as JSON")
+    p_status = sub.add_parser(
+        "status",
+        help="read-only operational status (exit 0 OK, 1 ATTENTION, 2 CRITICAL, 3 could not run)",
+    )
+    p_status.add_argument("--json", action="store_true", help="print the full report as JSON")
+    p_status.add_argument(
+        "--deep", action="store_true", help="also run SQLite quick_check (slower)"
+    )
+    p_status.add_argument("--backup-dir", help="where to look for backups (default data/backups)")
     p_backup = sub.add_parser("backup", help="write a consistent copy of the database")
     p_backup.add_argument("dest")
+    p_backup.add_argument(
+        "--bundle",
+        action="store_true",
+        help="DEST becomes a directory holding the database AND every raw artifact, with a checksum manifest",
+    )
     p_verify = sub.add_parser("verify-backup", help="check that a backup restores (read-only)")
     p_verify.add_argument("path")
     p_verify.add_argument("--live", help="compare row counts with this database")
     p_verify.add_argument(
         "--raw-dir", help="require every referenced raw artifact under this directory"
     )
+    p_alert = sub.add_parser(
+        "alert-check",
+        help="evaluate status and deliver NEW or changed alerts to local channels (log, file); exit as `status`",
+    )
+    p_alert.add_argument(
+        "--channels", help="comma-separated; default NZSTATS_ALERT_CHANNELS or log,file"
+    )
+    p_alert.add_argument("--backup-dir")
+    p_restore = sub.add_parser(
+        "restore-backup",
+        help="copy a verified backup set into a NEW data directory (never overwrites; does not start anything)",
+    )
+    p_restore.add_argument("src")
+    p_restore.add_argument("dest_data_dir")
     sub.add_parser("openapi", help="print the OpenAPI document")
     p_export = sub.add_parser(
         "export-snapshot", help="write a validated public JSON snapshot of the database"
@@ -194,6 +344,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         conn = connect(settings.db_path)
         print(f"schema version {migrate(conn)} at {settings.db_path}")
         return 0
+    if args.command == "status":
+        return _status_command(args, settings)
+    if args.command == "alert-check":
+        return _alert_command(args, settings)
     if args.command == "health":
         conn = connect(settings.db_path)
         migrate(conn)
@@ -202,6 +356,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "backup":
         conn = connect(settings.db_path)
         migrate(conn)
+        if args.bundle:
+            return _bundle_backup(conn, settings, Path(args.dest))
         Path(args.dest).parent.mkdir(parents=True, exist_ok=True)
         dest = sqlite3.connect(args.dest)
         conn.backup(dest)
@@ -214,6 +370,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print(f"backup written to {args.dest} and verified (schema {report.schema_version})")
         return 0
+    if args.command == "restore-backup":
+        return _restore_backup(Path(args.src), Path(args.dest_data_dir))
+    if args.command == "verify-backup" and Path(args.path).is_dir():
+        return _verify_bundle(Path(args.path))
     if args.command == "verify-backup":
         report = verify_backup(args.path, live=args.live, raw_dir=args.raw_dir)
         for problem in report.problems:
@@ -243,6 +403,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from nzstats.api.app import create_app
         from nzstats.research.api import (
             bind_refusal,
+            public_research_enabled,
             research_router,
         )  # off unless NZSTATS_PUBLIC_RESEARCH=1
 
@@ -252,7 +413,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
         uvicorn.run(
             create_app(
-                settings, start_scheduler=not args.no_scheduler, routers=[research_router()]
+                settings,
+                start_scheduler=not args.no_scheduler,
+                routers=[research_router()],
+                record_ops=True,
+                # Unauthenticated, and it names the process, backups and errors: loopback binds only, unless opted in.
+                ops_status_enabled=args.host in ("127.0.0.1", "::1", "localhost")
+                or os.environ.get("NZSTATS_OPS_STATUS") == "1",
+                capabilities={"research_public": public_research_enabled()},
             ),
             host=args.host,
             port=args.port,

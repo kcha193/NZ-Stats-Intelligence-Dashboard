@@ -1,0 +1,240 @@
+{
+  "steps": {
+    "01_copy_counts": {
+      "release": 187,
+      "series": 450,
+      "vintage": 791,
+      "observation": 76402,
+      "raw_artifact": 43,
+      "ingest_run": 22
+    },
+    "02_status_schema_10_untouched": {
+      "exit": 1,
+      "overall": "attention",
+      "collection": "unknown",
+      "process": "never_started",
+      "backup": "ok",
+      "issues": [
+        [
+          "attention",
+          "database:schema_behind"
+        ]
+      ],
+      "notes": [],
+      "schema": 10,
+      "freshness": {
+        "consumers-price-index": "current",
+        "electronic-card-transactions": "current",
+        "gross-domestic-product": "current",
+        "international-migration": "current",
+        "labour-market-statistics": "current"
+      },
+      "schema_after_status": 10
+    },
+    "03_migrate": "schema version 11 at /private/tmp/nzs-4f/data/nzstats.db",
+    "04_status_after_migrate_no_process_yet": {
+      "exit": 0,
+      "overall": "ok",
+      "collection": "unknown",
+      "process": "never_started",
+      "backup": "ok",
+      "issues": [],
+      "notes": [],
+      "schema": 11,
+      "freshness": {
+        "consumers-price-index": "current",
+        "electronic-card-transactions": "current",
+        "gross-domestic-product": "current",
+        "international-migration": "current",
+        "labour-market-statistics": "current"
+      }
+    },
+    "05_bundle_backup": {
+      "exit": 0,
+      "out": "backup set written to /private/tmp/nzs-4f/data/backups/nzstats-2026-10-30-1209: database plus 43 raw artifact(s), verified (schema 11)",
+      "seconds": 0.69,
+      "files": 45
+    },
+    "06_verify_bundle": {
+      "exit": 0,
+      "out": "ok: schema 11, 43 raw artifact(s)"
+    },
+    "07_status_with_backup": {
+      "exit": 0,
+      "overall": "ok",
+      "collection": "unknown",
+      "process": "never_started",
+      "backup": "ok",
+      "issues": [],
+      "notes": [],
+      "schema": 11,
+      "freshness": {
+        "consumers-price-index": "current",
+        "electronic-card-transactions": "current",
+        "gross-domestic-product": "current",
+        "international-migration": "current",
+        "labour-market-statistics": "current"
+      }
+    },
+    "08_serving_no_scheduler": {
+      "status_cli": {
+        "exit": 0,
+        "overall": "ok",
+        "collection": "disabled",
+        "process": "running",
+        "backup": "ok",
+        "issues": [],
+        "notes": [],
+        "schema": 11,
+        "freshness": {
+          "consumers-price-index": "current",
+          "electronic-card-transactions": "current",
+          "gross-domestic-product": "current",
+          "international-migration": "current",
+          "labour-market-statistics": "current"
+        }
+      },
+      "api": {
+        "overall": "ok",
+        "summary": "Everything checked is within its limits.",
+        "collection": "disabled",
+        "process": "running",
+        "issue_keys": []
+      },
+      "capabilities": {
+        "research_public": false
+      }
+    },
+    "09_ops_ui": [
+      {
+        "viewport": "desktop",
+        "scheme": "light",
+        "banner": "OK. Everything checked is within its limits.",
+        "level": "ok",
+        "answers": [
+          "Data collection",
+          "Application",
+          "Next official release",
+          "Release calendar",
+          "Latest ingestion",
+          "Backup",
+          "Is each release current?"
+        ],
+        "overflow": 0,
+        "pageErrors": [],
+        "external": [],
+        "failed": []
+      },
+      {
+        "viewport": "desktop",
+        "scheme": "dark",
+        "banner": "OK. Everything checked is within its limits.",
+        "level": "ok",
+        "answers": [
+          "Data collection",
+          "Application",
+          "Next official release",
+          "Release calendar",
+          "Latest ingestion",
+          "Backup",
+          "Is each release current?"
+        ],
+        "overflow": 0,
+        "pageErrors": [],
+        "external": [],
+        "failed": []
+      },
+      {
+        "viewport": "mobile",
+        "scheme": "light",
+        "banner": "OK. Everything checked is within its limits.",
+        "level": "ok",
+        "answers": [
+          "Data collection",
+          "Application",
+          "Next official release",
+          "Release calendar",
+          "Latest ingestion",
+          "Backup",
+          "Is each release current?"
+        ],
+        "overflow": 0,
+        "pageErrors": [],
+        "external": [],
+        "failed": []
+      },
+      {
+        "viewport": "mobile",
+        "scheme": "dark",
+        "banner": "OK. Everything checked is within its limits.",
+        "level": "ok",
+        "answers": [
+          "Data collection",
+          "Application",
+          "Next official release",
+          "Release calendar",
+          "Latest ingestion",
+          "Backup",
+          "Is each release current?"
+        ],
+        "overflow": 0,
+        "pageErrors": [],
+        "external": [],
+        "failed": []
+      }
+    ],
+    "10_all_routes": {
+      "views": 48,
+      "problem_views": [],
+      "page_errors": 0,
+      "external_requests": 0,
+      "exports": 36,
+      "economic_outlook_failed_api_responses": [],
+      "economic_outlook_console_errors": []
+    },
+    "11_after_sighup": {
+      "exit": 0,
+      "overall": "ok",
+      "collection": "paused",
+      "process": "stopped",
+      "backup": "ok",
+      "issues": [],
+      "notes": [
+        "The dashboard is not running, so nothing is being collected (scheduler was off when it last ran)."
+      ],
+      "schema": 11,
+      "freshness": {
+        "consumers-price-index": "current",
+        "electronic-card-transactions": "current",
+        "gross-domestic-product": "current",
+        "international-migration": "current",
+        "labour-market-statistics": "current"
+      },
+      "recorded_stop": {
+        "stop_reason": "clean",
+        "scheduler_enabled": 0
+      }
+    },
+    "12_restore": {
+      "exit": 0,
+      "out": "restored to /private/tmp/nzs-4f/restored: verified. Point NZSTATS_DATA_DIR at it to use it.",
+      "counts_equal": true,
+      "raw_files": 43,
+      "second_restore_into_same_dir_refused": true
+    },
+    "13_alert_check": {
+      "first_exit": 0,
+      "delivered_lines": 0,
+      "second_exit": 0,
+      "lines_after_repeat": 0,
+      "keys": []
+    }
+  },
+  "network_guard_refusals": 0,
+  "guarded_processes": 12,
+  "production_data_unchanged": true,
+  "production_fingerprint": {
+    "files": 426,
+    "digest": "d71e54b6581a6b7feb5a8027aba042872231abacba651194912758bba4945c0c"
+  }
+}
