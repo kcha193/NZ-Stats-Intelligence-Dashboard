@@ -228,17 +228,15 @@ def verify_bundle(path: Path | str) -> BundleReport:
         if child.name not in {MANIFEST, DB_NAME, RAW} and child.name not in _IGNORED:
             report.problems.append(f"unexpected entry {child.name}")
     if (path / DB_NAME).is_file() and not any("database file" in p for p in report.problems):
-        inner = verify_backup(path / DB_NAME, raw_dir=path / RAW)
+        inner = verify_backup(path / DB_NAME, raw_dir=path / RAW, allow_older_schema=True)
         report.schema_version = inner.schema_version
-        problems = inner.problems
         if (
             inner.schema_version is not None
             and inner.schema_version < inner.expected_schema_version
         ):
             # Older than this code but otherwise sound: restorable, then `nzstats migrate`.
             report.needs_migration = True
-            problems = [p for p in problems if not p.startswith(("schema version", "missing "))]
-        report.problems.extend(problems)
+        report.problems.extend(inner.problems)
     return report
 
 
@@ -259,15 +257,9 @@ def restore_bundle(src: Path | str, dest_data_dir: Path | str) -> BundleReport:
             shutil.copytree(src / RAW, dest / "raw")
         else:
             (dest / "raw").mkdir()
-        after = verify_backup(dest / "nzstats.db", raw_dir=dest / "raw")
-        problems = after.problems
-        if (
-            after.schema_version is not None
-            and after.schema_version < after.expected_schema_version
-        ):
-            problems = [p for p in problems if not p.startswith(("schema version", "missing "))]
-        if problems:
-            raise BackupError("the restored copy failed verification: " + "; ".join(problems))
+        after = verify_backup(dest / "nzstats.db", raw_dir=dest / "raw", allow_older_schema=True)
+        if after.problems:
+            raise BackupError("the restored copy failed verification: " + "; ".join(after.problems))
     except BaseException:
         for leftover in ("nzstats.db", "nzstats.db-wal", "nzstats.db-shm"):
             (dest / leftover).unlink(missing_ok=True)

@@ -21,6 +21,7 @@ from nzstats.store.backup_bundle import (
     restore_bundle,
     verify_bundle,
 )
+from nzstats.store.backup_check import verify_backup
 from nzstats.store.db import connect, migrate
 
 NOW = datetime(2026, 10, 30, 3, 0, tzinfo=UTC)
@@ -264,8 +265,112 @@ def test_an_older_schema_set_restores_and_asks_for_a_migrate(tmp_path) -> None:
     assert report.ok and report.needs_migration and report.schema_version == 10
     restore_bundle(tmp_path / "old-set", tmp_path / "restored")
     copy = connect(tmp_path / "restored" / "nzstats.db")
+    assert (
+        copy.execute(
+            "SELECT name FROM sqlite_master WHERE name='research_summary_no_delete'"
+        ).fetchone()
+        is not None
+    )
     assert migrate(copy) == 11
     copy.close()
+    assert verify_backup(tmp_path / "restored" / "nzstats.db").ok
+
+
+def legacy_data(tmp_path):
+    root = tmp_path / "legacy"
+    root.mkdir()
+    conn, raw = make_data(root)
+    conn.execute("DELETE FROM schema_version WHERE version=11")
+    for table in ("ops_process", "ops_job", "ops_alert", "ops_notification"):
+        conn.execute(f"DROP TABLE {table}")
+    return conn, raw
+
+
+@pytest.mark.parametrize(
+    ("kind", "name"),
+    [
+        ("TRIGGER", "research_summary_no_delete"),
+        ("INDEX", "research_summary_version"),
+        ("TABLE", "research_summary_review"),
+    ],
+)
+def test_legacy_bundle_creation_rejects_missing_historical_objects(tmp_path, kind, name) -> None:
+    conn, raw = legacy_data(tmp_path)
+    conn.execute(f"DROP {kind} {name}")
+    try:
+        with pytest.raises(BackupError, match=f"missing {kind.lower()} {name}"):
+            create_bundle(conn, raw, tmp_path / "set", now=NOW)
+        assert not (tmp_path / "set").exists()
+        assert not list(tmp_path.glob(".set.partial-*"))
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    ("kind", "name"),
+    [
+        ("TRIGGER", "research_summary_no_delete"),
+        ("INDEX", "research_summary_version"),
+        ("TABLE", "research_summary_review"),
+    ],
+)
+def test_legacy_verification_and_restore_reject_missing_historical_objects(
+    tmp_path, kind, name
+) -> None:
+    conn, raw = legacy_data(tmp_path)
+    source = tmp_path / "set"
+    create_bundle(conn, raw, source, now=NOW)
+    conn.close()
+    db = source / "nzstats.db"
+    copy = sqlite3.connect(db)
+    copy.execute(f"DROP {kind} {name}")
+    copy.commit()
+    copy.close()
+    # Make the checksum consistent: this regression is about schema validation, not hashing.
+    manifest = json.loads((source / "MANIFEST.json").read_text())
+    manifest["database"].update(
+        sha256=hashlib.sha256(db.read_bytes()).hexdigest(), bytes=db.stat().st_size
+    )
+    (source / "MANIFEST.json").write_text(json.dumps(manifest))
+    before = tree(source)
+    report = verify_bundle(source)
+    assert not report.ok
+    assert f"missing {kind.lower()} {name}" in report.problems
+    target = tmp_path / "restored"
+    target.mkdir()
+    (target / "keep.txt").write_text("untouched")
+    destination_before = tree(target)
+    with pytest.raises(BackupError, match="failed verification"):
+        restore_bundle(source, target)
+    assert tree(source) == before and tree(target) == destination_before
+    with pytest.raises(BackupError, match="failed verification"):
+        restore_bundle(source, tmp_path / "new-target")
+    assert not (tmp_path / "new-target").exists()
+
+
+def test_legacy_restore_checks_the_copied_database_and_cleans_up(tmp_path, monkeypatch) -> None:
+    conn, raw = legacy_data(tmp_path)
+    source = tmp_path / "set"
+    create_bundle(conn, raw, source, now=NOW)
+    conn.close()
+    before = tree(source)
+    real_copy = shutil.copyfile
+
+    def damaged_copy(src, dest, **kwargs):
+        result = real_copy(src, dest, **kwargs)
+        if Path(dest).name == "nzstats.db":
+            copy = sqlite3.connect(dest)
+            copy.execute("DROP TRIGGER research_summary_no_delete")
+            copy.commit()
+            copy.close()
+        return result
+
+    monkeypatch.setattr(shutil, "copyfile", damaged_copy)
+    target = tmp_path / "restored"
+    with pytest.raises(BackupError, match="restored copy failed verification"):
+        restore_bundle(source, target)
+    assert list(target.iterdir()) == []
+    assert tree(source) == before
 
 
 # --- the command line ------------------------------------------------------------------------------------------------
