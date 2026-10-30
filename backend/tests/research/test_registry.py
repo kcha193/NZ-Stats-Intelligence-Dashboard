@@ -7,6 +7,7 @@ from nzstats.research.registry import (
     PRIORITY,
     ContentPolicy,
     LlmProcessing,
+    ManualImport,
     Mechanism,
     PublicDisplay,
     RegistryError,
@@ -55,8 +56,10 @@ def test_no_shipped_source_is_approved_for_automated_access():
 
 def test_recorded_findings_from_the_2026_10_25_probes():
     r = load_registry()
-    assert r["rbnz"].review_status is ReviewStatus.RESTRICTED
-    assert r["rbnz"].content_policy is ContentPolicy.NONE
+    # 2026-10-31: owner read the terms and approved manual import only; automated access still needs written permission
+    assert r["rbnz"].review_status is ReviewStatus.NEEDS_REVIEW
+    assert r["rbnz"].manual_import is ManualImport.APPROVED
+    assert r["rbnz"].content_policy is ContentPolicy.FULL_TEXT
     assert r["anz"].content_policy is ContentPolicy.METADATA_ONLY
     assert "/content/dam/asb/documents/" in r["asb"].blocked_path_prefixes
     assert set(r["westpac"].allowed_hosts) == {"www.westpac.co.nz", "assets.dam.westpac.co.nz"}
