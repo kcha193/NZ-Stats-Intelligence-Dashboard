@@ -1,6 +1,27 @@
 # Progress and verification record
 
-Last updated 2026-10-29. Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+Last updated 2026-10-30. Phase 4G (on-open refresh) is on a PR branch, not merged. Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+
+## Phase 4G: automatic refresh when the dashboard opens, 30 October 2026
+
+Design and runbook: [phase-4g-on-open-refresh.md](phase-4g-on-open-refresh.md). Branch `feat/phase-4g-on-open-refresh`
+(PR, not merged). Native, local operation only; Netlify, research, RBNZ and paid LLM calls unchanged.
+
+`scripts/run.sh` now serves with **on-open refresh** (`nzstats serve --refresh on-open`, the new default): no APScheduler,
+no timer. Opening the dashboard POSTs once to `/api/refresh`; the server runs one bounded check in a short-lived thread
+(calendar, then missing releases newer than each series' newest stored release, oldest first, at most 6 releases and
+40 logical GETs), reusing the existing `discover`/`ingest_release`, paced fetcher and validation. Single flight per
+process (thread) and across processes (flock); 30-minute recent-check window, 10-minute failure cooldown and 60-second
+Check-now spacing persist in `refresh_run` (migration 012) so they survive restarts. A verified rolling pre-refresh
+backup bundle precedes any ingest (one kept; skipped when nothing changed; failure blocks the update). The POST is
+refused (403) unless Host is loopback, Origin matches, Sec-Fetch-Site is same-origin and the custom client header is
+present; `serve` refuses on-open mode on non-loopback binds. GETs, probes and startup never start a check.
+`--offline`/`--no-scheduler` never contact Stats NZ; `--refresh scheduler` keeps the container's jobs (Dockerfile CMD).
+Ops status gains collection mode `on_open`, the last check, `refresh:failed` and `refresh:running_long`; a disabled
+scheduler is still not a fault, and staleness still means a missing published release. Header indicator with
+Check now; nothing renders offline or on the static site, so visual parity holds.
+
+Verification: see the PR description for the final counts and the independent security and statistical review.
 
 ## Phase 4E: internal readiness, 30 October 2026
 
