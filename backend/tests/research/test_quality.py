@@ -41,6 +41,21 @@ def test_replacement_and_private_use_characters_make_extraction_poor():
     assert "undecodable_characters" in codes(report) and report.grade == "poor"
 
 
+def test_symbol_font_bullets_are_undecodable_not_also_control_characters():
+    # A symbol font without a Unicode map gives bullets as private-use U+F0A7 (seen in a real Treasury PDF).
+    bullets = "\n".join(f"\uf0a7 Synthetic headline {i}" for i in range(4))
+    report = assess_extraction(pages(f"{bullets}\n{PROSE * 4}"), page_count=1)
+    assert report.metrics["undecodable"] == 4 and "undecodable_characters" in codes(report)
+    assert report.metrics["control"] == 0 and "control_characters" not in codes(report)
+    assert report.grade == "review"
+
+
+def test_real_control_characters_are_still_flagged_beside_undecodable_ones():
+    report = assess_extraction(pages(f"\uf0a7 {PROSE}\x07 bell\x1b escape"), page_count=1)
+    assert report.metrics["undecodable"] == 1 and report.metrics["control"] == 2
+    assert {"undecodable_characters", "control_characters"} <= codes(report)
+
+
 def test_glued_and_spaced_out_words_are_flagged():
     glued = PROSE + " " + "inflationisexpectedtofallsharplyoverthecomingyear " * 4
     assert "glued_words" in codes(assess_extraction(pages(glued), page_count=1))

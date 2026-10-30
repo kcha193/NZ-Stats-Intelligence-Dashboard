@@ -1,6 +1,6 @@
 # Phase 4H — live on-open acceptance and institutional economic commentary pilot
 
-Status: **planning and owner-gated acceptance only**. Prepared 31 October 2026 (Pacific/Auckland) from main `2da9caf343db7ffe9ca0c0e731d95af300ccaceb`. The Phase 4G on-open refresh is merged, but its first real Stats NZ check has **not been verified** by this plan. Institutional research remains **NO-GO for live ingestion** until the source-specific permission and access gates are satisfied.
+Status: **planning and owner-gated acceptance only**. Execution results (31 October 2026): [phase-4h-execution.md](phase-4h-execution.md). Prepared 31 October 2026 (Pacific/Auckland) from main `2da9caf343db7ffe9ca0c0e731d95af300ccaceb`. The Phase 4G on-open refresh is merged, but its first real Stats NZ check has **not been verified** by this plan. Institutional research remains **NO-GO for live ingestion** until the source-specific permission and access gates are satisfied.
 
 ## Decision and boundaries
 

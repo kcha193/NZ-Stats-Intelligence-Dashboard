@@ -1,6 +1,18 @@
 # Progress and verification record
 
-Last updated 2026-10-30. Phase 4G (on-open refresh) is on a PR branch, not merged. Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+Last updated 2026-10-31. Phase 4G (on-open refresh) is merged (PR #28) and passed live acceptance with conditions (Phase 4H execution). Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+
+## Phase 4H execution, 31 October 2026
+
+Report: [phase-4h-execution.md](phase-4h-execution.md) (issue #31). After a new verified read-only backup
+(`pre-4h-acceptance-20261030T224601Z`, 45/45 raw hashes, 0 count differences) and verification of the unmigrated pre-4G
+backup, one controlled on-open check (`refresh_run 4`, 12:11:10–12:12:02 NZDT) made 4 calendar GETs / 4 attempts
+(gaps ≥ 10.3 s), found nothing new and changed only timestamps: Phase 4G live acceptance **GO WITH CONDITIONS** (new-release
+path unverified until 4 Nov labour market). Treasury and RBNZ imports re-verified (hashes, exact re-extraction, offsets).
+The Treasury `control_characters` finding was a double count of 4 private-use bullet glyphs; fixed failing-first in
+`research/quality.py`. Independent 46-item annotation baseline and `research evaluate` gold set kept under `data/`;
+16 of 16 comparable figures match Stats NZ vintages. Backend 3,203 passed; Ruff clean. No model call, crawl, registry or
+display change.
 
 ## PR #28: review remediation, 30 October 2026
 

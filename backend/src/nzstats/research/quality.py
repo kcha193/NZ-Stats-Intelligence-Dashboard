@@ -69,7 +69,8 @@ def assess_extraction(
     letters = sum(c.isalpha() and not _undecodable(c) for c in visible)
     digits = sum(c.isdigit() for c in visible)
     undecodable = sum(_undecodable(c) for c in visible)
-    control = sum(not c.isprintable() and c not in "\n\t" for c in joined)
+    # Private-use code points are not printable either; count them once, as undecodable.
+    control = sum(not c.isprintable() and c not in "\n\t" and not _undecodable(c) for c in joined)
     words = _WORD.findall(joined)
     glued = [w for w in words if len(w) >= GLUED_WORD_CHARS]
     spaced = sum(len(run.split()) for run in _SPACED.findall(joined))
@@ -135,7 +136,7 @@ def assess_extraction(
     grade = {-1: "ok", 0: "ok", 1: "review", 2: "poor"}[worst]
     metrics: dict[str, float | int | None] = {
         "sections": len(sections), "characters": len(visible), "page_count": page_count,
-        "missing_pages": missing, "empty_sections": len(empty), "undecodable": undecodable,
+        "missing_pages": missing, "empty_sections": len(empty), "undecodable": undecodable, "control": control,
         "letter_ratio": round(letters / n, 3), "digit_ratio": round(digits / n, 3), "glued_words": len(glued),
         "spaced_letters": spaced, "repeated_lines": len(repeated), "hyphen_breaks": hyphen_breaks,
     }  # fmt: skip
