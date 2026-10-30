@@ -1,16 +1,27 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetRefreshForTests } from "@/api/refresh";
+import { mockApi } from "@/test/mockApi";
 import { Layout } from "./Layout";
+
+// An offline server: the header shows no refresh indicator, exactly as before Phase 4G.
+beforeEach(() => {
+  resetRefreshForTests();
+  mockApi({ "/api/refresh": { mode: "off", state: "never", failures: [], pending: [], latest: [] } });
+});
 
 const renderAt = (path: string) =>
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Layout>
-        <p>content</p>
-      </Layout>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[path]}>
+        <Layout>
+          <p>content</p>
+        </Layout>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe("Layout", () => {

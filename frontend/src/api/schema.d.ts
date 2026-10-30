@@ -106,6 +106,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/refresh/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Refresh Status
+         * @description Read-only: the last check and what is pending. Never starts a check.
+         */
+        get: operations["get_refresh_status_api_refresh_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Refresh
+         * @description Start a check unless one is running or a recent result stands; answers at once with the status.
+         */
+        post: operations["post_refresh_api_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -534,7 +574,7 @@ export interface components {
              * Mode
              * @enum {string}
              */
-            mode: "enabled" | "disabled" | "paused" | "unknown";
+            mode: "enabled" | "on_open" | "disabled" | "paused" | "unknown";
             /** Summary */
             summary: string;
         };
@@ -1386,7 +1426,7 @@ export interface components {
              * Category
              * @enum {string}
              */
-            category: "database" | "process" | "scheduler" | "calendar" | "release" | "source" | "backup" | "freshness";
+            category: "database" | "process" | "scheduler" | "refresh" | "calendar" | "release" | "source" | "backup" | "freshness";
             /** Title */
             title: string;
             /** Detail */
@@ -1485,6 +1525,19 @@ export interface components {
             /** Outcome */
             outcome: string;
         };
+        /** LatestStatisticOut */
+        LatestStatisticOut: {
+            /** Series Slug */
+            series_slug: string;
+            /** Label */
+            label: string;
+            /** Reference Period */
+            reference_period: string | null;
+            /** Period Label */
+            period_label: string | null;
+            /** Published At */
+            published_at: string;
+        };
         /** MeasureChangeOut */
         MeasureChangeOut: {
             institution: components["schemas"]["InstitutionOut"];
@@ -1568,6 +1621,15 @@ export interface components {
             database: components["schemas"]["DatabaseInfo"];
             process: components["schemas"]["ProcessInfo"];
             collection: components["schemas"]["CollectionInfo"];
+            /**
+             * @default {
+             *       "state": "never",
+             *       "ingested": 0,
+             *       "pending": 0,
+             *       "failures": 0
+             *     }
+             */
+            refresh: components["schemas"]["RefreshInfo"];
             /** Jobs */
             jobs: components["schemas"]["JobInfo"][];
             calendar: components["schemas"]["CalendarInfo"];
@@ -1662,6 +1724,8 @@ export interface components {
             heartbeat_age_seconds?: number | null;
             /** Scheduler Enabled */
             scheduler_enabled?: boolean | null;
+            /** Collection Mode */
+            collection_mode?: ("scheduler" | "on_open" | "off") | null;
             /** Stop Reason */
             stop_reason?: string | null;
             /**
@@ -1750,6 +1814,153 @@ export interface components {
             matched_cells: number;
             /** Entries */
             entries: components["schemas"]["RankingEntryOut"][];
+        };
+        /** RefreshFailureOut */
+        RefreshFailureOut: {
+            /** Key */
+            key: string;
+            /** Outcome */
+            outcome: string;
+            /** Error Class */
+            error_class: string | null;
+        };
+        /**
+         * RefreshInfo
+         * @description The last on-open check (Phase 4G). `never` on a database that has not had one.
+         */
+        RefreshInfo: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "never" | "running" | "completed" | "failed" | "interrupted";
+            /** Phase */
+            phase?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Running For Seconds */
+            running_for_seconds?: number | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /**
+             * Ingested
+             * @default 0
+             */
+            ingested: number;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+            /**
+             * Failures
+             * @default 0
+             */
+            failures: number;
+            /** Error Class */
+            error_class?: string | null;
+        };
+        /** RefreshPendingOut */
+        RefreshPendingOut: {
+            /** Release Key */
+            release_key: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "not_published_yet" | "rejected_today" | "blocked_cooldown" | "catch_up_limit" | "request_budget" | "stopped";
+            /** Series Slug */
+            series_slug: string | null;
+            /** Label */
+            label: string | null;
+            /** Reference Period */
+            reference_period: string | null;
+            /** Period Label */
+            period_label: string | null;
+            /** Published At */
+            published_at: string | null;
+        };
+        /** RefreshRequest */
+        RefreshRequest: {
+            /**
+             * Manual
+             * @default false
+             */
+            manual: boolean;
+        };
+        /**
+         * RefreshStatusOut
+         * @description The on-open refresh as the dashboard header shows it. Times are Pacific/Auckland ISO-8601.
+         */
+        RefreshStatusOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "on_open" | "scheduler" | "off";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "never" | "running" | "completed" | "failed" | "interrupted";
+            /** Phase */
+            phase?: ("checking" | "downloading" | "validating") | null;
+            /** Run Id */
+            run_id?: number | null;
+            /** Trigger */
+            trigger?: ("open" | "manual") | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /**
+             * Discovered
+             * @default 0
+             */
+            discovered: number;
+            /**
+             * Ingested
+             * @default 0
+             */
+            ingested: number;
+            /**
+             * Unchanged
+             * @default 0
+             */
+            unchanged: number;
+            /**
+             * Requests
+             * @default 0
+             */
+            requests: number;
+            /**
+             * Failures
+             * @default []
+             */
+            failures: components["schemas"]["RefreshFailureOut"][];
+            /**
+             * Pending
+             * @default []
+             */
+            pending: components["schemas"]["RefreshPendingOut"][];
+            /** Error Class */
+            error_class?: string | null;
+            /** Data Version */
+            data_version?: string | null;
+            /**
+             * Latest
+             * @default []
+             */
+            latest: components["schemas"]["LatestStatisticOut"][];
+            /**
+             * Started
+             * @default false
+             */
+            started: boolean;
         };
         /** ReleaseAnalysis */
         ReleaseAnalysis: {
@@ -2270,6 +2481,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsensusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_refresh_status_api_refresh_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshStatusOut"];
+                };
+            };
+        };
+    };
+    post_refresh_api_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshStatusOut"];
                 };
             };
             /** @description Validation Error */

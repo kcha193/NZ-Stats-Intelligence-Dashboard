@@ -585,8 +585,8 @@ def test_alert_delivery_is_evaluated_per_notifier(
 
 
 def test_a_database_behind_the_code_is_reported_without_touching_it(conn, clock, tmp_path) -> None:
-    conn.execute("DELETE FROM schema_version WHERE version=11")
-    for table in ("ops_process", "ops_job", "ops_alert", "ops_notification"):
+    conn.execute("DELETE FROM schema_version WHERE version>=11")
+    for table in ("refresh_run", "ops_process", "ops_job", "ops_alert", "ops_notification"):
         conn.execute(f"DROP TABLE {table}")
     s = S.status(conn, tmp_path, clock.now, bk=S.backup("none"))
     assert s.database.instrumented is False and s.database.schema_version == 10

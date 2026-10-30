@@ -18,11 +18,13 @@ def _schema(conn: sqlite3.Connection, *, research: bool) -> dict[str, str]:
     rows = conn.execute(
         "SELECT name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'"
     ).fetchall()
-    # `ops_*` objects arrive with a later, unrelated migration (Phase 4F) and are not part of the pre-research schema.
+    # `ops_*` (Phase 4F) and `refresh_run*` (Phase 4G) objects arrive with later, unrelated migrations and are not part
+    # of the pre-research schema.
     return {
         r["name"]: r["sql"]
         for r in rows
-        if r["name"].startswith("research_") == research and not r["name"].startswith("ops_")
+        if r["name"].startswith("research_") == research
+        and not r["name"].startswith(("ops_", "refresh_run"))
     }
 
 

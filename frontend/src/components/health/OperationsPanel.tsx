@@ -5,7 +5,8 @@ const LEVEL = { ok: "OK", attention: "Attention", critical: "Critical" } as cons
 const BORDER = { ok: "border-border", attention: "border-amber-600/50", critical: "border-destructive/60" } as const;
 
 const COLLECTION = {
-  enabled: "On",
+  enabled: "On (scheduler)",
+  on_open: "On open: checked each time the dashboard is opened",
   disabled: "Off (by choice)",
   paused: "Paused: the dashboard is not running",
   unknown: "Not known yet",
@@ -73,6 +74,17 @@ export function OperationsPanel({ status: s }: { status: OpsStatus }) {
             <span className="text-muted-foreground">None known for the supported releases</span>
           )}
         </Fact>
+        {s.refresh.state !== "never" && (
+          <Fact label="Last check for new data">
+            <span className="font-medium">
+              {{ running: "Running now", completed: "Completed", failed: "Failed: showing last verified data", interrupted: "Interrupted" }[s.refresh.state]}
+            </span>
+            <span className="block text-muted-foreground">
+              {s.refresh.state === "running" ? `Started ${at(s.refresh.started_at)}` : `${at(s.refresh.finished_at)} · ${s.refresh.ingested} ingested, ${s.refresh.pending} pending`}
+              {` · last successful ${at(s.refresh.last_success_at)}`}
+            </span>
+          </Fact>
+        )}
         <Fact label="Release calendar">
           <span className="font-medium">{{ current: "Up to date", missed: "Refresh missed", stale: "Out of date", never: "Never refreshed" }[s.calendar.state]}</span>
           <span className="block text-muted-foreground">

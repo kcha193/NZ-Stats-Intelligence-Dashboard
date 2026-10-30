@@ -2,8 +2,9 @@
 # Start the dashboard locally (no Docker): bootstraps the venv and UI build on first run, then serves
 # API + built UI on http://localhost:8000.
 #
-#   scripts/run.sh                  serve with the scheduler (polls stats.govt.nz, 10 s throttle)
-#   scripts/run.sh --no-scheduler   serve only; makes no requests to stats.govt.nz
+#   scripts/run.sh                  serve; opening the dashboard checks stats.govt.nz once for missing releases
+#                                   (on-open refresh: no scheduler, bounded, 10 s throttle)
+#   scripts/run.sh --offline        serve stored data only; makes no requests to stats.govt.nz (= --no-scheduler)
 #   scripts/run.sh --rebuild        force reinstall of dependencies and a fresh UI build
 #   scripts/run.sh --port 9000      any other flags are passed to `nzstats serve`
 #

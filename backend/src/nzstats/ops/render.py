@@ -35,6 +35,14 @@ def render_text(s: OpsStatus) -> str:
         f"Process        {p.state}"
         + (f" (pid {p.pid}, started {_at(p.started_at)}{beat})" if p.pid else "")
     )
+    r = s.refresh
+    if r.state != "never":
+        detail = (
+            f" ({r.phase}, {duration(r.running_for_seconds or 0)} so far)"
+            if r.state == "running"
+            else f" at {_at(r.finished_at)}: {r.ingested} ingested, {r.pending} pending, {r.failures} failure(s)"
+        )
+        lines.append(f"Last check     {r.state}{detail}; last successful {_at(r.last_success_at)}")
     nxt = f"; next {_at(c.next_refresh_at)}" if c.next_refresh_at else ""
     lines.append(f"Calendar       {c.state}; last complete refresh {_at(c.last_success_at)}{nxt}")
     if s.next_release:

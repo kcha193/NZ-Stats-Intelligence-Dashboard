@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Double-click to start the NZ Stats dashboard and open it in the browser.
-# Close this Terminal window (or press Ctrl+C) to stop it.
+# Double-click to start the NZ Stats dashboard and open it in the browser. Opening the dashboard checks Stats NZ once
+# for missing releases (on-open refresh; no scheduler). Close this Terminal window (or press Ctrl+C) to stop it.
 cd "$(dirname "$0")" || exit 1
 PORT=8000
 

@@ -6,18 +6,22 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from nzstats import __version__
+from nzstats.api.refresh import router as refresh_router
 from nzstats.api.routes import router
 from nzstats.config import Settings, load_settings
+from nzstats.pipeline.refresh import RefreshCoordinator
 from nzstats.runtime import Runtime, build_adapters, build_runtime
 from nzstats.store.db import connect, migrate
 
 log = logging.getLogger(__name__)
+CollectionMode = Literal["scheduler", "on_open", "off"]
 
 
 class SPAStaticFiles(StaticFiles):
@@ -48,6 +52,8 @@ def create_app(
     settings: Settings | None = None,
     *,
     start_scheduler: bool = False,
+    collection_mode: CollectionMode | None = None,
+    refresh: RefreshCoordinator | None = None,
     runtime: Runtime | None = None,
     routers: Sequence[APIRouter] = (),
     record_ops: bool = False,
@@ -57,15 +63,26 @@ def create_app(
     """The API and built UI. `routers` are extra `/api` routes (the CLI adds research); they come before the
     catch-all, so the snapshot exporter, which passes none, can never serve them.
 
+    `collection_mode` says how the process collects: APScheduler jobs ("scheduler", the same as `start_scheduler`), one
+    bounded check when the dashboard is opened ("on_open": no scheduler, no timer; `refresh` injects the coordinator in
+    tests) or not at all ("off", the default). Nothing contacts Stats NZ at startup in "on_open" or "off".
+
     `record_ops` (the CLI's `serve` sets it) makes the process record its heartbeat, whether the scheduler is on and its
     job states in the database, so `nzstats status` can tell a stopped, a deliberately idle and a stalled dashboard
     apart. `ops_status_enabled` gates `/api/ops/status`, which is unauthenticated. `capabilities` are feature flags the UI may ask about (`/api/capabilities`); none are on by default."""
     settings = settings or load_settings()
+    mode: CollectionMode = collection_mode or ("scheduler" if start_scheduler else "off")
+    start_scheduler = mode == "scheduler"
     bootstrap = connect(settings.db_path)
     try:
         migrate(bootstrap)
     finally:
         bootstrap.close()
+    if mode == "on_open":
+        refresh = refresh or RefreshCoordinator(settings)
+        refresh.recover()  # a check the previous process left unfinished is interrupted, not running
+    else:
+        refresh = None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -76,7 +93,10 @@ def create_app(
             from nzstats.ops.thresholds import Thresholds
 
             recorder = OpsRecorder(
-                settings.db_path, scheduler_enabled=start_scheduler, version=__version__
+                settings.db_path,
+                scheduler_enabled=start_scheduler,
+                collection_mode=mode,
+                version=__version__,
             )
             recorder.start()
             heartbeat = HeartbeatThread(recorder, Thresholds().heartbeat_interval_seconds)
@@ -100,6 +120,8 @@ def create_app(
             try:
                 if scheduler is not None and scheduler.running:
                     scheduler.shutdown(wait=False)
+                if refresh is not None:
+                    refresh.stop()  # finish the request in flight, send nothing more, record "interrupted"
             finally:
                 undo_hangup()
                 if heartbeat is not None:
@@ -110,12 +132,15 @@ def create_app(
     app = FastAPI(title="NZ Stats Intelligence Dashboard", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.capabilities = dict(capabilities or {})
+    app.state.collection_mode = mode
+    app.state.refresh = refresh
     app.state.ops_status_enabled = (
         ops_status_enabled  # `serve` turns it off for a non-loopback bind
     )
     app.state.analysable_slugs = set(build_adapters(settings))
     for extra in routers:
         app.include_router(extra, prefix="/api")
+    app.include_router(refresh_router, prefix="/api")
     app.include_router(router, prefix="/api")
 
     static = settings.static_dir

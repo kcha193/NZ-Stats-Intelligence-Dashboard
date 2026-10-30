@@ -20,6 +20,8 @@ export type Health = S["HealthOut"];
 export type OpsStatus = S["OpsStatus"];
 export type OpsIssue = S["Issue"];
 export type Capabilities = S["CapabilitiesOut"];
+// Phase 4G: the on-open refresh the dashboard header shows.
+export type RefreshStatus = S["RefreshStatusOut"];
 export type SourceHealth = S["SourceHealthOut"];
 export type CpiDashboard = S["CpiDashboardOut"];
 export type CpiSeries = S["CpiSeriesOut"];
