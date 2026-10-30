@@ -10,7 +10,7 @@ import { Layout } from "./Layout";
 // An offline server: the header shows no refresh indicator, exactly as before Phase 4G.
 beforeEach(() => {
   resetRefreshForTests();
-  mockApi({ "/api/refresh": { mode: "off", state: "never", failures: [], pending: [], latest: [] } });
+  mockApi({ "/api/refresh/status": { mode: "off", state: "never", failures: [], pending: [], latest: [] } });
 });
 
 const renderAt = (path: string) =>

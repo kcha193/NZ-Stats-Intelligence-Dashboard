@@ -259,7 +259,14 @@ def test_an_older_schema_set_restores_and_asks_for_a_migrate(tmp_path) -> None:
     root.mkdir()
     conn, raw = make_data(root)
     conn.execute("DELETE FROM schema_version WHERE version>=11")
-    for table in ("refresh_run", "ops_process", "ops_job", "ops_alert", "ops_notification"):
+    for table in (
+        "refresh_catch_up",
+        "refresh_run",
+        "ops_process",
+        "ops_job",
+        "ops_alert",
+        "ops_notification",
+    ):
         conn.execute(f"DROP TABLE {table}")
     report = create_bundle(conn, raw, tmp_path / "old-set", now=NOW)
     assert report.ok and report.needs_migration and report.schema_version == 10
@@ -271,7 +278,7 @@ def test_an_older_schema_set_restores_and_asks_for_a_migrate(tmp_path) -> None:
         ).fetchone()
         is not None
     )
-    assert migrate(copy) == 12
+    assert migrate(copy) == 13
     copy.close()
     assert verify_backup(tmp_path / "restored" / "nzstats.db").ok
 
@@ -281,7 +288,14 @@ def legacy_data(tmp_path):
     root.mkdir()
     conn, raw = make_data(root)
     conn.execute("DELETE FROM schema_version WHERE version>=11")
-    for table in ("refresh_run", "ops_process", "ops_job", "ops_alert", "ops_notification"):
+    for table in (
+        "refresh_catch_up",
+        "refresh_run",
+        "ops_process",
+        "ops_job",
+        "ops_alert",
+        "ops_notification",
+    ):
         conn.execute(f"DROP TABLE {table}")
     return conn, raw
 

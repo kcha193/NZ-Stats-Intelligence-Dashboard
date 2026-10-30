@@ -30,7 +30,7 @@ const at = (iso: string | null | undefined) => (iso ? formatAklDateTime(iso) : "
  * nothing unless the server runs the on-open refresh, so offline mode and the static site look exactly as before.
  */
 export function RefreshIndicator() {
-  const { status, failed, checkNow, requesting } = useRefresh();
+  const { status, failed, statusFailed, applicable, checkNow, requesting } = useRefresh();
   const [open, setOpen] = useState(false);
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -55,8 +55,10 @@ export function RefreshIndicator() {
     };
   }, [open]);
 
-  if (!failed && status?.mode !== "on_open") return null;
-  const { tone, message } = describeRefresh(status, failed);
+  if (!applicable && !(statusFailed && !status)) return null;
+  const { tone, message } = statusFailed
+    ? { tone: "problem" as const, message: "Refresh status unavailable — showing stored data" }
+    : describeRefresh(status, failed);
   const busy = tone === "busy" || requesting;
 
   return (
@@ -130,7 +132,7 @@ export function RefreshIndicator() {
             disabled={busy}
             className="shrink-0 whitespace-nowrap rounded-sm border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-ink"
           >
-            Check now
+            {statusFailed ? "Retry status" : "Check now"}
           </button>
           <span className="text-xs text-muted-foreground">Checks run on the server; you can keep reading.</span>
         </div>

@@ -2,6 +2,33 @@
 
 Last updated 2026-10-30. Phase 4G (on-open refresh) is on a PR branch, not merged. Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
 
+## PR #28: review remediation, 30 October 2026
+
+Branch `feat/phase-4g-on-open-refresh`, base `main`. The initial reviewed head was `2b11d2f8559a847089c07b895893fead4aa4c44c`.
+All conversation comments, review submissions, inline threads and CI results were inspected; the three GitHub findings
+were unresolved at intake. Existing stored data, vintage provenance, source permissions and security checks are preserved.
+
+| Finding | Severity | Original location | Resolution |
+|---|---|---|---|
+| [Partial discovery loses older releases](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/28#discussion_r4421084317) | P1 | `pipeline/refresh.py:214–218` | Migration 013 persists each series' initial catch-up boundary before discovery. Four fixture regressions cover newer ingestion followed by older-feed recovery, with/without existing data and restart; stored releases are not fetched again. Ops reports late missing releases too. |
+| [Shutdown returns with active worker](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/28#discussion_r4421084325) | P2 | `pipeline/refresh.py:390–394` | Stop is serialised with trigger and joins the worker through request cleanup and result persistence. Cancellation propagates through retry, redirect, pacing and lock waits. A real >15-second request and plain/compressed trickle regressions verify released reservations and clean restart. |
+| [Automatic POST ignores collection mode](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/28#discussion_r4421084332) | P2 | `api/refresh.ts:85–87` | Read status before posting; require explicit on-open mode and loopback browser host. Status errors have their own retry. StrictMode and tabs share automatic starts; backend guards are unchanged. |
+| Fast ingestion finishes before POST response | P2 | Local regression review, `api/refresh.ts` | Preserve the GET's initial data version so an already-completed POST invalidates stored chart queries. |
+| Successful poll leaves earlier status failure visible | P2 | Independent local review, `api/refresh.ts` | A later successful status update supersedes the failed opening/visibility request; regression simulates a transient failure during a long-running check. |
+
+Every defect was reproduced before its fix. The raw-chunk deadline also covers compressed streams which can consume
+bytes without producing decoded content; it is a body deadline, not a strict end-to-end HTTP time limit. Hard process
+termination still uses the existing crash-recovery rules. No live Stats NZ request or paid model call ran.
+
+Final local verification: Python 3.12 full suite **3,161 passed**; Python 3.14 focused sources/refresh/API suite
+**301 passed**; frontend **524 passed**; live browser **174 passed**; static/parity **315 passed, 24 expected skips**;
+synthetic research browser **18 passed, 3 expected skips**. Ruff lint/format, typecheck, repository lint (Oxlint),
+production/static builds, API schema parity, dependency audit (zero vulnerabilities) and staged Gitleaks pass.
+Existing warnings: Starlette/httpx deprecation, three UI Fast Refresh exports, Vite chunk size.
+Head-specific GitHub review outcome is recorded in the PR conversation.
+Hosted Actions remain billing/spending-limit blocked before steps; Docker has no local daemon. These are separate
+from local test results and prevent claiming that all required hosted checks passed. The PR must remain unmerged.
+
 ## Phase 4G: automatic refresh when the dashboard opens, 30 October 2026
 
 Design and runbook: [phase-4g-on-open-refresh.md](phase-4g-on-open-refresh.md). Branch `feat/phase-4g-on-open-refresh`

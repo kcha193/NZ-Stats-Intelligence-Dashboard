@@ -278,6 +278,50 @@ def test_shutdown_waits_for_the_check_to_stop_and_records_it_interrupted(rt, sit
     )
     assert c.trigger() is True
     threading.Timer(0.2, gate.set).start()
-    c.stop(timeout=30)
+    c.stop()
     assert not c.running() and status(rt).state == "interrupted"
     assert c.trigger() is False  # a stopping coordinator starts nothing new
+
+
+def test_shutdown_waits_past_fifteen_seconds_for_inflight_request(rt, site, clock):
+    """The worker owns a durable reservation for >15s; stop must wait for its result."""
+    import json
+    import time
+
+    from nzstats.sources.fetcher import FilePacer
+
+    entered, release, stopped = threading.Event(), threading.Event(), threading.Event()
+    original = site.handler
+
+    def slow(request):
+        entered.set()
+        assert release.wait(25)
+        return original(request)
+
+    rt.fetcher._client._transport.handler = slow
+    pace_path = rt.settings.data_dir / ".request-pace"
+    rt.fetcher._pacer = FilePacer(pace_path, 10)
+    c = coordinator(rt, clock)
+    assert c.trigger() and entered.wait(5)
+    stopper = threading.Thread(target=lambda: (c.stop(), stopped.set()))
+    started = time.monotonic()
+    stopper.start()
+    try:
+        assert not stopped.wait(15.2), (
+            "shutdown returned while the HTTP request still owned its reservation"
+        )
+    finally:
+        release.set()
+        stopper.join(10)
+        c.join(10)
+    assert time.monotonic() - started >= 15.2
+    assert stopped.is_set() and not c.running()
+    assert status(rt).state == "interrupted" and status(rt).finished_at is not None
+    assert len(site.requests) == 1
+    journal = json.loads(pace_path.read_text().strip().splitlines()[-1])
+    assert journal["pending"] is False and journal["blocked_until"] is None
+    restarted = coordinator(rt, clock)
+    assert restarted.recover() == 0
+    # New process can take the pacer without a recovery cooldown (normal 10-second spacing still applies).
+    with FilePacer(pace_path, 10, sleep=lambda _: None).turn() as turn:
+        assert turn.blocked_until is None

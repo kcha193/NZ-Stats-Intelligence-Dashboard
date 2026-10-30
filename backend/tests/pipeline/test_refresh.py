@@ -443,3 +443,80 @@ def test_after_a_long_absence_the_calendar_is_read_back_to_the_last_refresh(rt, 
     site.requests.clear()
     run(rt)
     assert f"{BASE}/api/v1/releaseCalendarMonth/2026-04" in site.requests
+
+
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("existing_data", [False, True])
+def test_partial_calendar_failure_retains_late_release_after_newer_ingestion(
+    rt, site, restart, existing_data
+):
+    """A recovered older feed stays eligible after a newer release advances the vintage watermark."""
+    from nzstats.clock import AKL
+    from nzstats.runtime import build_runtime
+    from tests.ops.support import add_release
+
+    if existing_data:
+        add_release(
+            rt.conn,
+            "migration-baseline",
+            "international-migration",
+            NOW - timedelta(days=30),
+            vintage=True,
+        )
+
+    def feed(month, days):
+        ref = release_ref_for(month)
+        return json.dumps(
+            {
+                "items": {
+                    "published": [
+                        {
+                            "DateTaxonomyTerm": {
+                                "DisplayName": ref.title,
+                                "PublicationDate": (NOW - timedelta(days=days))
+                                .astimezone(AKL)
+                                .strftime("%Y-%m-%d %H:%M:%S"),
+                            },
+                            "PageLink": page_url(month).removeprefix(BASE),
+                        }
+                    ],
+                    "upcoming": [],
+                }
+            }
+        ).encode()
+
+    # Long absence, and the older feed fails while the newer feed succeeds.
+    repo.set_source_health(
+        rt.conn, "calendar_refresh", NOW - timedelta(days=100), ok=True, detail=None
+    )
+    empty = b'{"items":{"published":[],"upcoming":[]}}'
+    for month in ("2026-07", "2026-08", "2026-09", "2026-10", "2026-11"):
+        site.override(f"{BASE}/api/v1/releaseCalendarMonth/{month}", 200, empty, "application/json")
+    older_url = f"{BASE}/api/v1/releaseCalendarMonth/2026-07"
+    site.override(older_url, 503, b"", "text/html")
+    site.override(CALENDAR[2], 200, feed("2026-07", 2), "application/json")
+    first, _ = run(rt)
+    assert first.ingested == 1 and first.failures
+    assert (
+        rt.conn.execute(
+            "SELECT COUNT(*) FROM ingest_run WHERE release_key = ?", (JUNE,)
+        ).fetchone()[0]
+        == 0
+    )
+    before = snapshot(rt.conn)
+
+    if restart:
+        settings = rt.settings
+        rt.conn.close()
+        rt = build_runtime(settings, fetcher=site.fetcher())
+    site.override(older_url, 200, feed("2026-06", 20 if existing_data else 3), "application/json")
+    site.requests.clear()
+    recovered, _ = run(rt)
+    assert recovered.ingested == 1 and recovered.failures == []
+    assert page_url("2026-06") in site.requests
+    assert page_url("2026-07") not in site.requests
+    assert snapshot(rt.conn)[: len(before)] == before
+    site.requests.clear()
+    again, _ = run(rt)
+    assert again.discovered == 0 and again.ingested == 0
+    assert all("/information-releases/" not in url for url in site.requests)

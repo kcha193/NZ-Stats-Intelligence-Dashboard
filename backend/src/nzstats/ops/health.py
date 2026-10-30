@@ -518,6 +518,11 @@ def _freshness(conn, adapters, settings, now, t, collection, out):
         minutes=max(t.release_grace_floor_minutes, max(settings.poll_offsets_minutes) + 60)
     )
     rows, empty = [], []
+    boundaries = (
+        dict(conn.execute("SELECT series_slug, after_published_at FROM refresh_catch_up"))
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'refresh_catch_up'").fetchone()
+        else {}
+    )
     for slug in sorted(adapters):
         latest = conn.execute(
             "SELECT r.release_key, r.title, r.reference_period, r.published_at,"
@@ -546,12 +551,16 @@ def _freshness(conn, adapters, settings, now, t, collection, out):
                 "SELECT r.release_key, r.series_slug, r.published_at, r.status, r.reference_period, r.title FROM release r"
                 " WHERE r.series_slug = ? AND r.published_at <= ?"
                 " AND NOT EXISTS (SELECT 1 FROM vintage v WHERE v.release_id = r.id)"
-                # Newer than the newest stored release, or attempted and never stored: a later vintage must not hide
-                # an earlier published release that was rejected or failed (the catch-up still retries it).
+                # Retain the initial refresh boundary too: a later vintage must not hide a release
+                # discovered after a partial feed failure, or one attempted and never stored.
                 " AND (r.published_at > ? OR EXISTS (SELECT 1 FROM ingest_run i"
                 " WHERE i.release_key = r.release_key AND i.started_at >= r.published_at))"
                 " ORDER BY r.published_at",
-                (slug, to_utc_iso(now - grace), latest["published_at"]),
+                (
+                    slug,
+                    to_utc_iso(now - grace),
+                    min(latest["published_at"], boundaries.get(slug, latest["published_at"])),
+                ),
             ):
                 run = conn.execute(
                     "SELECT outcome, error_class, started_at FROM ingest_run WHERE release_key = ? ORDER BY id DESC LIMIT 1",

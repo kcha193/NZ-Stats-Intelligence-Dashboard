@@ -30,12 +30,38 @@ export async function requestRefresh(manual: boolean): Promise<RefreshStatus> {
 // One automatic check per page load, however often the header mounts: React StrictMode runs effects twice in
 // development, and a remount must not start a second request. A reload is a new page load, and the server's
 // single-flight and recent-check window decide whether that means a new check.
-let opening: Promise<RefreshStatus> | null = null;
+type Opening = { status: RefreshStatus; failed: boolean; beforeVersion: string | null };
+let opening: Promise<Opening> | null = null;
 let openedAt = 0;
+let openingPending = false;
 
-function openOnce(force = false): Promise<RefreshStatus> {
-  if (!opening || force) {
-    opening = requestRefresh(false);
+// Keep loopback-only controls out of the published snapshot bundle as well as its runtime.
+const localDashboard = () => import.meta.env.VITE_DATA_MODE !== "static" &&
+  ["localhost", "127.0.0.1", "[::1]", "::1"].includes(window.location.hostname);
+
+async function readThenRefresh(): Promise<Opening> {
+  const status = await getJson<RefreshStatus>("/api/refresh/status");
+  const beforeVersion = status.data_version ?? null;
+  if (status.mode !== "on_open" || !localDashboard() || status.state === "running") return { status, failed: false, beforeVersion };
+  try {
+    return { status: await requestRefresh(false), failed: false, beforeVersion };
+  } catch {
+    return { status, failed: true, beforeVersion };
+  }
+}
+
+async function coordinatedOpen(): Promise<Opening> {
+  if (navigator.locks) return await navigator.locks.request("nzstats-refresh-open", readThenRefresh);
+  return readThenRefresh();
+}
+
+function openOnce(force = false): Promise<Opening> {
+  if (!opening || (force && !openingPending)) {
+    openingPending = true;
+    // Tabs serialise the status/read/start exchange where Web Locks is available. The backend's
+    // durable single-flight and recent-result checks also protect browsers without Web Locks.
+    opening = coordinatedOpen()
+      .finally(() => { openingPending = false; });
     openedAt = Date.now();
     opening.catch(() => {
       /* reported by the caller; a later visit or "Check now" can try again */
@@ -48,11 +74,14 @@ function openOnce(force = false): Promise<RefreshStatus> {
 export function resetRefreshForTests(): void {
   opening = null;
   openedAt = 0;
+  openingPending = false;
 }
 
 export type RefreshView = {
   status: RefreshStatus | undefined;
-  failed: boolean; // the local server could not be asked at all
+  failed: boolean; // the POST failed after on-open mode was confirmed
+  statusFailed: boolean;
+  applicable: boolean;
   checkNow: () => void;
   requesting: boolean;
 };
@@ -64,8 +93,8 @@ export type RefreshView = {
 export function useRefresh(): RefreshView {
   const client = useQueryClient();
   const live = !isStaticMode();
-  const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [statusFailedAt, setStatusFailedAt] = useState<number | null>(null);
   const [requesting, setRequesting] = useState(false);
   const seenVersion = useRef<string | null | undefined>(undefined);
   const watching = useRef(false);
@@ -74,36 +103,47 @@ export function useRefresh(): RefreshView {
     (s: RefreshStatus) => {
       client.setQueryData(REFRESH_STATUS_KEY, s);
       setFailed(false);
-      setReady(true);
+      setStatusFailedAt(null);
     },
     [client],
   );
+  const failStatus = useCallback(() => {
+    setStatusFailedAt(client.getQueryState(REFRESH_STATUS_KEY)?.dataUpdatedAt ?? 0);
+  }, [client]);
 
   useEffect(() => {
     if (!live) return;
     let active = true;
-    openOnce()
-      .then((s) => active && accept(s))
-      .catch(() => active && setFailed(true));
+    const opened = (result: Opening) => {
+      if (!active) return;
+      if (seenVersion.current === undefined) seenVersion.current = result.beforeVersion;
+      accept(result.status);
+      setFailed(result.failed);
+    };
+    const unavailable = () => { if (active) failStatus(); };
+    openOnce().then(opened, unavailable);
     const onVisible = () => {
       if (document.visibilityState !== "visible" || Date.now() - openedAt < RECHECK_AFTER_MS) return;
-      openOnce(true).then(accept, () => setFailed(true));
+      openOnce(true).then(opened, unavailable);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       active = false;
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [live, accept]);
+  }, [live, accept, failStatus]);
 
   const query = useQuery({
     queryKey: REFRESH_STATUS_KEY,
     queryFn: ({ signal }) => getJson<RefreshStatus>("/api/refresh/status", signal),
-    enabled: live && ready,
+    enabled: live && client.getQueryData(REFRESH_STATUS_KEY) !== undefined,
     staleTime: Infinity,
     refetchInterval: (q) => (q.state.data?.state === "running" ? POLL_MS : false),
   });
   const status = query.data;
+  const applicable = live && localDashboard() && status?.mode === "on_open";
+  // A successful progress poll supersedes an earlier opening/visibility status error.
+  const unavailable = (statusFailedAt !== null && statusFailedAt === query.dataUpdatedAt) || query.isError;
 
   // New verified data (from this check, another tab's or the CLI's): every other query refetches in the background.
   // A check this page watched has finished: the calendar it read may list new or rescheduled releases.
@@ -125,11 +165,15 @@ export function useRefresh(): RefreshView {
   }, [status, client]);
 
   const checkNow = useCallback(() => {
+    if (!applicable && !unavailable) return;
+    if (requesting) return;
     setRequesting(true);
-    requestRefresh(true)
-      .then(accept, () => setFailed(true))
+    const request = unavailable
+      ? openOnce(true).then((result) => { accept(result.status); setFailed(result.failed); }, failStatus)
+      : requestRefresh(true).then(accept, () => setFailed(true));
+    request
       .finally(() => setRequesting(false));
-  }, [accept]);
+  }, [accept, applicable, unavailable, requesting, failStatus]);
 
-  return { status, failed, checkNow, requesting };
+  return { status, failed, statusFailed: unavailable, applicable, checkNow, requesting };
 }

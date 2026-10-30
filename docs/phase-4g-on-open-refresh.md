@@ -29,15 +29,19 @@ explicitly, so its behaviour is unchanged.
 ## What happens when you open it
 
 1. The page renders the stored, validated data immediately. Nothing waits for the network.
-2. The page sends one `POST /api/refresh` to the local server (once per page load, including under React StrictMode).
+2. The page reads `GET /api/refresh/status` first. Only a loopback dashboard with explicit `on_open` mode sends
+   `POST /api/refresh` (once per page load, including under React StrictMode). Scheduler/offline modes stay hidden;
+   tabs use Web Locks where available and the server always enforces single flight and recent-result reuse.
 3. The server decides: if a check is already running (another tab, a reload) it reports that one; if the last check
    completed under 30 minutes ago it reuses that result; if the last check failed under 10 minutes ago it waits.
    Otherwise it starts one check in a short-lived background thread and answers straight away.
 4. The check reads the Stats NZ release calendar (4 requests; after a long absence also the months since the last
    complete calendar refresh, at most 6 months back), then finds **missing releases**: a supported series (CPI, GDP,
    labour market, electronic card transactions, international migration) whose release has been published, has no
-   stored vintage, and either is newer than the newest release of that series already stored or was attempted before
-   and never stored (so a rejected release is never forgotten once a later one succeeds).
+   stored vintage, and either is newer than the initial catch-up boundary or was attempted before and never stored.
+   Before its first discovery, each series durably records its newest stored publication time (or seven days before
+   the check if empty). That boundary survives newer ingestion and restarts: releases discovered on a recovered feed
+   stay eligible. Existing stored releases are excluded and earlier history remains explicit backfill's job.
 5. If there is anything to ingest, a verified backup is taken first (below). Then each missing release is downloaded,
    validated and committed in publication order, each in one transaction, through the existing ingestion pipeline.
 6. The header follows the check: *Checking for updates…*, *Downloading latest release…*, *Validating statistics…*,
@@ -60,7 +64,7 @@ You can keep reading and navigating during a check. Closing the tab does not sto
 | Not opened for weeks | The calendar is read back to the last complete refresh (up to 6 months), and the missed releases are fetched oldest first, **at most 6 per check and 40 logical GETs**. The rest are listed as pending and fetched by the next checks (Check now, or reopen after the window). Away for more than 6 months: run `scripts/run.sh discover`, then `backfill` for the gap |
 | A brand-new install with no data | Only releases from the last 7 days are fetched. History is `backfill`'s job, never a page view's |
 | Two tabs, a reload, or StrictMode | One check. The others show its progress |
-| You stop the dashboard mid-check (Ctrl+C, closing Terminal) | The request in flight finishes (up to about 15 s), nothing more is sent, the check is recorded as interrupted, and nothing partial is kept. Stopping it this way never leaves Stats NZ blocked for the next start |
+| You stop the dashboard mid-check (Ctrl+C, closing Terminal) | Shutdown waits for the active HTTP operation and durable result, even beyond 15 s (the HTTP timeout is 120 s, with a 15 s connect timeout). Retry, redirect, pacing and lock waits honour cancellation; no further HTTP attempt starts. The pacing reservation is released and the check is recorded as interrupted. Existing block/Retry-After deadlines still apply |
 | The process is killed or crashes mid-check | Recorded as interrupted on the next start; nothing partial is kept. If a request was in flight, the shared pacer's crash-safety rule holds all requests for 30 minutes |
 | The laptop sleeps | The window uses wall-clock time, so after a night asleep the next opening (or returning to the tab after 5 minutes) checks again |
 
@@ -77,12 +81,17 @@ You can keep reading and navigating during a check. Closing the tab does not sto
 The 10-second minimum request spacing, retry limits, `Retry-After` handling and the 30-minute block cooldown are the
 existing shared fetcher's and apply unchanged, across processes.
 
+On-open responses also have a 120-second body deadline checked on raw chunks, including compressed responses, so a
+continuously trickling body cannot hold shutdown open. This is not a strict end-to-end 120-second limit: header
+arrival and one outstanding read can extend it. HTTPX's existing connect/read timeouts still apply. Hard process
+termination (including `SIGKILL`) cannot run graceful cleanup and retains the pacer's crash-recovery cooldown.
+
 ## What it will never do
 
 - Download a release that already has a stored vintage. A corrected release is re-ingested by hand, with a reason:
   `scripts/run.sh ingest --release-key <key>`. Revisions Stats NZ publishes *in later releases* arrive with those releases
   as new vintages; earlier vintages are never edited.
-- Repeat the historical backfill or fetch anything older than the newest stored release of a series.
+- Repeat the historical backfill or fetch unattempted history at/before the initial catch-up boundary.
 - Contact anything other than stats.govt.nz. Research and RBNZ sources are a separate, permission-gated domain that this
   code does not import.
 - Start because something read the server. Health checks, uptime probes, `GET` requests and server startup never start a
@@ -144,4 +153,6 @@ unchanged.
 
 Implementation: `backend/src/nzstats/pipeline/refresh.py` (selection, budget, single flight, backup, status),
 `backend/src/nzstats/api/refresh.py` (routes and origin checks), `frontend/src/api/refresh.ts`,
-`frontend/src/components/RefreshIndicator.tsx`. Migration 012 adds `refresh_run` and `ops_process.collection_mode`.
+`frontend/src/components/RefreshIndicator.tsx`. Migration 012 adds `refresh_run` and `ops_process.collection_mode`;
+migration 013 adds the durable per-series `refresh_catch_up` boundary. Status-fetch failures say "Refresh status
+unavailable" and offer a status retry; they do not imply ingestion failed or send an unapproved POST.

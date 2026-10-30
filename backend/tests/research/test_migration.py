@@ -24,7 +24,7 @@ def _schema(conn: sqlite3.Connection, *, research: bool) -> dict[str, str]:
         r["name"]: r["sql"]
         for r in rows
         if r["name"].startswith("research_") == research
-        and not r["name"].startswith(("ops_", "refresh_run"))
+        and not r["name"].startswith(("ops_", "refresh_run", "refresh_catch_up"))
     }
 
 

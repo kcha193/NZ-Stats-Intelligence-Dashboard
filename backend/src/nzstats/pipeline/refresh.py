@@ -8,8 +8,8 @@ limits, Retry-After and block cooldowns all apply unchanged).
 What a check may fetch is deliberately narrow:
 
 * the calendar (four requests), then
-* releases of a supported series that have no vintage and were published after that series' newest ingested release,
-  oldest first. History older than that is never fetched (that is `backfill`'s job), and a release that already has
+* releases of a supported series that have no vintage and were published after that series' initial catch-up boundary,
+  oldest first. Earlier history is never fetched (that is `backfill`'s job), and a release that already has
   a vintage is never downloaded again (a correction is ingested by hand, `nzstats ingest --release-key`, with a reason).
 
 Each check is bounded by `RefreshSettings` (releases and logical GETs); whatever it could not reach is reported as
@@ -100,9 +100,10 @@ def missing_releases(
     """Releases to ingest now, in publication order, and those deliberately left for later.
 
     A release is missing when its series is supported, its publication time has passed, it has no vintage, and either
-    it was published after the newest release of its series that has one, or it was already attempted and never stored
-    (like the scheduler's catch-up, so a release rejected while a later one succeeded is never forgotten). A series with
-    no data at all only looks back `catch_up_days`: filling history is `backfill`'s job, never a page view's.
+    it was published after the newest stored release or the persisted initial catch-up boundary, or was already
+    attempted and never stored. A later vintage cannot hide a release discovered after a partial calendar failure.
+    The initial boundary for a series with no data is `catch_up_days` before its first check; earlier history remains
+    `backfill`'s job. A stored vintage is always excluded, regardless of the boundary.
     """
     slugs = list(adapters)
     marks = ",".join("?" * len(slugs))
@@ -114,6 +115,8 @@ def missing_releases(
         " AND (r.published_at > COALESCE((SELECT MAX(r2.published_at) FROM release r2"
         "  WHERE r2.series_slug = r.series_slug"
         "  AND EXISTS (SELECT 1 FROM vintage v2 WHERE v2.release_id = r2.id)), ?)"
+        "  OR r.published_at > (SELECT after_published_at FROM refresh_catch_up"
+        "   WHERE series_slug = r.series_slug)"
         "  OR EXISTS (SELECT 1 FROM ingest_run i WHERE i.release_key = r.release_key"
         "  AND i.started_at >= r.published_at))"
         " ORDER BY r.published_at, r.id",
@@ -159,7 +162,12 @@ class _BudgetedFetcher:
         if self.used >= self.limit:
             raise RequestRefused(ErrorClass.NETWORK, "not requested: refresh request budget spent")
         self.used += 1
-        return self._inner.get(url, **kwargs)
+        try:
+            return self._inner.get(url, stop=self._stop, **kwargs)
+        except RequestRefused:
+            if self._stop is not None and self._stop.is_set():
+                self.stopped = True
+            raise
 
 
 class _ReportingAdapter:
@@ -201,6 +209,17 @@ def run_refresh(
     run_rt = replace(rt, fetcher=budget, adapters=adapters)
     result = RefreshResult()
     try:
+        # Save once, before any discovery or newer ingestion. Never derive this boundary from a
+        # later vintage: a feed may reveal an older release only on a subsequent check or restart.
+        with transaction(rt.conn):
+            for slug in rt.adapters:
+                rt.conn.execute(
+                    "INSERT OR IGNORE INTO refresh_catch_up(series_slug, after_published_at)"
+                    " SELECT ?, COALESCE(MAX(r.published_at), ?) FROM release r"
+                    " WHERE r.series_slug = ? AND EXISTS"
+                    " (SELECT 1 FROM vintage v WHERE v.release_id = r.id)",
+                    (slug, to_utc_iso(now_fn() - timedelta(days=rt.settings.catch_up_days)), slug),
+                )
         on_phase("checking")
         months = months_to_check(rt.conn, now_fn())
         found = discover(run_rt, months=months, now_fn=now_fn)
@@ -250,6 +269,8 @@ def run_refresh(
                 break
         return result
     finally:
+        if stop is not None and stop.is_set():
+            result.state = "interrupted"
         result.requests = budget.used
         on_phase("done")
 
@@ -387,11 +408,14 @@ class RefreshCoordinator:
     def running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def stop(self, timeout: float = 15.0) -> None:
+    def stop(self) -> None:
         """For shutdown: let the request in flight finish, send nothing more, and wait for the check to record itself.
         Killing it mid-request instead would leave a pacing reservation that blocks Stats NZ for 30 minutes."""
-        self._stop.set()
-        self.join(timeout)
+        with self._lock:
+            self._stop.set()
+            thread = self._thread
+        if thread is not None:
+            thread.join()
 
     def join(self, timeout: float | None = None) -> None:
         thread = self._thread

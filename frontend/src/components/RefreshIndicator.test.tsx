@@ -137,10 +137,10 @@ describe("RefreshIndicator", () => {
     expect(screen.queryByRole("button", { name: /data refresh/i })).not.toBeInTheDocument();
   });
 
-  it("says when the server could not refresh and that verified data is shown", async () => {
+  it("says when refresh status is unavailable and keeps stored data visible", async () => {
     server([new Response("{}", { status: 500 })]);
     renderHeader();
-    expect(await screen.findByRole("status")).toHaveTextContent(COULD_NOT_REFRESH);
+    expect(await screen.findByRole("status")).toHaveTextContent("Refresh status unavailable — showing stored data");
   });
 
   it("separates the last successful check from the reference period of the statistics", async () => {
@@ -158,7 +158,7 @@ describe("RefreshIndicator", () => {
 
   it("checks again on request, and not while a check is running", async () => {
     const user = userEvent.setup();
-    const calls = server([s({}), s({ started: true, state: "running", phase: "checking" })], [s({ state: "running", phase: "checking" })]);
+    const calls = server([s({}), s({ started: true, state: "running", phase: "checking" })], [s({}), s({ state: "running", phase: "checking" })]);
     renderHeader();
     await user.click(await screen.findByRole("button", { name: /data refresh/i }));
     await user.click(screen.getByRole("button", { name: "Check now" }));
@@ -180,4 +180,78 @@ describe("RefreshIndicator", () => {
     await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(2));
     vi.restoreAllMocks();
   });
+});
+
+describe("collection mode before automatic refresh", () => {
+  it.each(["scheduler", "off"] as const)("only reads status in %s mode", async (mode) => {
+    const calls = server([new Response("{}", { status: 403 })], [s({ mode })]);
+    renderHeader({ strict: true });
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    await act(async () => {});
+    expect(calls.map((c) => [c.method, c.url])).toEqual([["GET", "/api/refresh/status"]]);
+    expect(screen.queryByRole("button", { name: /data refresh/i })).not.toBeInTheDocument();
+  });
+
+  it("gets status before one StrictMode POST and keeps the security header", async () => {
+    const calls = server([s({})], [s({})]);
+    renderHeader({ strict: true });
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(1));
+    expect(calls[0]).toMatchObject({ method: "GET", url: "/api/refresh/status" });
+    const post = calls.find((c) => c.method === "POST")!;
+    expect(new Headers(post.headers).get("X-NZStats-Client")).toBe("dashboard");
+  });
+
+  it("reports status failure separately and retries status before posting", async () => {
+    const calls = server([s({})], [new Response("{}", { status: 503 }), s({})]);
+    renderHeader();
+    expect(await screen.findByRole("status")).toHaveTextContent("Refresh status unavailable");
+    expect(calls.every((c) => c.method === "GET")).toBe(true);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /data refresh/i }));
+    await user.click(screen.getByRole("button", { name: "Retry status" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(1));
+    expect(calls[1]).toMatchObject({ method: "GET", url: "/api/refresh/status" });
+  });
+
+  it("reports an actual POST failure after on-open mode was confirmed", async () => {
+    const calls = server([new Response("{}", { status: 500 })], [s({})]);
+    renderHeader();
+    expect(await screen.findByRole("status")).toHaveTextContent(COULD_NOT_REFRESH);
+    expect(calls[0].method).toBe("GET");
+    expect(calls[1].method).toBe("POST");
+  });
+});
+
+it.each(["scheduler", "off", "on_open"] as const)("never posts from a LAN host in %s mode", async (mode) => {
+  vi.stubGlobal("location", new URL("http://192.168.1.42:8000/"));
+  try {
+    const calls = server([new Response("{}", { status: 403 })], [s({ mode })]);
+    renderHeader();
+    await waitFor(() => expect(calls).toHaveLength(1));
+    await act(async () => {});
+    expect(calls[0]).toMatchObject({ method: "GET", url: "/api/refresh/status" });
+    expect(screen.queryByRole("button", { name: /data refresh/i })).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("refetches stored dashboards when ingestion finishes before the POST responds", async () => {
+  const onFetch = vi.fn();
+  server([s({ ingested: 1, data_version: "a11" })], [s({ data_version: "a10" })]);
+  renderHeader({ onFetch });
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Updated with new data"));
+  await waitFor(() => expect(onFetch).toHaveBeenCalledTimes(2));
+});
+
+it("clears a failed visibility status check when a later poll succeeds", async () => {
+  server([s({})], [s({ state: "running", phase: "checking" }), new Response("{}", { status: 503 }), s({ ingested: 1, data_version: "a11" })]);
+  renderHeader();
+  expect(await screen.findByRole("status")).toHaveTextContent("Checking for updates");
+  const now = Date.now();
+  vi.spyOn(Date, "now").mockReturnValue(now + 6 * 60_000);
+  act(() => void document.dispatchEvent(new Event("visibilitychange")));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Refresh status unavailable"));
+  vi.restoreAllMocks();
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Updated with new data"), { timeout: 5000 });
 });

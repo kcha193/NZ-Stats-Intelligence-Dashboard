@@ -34,8 +34,8 @@ test("an offline dashboard shows no refresh indicator and sends no check to Stat
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(indicator(page)).toHaveCount(0);
-  // Live: one local request that the offline server answers with mode "off". Static: none at all.
-  expect(requests.filter((r) => r === "POST /api/refresh")).toHaveLength(STATIC ? 0 : 1);
+  // Live reads mode "off" before deciding; neither offline nor static sends a POST.
+  expect(requests.filter((r) => r === "POST /api/refresh")).toHaveLength(0);
   expect(requests.filter((r) => !r.startsWith("GET /") && r !== "POST /api/refresh")).toEqual([]);
 });
 
@@ -47,6 +47,7 @@ test.describe("on-open refresh", () => {
       page,
       [{ started: true, state: "running", phase: "checking" }],
       [
+        {}, // status is read before the automatic POST
         { state: "running", phase: "downloading" },
         { state: "running", phase: "downloading" },
         { state: "running", phase: "validating" },
@@ -89,4 +90,40 @@ test.describe("on-open refresh", () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
+});
+
+test.describe("refresh mode and tab coordination", () => {
+  test.skip(STATIC, "the published snapshot has no refresh API");
+
+  test("two tabs share the automatic start through status and Web Locks", async ({ context, page }) => {
+    let posts = 0;
+    await context.route("**/api/refresh/status", (route) => route.fulfill({
+      json: { ...base, ...(posts ? { state: "running", phase: "checking" } : {}) },
+    }));
+    await context.route("**/api/refresh", (route) => {
+      posts++;
+      return route.fulfill({ json: { ...base, state: "running", phase: "checking" } });
+    });
+    const second = await context.newPage();
+    await Promise.all([page.goto("/"), second.goto("/")]);
+    await expect(indicator(page)).toBeVisible();
+    await expect(indicator(second)).toBeVisible();
+    expect(posts).toBe(1);
+    await second.close();
+  });
+
+  for (const mode of ["scheduler", "off"]) {
+    test(`${mode} mode only reads status and hides refresh controls`, async ({ page }) => {
+      const methods: string[] = [];
+      await page.route("**/api/refresh**", (route) => {
+        methods.push(route.request().method());
+        return route.fulfill({ json: { ...base, mode } });
+      });
+      await page.goto("/");
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect.poll(() => methods.length).toBe(1);
+      await expect(indicator(page)).toHaveCount(0);
+      expect(methods).toEqual(["GET"]);
+    });
+  }
 });

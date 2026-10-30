@@ -178,3 +178,14 @@ def test_a_failed_release_older_than_the_newest_is_still_overdue(conn, clock, tm
     )
     s = S.status(conn, tmp_path, clock.now)
     assert f"release:overdue:{slug}-2026-08" in S.keys(s)
+
+
+def test_late_discovered_release_inside_refresh_boundary_is_overdue(conn, clock, tmp_path):
+    on_open(conn, clock.now)
+    slug = S.SLUGS[0]
+    conn.execute(
+        "INSERT INTO refresh_catch_up VALUES (?, ?)", (slug, S.iso(clock.now - timedelta(days=30)))
+    )
+    key = f"{slug}-2026-08"
+    S.add_release(conn, key, slug, clock.now - timedelta(days=25), ref="2026-08")
+    assert f"release:overdue:{key}" in S.keys(S.status(conn, tmp_path, clock.now))
