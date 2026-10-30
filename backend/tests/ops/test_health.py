@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from nzstats.clock import to_akl_iso
 from nzstats.ops.thresholds import Thresholds
 from tests.ops import support as S
 
@@ -540,6 +541,47 @@ def test_alert_delivery_failures_do_not_make_the_dashboard_unhealthy(conn, clock
     )
     s = S.status(conn, tmp_path, clock.now)
     assert (s.overall, s.alert_delivery.state, s.alert_delivery.failures) == ("ok", "failing", 1)
+
+
+@pytest.mark.parametrize(
+    ("attempts", "expected"),
+    [
+        ([("log", "sent", 1), ("file", "sent", 1)], "ok"),
+        ([("log", "sent", 1), ("file", "failed", 1), ("file", "failed", 2)], "failing"),
+        ([("log", "failed", 1), ("file", "sent", 1)], "failing"),
+        ([("log", "failed", 1), ("file", "failed", 1)], "failing"),
+        ([], "none_recorded"),
+        ([("file", "sent", 25)], "none_recorded"),
+        ([("file", "failed", 25)], "none_recorded"),
+        ([("file", "rate_limited", 1)], "none_recorded"),
+        ([("log", "sent", 1)], "ok"),
+        ([("file", "sent", 1)], "ok"),
+        ([("log", "failed", 1)], "failing"),
+        ([("file", "failed", 1)], "failing"),
+        ([("file", "sent", 25), ("file", "failed", 1), ("log", "sent", 1)], "failing"),
+        ([("file", "failed", 25), ("log", "sent", 1)], "ok"),
+        ([("file", "failed", 2), ("file", "sent", 1)], "ok"),
+        ([("file", "failed", 1), ("log", "rate_limited", 1)], "failing"),
+    ],
+)
+def test_alert_delivery_is_evaluated_per_notifier(
+    conn, clock, tmp_path, attempts, expected
+) -> None:
+    S.healthy_world(conn, clock.now)
+    for notifier, outcome, hours_ago in attempts:
+        conn.execute(
+            "INSERT INTO ops_notification(alert_key, event, severity, notifier, attempted_at, outcome)"
+            " VALUES ('k', 'opened', 'critical', ?, ?, ?)",
+            (notifier, S.iso(clock.now - timedelta(hours=hours_ago)), outcome),
+        )
+    status = S.status(conn, tmp_path, clock.now)
+    delivery = status.alert_delivery
+    assert (status.overall, status.issues, delivery.state) == ("ok", [], expected)
+    assert delivery.failures == sum(o == "failed" and h <= 24 for _, o, h in attempts)
+    assert delivery.rate_limited == sum(o == "rate_limited" and h <= 24 for _, o, h in attempts)
+    for field, outcomes in (("last_attempt_at", {"sent", "failed"}), ("last_success_at", {"sent"})):
+        times = [clock.now - timedelta(hours=h) for _, o, h in attempts if o in outcomes]
+        assert getattr(delivery, field) == (to_akl_iso(max(times)) if times else None)
 
 
 def test_a_database_behind_the_code_is_reported_without_touching_it(conn, clock, tmp_path) -> None:

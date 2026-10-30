@@ -714,10 +714,18 @@ def _delivery(conn, tables, now, t) -> AlertDelivery:
         since,
     )
     success = one("SELECT MAX(attempted_at) FROM ops_notification WHERE outcome='sent'")
-    recent_ok = one(
-        "SELECT COUNT(*) FROM ops_notification WHERE outcome='sent' AND attempted_at >= ?", since
-    )
-    state = "failing" if failures and not recent_ok else "ok"
+    # Channels are chosen per alert-check invocation (including --channels), so use the
+    # recorded notifier names. A success must only clear failures on the same channel.
+    channels = conn.execute(
+        "SELECT notifier, SUM(outcome='sent') AS sent, SUM(outcome='failed') AS failed"
+        " FROM ops_notification WHERE attempted_at >= ? GROUP BY notifier",
+        (since,),
+    ).fetchall()
+    state = "none_recorded"
+    if any(c["failed"] and not c["sent"] for c in channels):
+        state = "failing"
+    elif any(c["sent"] for c in channels):
+        state = "ok"
     return AlertDelivery(
         state=state,
         last_attempt_at=_akl(attempts),

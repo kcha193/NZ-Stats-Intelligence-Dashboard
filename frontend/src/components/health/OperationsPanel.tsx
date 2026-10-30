@@ -153,7 +153,7 @@ export function OperationsPanel({ status: s }: { status: OpsStatus }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Alert delivery: {{ none_recorded: "nothing sent yet", ok: "working", failing: "failing (the dashboard itself is not affected)" }[s.alert_delivery.state]}.
+        Alert delivery: {{ none_recorded: `no delivery attempts in the last ${s.alert_delivery.window_hours} h`, ok: "working", failing: "failing (the dashboard itself is not affected)" }[s.alert_delivery.state]}.
         {s.notes.map((n) => ` ${n}`).join("")}
       </p>
     </section>

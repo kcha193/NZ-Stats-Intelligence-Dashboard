@@ -11,7 +11,7 @@ describe("Health", () => {
     mockApi({ "/api/health": health });
     renderWithProviders(<Health />);
     expect(await screen.findByRole("heading", { level: 1, name: /data health/i })).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: /sources/i })).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: /sources/i })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: /recent ingestion runs/i })).toBeInTheDocument();
     expect(screen.getByText(/series/i)).toBeInTheDocument();
   });
@@ -30,6 +30,65 @@ describe("Health", () => {
   });
 
   describe("operations", () => {
+    it("does not claim no alerts were ever sent when delivery history is outside the window", async () => {
+      mockApi({
+        "/api/health": health,
+        "/api/ops/status": opsStatus({ alert_delivery: {
+          ...opsStatus().alert_delivery,
+          last_attempt_at: "2026-10-28T16:00:00+13:00",
+          last_success_at: "2026-10-28T16:00:00+13:00",
+        } }),
+      });
+      renderWithProviders(<Health />);
+      expect(await screen.findByText(/no delivery attempts in the last 24 h/)).toBeInTheDocument();
+      expect(screen.queryByText(/nothing sent yet/)).not.toBeInTheDocument();
+    });
+
+    it.each(["failed", "loading"])("shows database recovery guidance while legacy health is %s", async (legacyState) => {
+      const recovery = "Restore a verified backup into a new directory, then restart the dashboard.";
+      mockApi({
+        "/api/ops/status": opsStatus({
+          overall: "critical",
+          database: { ...opsStatus().database, readable: false },
+          issues: [{ key: "database:unreadable", severity: "critical", category: "database",
+            title: "The database cannot be read", detail: "No database data is available.", action: recovery }],
+        }),
+      });
+      const apiFetch = globalThis.fetch;
+      vi.stubGlobal("fetch", (input: RequestInfo | URL) => String(input).includes("/api/health")
+        ? legacyState === "failed"
+          ? Promise.resolve(new Response("{}", { status: 500 }))
+          : new Promise<Response>(() => {})
+        : apiFetch(input));
+      renderWithProviders(<Health />);
+      expect(await screen.findByText(/Critical: The database cannot be read/)).toBeInTheDocument();
+      expect(screen.getByText(recovery)).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: /data health/i })).toBeInTheDocument();
+      if (legacyState === "failed") expect(await screen.findByRole("alert")).toBeInTheDocument();
+      else expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    });
+
+    it("reports both query failures independently", async () => {
+      mockApi({});
+      renderWithProviders(<Health />);
+      expect(await screen.findByText(/Operational status could not be loaded/)).toBeInTheDocument();
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: /data health/i })).toBeInTheDocument();
+    });
+
+    it.each([false, true])("shows operations loading independently (legacy health pending: %s)", async (legacyPending) => {
+      mockApi({ "/api/health": health });
+      const apiFetch = globalThis.fetch;
+      vi.stubGlobal("fetch", (input: RequestInfo | URL) =>
+        String(input).includes("/api/ops/status") || legacyPending
+          ? new Promise<Response>(() => {}) : apiFetch(input));
+      renderWithProviders(<Health />);
+      expect(await screen.findByRole("status", { name: "Loading operational status" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: /data health/i })).toBeInTheDocument();
+      if (legacyPending) expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+      else expect(await screen.findByRole("table", { name: /sources/i })).toBeInTheDocument();
+    });
+
     it("answers: is collection on, is the app working, what is next, is the data current", async () => {
       mockApi({ "/api/health": health, "/api/ops/status": opsStatus() });
       renderWithProviders(<Health />);
