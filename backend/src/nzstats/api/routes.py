@@ -23,6 +23,7 @@ from nzstats.insights.revisions import revision_view, series_out, vintage_out
 from nzstats.insights.summary import release_summary
 from nzstats.models import (
     CalendarOut,
+    CapabilitiesOut,
     CountriesOut,
     CpiDashboardOut,
     EctDashboardOut,
@@ -38,6 +39,8 @@ from nzstats.models import (
     SeriesDataOut,
     SeriesOut,
 )
+from nzstats.ops.collect import collect_status
+from nzstats.ops.report import OpsStatus
 from nzstats.pipeline.discover import CALENDAR_REFRESH
 from nzstats.store import repo
 
@@ -81,6 +84,23 @@ def health(conn: Conn, now: Now) -> HealthOut:
         release_counts=counts,
         series_count=conn.execute("SELECT COUNT(*) FROM series").fetchone()[0],
         vintage_count=conn.execute("SELECT COUNT(*) FROM vintage").fetchone()[0],
+    )
+
+
+@router.get("/ops/status", response_model=OpsStatus)
+def ops_status(request: Request, now: Now) -> OpsStatus:
+    """Operational status for the local operator (Data health page). Read-only; never starts the scheduler or fetches."""
+    if (
+        not request.app.state.ops_status_enabled
+    ):  # answers like an unknown path: `serve` is bound beyond loopback
+        raise HTTPException(404, "not found")
+    return collect_status(request.app.state.settings, now=now)
+
+
+@router.get("/capabilities", response_model=CapabilitiesOut)
+def capabilities(request: Request) -> CapabilitiesOut:
+    return CapabilitiesOut(
+        research_public=bool(request.app.state.capabilities.get("research_public"))
     )
 
 

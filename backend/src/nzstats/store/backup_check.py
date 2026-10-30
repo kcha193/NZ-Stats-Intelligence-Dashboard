@@ -1,20 +1,21 @@
 """Restore validation for a database backup (Phase 3E). Read-only: the copy is opened immutable and never written.
 
 A copy passes when SQLite's integrity and foreign-key checks are clean, its schema version is the latest migration,
-and every table, index and trigger a freshly migrated database has is present, so the append-only guards on research
+and every table, index, view and trigger a freshly migrated database has is present, so the append-only guards on research
 summaries, reviews, publication decisions and manual imports survive a restore. Optionally every raw artifact the
 copy references must exist under a raw directory, and row counts are compared with the live database (a difference is
 reported, not failed: the live database keeps changing after a backup).
+
+Bundles can opt into older schemas; their required objects come from replaying migrations through the recorded version.
 """
 
 from __future__ import annotations
 
 import sqlite3
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from nzstats.store.db import connect, migrate
+from nzstats.store.db import MIGRATIONS_DIR
 
 
 @dataclass
@@ -43,19 +44,26 @@ def _read_only(path: Path, *, immutable: bool) -> sqlite3.Connection:
 
 def _objects(conn: sqlite3.Connection) -> dict[str, str]:
     return {r[0]: r[1] for r in conn.execute(
-        "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')"
+        "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'index', 'view', 'trigger')"
         " AND name NOT LIKE 'sqlite_%'")}  # fmt: skip
 
 
-def _reference() -> tuple[dict[str, str], int]:
-    """The objects and schema version of a freshly migrated database."""
-    with tempfile.TemporaryDirectory() as tmp:
-        conn = connect(Path(tmp) / "reference.db")
-        try:
-            version = migrate(conn)
-            return _objects(conn), version
-        finally:
-            conn.close()
+def _reference(version: int | None = None) -> tuple[dict[str, str], int]:
+    """Replay shipped migrations in isolation, up to the backup's recorded version."""
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("CREATE TABLE schema_version (version INTEGER PRIMARY KEY)")
+        latest = 0
+        for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
+            number = int(sql_file.name.split("_", 1)[0])
+            latest = max(latest, number)
+            if version is None or number <= version:
+                conn.executescript(sql_file.read_text(encoding="utf-8"))
+                conn.execute("INSERT INTO schema_version VALUES (?)", (number,))
+        return _objects(conn), latest
+    finally:
+        conn.close()
 
 
 def _counts(conn: sqlite3.Connection) -> dict[str, int]:
@@ -64,7 +72,11 @@ def _counts(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def verify_backup(
-    path: Path | str, *, live: Path | str | None = None, raw_dir: Path | str | None = None
+    path: Path | str,
+    *,
+    live: Path | str | None = None,
+    raw_dir: Path | str | None = None,
+    allow_older_schema: bool = False,
 ) -> BackupReport:
     path = Path(path)
     report = BackupReport(str(path))
@@ -95,7 +107,14 @@ def verify_backup(
             report.schema_version = conn.execute(
                 "SELECT MAX(version) FROM schema_version"
             ).fetchone()[0]
-        if report.schema_version != report.expected_schema_version:
+        older = (
+            allow_older_schema
+            and isinstance(report.schema_version, int)
+            and 0 < report.schema_version < report.expected_schema_version
+        )
+        if older:
+            expected, _ = _reference(report.schema_version)
+        elif report.schema_version != report.expected_schema_version:
             report.problems.append(
                 f"schema version {report.schema_version} is not the latest ({report.expected_schema_version})"
             )

@@ -180,6 +180,12 @@ class HealthOut(BaseModel):
     vintage_count: int
 
 
+class CapabilitiesOut(BaseModel):
+    """Feature switches the UI reads so it does not request routes the server has not turned on."""
+
+    research_public: bool
+
+
 class CalendarOut(BaseModel):
     items: list[ReleaseSummary]
     last_checked_at: str | None

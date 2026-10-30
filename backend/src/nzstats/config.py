@@ -27,6 +27,7 @@ class Settings:
     backfill_since: str
     static_dir: Path | None = None
     timezone: str = "Pacific/Auckland"
+    backup_dir_override: Path | None = None
 
     @property
     def db_path(self) -> Path:
@@ -35,6 +36,14 @@ class Settings:
     @property
     def raw_dir(self) -> Path:
         return self.data_dir / "raw"
+
+    @property
+    def backup_dir(self) -> Path:
+        return self.backup_dir_override or self.data_dir / "backups"
+
+    @property
+    def ops_dir(self) -> Path:
+        return self.data_dir / "ops"
 
 
 def _default_sources_file() -> Path:
@@ -75,4 +84,5 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         country_window_months=int(cfg["migration"]["country_window_months"]),
         backfill_since=cfg["migration"]["backfill_since"],
         static_dir=Path(static) if static else None,
+        backup_dir_override=Path(e["NZSTATS_BACKUP_DIR"]) if e.get("NZSTATS_BACKUP_DIR") else None,
     )

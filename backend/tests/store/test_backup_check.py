@@ -6,7 +6,7 @@ import pytest
 
 from nzstats.cli import main
 from nzstats.store.backup_check import verify_backup
-from nzstats.store.db import connect, migrate
+from nzstats.store.db import MIGRATIONS_DIR, connect, migrate
 
 
 def _db(tmp_path, name="live.db"):
@@ -64,6 +64,26 @@ def test_an_older_schema_fails(tmp_path):
     raw.commit()
     raw.close()
     assert any("schema version" in p for p in verify_backup(copy).problems)
+
+
+@pytest.mark.parametrize("version", range(1, 12))
+def test_each_supported_schema_is_validated_at_its_recorded_version(tmp_path, version):
+    path = tmp_path / "historical.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE schema_version (version INTEGER PRIMARY KEY)")
+    for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        number = int(sql_file.name.split("_", 1)[0])
+        if number <= version:
+            conn.executescript(sql_file.read_text())
+            conn.execute("INSERT INTO schema_version VALUES (?)", (number,))
+    conn.commit()
+    conn.close()
+    before = path.read_bytes()
+    report = verify_backup(path, allow_older_schema=True)
+    assert report.ok, report.problems
+    assert report.schema_version == version
+    assert path.read_bytes() == before
+    assert verify_backup(path).ok == (version == report.expected_schema_version)
 
 
 def test_a_corrupt_or_missing_file_fails_without_raising(tmp_path):
