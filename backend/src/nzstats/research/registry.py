@@ -126,6 +126,7 @@ class Institution:
     approved_by: str | None = None
     approved_on: date | None = None
     approval_note: str | None = None
+    discovery_probe: bool = False
     llm_processing: LlmProcessing = LlmProcessing.DENIED
     llm_processing_note: str | None = None
     public_display_approved_by: str | None = None
@@ -324,6 +325,9 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         raise RegistryError(f"{key}: invalid kind {kind!r}")
     display = _enum(PublicDisplay, raw.get("public_display", "none"), "public_display", key)
     manual = _enum(ManualImport, raw.get("manual_import", "denied"), "manual_import", key)
+    probe = raw.get("discovery_probe", False)
+    if not isinstance(probe, bool):
+        raise RegistryError(f"{key}: discovery_probe must be a boolean")
     if (
         display is not PublicDisplay.NONE
         and review is not ReviewStatus.APPROVED
@@ -380,7 +384,7 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         crawl_delay_seconds=delay, max_documents_per_run=max_docs,
         min_text_chars=min_chars, expected_publication_days=cadence, url_date_regex=pattern,
         url_date_format=fmt, approved_by=raw.get("approved_by"), approved_on=approved_on,
-        approval_note=raw.get("approval_note"), llm_processing=llm,
+        approval_note=raw.get("approval_note"), discovery_probe=probe, llm_processing=llm,
         llm_processing_note=raw.get("llm_processing_note"),
         public_display_approved_by=raw.get("public_display_approved_by"),
         public_display_approved_on=_date(

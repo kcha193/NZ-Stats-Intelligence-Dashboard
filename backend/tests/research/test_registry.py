@@ -42,6 +42,19 @@ BASE = """
 """
 
 
+@pytest.mark.parametrize("value", ['"yes"', "1", '"approved"'])
+def test_invalid_discovery_permission_is_rejected(tmp_path, value):
+    with pytest.raises(RegistryError, match="discovery_probe"):
+        load_registry(_write(tmp_path, BASE.format(extra=f"discovery_probe = {value}")))
+
+
+def test_missing_discovery_permission_refuses_probe(tmp_path):
+    from nzstats.research.ingest import refusal_for
+
+    inst = load_registry(_write(tmp_path, BASE.format(extra="")))["ex"]
+    assert refusal_for(inst, dry_run=True) is not None
+
+
 def test_shipped_registry_has_all_ten_institutions_priority_first():
     registry = load_registry()
     assert set(registry) == ALL_KEYS

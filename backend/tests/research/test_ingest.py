@@ -97,7 +97,7 @@ def test_restricted_source_refuses_even_a_dry_run(conn):
 
 def test_needs_review_allows_a_discovery_only_dry_run_that_writes_nothing(conn):
     web = site(**{LISTING: listing(DOC_A, DOC_B)})
-    inst = institution(review_status="needs_review", approved_by=None, approved_on=None,
+    inst = institution(review_status="needs_review", discovery_probe=True, approved_by=None, approved_on=None,
                        approval_note=None)  # fmt: skip
     result = run(conn, inst, web, dry_run=True)
     assert result.outcome == "dry_run"

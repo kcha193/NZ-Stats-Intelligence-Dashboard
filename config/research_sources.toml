@@ -5,6 +5,7 @@
 #
 #   review_status   approved | needs_review | restricted
 #   content_policy  full_text (store text) | metadata_only (title/date/link; body never downloaded) | none
+#   discovery_probe true explicitly permits a discovery-only probe while needs_review; default false.
 #   *_evidence      direct (fetched and read) | direct_blocked (probe was refused) | search (a search-engine
 #                   summary only; not read on the page) | none (not examined)
 #   llm_processing  denied (default: never sent to a language model) | local_only (a model on this machine only)
