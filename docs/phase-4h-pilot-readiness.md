@@ -30,10 +30,30 @@ dst.close()
 src.close()
 PY
 cp -R data/raw "$DEST/raw"
-scripts/run.sh verify-backup "$DEST/nzstats.db" --raw-dir "$DEST/raw" --live data/nzstats.db
+PYTHONPATH=backend/src python3 - "$DEST" <<'PY'
+import hashlib, sys
+from pathlib import Path
+from nzstats.store.backup_check import verify_backup
+
+dest = Path(sys.argv[1])
+report = verify_backup(dest / "nzstats.db", raw_dir=dest / "raw",
+                       live="data/nzstats.db", allow_older_schema=True)
+if not report.ok or report.count_differences:
+    raise SystemExit(f"Backup verification failed: {report.problems}; counts: {report.count_differences}")
+
+def hashes(root):
+    if not root.is_dir():
+        raise SystemExit(f"Missing raw directory: {root}")
+    return {p.relative_to(root): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in root.rglob("*") if p.is_file()}
+
+if hashes(Path("data/raw")) != hashes(dest / "raw"):
+    raise SystemExit("Raw tree does not match the live copy")
+print(f"Verified backup at schema {report.schema_version}; row counts and raw hashes match")
+PY
 ```
 
-If verification fails, **STOP**; preserve the original database and files. This copy is a preflight backup, not a Phase 4F manifest bundle. Do not assume copying `nzstats.db` directly is sufficient while SQLite WAL is active.
+The verifier checks SQLite integrity, foreign keys, schema objects for the recorded version and referenced raw files; the additional comparisons require matching live row counts and the complete raw tree. It does not migrate either database. Keep other dashboard processes stopped throughout the copy and verification. If verification fails, **STOP**; preserve the original database and files. This copy is a preflight backup, not a Phase 4F manifest bundle. Do not assume copying `nzstats.db` directly is sufficient while SQLite WAL is active.
 
 **Gate A1: deliberate live access.** The user must explicitly authorise the first live check against Stats NZ before opening the normal dashboard. Once approved:
 
