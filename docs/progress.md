@@ -2,6 +2,17 @@
 
 Last updated 2026-10-29. Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
 
+## Phase 4E: internal readiness, 30 October 2026
+
+Report: [internal-readiness decision](phase-4e-internal-readiness.md), [machine evidence](phase-4e-evidence/internal-readiness/results.json).
+Scope is local/internal operation only; Netlify and public hosting are excluded and the public-release NO-GO below is unchanged.
+**GO WITH CONDITIONS** for local use: native `scripts/run.sh --no-scheduler`, manual health checks, native backups, and no
+scheduler or supervision until routine collection is approved. Fixed `scripts/run.sh` letting `.env` override a caller's
+`NZSTATS_DATA_DIR` (regression test `backend/tests/test_run_script.py`). Backend 2,809 on Python 3.12 and 3.14; frontend 478;
+live browser 150; research browser 18 + three skips; API equals SQL for 450 series / 37,460 points; SIGKILL mid-ingest,
+backup/restore and a network-guarded native scheduler run all recover. Hosted CI still billing-blocked (run 40842640174,
+attempt 2); Docker unavailable and not required natively. Production DB, pacer journal and raw tree unchanged.
+
 ## Phase 4E: approved data activation and release validation, 29 October 2026
 
 Report: [readiness matrix and actual results](phase-4e-release.md), [machine evidence](phase-4e-evidence/README.md), [monitoring/rollback runbook](phase-4e-operations.md), [production-data screenshots](screenshots/phase-4e/README.md).

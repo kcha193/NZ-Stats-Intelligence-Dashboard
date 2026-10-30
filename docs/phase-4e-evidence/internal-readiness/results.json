@@ -1,0 +1,101 @@
+{
+  "assessment": "Phase 4E internal readiness (local operation only)",
+  "assessed_at_auckland": "2026-10-30T11:30:00+13:00",
+  "code": {
+    "main": "efd4f1ac04dbb46c1e7b17d4cb8f892263d63988",
+    "assessed_branch": "fix/phase-4e-internal-readiness",
+    "fix_commit_subject": "fix: let the caller's environment override .env in scripts/run.sh"
+  },
+  "production_unchanged": {
+    "nzstats_db_sha256_before_and_after": "d4977f3629fd859024b2f007b664e5255e87ad97638858f54ab6e5278e526777",
+    "request_pace_sha256_before_and_after": "2b5623b47d5cd4343095762012b27e434a1c68bb4b68c21b4d5c0a340bf4cd42",
+    "raw_files_rehashed": 43,
+    "raw_tree_changed": false,
+    "counts": {"schema": 10, "release": 187, "series": 450, "vintage": 791, "observation": 76402, "raw_artifact": 43, "research_publication": 0},
+    "last_ingest_started_utc": "2026-10-29T07:57:28Z"
+  },
+  "isolated_copy": {
+    "method": "SQLite online backup from a mode=ro connection plus raw tree copy",
+    "verify_backup_vs_production": "ok: schema 10, 78704 rows in 26 tables, no count differences",
+    "raw_sha256_and_size_mismatches": 0
+  },
+  "hosted_ci": {
+    "status": "BLOCKED",
+    "run": "https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/40842640174",
+    "head_sha": "efd4f1ac04dbb46c1e7b17d4cb8f892263d63988",
+    "attempts": 2,
+    "attempt_2_started_utc": "2026-10-29T19:39:48Z",
+    "jobs": {"backend": "failure, 0 steps", "frontend": "failure, 0 steps", "static-site": "failure, 0 steps", "docker": "skipped"},
+    "annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased.",
+    "further_reruns": "none (not repeated after attempt 2)"
+  },
+  "docker": {"status": "UNAVAILABLE", "detail": "CLI only; no daemon, Docker Desktop, OrbStack, Colima or Podman", "required_for_internal_operation": false},
+  "local_regression": {
+    "backend_pytest_python_3_14_6": "2809 passed, 1 warning",
+    "backend_pytest_python_3_12_13": "2809 passed, 1 warning",
+    "backend_new_regression_tests": "tests/test_run_script.py 3 passed (1 failed before the fix)",
+    "ruff_check": "pass", "ruff_format": "pass (272 files)",
+    "frontend_unit": "478 passed (47 files)", "typecheck": "pass", "lint": "pass (3 known Fast Refresh warnings)",
+    "build": "pass (known >500 kB chunk warning)", "api_schema_regenerated_no_diff": true,
+    "npm_audit": "0 vulnerabilities",
+    "playwright_live_fixture": "150 passed",
+    "playwright_research_synthetic_loopback": "18 passed, 3 skipped (screenshot-only)",
+    "gitleaks_history": "2 findings, both false positives (the word 'token' beside PUBLISH_ENABLED in planning tables)",
+    "not_run": {
+      "scripts/e2e_static.sh": "public static site, excluded by scope",
+      "python dependency audit": "pip-audit/safety not installed; installing needs approval"
+    }
+  },
+  "statistical": {
+    "reproduce_offline": "pass: seven releases, 30 logical GETs, 246 vintages / 23,730 observations, independent arithmetic",
+    "reproduce_workbooks": "pass: no discrepancies",
+    "reproduce_production": "pass: unexplained_discrepancies []",
+    "api_vs_sql": {"series": 450, "points": 37460, "gdp_points": 1857, "labour_points": 1624, "cpi_index_points": 5577, "problems": 0},
+    "latest_identities_recomputed_from_api": {
+      "gdp_qoq_2026_06": [0.2, 0.2], "gdp_yoy_2026_06": [2.6, 2.6], "gdp_annual_avg_2026_06": [1.7, 1.7],
+      "hlfs_employed_plus_unemployed_vs_labour_force": [3076.0, 3076.0],
+      "unemployment_rate": [5.6, 5.6], "participation_rate": [70.7, 70.7], "employment_rate": [66.7, 66.7],
+      "lci_qoq": [0.6, 0.6], "lci_yoy": [2.0, 2.0]
+    },
+    "earliest_stored_labels": {"gdp_revision_rows_first_is_publication_false": 16, "labour_revision_rows_first_is_publication_false": 8, "first_is_publication_true": 0}
+  },
+  "native_runtime": {
+    "serve_no_scheduler_ready_seconds": "<1",
+    "bind": "127.0.0.1 only",
+    "endpoints_200": ["/api/health", "/api/overview", "/api/releases", "/api/calendar", "/api/series", "/api/cpi", "/api/ect", "/api/gdp", "/api/labour-market", "/api/migration/countries"],
+    "unknown_api_path": "404 application/json",
+    "sigterm": "graceful lifespan shutdown; integrity ok; 76402 observations"
+  },
+  "native_scheduler_offline": {
+    "guard": "in-process: non-loopback DNS and connect refused",
+    "jobs_registered": ["startup_refresh", "release_watch", "startup_catch_up", "refresh_calendar", "catch_up"],
+    "refused_lookups": 16, "packets_to_stats_nz": 0,
+    "retry_spacing_seconds": 10,
+    "calendar_sources_after": "degraded; last_success_at retained",
+    "catch_up": "ran after the lock released; nothing due",
+    "data_after_shutdown": "observations, vintages, value digest, release statuses and ingest runs identical to baseline"
+  },
+  "interrupted_ingest": {
+    "method": "SIGKILL inside the write transaction after observations were inserted (fixture site, temp DB)",
+    "after_kill": "integrity ok, 0 FK violations, 0 orphan observations, June 249 vintages unchanged, July 0",
+    "retry": "ingested; July 244 vintages; June unchanged"
+  },
+  "backup_restore": {
+    "run_sh_backup": "written and verified (schema 10)",
+    "restore_verify_vs_source": "ok: 78704 rows in 26 tables",
+    "restored_api_vs_sql": "450 series, 37460 points, 0 problems",
+    "damaged_backup_exit": 1, "missing_raw_exit": 1
+  },
+  "ux_real_data": {
+    "views": 48, "routes": 12, "viewports": ["1440x900", "390x844"], "schemes": ["light", "dark"],
+    "page_errors": 0, "external_requests": 0, "horizontal_overflow_views": 0,
+    "load_ms_excluding_404_probe": {"min": 558, "median": 906, "p90": 1057, "max": 1057},
+    "exports": {"csv": 18, "png": 18, "png_valid": 18},
+    "console_noise": "/economic-outlook logs 5 network 404s for /api/research/* (router unmounted by design)",
+    "csv_without_source_columns": ["mig.ry.net.csv", "arrivals-departures-rolling_annual.csv", "net-migration-monthly-and-year-ended.csv", "citizenship-net-year-ended.csv"]
+  },
+  "restrictions": {
+    "research_sources_llm": "denied for all 10", "research_display": "none for all 10", "rbnz_access": "restricted",
+    "summarise_without_provider_exit": 1, "public_research_env": "unset", "ocr_page": "Not shown yet (access not approved)"
+  }
+}
