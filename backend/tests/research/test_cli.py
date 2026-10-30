@@ -84,6 +84,34 @@ def test_ingest_of_a_restricted_source_refuses_without_any_request(env, capsys):
     assert built == [] and web.requests == []
 
 
+@pytest.mark.parametrize(
+    "key",
+    [
+        "rbnz",
+        "treasury",
+        "anz",
+        "asb",
+        "westpac",
+        "bnz",
+        "kiwibank",
+        "nzier",
+        "infometrics",
+        "deloitte",
+    ],
+)
+@pytest.mark.parametrize("command", [["discover"], ["ingest", "--dry-run"], ["ingest"]])
+def test_unapproved_shipped_sources_refuse_all_automated_commands(
+    key, command, monkeypatch, tmp_path
+):
+    monkeypatch.delenv("NZSTATS_RESEARCH_SOURCES_FILE", raising=False)
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(
+        "nzstats.research.cli.build_fetcher", lambda *_: pytest.fail("network client built")
+    )
+    assert main(["research", command[0], key, *command[1:]]) == 1
+    assert not (tmp_path / "data").exists()
+
+
 def test_unknown_institution_is_an_error(env, capsys):
     assert main(["research", "ingest", "nope"]) == 2
     assert "unknown institution" in capsys.readouterr().out
@@ -384,6 +412,38 @@ def _doc(tmp_path, name="outlook.html"):
     path.write_text(f"<html><body><main><h1>Outlook</h1><p>{PARA * 6}</p></main></body></html>",
                     encoding="utf-8")  # fmt: skip
     return path
+
+
+@pytest.mark.parametrize(
+    "key,host", [("rbnz", "www.rbnz.govt.nz"), ("treasury", "www.treasury.govt.nz")]
+)
+def test_shipped_manual_approvals_accept_local_document(key, host, tmp_path, monkeypatch):
+    monkeypatch.delenv("NZSTATS_RESEARCH_SOURCES_FILE", raising=False)
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(
+        "nzstats.research.cli.build_fetcher", lambda *_: pytest.fail("network client built")
+    )
+    doc = tmp_path / "report.html"
+    doc.write_text(f"<main><h1>Outlook</h1><p>{PARA * 12}</p></main>", encoding="utf-8")
+    assert (
+        main(
+            [
+                "research",
+                "import",
+                key,
+                str(doc),
+                "--url",
+                f"https://{host}/outlook",
+                "--importer",
+                "Test Owner",
+                "--note",
+                "synthetic browser copy",
+                "--published-on",
+                "2026-10-01",
+            ]
+        )
+        == 0
+    )
 
 
 def test_import_stores_an_owner_supplied_copy_without_any_request(

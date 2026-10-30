@@ -7,6 +7,7 @@ from nzstats.research.registry import (
     PRIORITY,
     ContentPolicy,
     LlmProcessing,
+    ManualImport,
     Mechanism,
     PublicDisplay,
     RegistryError,
@@ -41,6 +42,19 @@ BASE = """
 """
 
 
+@pytest.mark.parametrize("value", ['"yes"', "1", '"approved"'])
+def test_invalid_discovery_permission_is_rejected(tmp_path, value):
+    with pytest.raises(RegistryError, match="discovery_probe"):
+        load_registry(_write(tmp_path, BASE.format(extra=f"discovery_probe = {value}")))
+
+
+def test_missing_discovery_permission_refuses_probe(tmp_path):
+    from nzstats.research.ingest import refusal_for
+
+    inst = load_registry(_write(tmp_path, BASE.format(extra="")))["ex"]
+    assert refusal_for(inst, dry_run=True) is not None
+
+
 def test_shipped_registry_has_all_ten_institutions_priority_first():
     registry = load_registry()
     assert set(registry) == ALL_KEYS
@@ -55,8 +69,10 @@ def test_no_shipped_source_is_approved_for_automated_access():
 
 def test_recorded_findings_from_the_2026_10_25_probes():
     r = load_registry()
-    assert r["rbnz"].review_status is ReviewStatus.RESTRICTED
-    assert r["rbnz"].content_policy is ContentPolicy.NONE
+    # 2026-10-31: owner read the terms and approved manual import only; automated access still needs written permission
+    assert r["rbnz"].review_status is ReviewStatus.NEEDS_REVIEW
+    assert r["rbnz"].manual_import is ManualImport.APPROVED
+    assert r["rbnz"].content_policy is ContentPolicy.FULL_TEXT
     assert r["anz"].content_policy is ContentPolicy.METADATA_ONLY
     assert "/content/dam/asb/documents/" in r["asb"].blocked_path_prefixes
     assert set(r["westpac"].allowed_hosts) == {"www.westpac.co.nz", "assets.dam.westpac.co.nz"}

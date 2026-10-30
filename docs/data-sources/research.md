@@ -40,10 +40,11 @@ refused. It is recorded as `direct_blocked`.
    If robots.txt sets a `Crawl-delay` above 10 s, raise `crawl_delay_seconds` to match, or the fetcher refuses the host.
 3. Pick the least content you need: `metadata_only` (title, date, link, series; **the document body is never downloaded**)
    unless the terms clearly allow storing the text, which is what `full_text` does.
-4. Run a discovery dry run (one listing request, no documents, nothing written):
+4. Only after separate owner approval for automated discovery, record `discovery_probe = true`
+   for that source and run a discovery dry run (robots and listing requests, no documents, nothing written):
 
    ```sh
-   scripts/run.sh research discover treasury
+   scripts/run.sh research discover KEY
    ```
 
    Check that the candidates are the reports you expect. Fix `link_pattern` or the listing URL, and set `verified = true`.
@@ -69,7 +70,7 @@ container only after an image rebuild.
 | Command | Requests | Writes |
 |---|---|---|
 | `research sources` | none | none |
-| `research discover KEY` | robots.txt and the listing pages only. Allowed for `needs_review` (the deliberate first probe), never for `restricted` or policy `none` | none |
+| `research discover KEY` | robots.txt and listing pages only. A `needs_review` source requires `discovery_probe = true`; never allowed for `restricted` or policy `none` | none |
 | `research ingest KEY [--limit N] [--dry-run]` | approved sources only: listing pages, then up to `max_documents_per_run` (default 5) documents, least recently attempted first so a longer listing is covered over successive runs | publications, versions, sections, run, items, health |
 | `research status` | none | none |
 

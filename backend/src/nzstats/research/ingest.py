@@ -2,8 +2,8 @@
 
 Last-known-good: each document is written in its own transaction, and any failure (fetch, extraction,
 validation or the write itself) is recorded as a run item while the previously stored version stays
-current. A block stops the run. Nothing is requested for a source without recorded approval; a dry run
-(allowed for `needs_review` sources, as the deliberate first probe) only discovers and writes nothing.
+current. A block stops the run. A dry run only discovers and writes nothing; a `needs_review` source
+requires a separately recorded discovery-probe permission before any request.
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ def _rotated(candidates: list[Candidate], attempts: dict[str, int]) -> list[Cand
 
 def refusal_for(inst: Institution, *, dry_run: bool) -> str | None:
     """Why this run may not make any request (fixed wording), or None."""
-    if dry_run and inst.review_status is not ReviewStatus.RESTRICTED:
+    if dry_run and inst.review_status is ReviewStatus.NEEDS_REVIEW and inst.discovery_probe:
         return None if inst.content_policy is not ContentPolicy.NONE else inst.refusal_reason()
     return inst.refusal_reason()
 
