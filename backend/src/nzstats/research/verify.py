@@ -674,16 +674,26 @@ def _count(token: str) -> int:
     return int(token) if token.isdigit() else _COUNT_WORDS[token.lower()]
 
 
-def _votes(text: str) -> set[tuple[int, int]]:
+def _votes(text: str, action: PolicyAction) -> set[tuple[int, int]]:
     """Vote counts stated in sentences about a vote: "voted 4–3", "four members preferred …, three …"."""
     out = set()
     for sentence in _SENTENCE_END.split(text):
         if not _VOTE_WORD.search(sentence):
             continue
         out |= {(_count(m[1]), _count(m[2])) for m in _VOTE_PAIR.finditer(sentence)}
-        members = [_count(m[1]) for m in _MEMBERS.finditer(sentence)]
-        if len(members) >= 2:
-            out.add((members[0], members[1]))
+        members = list(_MEMBERS.finditer(sentence))
+        if len(members) == 2:
+            preferences = []
+            for i, member in enumerate(members):
+                clause = sentence[member.end() : members[i + 1].start() if i == 0 else None]
+                actions = {a for a, words in _ACTIONS.items() if words.search(clause)}
+                preferences.append(actions)
+            if all(len(p) == 1 for p in preferences) and preferences[0] != preferences[1]:
+                counts = [_count(m[1]) for m in members]
+                if action in preferences[0]:
+                    out.add((counts[0], counts[1]))
+                elif action in preferences[1]:
+                    out.add((counts[1], counts[0]))
     return out
 
 
@@ -1261,6 +1271,15 @@ class _RecordChecker(_Checker):
         sentences = [
             loc.sentence_text() for _, loc in found if _decision_wording(loc.sentence_text())
         ]
+        for sentence in sentences:
+            transition = re.search(
+                r"\bfrom\s+\d+(?:\.\d+)?\s*(?:%|percent|per\s+cent)?\s+to\s+(\d+(?:\.\d+)?)",
+                sentence,
+                re.I,
+            )
+            if transition and not _same(d.rate, float(transition.group(1))):
+                self.error("decision_rate_contradiction", path,
+                           "the rate is not the resulting rate stated in the decision")  # fmt: skip
         decision_text = " ".join(_FORWARD.split(sentence, maxsplit=1)[0] for sentence in sentences)
         stated = {action for action, words in _ACTIONS.items() if words.search(decision_text)}
         if not stated or len(stated) > 1 or re.search(r"\b(?:not|never|no)\b", decision_text, re.I):
@@ -1286,7 +1305,7 @@ class _RecordChecker(_Checker):
                     path,
                     "the decision date is taken from the publication date",
                 )
-        votes = _votes(near)
+        votes = _votes(near, d.action)
         if d.vote_for is not None:
             if (d.vote_for, d.vote_against) not in votes:
                 self.error("vote_not_in_evidence", path,

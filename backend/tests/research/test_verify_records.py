@@ -64,6 +64,52 @@ def test_a_vote_stated_as_member_counts_supports_the_decision():
     assert codes(run(decisions=[d])) == set()
 
 
+@pytest.mark.parametrize(("rate", "rejected"), [(2.75, False), (3.0, True)])
+def test_decision_rate_is_result_not_previous_rate(rate, rejected):
+    sentence = "The Committee agreed to cut the OCR from 3.0 percent to 2.75 percent today."
+    section = {0: SectionText(sentence)}
+    d = decision(sentence, action="decrease", rate=rate, vote_for=None, vote_against=None)
+    errors = codes(
+        check(
+            section,
+            outlook_ref=ref(0, sentence),
+            published_on=date(2026, 10, 28),
+            institution="rbnz",
+            decisions=[d],
+        )
+    )
+    assert ("decision_rate_contradiction" in errors) == rejected
+
+
+@pytest.mark.parametrize(("votes", "rejected"), [((4, 3), False), ((3, 4), True)])
+def test_vote_counts_follow_action_not_sentence_order(votes, rejected):
+    text = (
+        "The Committee agreed to hold the OCR at 2.75 percent today. "
+        "Three members preferred a cut, while four members preferred to hold."
+    )
+    section = {0: SectionText(text)}
+    quote = "The Committee agreed to hold the OCR at 2.75 percent today"
+    d = decision(
+        quote,
+        vote_for=votes[0],
+        vote_against=votes[1],
+        evidence=[
+            ref(0, quote),
+            ref(0, "Three members preferred a cut, while four members preferred to hold"),
+        ],
+    )
+    errors = codes(
+        check(
+            section,
+            outlook_ref=ref(0, quote),
+            published_on=date(2026, 10, 28),
+            institution="rbnz",
+            decisions=[d],
+        )
+    )
+    assert ("vote_not_in_evidence" in errors) == rejected
+
+
 @pytest.mark.parametrize(
     ("change", "code"),
     [
