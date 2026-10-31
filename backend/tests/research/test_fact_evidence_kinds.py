@@ -107,6 +107,13 @@ def test_actual_outturn_does_not_inherit_the_sections_forecast_heading():
     )
 
 
+def test_completed_current_year_historical_observation_keeps_its_existing_acceptance():
+    report = table_report(
+        "June year historical GDP growth (percent)", years="2025 2026", period="June 2026 year"
+    )
+    assert codes(report) == set()
+
+
 def test_following_table_does_not_reclassify_an_actual_cell():
     report = table_report(
         "GDP actual outturns (percent)",

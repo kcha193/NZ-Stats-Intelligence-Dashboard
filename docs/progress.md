@@ -47,6 +47,13 @@ Two independent local review findings were fixed failing-first. Remote-head CI a
 in the PR conversation; this entry does not claim review closure. Registry, contracts, production data and
 disabled preview settings are unchanged. No model call, live statistical request, merge or deployment.
 
+The first fresh review of the pushed audit head found one P2 in evaluation alignment: otherwise identical author
+and third-party gold figures scored differently when annotations were reordered. Four failures reproduced the
+role, unit and scenario tie gaps; the fix prefers numeric/scenario alignment before annotated issuer role.
+Ten new permutations preserve real mismatch scoring, and one further positive table case keeps completed
+current-year historical observations accepted. Total added cases: 71; the final research suite has 1,700 cases.
+Fresh-head review and CI evidence remain in the PR conversation.
+
 ## Phase 4H execution, 31 October 2026
 
 Report: [phase-4h-execution.md](phase-4h-execution.md) (issue #31). After a new verified read-only backup

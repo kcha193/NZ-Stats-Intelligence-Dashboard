@@ -75,6 +75,65 @@ def test_a_correctly_credited_third_party_forecast_is_neither_rewarded_nor_penal
     assert (counts["predicted"], counts["aligned"], counts["value_correct"]) == (1, 1, 0)
 
 
+@pytest.mark.parametrize("reverse_gold", [False, True])
+@pytest.mark.parametrize("reverse_predictions", [False, True])
+def test_identical_forecast_issuer_scoring_is_independent_of_annotation_order(
+    reverse_gold, reverse_predictions
+):
+    gold = [
+        ev.GoldClaim("gdp", "2027", 1.8, "percent", None, role)
+        for role in ("third_party", "author")
+    ]
+    predicted = [own(fc("gdp", "2027", 1.8), role) for role in ("author", "third_party")]
+    if reverse_gold:
+        gold.reverse()
+    if reverse_predictions:
+        predicted.reverse()
+    counts = ev.extraction_counts(predicted, gold)
+    assert (
+        counts["aligned"],
+        counts["value_correct"],
+        counts["issuer_scored"],
+        counts["issuer_correct"],
+    ) == (2, 2, 2, 2)
+
+
+@pytest.mark.parametrize("reverse_gold", [False, True])
+def test_issuer_tie_breaking_preserves_numeric_alignment_and_real_mismatches(reverse_gold):
+    gold = [
+        ev.GoldClaim("gdp", "2027", 1.8, "percent", None, "author"),
+        ev.GoldClaim("gdp", "2027", 2.5, "percent", None, "third_party"),
+    ]
+    if reverse_gold:
+        gold.reverse()
+    wrong_issuers = [own(fc("gdp", "2027", 1.8), "third_party"), own(fc("gdp", "2027", 2.5))]
+    counts = ev.extraction_counts(wrong_issuers, gold)
+    assert (counts["value_correct"], counts["issuer_scored"], counts["issuer_correct"]) == (2, 2, 0)
+
+
+@pytest.mark.parametrize("field", ["unit", "scenario"])
+@pytest.mark.parametrize("reverse_gold", [False, True])
+def test_issuer_role_does_not_override_other_evidence_alignment(field, reverse_gold):
+    unit, scenario = ("basis_points", None) if field == "unit" else ("percent", "downside")
+    gold = [
+        ev.GoldClaim("gdp", "2027", 1.8, "percent", None, "third_party"),
+        ev.GoldClaim("gdp", "2027", 1.8, unit, scenario, "author"),
+    ]
+    if reverse_gold:
+        gold.reverse()
+    predicted = [
+        own(fc("gdp", "2027", 1.8)),
+        own(fc("gdp", "2027", 1.8, unit=unit, scenario=scenario), "third_party"),
+    ]
+    counts = ev.extraction_counts(predicted, gold)
+    assert (
+        counts["value_correct"],
+        counts["scenario_correct"],
+        counts["issuer_scored"],
+        counts["issuer_correct"],
+    ) == (2, 2, 2, 0)
+
+
 def test_decisions_match_on_date_and_must_agree_on_rate_action_and_vote():
     from nzstats.research.contract import PolicyDecision
 

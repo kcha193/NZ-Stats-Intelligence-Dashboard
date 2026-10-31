@@ -270,7 +270,7 @@ def horizon_key(text: str) -> frozenset[str]:
 def extraction_counts(
     predicted: Sequence[ForecastClaim], gold: Sequence[GoldClaim]
 ) -> dict[str, int]:
-    """Align claims on (indicator, horizon key); prefer gold claims with the same value.
+    """Align on (indicator, horizon key), then value, unit, scenario presence and annotated issuer role.
 
     For author-only gold, unmatched third-party claims are excluded. A third-party claim with the same
     indicator, horizon, value and unit as an unmatched gold claim is scored as a possible misattribution.
@@ -295,8 +295,17 @@ def extraction_counts(
                 continue
         if not options:
             continue
-        same_value = [g for g in options if _same_value(gold[g].value, claim.value)]
-        g = (same_value or options)[0]
+        # Issuer is a tie-breaker for equivalent figures, never a substitute for matching the
+        # numerical/scenario evidence. Without a matching role the mismatch is still scored.
+        g = min(
+            options,
+            key=lambda g: (
+                not _same_value(gold[g].value, claim.value),
+                gold[g].unit != claim.unit,
+                (gold[g].scenario is None) != (claim.scenario is None),
+                gold[g].issuer_role is None or gold[g].issuer_role != claim.issuer_role,
+            ),
+        )
         free.remove(g)
         aligned += 1
         scenario_match = (gold[g].scenario is None) == (claim.scenario is None)

@@ -819,7 +819,7 @@ def _figure_kind(text: str) -> str | None:
         if re.search(r"\brevis\w*\b", text, re.I):
             return "forecast_revision"
         return "forecast"
-    return "actual" if actual else None
+    return "actual" if actual or re.search(r"\bhistorical\b", text, re.I) else None
 
 
 def _table_figure_kind(loc: _Located, at: int) -> str | None:

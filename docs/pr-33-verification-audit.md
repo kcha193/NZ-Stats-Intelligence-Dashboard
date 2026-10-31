@@ -56,6 +56,7 @@ official-file excerpts in tests. No production database or stored institutional 
 | Decision maker/instrument | Reporting institution as maker; overseas policy rate as OCR | Named RBNZ/MPC decision in another publisher's report | `test_reporting_institution_is_not_the_policy_decision_maker`, existing record tests |
 | Dates/votes | Wrong explicit date/year; reversed division; omitted stated vote | Explicit/publication date and action-bound division | Existing `test_verify_records.py`, `test_review_regressions.py` |
 | Forecast attribution | IMF/OECD/market forecast as author's; wrong named issuer | Author row in a third-party table; author's forecast about the RBNZ | Existing `test_verify_attribution.py` |
+| Issuer scoring alignment | Annotation order changing issuer accuracy; matching roles hiding wrong value/unit/scenario | Identical author/third-party figures aligned to their annotated roles in either order; real mismatches still scored | New alignment parametrisations in `test_evaluate.py` |
 | v1/v2 compatibility | v1 implicitly claiming third-party forecast as author's; incomplete v2 issuer | Stored v1 with empty new lists; complete v2 records | Existing `test_contract.py`, `test_verify_attribution.py` |
 | Evidence integrity | Wrong version, absent quote/page, truncated sign or axis residue | Exact located quote, split minus sign, valid table units | Existing contract/layout/record tests |
 | Statistical definitions | Unsupported adjustment/average; annual/quarterly mismatch | Caption-defined adjustment and annual rate at a named quarter | Existing record/layout tests; table context now shared with period checks |
@@ -103,6 +104,20 @@ lint and build pass; frontend lint retains three existing Fast Refresh warnings 
 existing chunk-size warning. The regenerated API schema is unchanged. The synthetic research browser suite
 passes 18 with three expected screenshot skips. Replay retains all recorded metric floors and 38/38 probes.
 The existing Starlette/httpx deprecation warning remains.
+
+### Fresh review iteration 1
+
+Completed Codex review of `f6e6dece1b4b1314f5fa939772683e699b4bfc70` found one new P2:
+`discussion_r4433342624`, issuer accuracy depended on the ordering of otherwise identical author and third-party
+gold annotations. The alignment audit reproduced four failures, including adjacent unit/scenario ordering gaps.
+Ten cases now exercise both gold and prediction orders, numeric priority, unit/scenario priority and real issuer
+mismatches. Alignment prefers matching value, unit and scenario presence before using an annotated issuer role
+as a tie-breaker. The replay retains its recorded floors and 38/38 probes. This fixes annotated-role ambiguity;
+author-only gold without evidence identities retains the narrower limitation described above.
+
+The adjacent positive-case audit also preserves completed current-year observations described simply as
+"historical GDP growth"; explicit "historical forecasts" still take precedence. Its regression failed before
+the classifier was corrected. The second fix batch adds 11 cases (71 total additions; 1,700 research cases).
 
 See the PR conversation for the full-backend result, remote head SHA, head-specific CI and completed review
 receipts. Hosted infrastructure failure is a blocker to COMPLETE, even when local checks pass.
