@@ -388,7 +388,8 @@ Four permissions, each a separate recorded decision, in this order:
 | `research evaluate --annotations FILE [--model M]` | stored real summaries scored against a human annotation; calls no model |
 
 `quality` findings: `missing_pages`, `empty_sections` (scanned or chart pages), `undecodable_characters` (replacement
-or private-use characters from an incomplete PDF font map; `poor` above 0.5% of characters), `control_characters`,
+or private-use characters from an incomplete PDF font map; `poor` above 0.5% of characters), `control_characters`
+(other non-printable characters; a private-use character is counted once, as undecodable),
 `symbol_soup` (`poor`), `glued_words`, `spaced_letters`, and the informational `repeated_lines` (running headers),
 `hyphen_breaks` and `numeric_heavy` (tables). Thresholds are judgement; read any version graded `review` or `poor`
 before summarising it.
