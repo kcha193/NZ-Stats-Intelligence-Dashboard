@@ -77,6 +77,22 @@ def test_a_vote_stated_as_member_counts_supports_the_decision():
     assert codes(run(decisions=[d])) == set()
 
 
+def test_decision_action_excludes_dissent_in_same_sentence():
+    sentence = (
+        "The Committee voted 4–3 to hold the OCR at 2.75 percent today, "
+        "with three members preferring a cut."
+    )
+    d = decision(sentence)
+    report = check(
+        {0: SectionText(sentence)},
+        outlook_ref=ref(0, sentence),
+        institution="rbnz",
+        published_on=date(2026, 10, 28),
+        decisions=[d],
+    )
+    assert "decision_action_not_supported" not in codes(report)
+
+
 @pytest.mark.parametrize(("rate", "rejected"), [(2.75, False), (3.0, True)])
 def test_decision_rate_is_result_not_previous_rate(rate, rejected):
     sentence = "The Committee agreed to cut the OCR from 3.0 percent to 2.75 percent today."
@@ -285,6 +301,28 @@ def test_reporting_verb_does_not_turn_forecast_into_fact(verb):
 
 def test_a_fact_period_must_be_stated_near_the_quote():
     assert "period_not_supported" in codes(run(facts=[fact(SA, period="March 2026 quarter")]))
+
+
+@pytest.mark.parametrize(
+    ("wording", "period"),
+    [
+        ("the year to June 2025", "calendar year 2025"),
+        ("calendar year 2025", "June 2025 year"),
+    ],
+)
+def test_fact_period_cannot_confuse_fiscal_and_calendar_years(wording, period):
+    sentence = f"GDP grew 2.5% in {wording}."
+    item = ReportedFact(
+        text="GDP grew 2.5%.",
+        source="Example",
+        value=2.5,
+        unit="percent",
+        period=period,
+        evidence=[ref(0, sentence)],
+    )
+    assert "fiscal_calendar_mismatch" in codes(
+        check({0: SectionText(sentence)}, outlook_ref=ref(0, sentence), facts=[item])
+    )
 
 
 def test_a_fact_value_needs_a_unit_that_the_evidence_states():

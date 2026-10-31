@@ -1286,6 +1286,12 @@ class _RecordChecker(_Checker):
             for decided in [_DECISION.search(sentence)]
             for forward in [_FORWARD.search(sentence, decided.end()) if decided else None]
         )
+        decision_text = re.split(
+            r",\s*(?:with|while)\b(?=[^.;]*\b(?:members?|dissent\w*|prefer\w*|favou\w*)\b)",
+            decision_text,
+            maxsplit=1,
+            flags=re.I,
+        )[0]
         stated = {action for action, words in _ACTIONS.items() if words.search(decision_text)}
         if not stated or len(stated) > 1 or re.search(r"\b(?:not|never|no)\b", decision_text, re.I):
             self.error("decision_action_not_supported", path,
@@ -1345,6 +1351,18 @@ class _RecordChecker(_Checker):
         clauses = [loc.with_lines(*loc._clause_span(at)) for loc, at in prose] or (
             [] if value_at else [loc.sentence_text() for _, loc in found]
         )
+        period = f.period or ""
+        fiscal_period = bool(_FISCAL.search(_fiscal_text(period)))
+        if period and (
+            (
+                any(_FISCAL.search(_fiscal_text(c)) for c in clauses)
+                and not fiscal_period
+                and not any(_CALENDAR.search(c) for c in clauses)
+            )
+            or (fiscal_period and any(_CALENDAR.search(c) for c in clauses))
+        ):
+            self.error("fiscal_calendar_mismatch", path,
+                       f"period {period!r} conflicts with the evidence's year basis")  # fmt: skip
         published = self.ctx.published_on
         if any(
             _FORWARD.search(c)
