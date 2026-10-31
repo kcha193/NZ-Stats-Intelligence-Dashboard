@@ -24,9 +24,13 @@ pending. Checks, all read-only on the live database:
 | `pre-treasury-import`, `post-rbnz-import` (bundles) | `verify_bundle` ok; `post-rbnz-import` raw tree identical to live; row differences only `refresh_run` +1, `ops_process` +1 |
 | **`pre-4h-acceptance-20261030T224601Z`** (new) | SQLite online backup from a `mode=ro` connection plus a full raw copy; integrity ok, schema 13, 0 count differences, 45/45 raw files hash-identical (content-addressed names equal their SHA-256) |
 
-Order-independent content digests of every table: observations (76,402), vintages (791), series (450), releases (212),
-ingest runs (22) and raw artifacts (45) are content-identical to the unmigrated pre-4G backup; the releases differ
-only in `updated_at` (calendar re-sightings).
+The recorded order-independent content comparisons with the schema-12 pre-4G backup found observations (76,402),
+vintages (791), series (450) and ingest runs (22) unchanged. Releases (212) differed in `updated_at` from calendar
+re-sightings, so their full-row digests are not identical. The 43 original raw files are a hash-identical subset of
+the 45 live files; the two additions are the manually imported research documents. This file-level comparison does
+not establish equality of the whole raw-artifact table or its content digest. The newer schema-13 pre-4H backup had
+matching row counts and all 45 raw files hash-identical to live, as recorded above; matching counts alone do not
+establish matching table content digests.
 
 The owner's own launch (`Start Dashboard.command`, which opens the browser) had already run `refresh_run 3` at
 11:38:56 NZDT, before this verification: 4 requests, nothing found, only timestamps changed. It is recorded here and
@@ -51,7 +55,7 @@ The page's own code sent the guarded POST; nothing else was sent except read-onl
 | Header | *Checking for updates…*, then *Data is up to date* |
 | `data_version` | `a791` before and after, so no chart refetch was due; every chart rendered at once from stored data |
 | Pre-refresh backup | none created (correct: nothing to ingest) |
-| After | observations, vintages, series, raw artifacts (45 files), ingest runs and research tables content-identical to the backup; only `release.updated_at`, `source_health.last_checked_at/last_success_at` and the new `refresh_run` row changed. `nzstats status --json`: ok, no findings |
+| After | observations, vintages, series, raw artifacts (45 files), ingest runs and research tables content-identical to the newer pre-4H backup; only `release.updated_at`, `source_health.last_checked_at/last_success_at` and the new `refresh_run` row changed. `nzstats status --json`: ok, no findings |
 
 Latest statistics held after the check (from `/api/refresh/status`): CPI September 2026 quarter (published 22 Oct),
 electronic card transactions September 2026 (16 Oct), GDP June 2026 quarter (17 Sep), international migration
