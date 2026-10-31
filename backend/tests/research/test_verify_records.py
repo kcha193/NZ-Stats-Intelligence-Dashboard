@@ -59,6 +59,19 @@ def test_a_faithful_decision_with_rate_date_and_vote_passes():
     assert codes(run(decisions=[decision()])) == set()
 
 
+def test_decision_maker_cannot_be_attributed_to_another_institution():
+    sentence = "The RBNZ Committee agreed to hold the OCR at 2.75 percent today."
+    d = decision(sentence, decision_maker="The Treasury", vote_for=None, vote_against=None)
+    report = check(
+        {0: SectionText(sentence)},
+        outlook_ref=ref(0, sentence),
+        institution="rbnz",
+        published_on=date(2026, 10, 28),
+        decisions=[d],
+    )
+    assert "issuer_not_in_evidence" in codes(report)
+
+
 def test_a_vote_stated_as_member_counts_supports_the_decision():
     d = decision(evidence=[ref(0, VOTE), ref(2, "Four members preferred to hold the OCR")])
     assert codes(run(decisions=[d])) == set()

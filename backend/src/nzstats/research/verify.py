@@ -1294,6 +1294,10 @@ class _RecordChecker(_Checker):
             self.error("decision_action_contradiction", path,
                        f"action {d.action.value!r} contradicts the decision wording")  # fmt: skip
         near = " ".join(loc.near_text() for _, loc in found)
+        maker = issuers.organisation_of(d.decision_maker)
+        if maker is not None and maker != self.ctx.institution and maker not in issuers.named(near):
+            self.error("issuer_not_in_evidence", path,
+                       f"decision maker {d.decision_maker!r} is not named in or near the evidence")  # fmt: skip
         if not _date_stated(d.decided_on, near):
             decision_sentences = " ".join(loc.sentence_text() for _, loc in found)
             if (
@@ -1420,6 +1424,13 @@ class _RecordChecker(_Checker):
     ) -> None:
         """The adjustment basis and measure a fact claims must be stated; one never stated is reported."""
         text = " ".join(f"{loc.heading} {loc.sentence_text()}" for _, loc in found)
+        if f.value is not None:
+            text += " " + " ".join(
+                loc.layout.table(line).context
+                for loc, at in self.value_spots(f.value, found)
+                for place, line in [loc.layout.place(at)]
+                if place == "cell"
+            )
         stated = {a for a, words in _ADJUSTMENT.items() if words.search(text)}
         claimed = f.definition.adjustment
         if claimed is not Adjustment.NOT_STATED and claimed not in stated:

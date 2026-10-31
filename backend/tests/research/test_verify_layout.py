@@ -163,6 +163,25 @@ def test_a_reported_fact_from_a_table_row_is_checked_the_same_way():
     assert "table_column_mismatch" in codes(run(facts=[wrong]))
 
 
+def test_table_caption_supports_statistical_definition():
+    section = SectionText(
+        "Table 1: Historical GDP growth (seasonally adjusted, percent).\n"
+        "2024 2025\nGDP growth 1.0 2.0",
+        1,
+        1,
+    )
+    item = fact(
+        1,
+        "GDP growth 1.0 2.0",
+        value=2.0,
+        unit="percent",
+        period="2025",
+        definition={"adjustment": "seasonally_adjusted"},
+    )
+    errors = codes(check({1: section}, outlook_ref=ref(1, "GDP growth 1.0 2.0", 1), facts=[item]))
+    assert "definition_not_in_evidence" not in errors
+
+
 @pytest.mark.parametrize(
     ("heading", "period", "published", "rejected"),
     [
