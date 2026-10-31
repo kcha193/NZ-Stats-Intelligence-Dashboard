@@ -136,6 +136,13 @@ def test_an_unknown_series_has_no_official_value(official):
     assert r.status == "no_official_value"
 
 
+def test_reported_decimal_precision_is_preserved(official):
+    result = compare_figure(official, series="gdp.production.cv.sa.pct_qoq", period="2026-03",
+                            measure="level", document_value="1.0", adjustment=SA,
+                            published_on=date(2026, 8, 1))  # fmt: skip
+    assert (result.status, result.official) == ("differs", 0.8)
+
+
 def test_a_series_that_already_holds_an_annual_change_is_compared_as_one(official):
     """LCI salary and wage rates, annual: the stored value is the change; no basis stated is conventional."""
     r = compare(

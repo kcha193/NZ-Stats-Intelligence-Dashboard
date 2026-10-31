@@ -103,6 +103,9 @@ the same adjustment basis, and the official value is rounded to the precision th
 zero. Tests use real excerpts. GDP growth in the March 2026 quarter was first published as 0.8 and revised to 0.9:
 a document dated 1 August is compared with 0.8, one dated 15 October with 0.9.
 
+Comparison callers should pass the figure as written (a string or `Decimal`) to preserve fractional precision:
+numeric floats lose trailing decimal zeros. Whole-number trailing zeros indicate rounding to tens or hundreds.
+
 **Gold corrections.** The Phase 4H gold file (`phase-4h-evaluate.json`, SHA-256 `74d4d9fd…`) used the unit `people`,
 which the contract does not have, so numerical fidelity would have marked a faithful `persons` claim wrong. The
 annotation loader now refuses units the contract lacks, and `research evaluate` refuses that file. The corrected copy
@@ -112,8 +115,10 @@ Phase 4H had added "2026", a year the document does not state there. Both annota
 and are marked "owner review pending".
 
 **Evaluation tooling.** Gold forecasts may carry `issuer_role`, and gold decisions are scored. New metrics are
-`issuer_accuracy`, `decision_recall` and `decision_fidelity`. A third-party forecast the model credits correctly is
-neither rewarded nor penalised when the gold covers the author's forecasts only. One credited to the author is scored.
+`issuer_accuracy`, `decision_recall` and `decision_fidelity`. When gold covers only the author's forecasts, an
+unmatched third-party forecast is excluded. A third-party claim matching an author's annotated indicator, horizon,
+value and unit is scored as a possible issuer error. Gold lacks evidence identities, so a coincidentally identical
+third-party forecast is ambiguous and its issuer score needs human interpretation.
 The synthetic replay gains case 13 (attribution and decisions), a faithful contract v2 output plus nine probes, one
 for each new error. Replay, prompt `outlook-v3`, verifier `verify-3`: raw precision and recall 0.913, accepted
 precision 0.944 and recall 0.739, numerical fidelity 0.952, scenario accuracy 1.0, indicator F1 0.947, citation

@@ -88,9 +88,11 @@ def _value(
     return (now / Decimal(repr(before)) - 1) * 100
 
 
-def _round_like(value: Decimal, document_value: float) -> float:
+def _round_like(value: Decimal, document_value: float | int | str | Decimal) -> float:
     """`value` at the precision of `document_value`: its decimal places, or its trailing zeros if a whole number."""
-    stated = Decimal(repr(document_value)).normalize()
+    stated = Decimal(str(document_value).replace(",", ""))
+    if "." not in str(document_value):
+        stated = stated.normalize()  # whole numbers use their trailing zeros as the precision
     exponent = stated.as_tuple().exponent
     assert isinstance(exponent, int)
     step = Decimal(1).scaleb(exponent)
@@ -103,11 +105,15 @@ def compare_figure(
     series: str,
     period: str,
     measure: Measure,
-    document_value: float,
+    document_value: float | int | str | Decimal,
     adjustment: Adjustment,
     published_on: date,
 ) -> Comparison:
-    """Compare `document_value` (for `period`, "YYYY-MM") with `series` as published by `published_on`."""
+    """Compare a figure with a vintage.
+
+    Pass original number text (or Decimal) to preserve its written decimal places; floats cannot preserve
+    trailing fractional zeros. A whole number's trailing zeros indicate rounding to tens, hundreds, etc.
+    """
     meta = conn.execute(
         "SELECT frequency, seasonal_adjustment FROM series WHERE key = ?", (series,)
     ).fetchone()
@@ -132,7 +138,11 @@ def compare_figure(
         if value is None:
             continue
         official = _round_like(value, document_value)
-        status: Status = "match" if official == document_value else "differs"
+        status: Status = (
+            "match"
+            if Decimal(str(official)) == Decimal(str(document_value).replace(",", ""))
+            else "differs"
+        )
         released = akl_date(info.published_at)
         return Comparison(status, f"as published on {released} ({info.release_key})", official,
                           info.release_key, released)  # fmt: skip

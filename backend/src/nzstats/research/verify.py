@@ -141,9 +141,9 @@ _GDP_RATIO_BEFORE = re.compile(
     r"(?!\s+(?:growth|per\s+capita|deflator))",
     re.IGNORECASE,
 )
-# A fiscal-year pair: "2026/27", "2026 / 27", "2026–27" or "2026-27". Not a year followed by a spaced, signed
-# number: in Phase 4H, "October 2026" followed by a chart-axis label "-10" read as the fiscal year 2026-10.
-_YEAR_PAIR = r"\b(?:19|20)\d{2}(?:\s*[/–]\s*|-)\d{2}\b"
+# Spaced hyphens are checked for consecutive years by _fiscal_text. Line boundaries are retained when checking
+# evidence so a following chart-axis label cannot become part of a fiscal-year pair.
+_YEAR_PAIR = r"\b(?:19|20)\d{2}[ \t]*[/–-][ \t]*\d{2}\b"
 _FISCAL = re.compile(
     r"fiscal|financial year|june\s+(?:20\d{2}\s+)?year|year\s+(?:to|ending|ended)\s+june"
     rf"|{_YEAR_PAIR}|\bfy\s*\d",
@@ -281,7 +281,8 @@ class _Layout:
     """A section's normalised text with its source lines kept, so table rows and loose numbers can be seen.
 
     `text` is exactly `_norm` of the section. Lines are classified as a row of years (a table header), a table
-    row (a label and at least three cells), a line of numbers only, or text. Numbers-only lines that run three
+    row (a label and at least three cells, or two under a matching header), a line of numbers only, or text.
+    Numbers-only lines that run three
     or more deep, or hold three or more numbers, are residue: chart-axis labels or a row without its label.
     """
 
@@ -313,7 +314,7 @@ class _Layout:
     @cached_property
     def kinds(self) -> tuple[tuple[str, _Row | None, tuple[str, ...] | None], ...]:
         out: list[tuple[str, _Row | None, tuple[str, ...] | None]] = []
-        for a, b in self.lines:
+        for line_index, (a, b) in enumerate(self.lines):
             tokens = [
                 (m.group(), a + m.start(), a + m.end()) for m in re.finditer(r"\S+", self.text[a:b])
             ]
@@ -329,7 +330,23 @@ class _Layout:
             numbers = sum(bool(_NUMBER_CELL.fullmatch(t)) for t, _, _ in cells)
             if k == 0 and numbers:
                 out.append(("numbers", _Row("", cells), None))
-            elif len(cells) >= 3 and numbers >= 2:
+            elif numbers >= 2 and (
+                len(cells) >= 3
+                or (
+                    len(cells) == 2
+                    and line_index > 0
+                    and (
+                        (
+                            out[line_index - 1][0] == "header"
+                            and len(out[line_index - 1][2] or ()) == 2
+                        )
+                        or (
+                            out[line_index - 1][0] == "row"
+                            and len(out[line_index - 1][1].cells) == 2
+                        )
+                    )
+                )
+            ):
                 out.append(("row", _Row(self.text[tokens[0][1] : tokens[k - 1][2]], cells), None))
             else:
                 out.append(("text", None, None))
@@ -435,6 +452,15 @@ class _Located:
     def near_text(self) -> str:
         lo, hi = max(self.first - 1, 0), min(self.last + 1, len(self.sentences) - 1)
         return f"{self.heading} {self.text[self.sentences[lo][0] : self.sentences[hi][1]]}"
+
+    def with_lines(self, start: int, end: int) -> str:
+        """Keep line breaks where a year and a chart label must not form a fiscal pair."""
+        text = self.text[start:end]
+        for _, line_end in reversed(self.layout.lines):
+            if start <= line_end < end and self.text[line_end : line_end + 1] == " ":
+                pos = line_end - start
+                text = text[:pos] + "\n" + text[pos + 1 :]
+        return text
 
     def _clause_span(self, offset: int) -> tuple[int, int]:
         a, b = self.sentences[self.first][0], self.sentences[self.last][1]
@@ -585,7 +611,7 @@ def _horizon_years(horizon: str) -> list[int]:
 
 
 def _year_stated(year: int, text: str) -> bool:
-    pair = rf"\b{year - 1}(?:\s*[/–]\s*|-){year % 100:02d}\b"
+    pair = rf"\b{year - 1}[ \t]*[/–-][ \t]*{year % 100:02d}\b"
     return bool(re.search(rf"\b{year}\b", text) or re.search(pair, text))
 
 
@@ -612,8 +638,34 @@ def _decision_wording(text: str) -> bool:
 def _date_stated(day: date, text: str) -> bool:
     month = _MONTHS[day.month - 1]
     d = rf"0?{day.day}(?:st|nd|rd|th)?"
+    pattern = rf"\b(?:{d}\s+{month}|{month}\s+{d})(?:,?\s+((?:19|20)\d{{2}}))?\b"
+    return bool(re.search(rf"\b{day.isoformat()}\b", text)) or any(
+        not match.group(1) or int(match.group(1)) == day.year
+        for match in re.finditer(pattern, text, re.I)
+    )
+
+
+def _date_conflicts(day: date, text: str) -> bool:
+    month = _MONTHS[day.month - 1]
+    d = rf"0?{day.day}(?:st|nd|rd|th)?"
+    pattern = rf"\b(?:{d}\s+{month}|{month}\s+{d}),?\s+((?:19|20)\d{{2}})\b"
+    iso = rf"\b((?:19|20)\d{{2}})-{day.month:02d}-{day.day:02d}\b"
+    return any(
+        int(match.group(1)) != day.year
+        for pattern_to_check in (pattern, iso)
+        for match in re.finditer(pattern_to_check, text, re.I)
+    )
+
+
+def _explicit_date(text: str) -> bool:
+    months = "|".join(_MONTHS)
+    day = r"\d{1,2}(?:st|nd|rd|th)?"
     return bool(
-        re.search(rf"\b{d}\s+{month}\b|\b{month}\s+{d}\b|\b{day.isoformat()}\b", text, re.I)
+        re.search(
+            rf"\b(?:{day}\s+(?:{months})|(?:{months})\s+{day}|(?:19|20)\d{{2}}-\d{{2}}-\d{{2}})\b",
+            text,
+            re.I,
+        )
     )
 
 
@@ -634,12 +686,37 @@ def _votes(text: str) -> set[tuple[int, int]]:
     return out
 
 
+def _survey_result(text: str, value: float | None) -> bool:
+    if value is None or not _SURVEY_EXPECTATION.search(text):
+        return False
+    spans = _value_spans(value, text)
+    return bool(spans) and all(
+        re.match(
+            r"\s*(?:%|per\s*cent|percent)\s+of\s+"
+            r"(?:respondents|firms|businesses|households|consumers)\b",
+            text[end:],
+            re.I,
+        )
+        for _, end in spans
+    )
+
+
 def _who(key: str) -> str:
     return "the author" if key == "author" else issuers.display_name(key)
 
 
+def _fiscal_text(text: str) -> str:
+    """A spaced hyphen is a fiscal pair only when its years are consecutive."""
+
+    def keep(match: re.Match[str]) -> str:
+        first, second = int(match.group(1)), int(match.group(3))
+        return match.group() if second == (first + 1) % 100 else f"{first} {match.group(3)}"
+
+    return re.sub(r"\b((?:19|20)\d{2})([ \t]+-[ \t]*)(\d{2})\b", keep, text)
+
+
 def _basis(text: str) -> str | None:
-    if _ANNUAL.search(text):
+    if _ANNUAL.search(_fiscal_text(text)):
         return "annual"
     if _QUARTERLY.search(text):
         return "quarterly"
@@ -1046,7 +1123,15 @@ class _Checker:
             _horizon_years(horizon) or _MONTH.search(horizon) or _QUARTER_LABEL.search(horizon)
         ):
             self.warn("horizon_without_period", path, f"horizon {horizon!r} names no period")
-        near = " ".join(loc.near_text() for _, loc in found)
+        near = " ".join(
+            loc.heading
+            + " "
+            + loc.with_lines(
+                loc.sentences[max(loc.first - 1, 0)][0],
+                loc.sentences[min(loc.last + 1, len(loc.sentences) - 1)][1],
+            )
+            for _, loc in found
+        )
         missing = _unstated_period(horizon, near)
         if missing:
             self.error("horizon_not_supported", path,
@@ -1054,9 +1139,10 @@ class _Checker:
         clauses = [loc.clause_at(at) for loc, at in value_at] or [
             loc.sentence_text() for _, loc in found
         ]
-        horizon_fiscal = bool(_FISCAL.search(horizon))
+        horizon_fiscal = bool(_FISCAL.search(_fiscal_text(horizon)))
+        fiscal_clauses = [loc.with_lines(*loc._clause_span(at)) for loc, at in value_at] or clauses
         if (
-            any(_FISCAL.search(c) for c in clauses)
+            any(_FISCAL.search(_fiscal_text(c)) for c in fiscal_clauses)
             and not horizon_fiscal
             and not any(_CALENDAR.search(c) for c in clauses)
         ):
@@ -1067,12 +1153,12 @@ class _Checker:
                        f"evidence states a calendar year but horizon {horizon!r} is fiscal")  # fmt: skip
         if claim.value is None:
             return
-        evidence_basis = {_basis(c) for c in clauses} - {None}
+        evidence_basis = {_basis(c) for c in fiscal_clauses} - {None}
         horizon_basis = _basis(horizon)
         if _QUARTER_PERIOD.search(horizon) and any(_QUARTER_PERIOD.search(c) for c in clauses):
             # "annual inflation ... in the December quarter": the horizon names the evidence's own period, so the
             # change basis is in the label ("Annual CPI inflation"), not the word "quarter".
-            horizon_basis = None
+            horizon_basis = _basis(_QUARTER_PERIOD.sub("", horizon))
         claim_basis = horizon_basis or _basis(
             f"{claim.indicator_label} {claim.qualification or ''}"
         )
@@ -1178,7 +1264,12 @@ class _RecordChecker(_Checker):
                        f"action {d.action.value!r} contradicts the quoted wording")  # fmt: skip
         near = " ".join(loc.near_text() for _, loc in found)
         if not _date_stated(d.decided_on, near):
-            if d.decided_on != self.ctx.published_on:
+            decision_sentences = " ".join(loc.sentence_text() for _, loc in found)
+            if (
+                d.decided_on != self.ctx.published_on
+                or _date_conflicts(d.decided_on, near)
+                or _explicit_date(decision_sentences)
+            ):
                 self.error("decision_date_not_supported", path,
                            f"decision date {d.decided_on.isoformat()} is not stated near the quote and is not"
                            " the publication date")  # fmt: skip
@@ -1216,12 +1307,12 @@ class _RecordChecker(_Checker):
             self.error("period_not_supported", path,
                        f"period {f.period!r} is not stated near the quote ({', '.join(missing)})")  # fmt: skip
         prose = [(loc, at) for loc, at in value_at if loc.layout.place(at)[0] == "text"]
-        clauses = [loc.clause_at(at) for loc, at in prose] or (
+        clauses = [loc.with_lines(*loc._clause_span(at)) for loc, at in prose] or (
             [] if value_at else [loc.sentence_text() for _, loc in found]
         )
         published = self.ctx.published_on
         if any(
-            _FORWARD.search(c) and not _HISTORICAL.search(c) and not _SURVEY_EXPECTATION.search(c)
+            _FORWARD.search(c) and not _HISTORICAL.search(c) and not _survey_result(c, f.value)
             for c in clauses
         ) or (
             published is not None and any(y >= published.year for y in self.cell_years(value_at))

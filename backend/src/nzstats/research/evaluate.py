@@ -272,17 +272,27 @@ def extraction_counts(
 ) -> dict[str, int]:
     """Align claims on (indicator, horizon key); prefer gold claims with the same value.
 
-    A gold set that annotates no third-party forecast covers the author's own forecasts only, so a claim the
-    model correctly credits to a third party is neither rewarded nor penalised. One it credits to the author
-    is scored like any other claim.
+    For author-only gold, unmatched third-party claims are excluded. A third-party claim with the same
+    indicator, horizon, value and unit as an unmatched gold claim is scored as a possible misattribution.
+    Without evidence identities in the gold, a coincidentally identical third-party forecast is ambiguous.
     """
-    if not any(g.issuer_role == IssuerRole.THIRD_PARTY for g in gold):
-        predicted = [c for c in predicted if c.issuer_role is not IssuerRole.THIRD_PARTY]
+    author_only = not any(g.issuer_role == IssuerRole.THIRD_PARTY for g in gold)
+    predicted = sorted(predicted, key=lambda c: c.issuer_role is IssuerRole.THIRD_PARTY)
     free = list(range(len(gold)))
     aligned = correct = scenario_ok = value_ok = issuer_scored = issuer_ok = 0
+    excluded = 0
     for claim in predicted:
         options = [g for g in free if gold[g].indicator == claim.indicator.value
                    and horizon_key(gold[g].horizon) == horizon_key(claim.horizon)]  # fmt: skip
+        if author_only and claim.issuer_role is IssuerRole.THIRD_PARTY:
+            options = [
+                g
+                for g in options
+                if _same_value(gold[g].value, claim.value) and gold[g].unit == claim.unit
+            ]
+            if not options:
+                excluded += 1
+                continue
         if not options:
             continue
         same_value = [g for g in options if _same_value(gold[g].value, claim.value)]
@@ -298,7 +308,7 @@ def extraction_counts(
             issuer_ok += (
                 claim.issuer_role is not None and claim.issuer_role.value == gold[g].issuer_role
             )
-    return {"predicted": len(predicted), "gold": len(gold), "aligned": aligned, "correct": correct,
+    return {"predicted": len(predicted) - excluded, "gold": len(gold), "aligned": aligned, "correct": correct,
             "scenario_correct": scenario_ok, "value_correct": value_ok, "issuer_scored": issuer_scored,
             "issuer_correct": issuer_ok}  # fmt: skip
 
