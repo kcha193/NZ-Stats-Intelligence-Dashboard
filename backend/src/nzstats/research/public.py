@@ -30,7 +30,7 @@ from nzstats.research.verify import VerificationContext, verify
 log = logging.getLogger(__name__)
 
 _LATEST_DECISION = "SELECT {col} FROM research_summary_publication d WHERE d.summary_id = s.id ORDER BY d.id DESC LIMIT 1"
-_SELECT = (
+SUMMARY_SELECT = (
     "SELECT s.id, s.version_id, s.status, s.review_status, s.reviewed_at, s.output_json, s.provider, s.model,"
     " s.hosted, s.prompt_version, s.processing_version, s.created_at,"
     f" ({_LATEST_DECISION.format(col='decision')}) AS decision,"
@@ -68,7 +68,7 @@ def _newest_published(conn: sqlite3.Connection) -> dict[int, int]:
     }
 
 
-def _public_url(url: str | None, inst: Institution) -> bool:
+def allowed_document_url(url: str | None, inst: Institution) -> bool:
     """The crawler's own URL policy (https, allowed host, canonical path, allow and block lists); no DNS lookup."""
     policy = HostPolicy(inst.allowed_hosts, allowed_path_prefixes=inst.allowed_path_prefixes,
                         blocked_path_prefixes=inst.blocked_path_prefixes, resolver=None)  # fmt: skip
@@ -123,24 +123,32 @@ def _assess(
             "the registry displays nothing for this source (public_display or access not approved)",
             None,
         )
-    if not _public_url(row["canonical_url"], inst):
+    if not allowed_document_url(row["canonical_url"], inst):
         return "the document address is not https on one of the institution's allowed hosts", None
+    reason, summary, warnings = current_evidence(conn, row)
+    if summary is None:
+        return reason, None
+    return None, PublicSummary(int(row["id"]), inst, level, summary, warnings, dict(row))
+
+
+def current_evidence(
+    conn: sqlite3.Connection, row: Mapping[str, Any]
+) -> tuple[str | None, OutlookSummary | None, int]:
+    """The stored summary re-verified now, on the stored text: (why it fails, or None; the summary; warnings)."""
     try:
         summary = OutlookSummary.model_validate_json(row["output_json"] or "")
     except ValidationError:
-        return "the stored output no longer parses as a summary", None
+        return "the stored output no longer parses as a summary", None, 0
     sections = load_sections(conn, row["version_id"])
     published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
     injected = tuple(injection_findings(sections))
     report = verify(summary, sections, VerificationContext(
         published_on=published, injection_ordinals=injected, institution=row["institution"]))  # fmt: skip
     if not report.passed:
-        return f"the current evidence checks now fail ({len(report.errors)} errors)", None
+        return f"the current evidence checks now fail ({len(report.errors)} errors)", None, 0
     if injected:
-        return "a section of the document reads like instructions to a model", None
-    return None, PublicSummary(
-        int(row["id"]), inst, level, summary, len(report.warnings), dict(row)
-    )
+        return "a section of the document reads like instructions to a model", None, 0
+    return None, summary, len(report.warnings)
 
 
 def public_summaries(
@@ -148,7 +156,9 @@ def public_summaries(
 ) -> list[PublicSummary]:
     """Every summary that may be shown publicly now, newest publication first."""
     newest = _newest_published(conn)
-    rows = conn.execute(f"{_SELECT}{_PUBLISHED} ORDER BY p.published_on DESC, s.id DESC").fetchall()
+    rows = conn.execute(
+        f"{SUMMARY_SELECT}{_PUBLISHED} ORDER BY p.published_on DESC, s.id DESC"
+    ).fetchall()
     out = []
     for row in rows:
         reason, item = _assess(conn, row, registry, newest)
@@ -163,7 +173,7 @@ def why_not_public(
     conn: sqlite3.Connection, registry: Mapping[str, Institution], summary_id: int
 ) -> str | None:
     """Why this summary is not public, in plain words (operator only); None when it is."""
-    row = conn.execute(f"{_SELECT} WHERE s.id = ?", (summary_id,)).fetchone()
+    row = conn.execute(f"{SUMMARY_SELECT} WHERE s.id = ?", (summary_id,)).fetchone()
     if row is None:
         return f"no summary {summary_id}"
     return _assess(conn, row, registry, _newest_published(conn))[0]

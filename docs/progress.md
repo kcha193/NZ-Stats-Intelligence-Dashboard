@@ -1,6 +1,35 @@
 # Progress and verification record
 
-Last updated 2026-10-31. Phase 4G (on-open refresh) is merged (PR #28) and passed live acceptance with conditions (Phase 4H execution). Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+Last updated 2026-10-31. Phase 4I (research contract v2, verify-3, private-preview foundation) is on branch
+`feat/phase-4i-research-quality`: local-model pilot GO WITH CONDITIONS, pending owner approvals. Phase 4G (on-open refresh) is merged (PR #28) and passed live acceptance with conditions (Phase 4H execution). Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+
+## Phase 4I: economic intelligence quality and private preview readiness, 31 October 2026
+
+Record: [phase-4i-research-quality.md](phase-4i-research-quality.md).
+
+- **Contract and prompt.** Contract version 2 separates facts, interpretation, author and third-party forecasts (every
+  forecast names its issuer), OCR decisions (rate, date, vote), guidance and assumptions. Version 1 summaries still
+  load. The prompt is `outlook-v3`.
+- **verify-3.** Every Phase 4H finding is closed failing-first: issuer attribution, signs split across lines, table
+  columns, chart-axis residue, decisions as forecasts, and unstated definitions. The real documents exposed four
+  regressions: "US$" read as "us", a year then an axis label read as a fiscal year, an annual rate at a named quarter
+  read as quarterly, and a survey of expectations read as a forecast. Each is narrowed with a test.
+- **Real-document check** (counts only, no model): 46/46 anchors valid, swapped issuers caught 8/9 (one warning), the
+  RBNZ decision and its 4–3 vote verified, and the split sign kept. Stats NZ comparisons at the document's vintage
+  give 16 match and 2 not comparable (monthly migration, basis unstated). Treasury's GDP and CPI forecasts, table
+  cells under repeated year columns, are refused as unverifiable.
+- **Gold.** The Phase 4H gold used the unknown unit `people`. The loader now refuses it, and a corrected 4I copy is
+  kept under `data/`.
+- **Private preview.** `--private-research` routes are built: loopback only, a separate `private_display` permission,
+  reviewed summaries only. They are off and empty, because no source is approved.
+- **Model readiness.** A local ~14B model on `llama-server` is recommended for this 24 GB M4.
+
+Replay (prompt `outlook-v3`, verifier `verify-3`, 13 cases, 38 probes): raw precision and recall 0.913, accepted
+precision 0.944 and recall 0.739, numerical fidelity 0.952, citation correctness 0.959, completeness 0.875, verified
+0.786, and issuer accuracy, decision recall and decision fidelity 1.0. Probes: 38/38 as labelled. These are the new
+`RECORDED_BASELINE` floors.
+
+No model call, crawl, download, registry or display change.
 
 ## Phase 4H execution, 31 October 2026
 

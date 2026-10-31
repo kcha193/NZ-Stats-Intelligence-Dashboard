@@ -76,6 +76,15 @@ class PublicDisplay(StrEnum):
 _DISPLAY_ORDER = tuple(PublicDisplay)
 
 
+class PrivateDisplay(StrEnum):
+    """What the owner's loopback-only preview may show about a source (Phase 4I). Never anything public."""
+
+    NONE = "none"  # the default
+    SUMMARY = (
+        "summary"  # reviewer-approved AI interpretation with its evidence (section, page, quote)
+    )
+
+
 class Mechanism(StrEnum):
     RSS = "rss"
     SITEMAP = "sitemap"
@@ -136,6 +145,10 @@ class Institution:
     manual_import_approved_by: str | None = None
     manual_import_approved_on: date | None = None
     manual_import_note: str | None = None
+    private_display: PrivateDisplay = PrivateDisplay.NONE
+    private_display_approved_by: str | None = None
+    private_display_approved_on: date | None = None
+    private_display_note: str | None = None
     extra: dict[str, Any] = field(default_factory=dict, compare=False)
 
     @property
@@ -197,6 +210,12 @@ class Institution:
             return PublicDisplay.LINK_ONLY
         return self.public_display
 
+    def private_display_level(self, acquisition: str | None = None) -> PrivateDisplay:
+        """What the private preview may show now: nothing unless the material is still held and the model is permitted."""
+        if not self.holds(acquisition) or self.llm_processing is LlmProcessing.DENIED:
+            return PrivateDisplay.NONE
+        return self.private_display
+
     def licence_snapshot(self) -> dict[str, Any]:
         return {
             "institution": self.key,
@@ -208,6 +227,7 @@ class Institution:
             "approved_by": self.approved_by,
             "approved_on": self.approved_on.isoformat() if self.approved_on else None,
             "public_display": self.public_display.value,
+            "private_display": self.private_display.value,
             "llm_processing": self.llm_processing.value,
             "manual_import": self.manual_import.value,
             "manual_import_approved_by": self.manual_import_approved_by,
@@ -325,6 +345,7 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         raise RegistryError(f"{key}: invalid kind {kind!r}")
     display = _enum(PublicDisplay, raw.get("public_display", "none"), "public_display", key)
     manual = _enum(ManualImport, raw.get("manual_import", "denied"), "manual_import", key)
+    private = _enum(PrivateDisplay, raw.get("private_display", "none"), "private_display", key)
     probe = raw.get("discovery_probe", False)
     if not isinstance(probe, bool):
         raise RegistryError(f"{key}: discovery_probe must be a boolean")
@@ -335,6 +356,14 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
     ):
         raise RegistryError(
             f"{key}: public_display requires an approved source or an approved manual import"
+        )
+    if (
+        private is not PrivateDisplay.NONE
+        and review is not ReviewStatus.APPROVED
+        and manual is not ManualImport.APPROVED
+    ):
+        raise RegistryError(
+            f"{key}: private_display requires an approved source or an approved manual import"
         )
     hosts = _hosts(raw.get("allowed_hosts"), key)
     allowed_prefixes = _prefixes(raw.get("allowed_path_prefixes"), key)
@@ -395,7 +424,12 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         manual_import_approved_on=_date(
             raw.get("manual_import_approved_on"), "manual_import_approved_on", key
         ),
-        manual_import_note=raw.get("manual_import_note"),
+        manual_import_note=raw.get("manual_import_note"), private_display=private,
+        private_display_approved_by=raw.get("private_display_approved_by"),
+        private_display_approved_on=_date(
+            raw.get("private_display_approved_on"), "private_display_approved_on", key
+        ),
+        private_display_note=raw.get("private_display_note"),
     )  # fmt: skip
     if review is ReviewStatus.APPROVED:
         _check_approval(inst)
@@ -405,6 +439,8 @@ def build_institution(key: str, raw: dict[str, Any]) -> Institution:
         _check_llm_permission(inst)
     if display is not PublicDisplay.NONE:
         _check_display_permission(inst)
+    if private is not PrivateDisplay.NONE:
+        _check_private_display_permission(inst)
     return inst
 
 
@@ -477,3 +513,18 @@ def _check_display_permission(inst: Institution) -> None:
         raise RegistryError(
             f"{key}: public_display {inst.public_display.value!r} needs content_policy 'full_text'"
         )
+
+
+def _check_private_display_permission(inst: Institution) -> None:
+    key = inst.key
+    for name in (
+        "private_display_approved_by",
+        "private_display_approved_on",
+        "private_display_note",
+    ):
+        if not getattr(inst, name):
+            raise RegistryError(
+                f"{key}: private_display needs {name} (a separate, recorded decision)"
+            )
+    if inst.content_policy is not ContentPolicy.FULL_TEXT:
+        raise RegistryError(f"{key}: private_display needs content_policy 'full_text'")

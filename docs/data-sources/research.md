@@ -1,4 +1,4 @@
-# Institutional research sources: registry and runbook (Phases 3A to 3E)
+# Institutional research sources: registry and runbook (Phases 3A to 4I)
 
 Economic commentary from banks, the Reserve Bank, the Treasury and research consultancies is a **separate domain**
 from the Stats NZ statistics. It lives in `backend/src/nzstats/research/` and the `research_*` tables. The Stats NZ
@@ -195,6 +195,10 @@ year, quarterly versus annual change, a historical observation reported as a for
 baseline (or an invented scenario name), direction contradicting the wording, and an indicator that contradicts its
 label. Warnings: weak lexical support, more certainty than the evidence, an indicator missing from the list, a horizon
 with no period, a section that resembles instructions to a model.
+
+From `verify-3` (Phase 4I) the verifier also checks who issued each forecast, where a number sits on the page (a
+sentence, a table cell under its column heading, or chart-axis residue), monetary policy decisions, reported facts with
+their statistical definition, forward guidance and assumptions: see [Phase 4I](#contract-version-2-verify-3-and-the-private-preview-phase-4i).
 
 **Passing means the deterministic checks found nothing. It is not a check of economic accuracy, completeness or
 interpretation**; every inspect screen and stored report says so. Known blind spots, from the evaluation: an indicator
@@ -585,6 +589,62 @@ Set the field back (`review_status = "needs_review"`, `manual_import = "denied"`
 `public_display = "none"`, clearing dependent fields as the loader requires). Processing and display stop on the next
 command or request; stored text is not deleted (see Rollback for deletion). `research health` lists any published
 summary that is now withheld.
+
+## Contract version 2, verify-3 and the private preview (Phase 4I)
+
+Record and real-document results: [phase-4i-research-quality.md](../phase-4i-research-quality.md).
+
+**Contract version 2** (prompt `outlook-v3`) separates reported facts (`facts`, with `source` and
+`definition.adjustment`), the institution's interpretation (outlook, drivers, risks, uncertainty), forecasts with
+`issuer` and `issuer_role` (`author` or `third_party`), policy `decisions` (rate, decision date, vote), forward
+`guidance` and `assumptions`. Version 1 summaries still load. The public API never shows a third party's forecast as
+the institution's.
+
+**verify-3 errors added:**
+
+- Issuer: `missing_issuer`, `issuer_mismatch`, `issuer_not_in_evidence`.
+- Page layout: `table_column_mismatch`, `table_column_unverified`, `axis_residue`. Signs split across lines are rejoined.
+- Decisions: `decision_as_forecast`, `decision_not_in_evidence`, `decision_action_contradiction`,
+  `decision_date_not_supported`, `vote_not_in_evidence`, `vote_not_captured`.
+- Facts: `forecast_as_fact`, `period_not_supported`, `definition_not_in_evidence`.
+- Guidance and assumptions: `guidance_not_forward`, and `scenario_not_in_text` for assumptions.
+
+**Warnings added:** `issuer_unclear`, `table_heading_unverified`, `decision_date_assumed`, `definition_not_stated`
+(no stated adjustment basis: never compare the figure with an official series), `definition_ambiguous`,
+`definition_omitted` and `source_not_named`.
+
+**Known blind spots:**
+
+- A table whose column-group labels are detached from the rows can't have its cells assigned, so such cells are
+  refused.
+- A third party credited only after the figure is a warning, not an error.
+
+**Comparing with Stats NZ.** `research/official_compare.py` compares a reported figure with the official series at the
+vintage published by the document's date. It refuses a comparison when the adjustment basis is unstated and Stats NZ
+publishes the measure on more than one basis. Treasury's monthly net migration is the case in point.
+
+**Real-document check** (offline, counts only):
+`python ../scripts/check_research_baseline.py ../data/phase-4h/annotations/baseline-2026-10-31.json --gold
+../data/annotations/phase-4i-evaluate.json`. Annotation files must use the contract's units: the loader refuses
+others.
+
+### Private preview (a sixth, separate permission)
+
+`nzstats serve --host 127.0.0.1 --private-research` mounts `/api/private/research/items` and `…/items/{id}`. Without
+the flag nothing is mounted, and with it any non-loopback bind is refused, with no override. Requests must come from
+the local dashboard: a loopback `Host`, a same-origin `Origin` and `Sec-Fetch-Site` when sent, and
+`X-NZStats-Client: dashboard`.
+
+A summary is shown only through `research/private.py`, rechecked on every request. It must be verified,
+reviewer-approved and the newest approved summary of the current version. The source needs
+`private_display = "summary"` with `private_display_approved_by`, `_on` and `_note`, and its LLM permission must still
+cover the model. The summary must still pass the current verifier.
+
+Publication approval is neither needed nor sufficient, and nothing previewed becomes public or reaches a snapshot.
+Every block carries its evidence and a badge (institutional view, forecast, third-party forecast, policy decision,
+forward guidance, assumption, figure as reported by the institution), and every item is labelled "Not an official
+statistic". `research summary ID` shows `private preview: yes`, or why not. Every shipped source has
+`private_display = "none"`. The browser page is a later change.
 
 ## Rollback
 

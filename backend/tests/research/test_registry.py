@@ -9,6 +9,7 @@ from nzstats.research.registry import (
     LlmProcessing,
     ManualImport,
     Mechanism,
+    PrivateDisplay,
     PublicDisplay,
     RegistryError,
     ReviewStatus,
@@ -390,3 +391,54 @@ def test_ai_text_is_withdrawn_when_llm_processing_is_denied(tmp_path):
     )
     assert inst.display_level() is PublicDisplay.EXCERPT
     assert [d.rank for d in PublicDisplay] == [0, 1, 2, 3]  # each level includes the one before
+
+
+# Private display (Phase 4I): a fourth decision, separate from public display, for the loopback-only preview.
+PRIVATE_APPROVAL = (
+    'private_display = "summary"\n private_display_approved_by = "K"\n'
+    ' private_display_approved_on = "2026-11-03"\n private_display_note = "Owner preview on this machine only."\n'
+)
+
+
+def test_every_shipped_source_shows_nothing_privately_either():
+    assert {i.private_display for i in load_registry().values()} == {PrivateDisplay.NONE}
+    assert {i.private_display_level() for i in load_registry().values()} == {PrivateDisplay.NONE}
+
+
+def test_private_display_needs_its_own_approval_record(tmp_path):
+    for missing in (
+        "private_display_approved_by",
+        "private_display_approved_on",
+        "private_display_note",
+    ):
+        approval = "\n".join(
+            line for line in PRIVATE_APPROVAL.split("\n") if not line.strip().startswith(missing)
+        )
+        with pytest.raises(RegistryError, match=missing):
+            _approved_full_text(tmp_path, f"{LLM_LOCAL} {approval}")
+
+
+def test_private_display_is_independent_of_public_display(tmp_path):
+    inst = _approved_full_text(tmp_path, f"{LLM_LOCAL} {PRIVATE_APPROVAL}")
+    assert inst.private_display_level() is PrivateDisplay.SUMMARY
+    assert inst.public_display is PublicDisplay.NONE and inst.display_level() is PublicDisplay.NONE
+    assert inst.licence_snapshot()["private_display"] == "summary"
+
+
+def test_private_display_needs_a_permitted_full_text_source(tmp_path):
+    with pytest.raises(RegistryError, match="approved source"):
+        load_registry(_write(tmp_path, BASE.format(extra=PRIVATE_APPROVAL)))
+    body = BASE.format(extra=APPROVED_FULL.format(llm=f"{LLM_LOCAL} {PRIVATE_APPROVAL}"))
+    with pytest.raises(RegistryError, match="full_text"):
+        load_registry(_write(tmp_path, body.replace("needs_review", "approved")))
+
+
+def test_private_display_shows_nothing_while_llm_processing_is_denied(tmp_path):
+    inst = _approved_full_text(tmp_path, PRIVATE_APPROVAL)  # llm_processing left at "denied"
+    assert inst.private_display is PrivateDisplay.SUMMARY
+    assert inst.private_display_level() is PrivateDisplay.NONE
+
+
+def test_unknown_private_display_value_fails_closed(tmp_path):
+    with pytest.raises(RegistryError, match="private_display"):
+        _approved_full_text(tmp_path, PRIVATE_APPROVAL.replace('"summary"', '"excerpt"'))

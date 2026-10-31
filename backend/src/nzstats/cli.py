@@ -257,6 +257,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="same as --refresh off: serve stored data only, never contact Stats NZ",
     )
+    p_serve.add_argument(
+        "--private-research",
+        action="store_true",
+        help="also serve the private research preview (loopback binds only; needs private_display approvals)",
+    )
     sub.add_parser("health", help="print source health as JSON")
     p_status = sub.add_parser(
         "status",
@@ -423,7 +428,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         loopback = args.host in ("127.0.0.1", "::1", "localhost")
         mode = "off" if args.offline else args.refresh.replace("-", "_")
+        from nzstats.research.private_api import private_bind_refusal, private_research_router
+
         refusal = bind_refusal(args.host)
+        if refusal is None and args.private_research:
+            refusal = private_bind_refusal(args.host)
         if refusal is None and mode == "on_open" and not loopback:
             refusal = (
                 f"refusing to serve on {args.host}: on-open refresh lets the page start downloads, so it is for"
@@ -436,7 +445,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             create_app(
                 settings,
                 collection_mode=mode,
-                routers=[research_router()],
+                routers=[research_router()]
+                + ([private_research_router(enabled=True)] if args.private_research else []),
                 record_ops=True,
                 # Unauthenticated, and it names the process, backups and errors: loopback binds only, unless opted in.
                 ops_status_enabled=loopback or os.environ.get("NZSTATS_OPS_STATUS") == "1",
