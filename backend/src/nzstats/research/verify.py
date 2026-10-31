@@ -1338,7 +1338,12 @@ class _RecordChecker(_Checker):
         )
         published = self.ctx.published_on
         if any(
-            _FORWARD.search(c) and not _HISTORICAL.search(c) and not _survey_result(c, f.value)
+            _FORWARD.search(c)
+            and (
+                not _HISTORICAL.search(c)
+                or re.search(r"\b(?:forecast|project|predict)\w*\b", c, re.I)
+            )
+            and not _survey_result(c, f.value)
             for c in clauses
         ) or (
             published is not None and self.fact_table_forward(f.period or "", value_at, published)

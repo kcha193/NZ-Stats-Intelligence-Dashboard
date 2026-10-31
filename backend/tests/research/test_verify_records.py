@@ -253,6 +253,21 @@ def test_a_forecast_reported_as_a_fact_is_an_error():
     assert "forecast_as_fact" in codes(run(facts=[f]))
 
 
+@pytest.mark.parametrize("verb", ["reported", "said", "noted"])
+def test_reporting_verb_does_not_turn_forecast_into_fact(verb):
+    sentence = f"The Treasury {verb} that GDP is forecast to grow 2.5% in 2027."
+    section = {0: SectionText(sentence)}
+    f = ReportedFact(
+        text="GDP grew 2.5%.",
+        source="The Treasury",
+        value=2.5,
+        unit="percent",
+        period="2027",
+        evidence=[ref(0, sentence)],
+    )
+    assert "forecast_as_fact" in codes(check(section, outlook_ref=ref(0, sentence), facts=[f]))
+
+
 def test_a_fact_period_must_be_stated_near_the_quote():
     assert "period_not_supported" in codes(run(facts=[fact(SA, period="March 2026 quarter")]))
 
