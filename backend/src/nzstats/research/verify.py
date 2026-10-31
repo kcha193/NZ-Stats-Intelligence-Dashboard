@@ -901,10 +901,11 @@ class _Checker:
             quote = loc.quote
             for s, e in _value_spans(value, quote):
                 place, line = loc.layout.place(loc.start + s)
-                if (
-                    place == "cell"
-                ):  # a table states its unit in the caption and headings, not the cell
-                    checked.append(self._table_unit(unit, loc.layout.table(line).context))
+                if place == "cell":
+                    cell = loc.layout.row(line).cells[loc.layout.cell_index(line, loc.start + s)][0]
+                    checked.append(
+                        self._table_unit(unit, loc.layout.table(line).context + " " + cell)
+                    )
                     continue
                 # the section may carry on past a quote that stops at the number: "$25" | " billion"
                 beyond = loc.text[loc.start + e : loc.start + e + 30]
@@ -1271,6 +1272,9 @@ class _RecordChecker(_Checker):
         sentences = [
             loc.sentence_text() for _, loc in found if _decision_wording(loc.sentence_text())
         ]
+        if not any(re.search(r"\bocr\b|\bofficial\s+cash\s+rate\b", s, re.I) for s in sentences):
+            self.error("decision_instrument_not_supported", path,
+                       "the cited decision does not identify the Official Cash Rate")  # fmt: skip
         for sentence in sentences:
             transition = re.search(
                 r"\bfrom\s+\d+(?:\.\d+)?\s*(?:%|percent|per\s+cent)?\s+to\s+(\d+(?:\.\d+)?)",

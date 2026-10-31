@@ -72,6 +72,21 @@ def test_decision_maker_cannot_be_attributed_to_another_institution():
     assert "issuer_not_in_evidence" in codes(report)
 
 
+def test_foreign_policy_rate_cannot_be_labelled_ocr():
+    sentence = "The Federal Reserve agreed to hold the federal funds rate at 4.0 percent today."
+    d = decision(
+        sentence, rate=4.0, decision_maker="Federal Reserve", vote_for=None, vote_against=None
+    )
+    report = check(
+        {0: SectionText(sentence)},
+        outlook_ref=ref(0, sentence),
+        institution=None,
+        published_on=date(2026, 10, 28),
+        decisions=[d],
+    )
+    assert "decision_instrument_not_supported" in codes(report)
+
+
 def test_a_vote_stated_as_member_counts_supports_the_decision():
     d = decision(evidence=[ref(0, VOTE), ref(2, "Four members preferred to hold the OCR")])
     assert codes(run(decisions=[d])) == set()

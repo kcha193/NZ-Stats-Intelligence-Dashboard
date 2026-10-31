@@ -154,6 +154,13 @@ def test_a_single_group_table_checks_the_year_and_asks_the_reviewer_for_the_head
     assert "table_column_mismatch" in codes(run(forecasts=[wrong_year]))
 
 
+def test_table_cell_can_supply_its_own_percent_unit():
+    section = SectionText("Table 1: GDP forecasts\n2026 2027\nGDP growth 1.0% 2.0%", 1, 1)
+    claim = forecast(1, "GDP growth 1.0% 2.0%", 1, value=2.0, unit="percent", horizon="2027")
+    report = check({1: section}, outlook_ref=ref(1, "GDP growth 1.0% 2.0%", 1), forecasts=[claim])
+    assert "unit_mismatch" not in codes(report)
+
+
 def test_a_reported_fact_from_a_table_row_is_checked_the_same_way():
     good = fact(5, "New Zealand 0.8 1.6 2.9", value=0.8, unit="percent", period="2025",
                 text="GDP grew 0.8% in 2025")  # fmt: skip
