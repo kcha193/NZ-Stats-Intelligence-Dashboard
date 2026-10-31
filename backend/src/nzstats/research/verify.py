@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_right
+from calendar import monthrange
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -1257,11 +1258,17 @@ class _RecordChecker(_Checker):
         if not any(_decision_wording(loc.sentence_text()) for _, loc in found):
             self.error("decision_not_in_evidence", path,
                        "the cited sentences do not describe a policy decision (what was decided)")  # fmt: skip
-        quotes = " ".join(loc.quote for _, loc in found)
-        stated = {action for action, words in _ACTIONS.items() if words.search(quotes)}
-        if stated and d.action not in stated:
+        sentences = [
+            loc.sentence_text() for _, loc in found if _decision_wording(loc.sentence_text())
+        ]
+        decision_text = " ".join(_FORWARD.split(sentence, maxsplit=1)[0] for sentence in sentences)
+        stated = {action for action, words in _ACTIONS.items() if words.search(decision_text)}
+        if not stated or len(stated) > 1 or re.search(r"\b(?:not|never|no)\b", decision_text, re.I):
+            self.error("decision_action_not_supported", path,
+                       "the cited decision does not unambiguously support an action")  # fmt: skip
+        elif d.action not in stated:
             self.error("decision_action_contradiction", path,
-                       f"action {d.action.value!r} contradicts the quoted wording")  # fmt: skip
+                       f"action {d.action.value!r} contradicts the decision wording")  # fmt: skip
         near = " ".join(loc.near_text() for _, loc in found)
         if not _date_stated(d.decided_on, near):
             decision_sentences = " ".join(loc.sentence_text() for _, loc in found)
@@ -1315,7 +1322,7 @@ class _RecordChecker(_Checker):
             _FORWARD.search(c) and not _HISTORICAL.search(c) and not _survey_result(c, f.value)
             for c in clauses
         ) or (
-            published is not None and any(y >= published.year for y in self.cell_years(value_at))
+            published is not None and self.fact_table_forward(f.period or "", value_at, published)
         ):
             self.error("forecast_as_fact", path,
                        "the evidence states a forecast or an estimate, not an outturn the document reports")  # fmt: skip
@@ -1332,6 +1339,48 @@ class _RecordChecker(_Checker):
             self.warn(
                 "source_not_named", path, f"source {f.source!r} is not named near the evidence"
             )
+
+    def fact_table_forward(
+        self, period: str, value_at: list[tuple[_Located, int]], published: date
+    ) -> bool:
+        for loc, at in value_at:
+            place, line = loc.layout.place(at)
+            if place != "cell":
+                continue
+            table = loc.layout.table(line)
+            if not table.years:
+                continue
+            years = _horizon_years(table.years[loc.layout.cell_index(line, at)])
+            if not years or max(years) < published.year:
+                continue
+            year = max(years)
+            context = f"{loc.heading} {table.context}"
+            # Only an explicitly historical, completed and unambiguous period can override
+            # the conservative treatment of a current-year table column.
+            quarter = re.search(r"\bq([1-4])\b", period, re.I)
+            month = next(
+                (i for i, name in enumerate(_MONTHS, 1) if re.search(rf"\b{name}\b", period, re.I)),
+                None,
+            )
+            if quarter:
+                month = int(quarter.group(1)) * 3
+            elif not (
+                _QUARTER_PERIOD.search(period) or _FISCAL.search(period) or _CALENDAR.search(period)
+            ):
+                month = None
+            elif month is None and _CALENDAR.search(period):
+                month = 12
+            complete = (
+                month is not None
+                and set(_horizon_years(period)) == {year}
+                and date(year, month, monthrange(year, month)[1]) < published
+            )
+            historical = _HISTORICAL.search(context) or re.search(
+                r"\bhistorical\b|\boutturns\b", context, re.I
+            )
+            if not complete or not historical or _FORWARD.search(context):
+                return True
+        return False
 
     def definition(
         self,

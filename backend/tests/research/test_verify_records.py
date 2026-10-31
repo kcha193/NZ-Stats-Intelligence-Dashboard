@@ -84,6 +84,50 @@ def test_a_decision_date_stated_in_the_evidence_is_accepted():
     assert codes(run(decisions=[d])) == set()
 
 
+@pytest.mark.parametrize(
+    ("sentence", "action", "expected"),
+    [
+        ("The Committee agreed to hold the OCR at 2.75 percent today.", "hold", None),
+        (
+            "The Committee agreed to hold the OCR at 2.75 percent today.",
+            "increase",
+            "decision_action_contradiction",
+        ),
+        ("The Committee agreed to raise the OCR at 2.75 percent today.", "increase", None),
+        ("The Committee agreed to reduce the OCR at 2.75 percent today.", "decrease", None),
+        (
+            "The Committee agreed not to raise the OCR at 2.75 percent today.",
+            "increase",
+            "decision_action_not_supported",
+        ),
+        (
+            "The Committee agreed to not raise the OCR at 2.75 percent today.",
+            "increase",
+            "decision_action_not_supported",
+        ),
+        (
+            "The Committee decided the OCR at 2.75 percent today.",
+            "hold",
+            "decision_action_not_supported",
+        ),
+    ],
+)
+def test_short_decision_quote_requires_supported_action(sentence, action, expected):
+    sections = {0: SectionText(sentence)}
+    quote = "OCR at 2.75 percent"
+    d = decision(quote, action=action, vote_for=None, vote_against=None)
+    errors = codes(
+        check(
+            sections,
+            outlook_ref=ref(0, quote),
+            published_on=date(2026, 10, 28),
+            institution="rbnz",
+            decisions=[d],
+        )
+    )
+    assert (expected in errors) if expected else not errors
+
+
 def test_forward_guidance_is_not_a_decision():
     d = decision("The Committee expects to lower the OCR further if inflation eases", 2,
                  vote_for=None, vote_against=None)  # fmt: skip

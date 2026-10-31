@@ -4,6 +4,8 @@ A minus sign left at a line end, table cells whose column headings are detached 
 labels that leak into the text as runs of loose numbers.
 """
 
+from datetime import date
+
 import pytest
 
 from nzstats.research.contract import ReportedFact, SectionText
@@ -159,6 +161,36 @@ def test_a_reported_fact_from_a_table_row_is_checked_the_same_way():
     assert codes(report) == set() and "table_heading_unverified" in warning_codes(report)
     wrong = good.model_copy(update={"period": "2027"})
     assert "table_column_mismatch" in codes(run(facts=[wrong]))
+
+
+@pytest.mark.parametrize(
+    ("heading", "period", "published", "rejected"),
+    [
+        ("June year actual outturns", "June 2026 year", date(2026, 10, 15), False),
+        ("June year historical results", "June 2026 year", date(2026, 10, 15), False),
+        ("September quarter actual outturns", "September 2026 quarter", date(2026, 10, 15), False),
+        ("Calendar year actual outturns", "calendar year 2026", date(2027, 1, 15), False),
+        ("Calendar year forecasts", "calendar year 2026", date(2026, 10, 15), True),
+        ("June year forecasts", "June 2026 year", date(2026, 5, 15), True),
+        ("December quarter actual outturns", "December 2026 quarter", date(2026, 10, 15), True),
+        ("GDP figures", "2026", date(2026, 10, 15), True),
+        ("June year forecasts", "June 2026 year", date(2026, 10, 15), True),
+    ],
+)
+def test_table_fact_current_year_requires_completed_historical_period(
+    heading, period, published, rejected
+):
+    section = SectionText(f"Table 1: {heading} (percent)\n2025 2026 2027\nGDP 1.1 2.2 3.3", 1, 1)
+    item = fact(1, "GDP 1.1 2.2 3.3", value=2.2, unit="percent", period=period)
+    errors = codes(
+        check(
+            {1: section},
+            outlook_ref=ref(1, "GDP 1.1 2.2 3.3", 1),
+            published_on=published,
+            facts=[item],
+        )
+    )
+    assert ("forecast_as_fact" in errors) == rejected
 
 
 # --- chart-axis residue ---------------------------------------------------------------------------
