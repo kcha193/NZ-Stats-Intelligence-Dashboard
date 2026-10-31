@@ -141,6 +141,8 @@ def test_a_decision_date_stated_in_the_evidence_is_accepted():
         ),
         ("The Committee agreed to raise the OCR at 2.75 percent today.", "increase", None),
         ("The Committee agreed to reduce the OCR at 2.75 percent today.", "decrease", None),
+        ("The Committee agreed to increase the OCR at 2.75 percent today.", "increase", None),
+        ("The Committee agreed to decrease the OCR at 2.75 percent today.", "decrease", None),
         (
             "The Committee agreed not to raise the OCR at 2.75 percent today.",
             "increase",

@@ -1280,7 +1280,12 @@ class _RecordChecker(_Checker):
             if transition and not _same(d.rate, float(transition.group(1))):
                 self.error("decision_rate_contradiction", path,
                            "the rate is not the resulting rate stated in the decision")  # fmt: skip
-        decision_text = " ".join(_FORWARD.split(sentence, maxsplit=1)[0] for sentence in sentences)
+        decision_text = " ".join(
+            sentence[: forward.start()] if forward else sentence
+            for sentence in sentences
+            for decided in [_DECISION.search(sentence)]
+            for forward in [_FORWARD.search(sentence, decided.end()) if decided else None]
+        )
         stated = {action for action, words in _ACTIONS.items() if words.search(decision_text)}
         if not stated or len(stated) > 1 or re.search(r"\b(?:not|never|no)\b", decision_text, re.I):
             self.error("decision_action_not_supported", path,
