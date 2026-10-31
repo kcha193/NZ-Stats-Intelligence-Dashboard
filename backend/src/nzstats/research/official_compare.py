@@ -22,7 +22,7 @@ from typing import Literal
 
 from nzstats.research.contract import Adjustment
 from nzstats.research.outcomes import akl_date
-from nzstats.store.repo import list_vintages, vintage_points
+from nzstats.store.repo import get_series_row, list_vintages, vintage_points
 
 # "annual": the series' own value, which is already an annual change (an annual average, a year-on-year rate).
 Measure = Literal["level", "annual", "change_on_previous", "change_on_year"]
@@ -114,27 +114,32 @@ def compare_figure(
     Pass original number text (or Decimal) to preserve its written decimal places; floats cannot preserve
     trailing fractional zeros. A whole number's trailing zeros indicate rounding to tens, hundreds, etc.
     """
-    meta = conn.execute(
-        "SELECT frequency, seasonal_adjustment FROM series WHERE key = ?", (series,)
-    ).fetchone()
-    if meta is None:
+    if conn.execute("SELECT 1 FROM series WHERE key = ?", (series,)).fetchone() is None:
         return Comparison("no_official_value", f"no stored series {series}")
-    frequency, basis = meta[0], _SERIES_BASIS.get(meta[1])
-    if basis is None:
-        return Comparison(
-            "not_comparable", f"the series' adjustment basis {meta[1]!r} is not known"
-        )
-    refusal = _basis_refusal(adjustment, basis, frequency, measure)
-    if refusal is not None:
-        return Comparison("not_comparable", refusal)
     visible = [
         v
         for v in list_vintages(conn, series)
         if akl_date(v.published_at) <= published_on.isoformat()
     ]
     for info in reversed(visible):  # the newest release first, and its current bundle
-        value = _value({p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()}, period, measure,
-                       frequency)  # fmt: skip
+        points = {p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()}
+        if period not in points:
+            continue
+        meta = get_series_row(conn, series, info.vintage_id)
+        if meta is None:
+            return Comparison(
+                "not_comparable", "the selected vintage has no stored series definition"
+            )
+        frequency, basis = meta["frequency"], _SERIES_BASIS.get(meta["seasonal_adjustment"])
+        if basis is None:
+            return Comparison(
+                "not_comparable",
+                f"the series' adjustment basis {meta['seasonal_adjustment']!r} is not known",
+            )
+        refusal = _basis_refusal(adjustment, basis, frequency, measure)
+        if refusal is not None:
+            return Comparison("not_comparable", refusal)
+        value = _value(points, period, measure, frequency)
         if value is None:
             continue
         official = _round_like(value, document_value)

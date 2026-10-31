@@ -125,6 +125,20 @@ def test_a_stated_basis_that_differs_from_the_series_is_not_compared(official):
     )  # 5,154 to the nearest 10
 
 
+def test_comparison_uses_the_selected_vintages_definition(official):
+    official.execute(
+        "UPDATE series SET seasonal_adjustment='trend', frequency='quarterly' WHERE key='mig.m.net'"
+    )
+    good = compare(
+        official, "mig.m.net", "2026-08", "change_on_previous", -57.5, NSA, date(2026, 10, 15)
+    )
+    assert (good.status, good.official) == ("match", -57.5)
+    wrong = compare(
+        official, "mig.m.net", "2026-08", "level", 2193, Adjustment.TREND, date(2026, 10, 15)
+    )
+    assert wrong.status == "not_comparable"
+
+
 @pytest.mark.parametrize("value", [5150, 5200, 5154])
 def test_the_official_value_is_rounded_to_the_precision_the_document_states(official, value):
     r = compare(official, "mig.m.net", "2026-07", "level", value, NSA, date(2026, 10, 15))
