@@ -102,6 +102,31 @@ def test_no_look_ahead_to_a_release_after_the_document(official):
     assert (late.status, late.official, late.released_on) == ("match", 3.7, "2026-10-22")
 
 
+def test_later_correction_is_not_visible_before_its_capture(official):
+    original = official.execute(
+        "SELECT v.release_id, v.series_id FROM vintage v JOIN series s ON s.id=v.series_id "
+        "JOIN release r ON r.id=v.release_id WHERE s.key=? AND r.release_key=?",
+        ("gdp.production.cv.sa.pct_qoq", "gross-domestic-product:march 2026 quarter"),
+    ).fetchone()
+    vid = official.execute(
+        "INSERT INTO vintage(release_id, series_id, captured_at, source_kind, layout_version, bundle_sha256, activation) "
+        "VALUES (?, ?, '2026-09-01T00:00:00Z', 'release_files', 'v1', ?, 100)",
+        (*original, "f" * 64),
+    ).lastrowid
+    official.execute(
+        "INSERT INTO observation(vintage_id, period, value, status) VALUES (?, '2026-03', 0.9, 'final')",
+        (vid,),
+    )
+    early = compare(
+        official, "gdp.production.cv.sa.pct_qoq", "2026-03", "level", 0.8, SA, date(2026, 8, 1)
+    )
+    assert (early.status, early.official) == ("match", 0.8)
+    late = compare(
+        official, "gdp.production.cv.sa.pct_qoq", "2026-03", "level", 0.9, SA, date(2026, 9, 10)
+    )
+    assert (late.status, late.official) == ("match", 0.9)
+
+
 def test_an_annual_change_from_index_numbers_is_rounded_half_away_from_zero(official):
     r = compare(official, "cpi.index.nsa.all_groups", "2026-06", "change_on_year", 4.1, UNSTATED,
                 date(2026, 10, 15))  # fmt: skip

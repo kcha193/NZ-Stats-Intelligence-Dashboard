@@ -2,8 +2,8 @@
 
 Read-only: no request and no write. Three rules keep a comparison honest:
 
-1. Vintage. The official value comes from the newest stored release published on or before the document's date
-   (Pacific/Auckland), never from a later revision. A period no such release holds has no official value.
+1. Vintage. The official value comes from the newest stored bundle published and captured on or before the
+   document's date (Pacific/Auckland), never from a later revision. A period no such bundle holds has no value.
 2. Basis. A figure is compared only with a series on the same adjustment basis. When the document does not state
    its basis, the comparison is refused for measures Stats NZ publishes on more than one basis (a monthly or
    quarterly level, or a change on the previous period). Annual changes and rolling-year totals are conventionally
@@ -120,8 +120,11 @@ def compare_figure(
         v
         for v in list_vintages(conn, series)
         if akl_date(v.published_at) <= published_on.isoformat()
+        and akl_date(v.captured_at) <= published_on.isoformat()
     ]
-    for info in reversed(visible):  # the newest release first, and its current bundle
+    for info in sorted(
+        visible, key=lambda v: (v.published_at, v.captured_at, v.vintage_id), reverse=True
+    ):
         points = {p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()}
         if period not in points:
             continue
