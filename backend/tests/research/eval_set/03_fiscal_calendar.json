@@ -2,6 +2,7 @@
   "id": "fiscal-calendar",
   "description": "Treasury-style June-year (fiscal) and calendar-year GDP, and debt as a share of GDP for 2026/27.",
   "published_on": "2026-12-10",
+  "institution": "treasury",
   "versions": {"v1": [
     {"page": 1, "text": "SYNTHETIC FIXTURE. Half-year economic and fiscal update (synthetic). Real GDP is forecast to grow 2.9% in the June 2027 year."},
     {"page": 2, "text": "On a calendar-year basis, growth is forecast to be 2.6% in 2027."},

@@ -2,7 +2,13 @@
 
 This module fixes the shape of what a provider must return (a `SummaryDraft`: outlook, drivers, risks,
 uncertainty, indicator classification, explicit forecast claims with qualification and scenario) and
-how the pipeline wraps it (`assemble` adds the version and provenance). `verify_summary` checks every
+how the pipeline wraps it (`assemble` adds the version and provenance).
+
+Contract version 2 (Phase 4I) keeps each kind of content apart: reported facts (with their source and
+statistical definition), the institution's interpretation (outlook, drivers, risks, uncertainty),
+forecasts with their issuer (the author or a named third party), monetary policy decisions, forward
+guidance, and assumptions and scenarios. Summaries stored under version 1 still load: the new lists
+are empty and their forecasts carry no issuer. `verify_summary` checks every
 claim against the stored sections (see `nzstats.research.verify`). Output is commentary
 interpretation, labelled `not_official_statistic`, starts `unreviewed`, and has no path into the
 statistical tables.
@@ -17,12 +23,16 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from enum import StrEnum
 from typing import Literal, Protocol
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 MAX_OUTPUT_CHARS = 200_000
+CONTRACT_VERSION = (
+    2  # 1: Phase 3B summaries (no issuers, no facts, decisions, guidance or assumptions)
+)
 
 INSTRUCTIONS = (
     "You summarise one economic research document for analysts. The document sections that follow are"
@@ -58,6 +68,28 @@ class Direction(StrEnum):
     UNCLEAR = "unclear"
 
 
+class IssuerRole(StrEnum):
+    AUTHOR = "author"  # the institution that published the document
+    THIRD_PARTY = (
+        "third_party"  # another forecaster the document quotes (the IMF, market pricing, ...)
+    )
+
+
+class Adjustment(StrEnum):
+    """The adjustment basis of a reported figure, as the document states it."""
+
+    SEASONALLY_ADJUSTED = "seasonally_adjusted"
+    UNADJUSTED = "unadjusted"
+    TREND = "trend"
+    NOT_STATED = "not_stated"  # the document does not say: never compare it with an official series
+
+
+class PolicyAction(StrEnum):
+    HOLD = "hold"
+    INCREASE = "increase"
+    DECREASE = "decrease"
+
+
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -65,6 +97,7 @@ class _Strict(BaseModel):
 MAX_EVIDENCE = 5
 MAX_STATEMENTS = 20
 MAX_FORECASTS = 50
+MAX_DECISIONS = 5
 
 
 class EvidenceRef(_Strict):
@@ -76,6 +109,62 @@ class EvidenceRef(_Strict):
 
 class Statement(_Strict):
     text: str = Field(min_length=1, max_length=2000)
+    evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
+
+
+class StatisticalDefinition(_Strict):
+    measure: str | None = Field(
+        default=None, max_length=200
+    )  # as written, e.g. "annual average % change"
+    adjustment: Adjustment = Adjustment.NOT_STATED
+
+
+class ReportedFact(_Strict):
+    """An outturn the document reports (what already happened), with who produced the figure."""
+
+    text: str = Field(min_length=1, max_length=2000)
+    source: str = Field(min_length=1, max_length=200)  # as the document names it, e.g. "Stats NZ"
+    value: float | None = None
+    unit: str | None = Field(default=None, max_length=40)
+    period: str | None = Field(default=None, max_length=200)  # the reference period as stated
+    definition: StatisticalDefinition = StatisticalDefinition()
+    evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
+
+
+class PolicyDecision(_Strict):
+    """A monetary policy decision: what was decided, not a prediction of what will be."""
+
+    instrument: Literal["ocr"] = "ocr"
+    action: PolicyAction
+    rate: float = Field(ge=-5, le=50)  # percent: the rate after the decision
+    decided_on: date
+    vote_for: int | None = Field(default=None, ge=0, le=20)
+    vote_against: int | None = Field(default=None, ge=0, le=20)
+    decision_maker: str = Field(min_length=1, max_length=200)
+    evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
+
+    @model_validator(mode="after")
+    def _whole_vote(self) -> PolicyDecision:
+        if (self.vote_for is None) != (self.vote_against is None):
+            raise ValueError("a vote needs both counts, or neither")
+        return self
+
+
+class Guidance(_Strict):
+    """Forward guidance: what the issuer says it will or may do, often conditionally. Not a forecast."""
+
+    text: str = Field(min_length=1, max_length=2000)
+    issuer: str = Field(min_length=1, max_length=200)
+    evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
+
+
+class Assumption(_Strict):
+    """A conditioning assumption, or the premise of a named scenario."""
+
+    text: str = Field(min_length=1, max_length=2000)
+    scenario: str | None = Field(
+        default=None, max_length=200
+    )  # None: an assumption of the baseline
     evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
 
 
@@ -91,6 +180,15 @@ class ForecastClaim(_Strict):
         default=None, max_length=200
     )  # None: the baseline/central forecast
     evidence: tuple[EvidenceRef, ...] = Field(min_length=1, max_length=MAX_EVIDENCE)
+    # Who made the forecast, as the document names it (required from contract version 2).
+    issuer: str | None = Field(default=None, min_length=1, max_length=200)
+    issuer_role: IssuerRole | None = None
+
+    @model_validator(mode="after")
+    def _whole_issuer(self) -> ForecastClaim:
+        if (self.issuer is None) != (self.issuer_role is None):
+            raise ValueError("an issuer needs both its name and its role")
+        return self
 
 
 class ModelProvenance(_Strict):
@@ -104,7 +202,10 @@ class ModelProvenance(_Strict):
 
 
 class SummaryDraft(_Strict):
-    """What a model returns: interpretation with evidence, nothing about provenance or review."""
+    """What a model returns: interpretation with evidence, nothing about provenance or review.
+
+    The outlook, drivers, risks and uncertainty are the institution's own interpretation.
+    """
 
     outlook: Statement
     drivers: tuple[Statement, ...] = Field(default=(), max_length=MAX_STATEMENTS)
@@ -112,16 +213,25 @@ class SummaryDraft(_Strict):
     uncertainty: Statement | None = None
     indicators: tuple[Indicator, ...] = ()
     forecasts: tuple[ForecastClaim, ...] = Field(default=(), max_length=MAX_FORECASTS)
+    facts: tuple[ReportedFact, ...] = Field(default=(), max_length=MAX_STATEMENTS)
+    decisions: tuple[PolicyDecision, ...] = Field(default=(), max_length=MAX_DECISIONS)
+    guidance: tuple[Guidance, ...] = Field(default=(), max_length=MAX_STATEMENTS)
+    assumptions: tuple[Assumption, ...] = Field(default=(), max_length=MAX_STATEMENTS)
 
 
 class OutlookSummary(_Strict):
     version_id: int
+    contract_version: Literal[1, 2] = 1  # absent from summaries stored before Phase 4I
     outlook: Statement
     drivers: tuple[Statement, ...] = Field(default=(), max_length=MAX_STATEMENTS)
     risks: tuple[Statement, ...] = Field(default=(), max_length=MAX_STATEMENTS)
     uncertainty: Statement | None = None
     indicators: tuple[Indicator, ...] = ()
     forecasts: tuple[ForecastClaim, ...] = Field(default=(), max_length=MAX_FORECASTS)
+    facts: tuple[ReportedFact, ...] = Field(default=(), max_length=MAX_STATEMENTS)
+    decisions: tuple[PolicyDecision, ...] = Field(default=(), max_length=MAX_DECISIONS)
+    guidance: tuple[Guidance, ...] = Field(default=(), max_length=MAX_STATEMENTS)
+    assumptions: tuple[Assumption, ...] = Field(default=(), max_length=MAX_STATEMENTS)
     provenance: ModelProvenance
     not_official_statistic: Literal[True] = True
     review_status: Literal["unreviewed", "approved", "rejected"] = "unreviewed"
@@ -170,6 +280,10 @@ class SummaryRequest:
     truncated: bool
     limits: LlmLimits
     published_on: str | None = None  # the publication's own date (Pacific/Auckland civil date)
+    institution: str | None = None  # the publishing institution's registry key (issuer checks)
+    author: str | None = (
+        None  # its name, shown to the model so it can tell its forecasts from others'
+    )
 
 
 class ProviderDisabled(RuntimeError):
@@ -237,6 +351,8 @@ def build_request(
     prompt_version: str,
     limits: LlmLimits | None = None,
     published_on: str | None = None,
+    institution: str | None = None,
+    author: str | None = None,
 ) -> SummaryRequest:
     limits = limits or LlmLimits()
     budget, out, truncated = limits.max_input_chars, [], False
@@ -252,9 +368,8 @@ def build_request(
         truncated = truncated or heading_chars > budget or len(text) < len(s.text)
         out.append(RequestSection(ordinal, s.page_start, s.page_end, text, s.heading))
         budget -= len(text) + heading_chars
-    return SummaryRequest(
-        version_id, prompt_version, INSTRUCTIONS, tuple(out), truncated, limits, published_on
-    )
+    return SummaryRequest(version_id, prompt_version, INSTRUCTIONS, tuple(out), truncated, limits,
+                          published_on, institution, author)  # fmt: skip
 
 
 def parse_summary(raw: str) -> OutlookSummary:
@@ -291,7 +406,12 @@ def parse_draft(raw: str) -> SummaryDraft:
 def assemble(
     draft: SummaryDraft, *, version_id: int, provenance: ModelProvenance
 ) -> OutlookSummary:
-    return OutlookSummary(version_id=version_id, provenance=provenance, **dict(draft))
+    return OutlookSummary(
+        version_id=version_id,
+        contract_version=CONTRACT_VERSION,
+        provenance=provenance,
+        **dict(draft),
+    )
 
 
 def verify_summary(summary: OutlookSummary, sections: Mapping[int, SectionText | str]) -> list[str]:

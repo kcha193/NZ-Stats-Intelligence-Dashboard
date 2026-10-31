@@ -185,3 +185,21 @@ def test_headings_count_against_the_input_cap_so_the_cap_cannot_be_exceeded_by_t
         and sum(len(s.text) + len(s.heading or "") for s in request.sections) <= 100
     )
     assert build({0: SectionText("", 1, 1, "h" * 101)}).truncated  # a heading alone over the cap
+
+
+def test_the_model_is_told_who_wrote_the_document_and_how_to_keep_content_apart():
+    req = build_request(7, SECTIONS, prompt_version=prompt.PROMPT_VERSION, institution="treasury",
+                        author="The Treasury (New Zealand)")  # fmt: skip
+    rendered = prompt.render(req, published_on="2026-10-15")
+    assert "author The Treasury (New Zealand)." in rendered.user.splitlines()[0]
+    for word in (
+        '"issuer_role"',
+        '"third_party"',
+        '"decisions"',
+        '"facts"',
+        "not_stated",
+        "chart-axis",
+    ):
+        assert word in rendered.system
+    anonymous = prompt.input_sha256(_request(), provider="fake", model="m", parameters={})
+    assert prompt.input_sha256(req, provider="fake", model="m", parameters={}) != anonymous

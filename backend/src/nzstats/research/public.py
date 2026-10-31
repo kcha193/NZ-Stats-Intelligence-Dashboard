@@ -132,9 +132,8 @@ def _assess(
     sections = load_sections(conn, row["version_id"])
     published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
     injected = tuple(injection_findings(sections))
-    report = verify(
-        summary, sections, VerificationContext(published_on=published, injection_ordinals=injected)
-    )
+    report = verify(summary, sections, VerificationContext(
+        published_on=published, injection_ordinals=injected, institution=row["institution"]))  # fmt: skip
     if not report.passed:
         return f"the current evidence checks now fail ({len(report.errors)} errors)", None
     if injected:

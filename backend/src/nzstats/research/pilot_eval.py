@@ -19,20 +19,21 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from nzstats.research.contract import Indicator, OutlookSummary
+from nzstats.research.contract import Indicator, IssuerRole, OutlookSummary, PolicyAction
 from nzstats.research.evaluate import (
     PRICE_POINTS,
     EvalReport,
     GoldClaim,
+    GoldDecision,
     GoldVersion,
     aggregate,
     score,
 )
 from nzstats.research.prompt import injection_findings
 from nzstats.research.summarise import load_sections
-from nzstats.research.verify import VerificationContext, verify
+from nzstats.research.verify import UNITS, VerificationContext, verify
 
 
 class AnnotationError(ValueError):
@@ -49,12 +50,31 @@ class GoldForecast(_Strict):
     value: float | None = None
     unit: str | None = None
     scenario: str | None = None
+    issuer_role: IssuerRole | None = None  # Phase 4I: whose forecast it is
+
+    @field_validator("unit")
+    @classmethod
+    def _known_unit(cls, unit: str | None) -> str | None:
+        # A unit the contract does not have can never match a model's claim, so numerical fidelity would be
+        # wrong without anyone noticing (the Phase 4H file used "people" for "persons").
+        if unit is not None and unit not in UNITS:
+            raise ValueError(f"unit {unit!r} is not one of the contract's units")
+        return unit
+
+
+class GoldPolicyDecision(_Strict):
+    rate: float
+    decided_on: date
+    action: PolicyAction
+    vote_for: int | None = Field(default=None, ge=0)
+    vote_against: int | None = Field(default=None, ge=0)
 
 
 class DocumentAnnotation(_Strict):
     version_id: int = Field(ge=1)
     indicators: tuple[Indicator, ...] = ()
     forecasts: tuple[GoldForecast, ...] = ()
+    decisions: tuple[GoldPolicyDecision, ...] = ()
     key_points: tuple[tuple[str, ...], ...] = ()
     note: str | None = None
 
@@ -76,11 +96,16 @@ def _gold(doc: DocumentAnnotation) -> GoldVersion:
     return GoldVersion(
         frozenset(i.value for i in doc.indicators),
         tuple(
-            GoldClaim(f.indicator.value, f.horizon, f.value, f.unit, f.scenario)
+            GoldClaim(f.indicator.value, f.horizon, f.value, f.unit, f.scenario,
+                      f.issuer_role.value if f.issuer_role else None)
             for f in doc.forecasts
         ),
         doc.key_points,
-    )
+        tuple(
+            GoldDecision(d.rate, d.decided_on.isoformat(), d.action.value, d.vote_for, d.vote_against)
+            for d in doc.decisions
+        ),
+    )  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -145,9 +170,10 @@ def evaluate_stored(
     gold = {d.version_id: d for d in annotations.documents}
     marks = ",".join("?" * len(gold))
     rows = conn.execute(
-        "SELECT s.*, p.published_on, v.purged_at FROM research_summary s"
+        "SELECT s.*, p.published_on, v.purged_at, i.key AS institution FROM research_summary s"
         " JOIN research_document_version v ON v.id = s.version_id"
         " JOIN research_publication p ON p.id = v.publication_id"
+        " JOIN research_institution i ON i.id = p.institution_id"
         f" WHERE s.version_id IN ({marks}) ORDER BY s.id DESC",
         tuple(gold),
     ).fetchall()
@@ -180,7 +206,9 @@ def evaluate_stored(
                 sections = load_sections(conn, r["version_id"])
                 published = date.fromisoformat(r["published_on"]) if r["published_on"] else None
                 ctx = VerificationContext(
-                    published_on=published, injection_ordinals=tuple(injection_findings(sections))
+                    published_on=published,
+                    injection_ordinals=tuple(injection_findings(sections)),
+                    institution=r["institution"],
                 )
                 result = verify(summary, sections, ctx)
             report.models.append(score(str(r["id"]), str(r["version_id"]), summary, result,

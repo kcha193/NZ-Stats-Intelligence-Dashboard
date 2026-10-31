@@ -162,8 +162,8 @@ def test_no_vendor_llm_sdk_is_imported_anywhere_in_the_backend():
 # --- Phase 3B: the model returns a draft; the pipeline attaches version and provenance -----------
 def _draft_json(**kw) -> str:
     s = summary()
-    data = s.model_dump(mode="json", exclude={"version_id", "provenance", "not_official_statistic",
-                                              "review_status"})  # fmt: skip
+    data = s.model_dump(mode="json", exclude={"version_id", "contract_version", "provenance",
+                                              "not_official_statistic", "review_status"})  # fmt: skip
     data.update(kw)
     return json.dumps(data)
 
@@ -171,7 +171,7 @@ def _draft_json(**kw) -> str:
 def test_a_draft_parses_and_assembles_into_an_unreviewed_interpretation():
     draft = contract.parse_draft(_draft_json())
     assembled = contract.assemble(draft, version_id=7, provenance=PROV)
-    assert assembled == summary()
+    assert assembled == summary(contract_version=contract.CONTRACT_VERSION)
     assert assembled.not_official_statistic is True and assembled.review_status == "unreviewed"
 
 
@@ -231,3 +231,126 @@ def test_provider_errors_carry_only_a_class_and_retryability():
     err = contract.ProviderError("rate_limited", retryable=True)
     assert err.error_class == "rate_limited" and err.retryable and str(err) == "rate_limited"
     assert contract.LlmLimits().max_retries == 2
+
+
+# --- contract v2 (Phase 4I): reported facts, issuers, decisions, guidance, assumptions --------------
+def _v2_draft() -> dict:
+    data = json.loads(_draft_json())
+    data["forecasts"][0] |= {"issuer": "Example Treasury", "issuer_role": "author"}
+    data["facts"] = [
+        {
+            "text": "Unemployment was 5.1%",
+            "source": "Stats NZ",
+            "value": 5.1,
+            "unit": "percent",
+            "period": "June 2026 quarter",
+            "definition": {"measure": "rate", "adjustment": "seasonally_adjusted"},
+            "evidence": [ref(1, "forecast to peak at 5.4 per cent").model_dump()],
+        }
+    ]
+    data["decisions"] = [
+        {
+            "action": "hold",
+            "rate": 2.75,
+            "decided_on": "2026-10-28",
+            "vote_for": 4,
+            "vote_against": 3,
+            "decision_maker": "Monetary Policy Committee",
+            "evidence": [ref(0, "expected to grow 2.5%").model_dump()],
+        }
+    ]
+    data["guidance"] = [
+        {
+            "text": "Further easing is possible",
+            "issuer": "Committee",
+            "evidence": [ref(2, "tilted to the downside").model_dump()],
+        }
+    ]
+    data["assumptions"] = [
+        {
+            "text": "Export prices fall",
+            "scenario": "downside",
+            "evidence": [ref(2, "tilted to the downside").model_dump()],
+        }
+    ]
+    return data  # fmt: skip
+
+
+def test_assemble_stamps_the_current_contract_version():
+    assembled = contract.assemble(
+        contract.parse_draft(_draft_json()), version_id=7, provenance=PROV
+    )
+    assert assembled.contract_version == contract.CONTRACT_VERSION == 2
+
+
+def test_a_v2_draft_carries_every_category_separately():
+    draft = contract.parse_draft(json.dumps(_v2_draft()))
+    s = contract.assemble(draft, version_id=7, provenance=PROV)
+    assert s.forecasts[0].issuer == "Example Treasury"
+    assert s.forecasts[0].issuer_role is contract.IssuerRole.AUTHOR
+    assert s.facts[0].source == "Stats NZ"
+    assert s.facts[0].definition.adjustment is contract.Adjustment.SEASONALLY_ADJUSTED
+    decision = s.decisions[0]
+    assert (decision.instrument, decision.action, decision.rate) == ("ocr", "hold", 2.75)
+    assert (decision.decided_on.isoformat(), decision.vote_for, decision.vote_against) == (
+        "2026-10-28", 4, 3)  # fmt: skip
+    assert s.guidance[0].issuer == "Committee" and s.assumptions[0].scenario == "downside"
+
+
+def test_a_stored_v1_summary_still_loads_with_empty_new_categories():
+    legacy = summary().model_dump(mode="json")
+    for name in ("contract_version", "facts", "decisions", "guidance", "assumptions"):
+        legacy.pop(name)
+    for claim in legacy["forecasts"]:
+        claim.pop("issuer"), claim.pop("issuer_role")
+    loaded = parse_summary(json.dumps(legacy))
+    assert loaded.contract_version == 1
+    assert (loaded.facts, loaded.decisions, loaded.guidance, loaded.assumptions) == ((), (), (), ())
+    assert loaded.forecasts[0].issuer is None and loaded.forecasts[0].issuer_role is None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"issuer": "Example Treasury"},  # a role without a name, or a name without a role
+        {"issuer_role": "third_party"},
+    ],
+)
+def test_an_issuer_needs_both_its_name_and_its_role(change):
+    base = dict(indicator="gdp", indicator_label="GDP", horizon="2027", value=1.0, unit="percent",
+                direction="up", evidence=[ref(0, "expected to grow 2.5%")])  # fmt: skip
+    with pytest.raises(ValidationError):
+        ForecastClaim(**base, **change)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"vote_for": 4},  # half a vote count
+        {"vote_against": 3},
+        {"action": "pause"},
+        {"instrument": "fx"},
+        {"decided_on": "28 October 2026"},
+        {"rate": None},
+    ],
+)
+def test_a_policy_decision_is_strict(change):
+    data = _v2_draft()
+    decision = {
+        k: v for k, v in data["decisions"][0].items() if k not in ("vote_for", "vote_against")
+    }
+    data["decisions"] = [decision]
+    assert (
+        contract.parse_draft(json.dumps(data)).decisions[0].vote_for is None
+    )  # the control parses
+    data["decisions"] = [decision | change]
+    with pytest.raises(ValueError):
+        contract.parse_draft(json.dumps(data))
+
+
+def test_the_adjustment_basis_defaults_to_not_stated():
+    data = _v2_draft()
+    data["facts"][0].pop("definition")
+    fact = contract.parse_draft(json.dumps(data)).facts[0]
+    assert fact.definition.adjustment is contract.Adjustment.NOT_STATED
+    assert fact.definition.measure is None

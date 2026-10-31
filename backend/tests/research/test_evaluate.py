@@ -49,7 +49,50 @@ def test_extraction_counts_alignment_scenario_and_values():
                  fc("cpi_inflation", "2027", 2.0)]  # fmt: skip
     counts = ev.extraction_counts(predicted, gold)
     assert counts == {"predicted": 3, "gold": 3, "aligned": 2, "correct": 1, "scenario_correct": 1,
-                      "value_correct": 2}  # fmt: skip
+                      "value_correct": 2, "issuer_scored": 0, "issuer_correct": 0}  # fmt: skip
+
+
+def own(claim, role="author"):
+    return ForecastClaim.model_validate(claim.model_dump() | {"issuer": "x", "issuer_role": role})
+
+
+def test_issuers_are_scored_only_where_the_gold_annotates_them():
+    gold = [ev.GoldClaim("gdp", "2027", 1.8, "percent", None, "author"),
+            ev.GoldClaim("gdp", "2026", 1.9, "percent", None)]  # fmt: skip
+    counts = ev.extraction_counts([own(fc("gdp", "2027", 1.8)), fc("gdp", "2026", 1.9)], gold)
+    assert (counts["issuer_scored"], counts["issuer_correct"]) == (1, 1)
+    wrong = ev.extraction_counts([own(fc("gdp", "2027", 1.8), "third_party")],
+                                 [*gold, ev.GoldClaim("cpi_inflation", "2027", 2.0, "percent", None, "third_party")])  # fmt: skip
+    assert (wrong["aligned"], wrong["issuer_scored"], wrong["issuer_correct"]) == (1, 1, 0)
+
+
+def test_a_correctly_credited_third_party_forecast_is_neither_rewarded_nor_penalised():
+    gold = [ev.GoldClaim("gdp", "2027", 1.8, "percent", None, "author")]
+    imf = own(fc("gdp", "2027", 2.9), "third_party")
+    assert ev.extraction_counts([own(fc("gdp", "2027", 1.8)), imf], gold)["predicted"] == 1
+    as_author = own(fc("gdp", "2027", 2.9))  # the IMF's number presented as the author's
+    counts = ev.extraction_counts([as_author], gold)
+    assert (counts["predicted"], counts["aligned"], counts["value_correct"]) == (1, 1, 0)
+
+
+def test_decisions_match_on_date_and_must_agree_on_rate_action_and_vote():
+    from nzstats.research.contract import PolicyDecision
+
+    def d(**kw):
+        base = dict(action="hold", rate=2.75, decided_on="2026-10-28", vote_for=4, vote_against=3,
+                    decision_maker="Monetary Policy Committee",
+                    evidence=[{"version_id": 1, "section_ordinal": 0, "quote": "placeholder text"}])  # fmt: skip
+        return PolicyDecision(**(base | kw))
+
+    gold = [ev.GoldDecision(2.75, "2026-10-28", "hold", 4, 3)]
+    assert ev.decision_counts([d()], gold) == {
+        "predicted": 1,
+        "gold": 1,
+        "matched": 1,
+        "correct": 1,
+    }
+    assert ev.decision_counts([d(vote_for=None, vote_against=None)], gold)["correct"] == 0
+    assert ev.decision_counts([d(decided_on="2026-10-21")], gold)["matched"] == 0
 
 
 def test_rates_handle_empty_denominators():
@@ -90,7 +133,11 @@ def test_difficult_cases_are_covered(report):
     for code in ("historical_not_forecast", "period_basis_mismatch", "fiscal_calendar_mismatch",
                  "scenario_as_baseline", "superseded_value", "wrong_version", "instruction_like_evidence",
                  "quote_not_found", "page_outside_section", "missing_unit", "unit_mismatch",
-                 "number_not_in_evidence", "direction_contradiction", "indicator_mismatch"):  # fmt: skip
+                 "number_not_in_evidence", "direction_contradiction", "indicator_mismatch",
+                 # Phase 4I
+                 "issuer_mismatch", "missing_issuer", "value_not_in_evidence", "table_column_mismatch",
+                 "axis_residue", "decision_as_forecast", "vote_not_captured", "definition_not_in_evidence",
+                 "guidance_not_forward"):  # fmt: skip
         assert code in covered, code
 
 

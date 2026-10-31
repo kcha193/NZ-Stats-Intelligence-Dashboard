@@ -69,12 +69,13 @@ def draft(version_id: int, **overrides: Any) -> dict[str, Any]:
         "indicators": ["gdp", "cpi_inflation"],
         "forecasts": [
             {"indicator": "gdp", "indicator_label": "Economic growth", "horizon": "year to March 2027",
-             "value": 2.5, "unit": "percent", "direction": "up", "evidence": [
+             "value": 2.5, "unit": "percent", "direction": "up", "issuer": "Example institution",
+             "issuer_role": "author", "evidence": [
                  {"version_id": version_id, "section_ordinal": 0, "page": 1,
                   "quote": "expected to grow 2.5% in the year to March 2027"}]},
             {"indicator": "cpi_inflation", "indicator_label": "Annual CPI inflation",
              "horizon": "year to June 2027", "value": 2.1, "unit": "percent", "direction": "down",
-             "evidence": [{"version_id": version_id, "section_ordinal": 1, "page": 2,
+             "issuer": "Example institution", "issuer_role": "author", "evidence": [{"version_id": version_id, "section_ordinal": 1, "page": 2,
                            "quote": "forecast to fall to 2.1% in the year to June 2027"}]},
         ],
     }  # fmt: skip

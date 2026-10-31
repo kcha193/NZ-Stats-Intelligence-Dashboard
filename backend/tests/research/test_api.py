@@ -202,7 +202,7 @@ def test_detail_has_provenance_versions_and_forecasts(make):
     assert detail["item"]["id"] == a
     assert detail["provenance"] == {
         "provider": "fake", "model": "fake-1", "hosted": False, "prompt_version": "outlook-v2",
-        "processing_version": "3b-1", "verifier_version": "verify-2", "created_at": "2026-10-26T14:00:00+13:00",
+        "processing_version": "3b-1", "verifier_version": "verify-3", "created_at": "2026-10-26T14:00:00+13:00",
     }  # fmt: skip
     assert detail["versions"] == [
         {"version_no": 1, "fetched_at": "2026-10-26T14:00:00+13:00", "current": True}
@@ -286,3 +286,26 @@ def test_the_database_is_opened_read_only_even_from_an_awkward_directory(tmp_pat
     with pytest.raises(Exception, match="readonly"):
         c.execute("INSERT INTO research_llm_run(provider, model, hosted, prompt_version, processing_version,"
                   " started_at) VALUES ('p','m',0,'v','x','t')")  # fmt: skip
+
+
+def test_a_third_party_forecast_is_never_shown_as_the_institutions_own(make):
+    """Phase 4I: an IMF forecast quoted in a document is the IMF's, not the publishing institution's."""
+    build, conn = make
+    v = seed_version(conn, ("SYNTHETIC FIXTURE. We expect growth of 2.8% in 2027. The IMF expects"
+                            " growth of 2.9% in 2027.",), key="alpha")  # fmt: skip
+
+    def claim(value, quote, issuer, role):
+        return {"indicator": "gdp", "indicator_label": "GDP growth", "horizon": "2027", "value": value,
+                "unit": "percent", "direction": "unclear", "issuer": issuer, "issuer_role": role,
+                "evidence": [{"version_id": v, "section_ordinal": 0, "page": 1, "quote": quote}]}  # fmt: skip
+
+    own = claim(2.8, "We expect growth of 2.8% in 2027", "Example Research", "author")
+    imf = claim(2.9, "The IMF expects growth of 2.9% in 2027", "IMF", "third_party")
+    out = draft(v, forecasts=[own, imf], indicators=["gdp"],
+                outlook={"text": "Growth is expected.", "evidence": own["evidence"]})  # fmt: skip
+    sid = store_summary(conn, v, output=out)
+    client = build(reg=registry(displayable("alpha")))
+    detail = client.get(f"/api/research/summaries/{sid}").json()
+    assert [f["value"] for f in detail["forecasts"]] == [2.8]
+    assert detail["item"]["n_forecasts"] == 1
+    assert "2.9" not in client.get("/api/research/forecasts").text

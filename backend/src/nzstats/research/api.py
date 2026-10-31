@@ -42,7 +42,7 @@ from nzstats.research.api_models import (
 )
 from nzstats.research.compare import INDICATOR_NAMES, compare_forecasts, indicator_rank
 from nzstats.research.consensus import consensus
-from nzstats.research.contract import ForecastClaim, Statement
+from nzstats.research.contract import ForecastClaim, IssuerRole, Statement
 from nzstats.research.history import forecast_history
 from nzstats.research.macro_outcomes import gdp_actuals, unemployment_actuals
 from nzstats.research.outcomes import CpiActuals
@@ -169,18 +169,22 @@ class _View:
             drivers=[self._statement(d) for d in s.drivers] if self.ai else [],
             risks=[self._statement(d) for d in s.risks] if self.ai else [],
             uncertainty=self._statement(s.uncertainty),
-            n_forecasts=len(s.forecasts) if self.ai else 0,
+            n_forecasts=len(self.own_forecasts()) if self.ai else 0,
             processing=ProcessingOut(
                 human_reviewed_on=_date(r["reviewed_at"]), published_here_on=_date(r["decided_at"]),
                 verifier_version=VERIFIER_VERSION, warnings=self.p.warnings,
             ),
         )  # fmt: skip
 
+    def own_forecasts(self) -> list[ForecastClaim]:
+        """The institution's own forecasts: one it quotes from a third party (the IMF, market pricing) is not its."""
+        return [c for c in self.p.summary.forecasts if c.issuer_role is not IssuerRole.THIRD_PARTY]
+
     def forecasts(self) -> list[ForecastOut]:
         if not self.ai:
             return []
         r = self.p.row
-        return [self._forecast(c, r) for c in self.p.summary.forecasts]
+        return [self._forecast(c, r) for c in self.own_forecasts()]
 
     def _forecast(self, c: ForecastClaim, r: Mapping) -> ForecastOut:
         return ForecastOut(
