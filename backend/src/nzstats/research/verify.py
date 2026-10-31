@@ -59,6 +59,11 @@ _SPACED_SIGN = re.compile(r"(?<!\S)([-−]) (?=\d)")  # how a quote may render t
 _NUMBER_CELL = re.compile(r"[-−]?\d+(?:,\d{3})*(?:\.\d+)?%?")
 _EMPTY_CELL = re.compile(r"[-−–—]{1,2}|n/?a|\.\.|…", re.IGNORECASE)
 _YEAR_CELL = re.compile(r"(?:19|20)\d{2}(?:[/–-]\d{2})?[a-z*]?", re.IGNORECASE)
+_EVIDENCE_LABEL = re.compile(
+    r"actuals?|outturns?|provisional|forecasts?|projections?|assumptions?", re.I
+)
+_ACTUAL = re.compile(r"\b(?:actuals?|outturns?|observed|provisional|historical results)\b", re.I)
+_NON_ACTUAL = re.compile(r"\b(?:forecast\w*|project\w*|predict\w*|assum\w*|scenario\w*)\b", re.I)
 _TITLED = re.compile(r"^(?:table|figure|chart|graph|exhibit)\s+[\w.]+\s*[:.–-]", re.IGNORECASE)
 _SOURCE_LINE = re.compile(r"^sources?\b", re.IGNORECASE)
 _PERCENT_WORD = re.compile(r"%|per\s*cent|percent", re.IGNORECASE)
@@ -108,7 +113,7 @@ _ADJUSTMENT = {
 }  # fmt: skip
 _FRACTIONS = {"½": 0.5, "¼": 0.25, "¾": 0.75}
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
-_CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then)\b")
+_CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
 _FORWARD = re.compile(
     r"forecast|expect|project|predict|anticipat|outlook|assum|\bwill\b|\bwould\b|\bshould\b"
     r"|\blikely\b|\bsees?\b|\bseen\b|pencil|\bplan|scenario|\bpath\b|\bestimated? to\b"
@@ -183,7 +188,7 @@ _EARLIER_AFTER = re.compile(
 _CERTAIN = re.compile(
     r"\b(?:certain(?:ly)?|definitely|guarantee[ds]?|inevitabl[ey]|undoubtedly|no doubt)\b", re.I
 )
-_YEAR = re.compile(r"\b((?:19|20)\d{2})(?:\s*[/–-]\s*(\d{2}))?\b")
+_YEAR = re.compile(r"\b((?:19|20)\d{2})(?:\s*[/–-]\s*(\d{2}))?(?:[afp](?=\b))?\b", re.I)
 _MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september",
            "october", "november", "december")  # fmt: skip
 _MONTH = re.compile(r"\b(" + "|".join(m[:3] for m in _MONTHS) + r")[a-z]*\b", re.IGNORECASE)
@@ -276,6 +281,7 @@ class _Table:
     )  # the row of years heading the cells, one per cell; None if none matches
     caption: str  # the nearest titled caption above the table and its source lines ("" if none)
     context: str  # caption, header fragments and labels after the rows: where the unit is stated
+    labels: tuple[str, ...] | None = None  # aligned actual/forecast labels, one per year column
 
 
 class _Layout:
@@ -322,6 +328,9 @@ class _Layout:
             if len(tokens) >= 2 and all(_YEAR_CELL.fullmatch(t) for t, _, _ in tokens):
                 out.append(("header", None, tuple(t for t, _, _ in tokens)))
                 continue
+            if len(tokens) >= 2 and all(_EVIDENCE_LABEL.fullmatch(t) for t, _, _ in tokens):
+                out.append(("labels", None, tuple(t for t, _, _ in tokens)))
+                continue
             k = len(tokens)
             while k and (
                 _NUMBER_CELL.fullmatch(tokens[k - 1][0]) or _EMPTY_CELL.fullmatch(tokens[k - 1][0])
@@ -338,7 +347,7 @@ class _Layout:
                     and line_index > 0
                     and (
                         (
-                            out[line_index - 1][0] == "header"
+                            out[line_index - 1][0] in ("header", "labels")
                             and len(out[line_index - 1][2] or ()) == 2
                         )
                         or (
@@ -403,15 +412,23 @@ class _Layout:
         while top > 0 and same(top - 1):
             top -= 1
         years = None
+        labels = None
         header = kinds[top - 1] if top > 0 else None
+        if header is not None and header[0] == "labels" and len(header[2] or ()) == width:
+            labels, top = header[2], top - 1
+            header = kinds[top - 1] if top > 0 else None
         if header is not None and header[0] == "header" and header[2] and len(header[2]) == width:
             years, top = header[2], top - 1
+        if top > 0 and kinds[top - 1][0] == "labels" and len(kinds[top - 1][2] or ()) == width:
+            labels, top = kinds[top - 1][2], top - 1
         bottom = i
         while bottom + 1 < len(kinds) and same(bottom + 1):
             bottom += 1
         fragments: list[int] = []  # lines between the table and its titled caption, nearest first
         caption: list[str] = []
         for j in range(top - 1, max(top - 21, -1), -1):
+            if kinds[j][0] in ("row", "header", "labels"):
+                break
             if j in self.residue:
                 continue
             if _TITLED.match(self.line_text(j)):
@@ -419,14 +436,18 @@ class _Layout:
                 break
             fragments.append(j)
         fragments = fragments[:5]
-        after = [n for n in range(bottom + 1, min(bottom + 4, len(kinds))) if kinds[n][0] == "text"]
+        after = []
+        for n in range(bottom + 1, min(bottom + 4, len(kinds))):
+            if _TITLED.match(self.line_text(n)) or kinds[n][0] != "text":
+                break
+            after.append(n)
         caption += [
             self.line_text(n)
             for n in sorted(fragments) + after
             if _SOURCE_LINE.match(self.line_text(n))
         ]
         context = " ".join(caption + [self.line_text(n) for n in sorted(fragments) + after])
-        return _Table(years, " ".join(caption), context)
+        return _Table(years, " ".join(caption), context, labels)
 
 
 @dataclass(frozen=True)
@@ -613,7 +634,7 @@ def _horizon_years(horizon: str) -> list[int]:
 
 def _year_stated(year: int, text: str) -> bool:
     pair = rf"\b{year - 1}[ \t]*[/–-][ \t]*{year % 100:02d}\b"
-    return bool(re.search(rf"\b{year}\b", text) or re.search(pair, text))
+    return bool(re.search(rf"\b{year}[afp]?\b", text, re.I) or re.search(pair, text))
 
 
 def _unstated_period(period: str, near: str) -> list[str]:
@@ -627,13 +648,64 @@ def _unstated_period(period: str, near: str) -> list[str]:
     return missing
 
 
+def _decision_marker(text: str) -> re.Match[str] | None:
+    for marker in _DECISION.finditer(text):
+        prefix = _CLAUSE.split(text[: marker.start()])[-1]
+        if not re.search(
+            r"\b(?:prefer\w*|favou\w*|dissent\w*|propos\w*|suggest\w*)\b", prefix, re.I
+        ):
+            return marker
+    return None
+
+
 def _decision_wording(text: str) -> bool:
     """Says what was decided, before any forward-looking word ("we expect the RBNZ to have cut" does not)."""
-    decided = _DECISION.search(text)
+    text = _adopted_decision(text)
+    decided = _decision_marker(text)
     if decided is None:
         return False
     forward = _FORWARD.search(text)
     return forward is None or forward.start() > decided.start()
+
+
+def _adopted_decision(text: str) -> str:
+    """The clause describing the adopted decision, excluding reporting, dissent and guidance."""
+    decided = _decision_marker(text)
+    if decided is None:
+        return ""
+    start = 0
+    for boundary in _CLAUSE.finditer(text, 0, decided.start()):
+        start = boundary.end()
+    # "Treasury reported that the RBNZ Committee agreed ...": the reporter is not the maker.
+    reporting = list(
+        re.finditer(
+            r"\b(?:that|(?:reported|said|noted|announced|stated)(?:\s+that)?)\b",
+            text[start : decided.start()],
+            re.I,
+        )
+    )
+    if reporting:
+        start += reporting[-1].end()
+    forward = _FORWARD.search(text, decided.end())
+    end = forward.start() if forward else len(text)
+    dissent = re.search(
+        r",\s*(?:with|while|but|whereas)\b(?=[^.;]*\b(?:members?|dissent\w*|prefer\w*|favou\w*)\b)",
+        text[decided.end() : end],
+        re.I,
+    )
+    if dissent:
+        end = decided.end() + dissent.start()
+    return text[start:end]
+
+
+def _decision_rates(text: str) -> set[float]:
+    """Resulting rate levels, rather than the previous rate or size of the policy move."""
+    return {
+        value
+        for value, start, end in _number_spans(text)
+        if re.search(r"\b(?:at|to)\s+$", text[:start], re.I)
+        and re.match(r"\s*(?:%|percent\b|per\s+cent\b)", text[end:], re.I)
+    }
 
 
 def _date_stated(day: date, text: str) -> bool:
@@ -732,6 +804,87 @@ def _basis(text: str) -> str | None:
     if _QUARTERLY.search(text):
         return "quarterly"
     return None
+
+
+def _figure_kind(text: str) -> str | None:
+    """Classify explicit figure wording independently of its reference/publication dates."""
+    actual, non_actual = bool(_ACTUAL.search(text)), bool(_NON_ACTUAL.search(text))
+    if actual and non_actual:
+        return "ambiguous"
+    if non_actual:
+        if re.search(r"\bassum\w*|\bscenario\w*", text, re.I):
+            return "assumption"
+        if re.search(r"\b(?:previous|prior|earlier|historical)\b", text, re.I):
+            return "historical_forecast"
+        if re.search(r"\brevis\w*\b", text, re.I):
+            return "forecast_revision"
+        return "forecast"
+    return "actual" if actual else None
+
+
+def _table_figure_kind(loc: _Located, at: int) -> str | None:
+    """Use the selected column/row before broader table and section wording."""
+    _, line = loc.layout.place(at)
+    table, index = loc.layout.table(line), loc.layout.cell_index(line, at)
+    labels = [table.labels[index]] if table.labels else []
+    if table.years:
+        marker = re.search(r"([afp])$", table.years[index], re.I)
+        if marker:
+            labels.append({"a": "actual", "p": "provisional", "f": "forecast"}[marker[1].lower()])
+    for text in (" ".join(labels), loc.layout.row(line).label, table.context, loc.heading):
+        kind = _figure_kind(text)
+        if kind is not None:
+            return kind
+    return None
+
+
+def _column_matches_period(heading: str, period: str, context: str) -> bool:
+    column, wanted = set(_horizon_years(heading)), set(_horizon_years(period))
+    if not wanted or column == wanted:
+        return True
+    # A June-year column may abbreviate 2025/26 as 2026, and a fact may spell out its end date.
+    return bool(
+        column
+        and wanted
+        and max(column) == max(wanted)
+        and _FISCAL.search(period)
+        and _FISCAL.search(context)
+        and (len(column) == 1 or len(wanted) == 1)
+    )
+
+
+def _completed_period(period: str, year: int, published: date, context: str) -> bool:
+    """Only an explicit reference-period end can establish an outturn in the publication year."""
+    quarter = _QUARTER_LABEL.search(period)
+    month = next(
+        (i for i, name in enumerate(_MONTHS, 1) if re.search(rf"\b{name}\b", period, re.I)), None
+    )
+    if quarter:
+        month = int(quarter[1]) * 3
+    elif not (_QUARTER_PERIOD.search(period) or _FISCAL.search(period) or _CALENDAR.search(period)):
+        month = None
+    elif month is None and _CALENDAR.search(period):
+        month = 12
+    elif month is None and _FISCAL.search(period):
+        ends = {
+            i
+            for i, name in enumerate(_MONTHS, 1)
+            if re.search(
+                rf"\b{name}\s+(?:20\d{{2}}\s+)?year\b"
+                rf"|\byear\s+(?:to|ending|ended)\s+{name}\b",
+                context,
+                re.I,
+            )
+        }
+        if len(ends) == 1:
+            month = ends.pop()
+    years = _horizon_years(period)
+    return bool(
+        month is not None
+        and years
+        and max(years) == year
+        and date(year, month, monthrange(year, month)[1]) < published
+    )
 
 
 class _Checker:
@@ -858,6 +1011,10 @@ class _Checker:
                     after = loc.text[loc.start + e : loc.start + e + 30]
                     superseded.append(
                         bool(_EARLIER_BEFORE.search(before) or _EARLIER_AFTER.match(after))
+                        or (
+                            loc.layout.place(loc.start + s)[0] == "cell"
+                            and _table_figure_kind(loc, loc.start + s) == "historical_forecast"
+                        )
                     )
             if not value_at:  # only quotes actually found in the document can support a value
                 self.error("value_not_in_evidence", path,
@@ -955,17 +1112,17 @@ class _Checker:
             return
         if any(p == "text" for _, _, p, _ in places):
             return
-        wanted = set(_horizon_years(period or ""))
         verdicts: list[tuple[str, str]] = []
         for loc, at, p, line in places:
             if p != "cell":
                 continue
-            years = loc.layout.table(line).years
+            table = loc.layout.table(line)
+            years = table.years
             if years is None:
                 verdicts.append(("unverified", "no row of years heads the table"))
                 continue
             heading = years[loc.layout.cell_index(line, at)]
-            if wanted and set(_horizon_years(heading)) != wanted:
+            if not _column_matches_period(heading, period or "", table.context):
                 verdicts.append(("mismatch", f"its column is headed {heading}"))
             elif len(set(years)) < len(years):
                 verdicts.append(("unverified", f"the {heading} heading repeats across groups of columns"
@@ -1188,6 +1345,19 @@ class _Checker:
         year not before publication. Limit: a verbless historical figure for the publication year, under
         a forecast heading, cannot be told from a forecast; the human review requirement covers it.
         """
+        kinds = (
+            [
+                _table_figure_kind(loc, loc.start + s)
+                for s, _ in _value_spans(claim.value, loc.quote)
+                if loc.layout.place(loc.start + s)[0] == "cell"
+            ]
+            if claim.value is not None
+            else []
+        )
+        if any(kind is not None for kind in kinds):
+            return any(
+                kind in ("forecast", "historical_forecast", "forecast_revision") for kind in kinds
+            )
         sentence = loc.sentence_text()
         if _FORWARD.search(sentence):
             return True
@@ -1275,27 +1445,15 @@ class _RecordChecker(_Checker):
         if not any(re.search(r"\bocr\b|\bofficial\s+cash\s+rate\b", s, re.I) for s in sentences):
             self.error("decision_instrument_not_supported", path,
                        "the cited decision does not identify the Official Cash Rate")  # fmt: skip
-        for sentence in sentences:
-            transition = re.search(
-                r"\bfrom\s+\d+(?:\.\d+)?\s*(?:%|percent|per\s+cent)?\s+to\s+(\d+(?:\.\d+)?)",
-                sentence,
-                re.I,
-            )
-            if transition and not _same(d.rate, float(transition.group(1))):
-                self.error("decision_rate_contradiction", path,
-                           "the rate is not the resulting rate stated in the decision")  # fmt: skip
-        decision_text = " ".join(
-            sentence[: forward.start()] if forward else sentence
-            for sentence in sentences
-            for decided in [_DECISION.search(sentence)]
-            for forward in [_FORWARD.search(sentence, decided.end()) if decided else None]
-        )
-        decision_text = re.split(
-            r",\s*(?:with|while)\b(?=[^.;]*\b(?:members?|dissent\w*|prefer\w*|favou\w*)\b)",
-            decision_text,
-            maxsplit=1,
-            flags=re.I,
-        )[0]
+        adopted = [_adopted_decision(sentence) for sentence in sentences]
+        decision_text = " ".join(adopted)
+        rates = set().union(*(_decision_rates(part) for part in adopted))
+        if rates and (len(rates) != 1 or not any(_same(d.rate, rate) for rate in rates)):
+            self.error("decision_rate_contradiction", path,
+                       "the rate is not the resulting rate stated in the adopted decision")  # fmt: skip
+        elif not rates:
+            self.error("decision_rate_not_supported", path,
+                       "the adopted decision does not state a resulting rate")  # fmt: skip
         stated = {action for action, words in _ACTIONS.items() if words.search(decision_text)}
         if not stated or len(stated) > 1 or re.search(r"\b(?:not|never|no)\b", decision_text, re.I):
             self.error("decision_action_not_supported", path,
@@ -1305,10 +1463,23 @@ class _RecordChecker(_Checker):
                        f"action {d.action.value!r} contradicts the decision wording")  # fmt: skip
         near = " ".join(loc.near_text() for _, loc in found)
         maker = issuers.organisation_of(d.decision_maker)
+        makers = set().union(
+            *(
+                issuers.named(part[: _DECISION.search(part).start()])
+                for part in adopted
+                if _DECISION.search(part)
+            )
+        )
+        if maker is not None and makers and makers != {maker}:
+            self.error("issuer_mismatch", path,
+                       f"decision maker {d.decision_maker!r} contradicts the adopted decision's subject")  # fmt: skip
         if maker is not None and maker != self.ctx.institution and maker not in issuers.named(near):
             self.error("issuer_not_in_evidence", path,
                        f"decision maker {d.decision_maker!r} is not named in or near the evidence")  # fmt: skip
-        if not _date_stated(d.decided_on, near):
+        if re.search(r"\btoday\b", decision_text, re.I) and d.decided_on != self.ctx.published_on:
+            self.error("decision_date_not_supported", path,
+                       "the adopted decision says today, which is not the claimed date")  # fmt: skip
+        elif not _date_stated(d.decided_on, near):
             decision_sentences = " ".join(loc.sentence_text() for _, loc in found)
             if (
                 d.decided_on != self.ctx.published_on
@@ -1346,7 +1517,13 @@ class _RecordChecker(_Checker):
             self.placement(path, f.value, value_at, f.period, "figure")
         if not found:
             return
-        near = " ".join(loc.near_text() for _, loc in found)
+        table_clauses = [
+            f"{loc.heading} {loc.layout.table(line).context} {loc.layout.row(line).label}"
+            for loc, at in value_at
+            for place, line in [loc.layout.place(at)]
+            if place == "cell"
+        ]
+        near = " ".join([loc.near_text() for _, loc in found] + table_clauses)
         missing = _unstated_period(f.period or "", near)
         if missing:
             self.error("period_not_supported", path,
@@ -1355,33 +1532,29 @@ class _RecordChecker(_Checker):
         clauses = [loc.with_lines(*loc._clause_span(at)) for loc, at in prose] or (
             [] if value_at else [loc.sentence_text() for _, loc in found]
         )
+        period_clauses = clauses + table_clauses
         period = f.period or ""
         fiscal_period = bool(_FISCAL.search(_fiscal_text(period)))
         if period and (
             (
-                any(_FISCAL.search(_fiscal_text(c)) for c in clauses)
+                any(_FISCAL.search(_fiscal_text(c)) for c in period_clauses)
                 and not fiscal_period
-                and not any(_CALENDAR.search(c) for c in clauses)
+                and not any(_CALENDAR.search(c) for c in period_clauses)
             )
-            or (fiscal_period and any(_CALENDAR.search(c) for c in clauses))
+            or (fiscal_period and any(_CALENDAR.search(c) for c in period_clauses))
         ):
             self.error("fiscal_calendar_mismatch", path,
                        f"period {period!r} conflicts with the evidence's year basis")  # fmt: skip
         published = self.ctx.published_on
         if any(
             _FORWARD.search(c)
-            and (
-                not _HISTORICAL.search(c)
-                or re.search(r"\b(?:forecast|project|predict)\w*\b", c, re.I)
-            )
+            and (not _HISTORICAL.search(c) or _NON_ACTUAL.search(c))
             and not _survey_result(c, f.value)
             for c in clauses
-        ) or (
-            published is not None and self.fact_table_forward(f.period or "", value_at, published)
-        ):
+        ) or (self.fact_table_forward(f.period or "", value_at, published)):
             self.error("forecast_as_fact", path,
                        "the evidence states a forecast or an estimate, not an outturn the document reports")  # fmt: skip
-        self.definition(path, f, found, clauses)
+        self.definition(path, f, found, period_clauses)
         context = " ".join([near] + [loc.layout.table(line).caption for loc, at in value_at
                                      for place, line in [loc.layout.place(at)] if place == "cell"])  # fmt: skip
         key = issuers.organisation_of(f.source)
@@ -1396,44 +1569,24 @@ class _RecordChecker(_Checker):
             )
 
     def fact_table_forward(
-        self, period: str, value_at: list[tuple[_Located, int]], published: date
+        self, period: str, value_at: list[tuple[_Located, int]], published: date | None
     ) -> bool:
         for loc, at in value_at:
             place, line = loc.layout.place(at)
             if place != "cell":
                 continue
+            kind = _table_figure_kind(loc, at)
+            if kind is not None and kind != "actual":
+                return True
             table = loc.layout.table(line)
-            if not table.years:
+            if not table.years or published is None:
                 continue
             years = _horizon_years(table.years[loc.layout.cell_index(line, at)])
             if not years or max(years) < published.year:
                 continue
-            year = max(years)
-            context = f"{loc.heading} {table.context}"
-            # Only an explicitly historical, completed and unambiguous period can override
-            # the conservative treatment of a current-year table column.
-            quarter = re.search(r"\bq([1-4])\b", period, re.I)
-            month = next(
-                (i for i, name in enumerate(_MONTHS, 1) if re.search(rf"\b{name}\b", period, re.I)),
-                None,
-            )
-            if quarter:
-                month = int(quarter.group(1)) * 3
-            elif not (
-                _QUARTER_PERIOD.search(period) or _FISCAL.search(period) or _CALENDAR.search(period)
+            if kind != "actual" or not _completed_period(
+                period, max(years), published, f"{loc.heading} {table.context}"
             ):
-                month = None
-            elif month is None and _CALENDAR.search(period):
-                month = 12
-            complete = (
-                month is not None
-                and set(_horizon_years(period)) == {year}
-                and date(year, month, monthrange(year, month)[1]) < published
-            )
-            historical = _HISTORICAL.search(context) or re.search(
-                r"\bhistorical\b|\boutturns\b", context, re.I
-            )
-            if not complete or not historical or _FORWARD.search(context):
                 return True
         return False
 

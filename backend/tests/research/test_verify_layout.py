@@ -162,12 +162,17 @@ def test_table_cell_can_supply_its_own_percent_unit():
 
 
 def test_a_reported_fact_from_a_table_row_is_checked_the_same_way():
+    # Reported facts need actual evidence; a historical forecast remains a forecast.
+    sections = {
+        **SECTIONS,
+        5: SectionText(ONE_GROUP.text.replace("GDP forecasts", "Historical GDP actuals"), 5, 5),
+    }
     good = fact(5, "New Zealand 0.8 1.6 2.9", value=0.8, unit="percent", period="2025",
                 text="GDP grew 0.8% in 2025")  # fmt: skip
-    report = run(facts=[good])
+    report = check(sections, outlook_ref=OUTLOOK, facts=[good])
     assert codes(report) == set() and "table_heading_unverified" in warning_codes(report)
     wrong = good.model_copy(update={"period": "2027"})
-    assert "table_column_mismatch" in codes(run(facts=[wrong]))
+    assert "table_column_mismatch" in codes(check(sections, outlook_ref=OUTLOOK, facts=[wrong]))
 
 
 def test_table_caption_supports_statistical_definition():

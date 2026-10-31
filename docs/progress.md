@@ -1,6 +1,6 @@
 # Progress and verification record
 
-Last updated 2026-10-31. Phase 4I (research contract v2, verify-3, private-preview foundation) is on branch
+Last updated 2026-11-01. Phase 4I (research contract v2, verify-3, private-preview foundation) is on branch
 `feat/phase-4i-research-quality`: local-model pilot GO WITH CONDITIONS, pending owner approvals. Phase 4G (on-open refresh) is merged (PR #28) and passed live acceptance with conditions (Phase 4H execution). Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
 
 ## Phase 4I: economic intelligence quality and private preview readiness, 31 October 2026
@@ -30,6 +30,22 @@ precision 0.944 and recall 0.739, numerical fidelity 0.952, citation correctness
 `RECORDED_BASELINE` floors.
 
 No model call, crawl, download, registry or display change.
+
+### PR #33 systematic verification audit, 1 November 2026
+
+Audit and false-acceptance/false-rejection matrix: [pr-33-verification-audit.md](pr-33-verification-audit.md).
+Replaced year-first fact classification with scoped table evidence identity; retained completed actual outturns,
+fiscal/calendar distinctions and current revised forecasts. Policy action/rate/maker checks share the adopted
+clause; unrelated guidance, dissent, reporting institutions and previous decision dates cannot supply fields.
+Historical comparisons refuse missing baselines and undated bundle-reactivation ambiguity. Both display gates
+bind output to its stored document version. Updated the synthetic browser seeder for v2 issuer requirements.
+
+Added 60 regression cases with failure-first evidence. Full backend run: 3,443 passed; final research rerun:
+1,689 passed, including four cases added after the broad run started. Frontend: 524 passed; types/lint/build,
+unchanged API schema, research browser 18 passed + 3 expected skips, replay 38/38, Ruff and staged Gitleaks pass.
+Two independent local review findings were fixed failing-first. Remote-head CI and fresh review receipts belong
+in the PR conversation; this entry does not claim review closure. Registry, contracts, production data and
+disabled preview settings are unchanged. No model call, live statistical request, merge or deployment.
 
 ## Phase 4H execution, 31 October 2026
 

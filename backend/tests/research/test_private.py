@@ -3,6 +3,7 @@
 from nzstats.research import summary_store as ss
 from nzstats.research.private import private_summaries, why_not_private
 from nzstats.research.public import public_summaries
+from nzstats.store.db import transaction
 
 from .llm_support import NOW, draft, seed_version
 from .public_support import displayable, registry, store_summary
@@ -98,3 +99,47 @@ def test_a_later_rejection_withdraws_the_preview(conn):
     assert ids(conn, reg) == [sid]
     ss.review(conn, sid, decision="rejected", reviewer="Owner", note="wrong horizon", now=NOW)
     assert ids(conn, reg) == []
+
+
+def test_both_display_gates_reject_output_for_another_document_version(conn):
+    first = seed_version(conn)
+    second = seed_version(conn, doc="b")  # identical text must not erase document identity
+    original = store_summary(conn, second, publish=False)
+    row = ss.get_summary(conn, original)
+    key = ss.SummaryKey(
+        first,
+        row["provider"],
+        row["model"],
+        row["prompt_version"],
+        row["processing_version"],
+        row["input_sha256"],
+    )
+    with transaction(conn):
+        mismatched = ss.insert_summary(
+            conn,
+            key,
+            run_id=row["run_id"],
+            attempt=1,
+            hosted=False,
+            verifier_version=row["verifier_version"],
+            parameters={},
+            raw_output=None,
+            output_json=row["output_json"],
+            status="verified",
+            error_class=None,
+            verification={},
+            now=NOW,
+        )
+    ss.review(conn, mismatched, decision="approved", reviewer="Owner", note=None, now=NOW)
+    ss.record_publication(
+        conn,
+        mismatched,
+        decision="publish",
+        approver="Owner",
+        note="Synthetic display test",
+        now=NOW,
+    )
+    reg = registry(displayable(**PRIVATE))
+    assert mismatched not in ids(conn, reg)
+    assert mismatched not in [p.id for p in public_summaries(conn, reg)]
+    assert "version" in why_not_private(conn, reg, mismatched)

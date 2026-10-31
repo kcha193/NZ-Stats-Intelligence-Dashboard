@@ -29,9 +29,10 @@ def ev(version: int, ordinal: int, quote: str) -> dict:
     return {"version_id": version, "section_ordinal": ordinal, "page": ordinal + 1, "quote": quote}
 
 
-def claim(version, ordinal, quote, indicator, label, horizon, value, direction, unit="percent", **kw) -> dict:
+def claim(version, institution_key, ordinal, quote, indicator, label, horizon, value, direction, unit="percent", **kw) -> dict:
     return {"indicator": indicator, "indicator_label": label, "horizon": horizon, "value": value,
             "unit": unit if value is not None else None, "direction": direction,
+            "issuer": institution_key.title(), "issuer_role": "author",
             "evidence": [ev(version, ordinal, quote)], **kw}  # fmt: skip
 
 
@@ -92,12 +93,12 @@ def harbourside(conn) -> None:
                         "evidence": [ev(v, 4, "Uncertainty about the housing market remains high")]},
         "indicators": ["cpi_inflation", "gdp", "ocr"],
         "forecasts": [
-            claim(v, 0, "forecast to ease to 2.3% in the year to June 2027", "cpi_inflation", "Annual CPI inflation",
+            claim(v, "harbourside", 0, "forecast to ease to 2.3% in the year to June 2027", "cpi_inflation", "Annual CPI inflation",
                   "year to June 2027", 2.3, "down"),
-            claim(v, 1, "We expect real GDP annual average growth of 1.8% in the year to March 2027", "gdp",
+            claim(v, "harbourside", 1, "We expect real GDP annual average growth of 1.8% in the year to March 2027", "gdp",
                   "Real GDP, annual average growth", "year to March 2027", 1.8, "up"),
-            claim(v, 2, "The OCR is forecast to be 2.75% in December 2026", "ocr", "OCR", "December 2026", 2.75, "flat"),
-            claim(v, 3, "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in"
+            claim(v, "harbourside", 2, "The OCR is forecast to be 2.75% in December 2026", "ocr", "OCR", "December 2026", 2.75, "flat"),
+            claim(v, "harbourside", 3, "In a downside scenario with weaker export prices, annual CPI inflation would fall to 1.6% in"
                   " the year to June 2027", "cpi_inflation", "Annual CPI inflation", "year to June 2027", 1.6, "down",
                   scenario="Downside", qualification="Weaker export prices"),
         ],
@@ -132,17 +133,17 @@ def kauri(conn) -> None:
                      "evidence": [ev(v, 5, "as interest rates fall")]}],
         "indicators": ["cpi_inflation", "gdp", "unemployment", "ocr"],
         "forecasts": [
-            claim(v, 0, "We forecast annual CPI inflation of 2.1% in the year to June 2027", "cpi_inflation",
+            claim(v, "kauri", 0, "We forecast annual CPI inflation of 2.1% in the year to June 2027", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2027", 2.1, "down"),
-            claim(v, 1, "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027", "gdp",
+            claim(v, "kauri", 1, "Real GDP growth (y/y) is forecast at 2.0% in the year to March 2027", "gdp",
                   "Real GDP growth (y/y)", "year to March 2027", 2.0, "up"),
-            claim(v, 2, "real GDP growth is forecast at 1.5% in the year to March 2027", "gdp",
+            claim(v, "kauri", 2, "real GDP growth is forecast at 1.5% in the year to March 2027", "gdp",
                   "Real GDP, annual average growth",
                   "year to March 2027", 1.5, "up"),
-            claim(v, 3, "The unemployment rate is forecast to be 5.4% in the December 2026 quarter", "unemployment",
+            claim(v, "kauri", 3, "The unemployment rate is forecast to be 5.4% in the December 2026 quarter", "unemployment",
                   "Unemployment rate", "December 2026 quarter", 5.4, "up"),
-            claim(v, 4, "We expect the OCR to be 2.5% in December 2026", "ocr", "OCR", "December 2026", 2.5, "down"),
-            claim(v, 5, "Growth should improve next year", "gdp", "Economic growth", "next year", None, "up"),
+            claim(v, "kauri", 4, "We expect the OCR to be 2.5% in December 2026", "ocr", "OCR", "December 2026", 2.5, "down"),
+            claim(v, "kauri", 5, "Growth should improve next year", "gdp", "Economic growth", "next year", None, "up"),
         ],
     })  # fmt: skip
 
@@ -163,11 +164,11 @@ def southern(conn) -> None:
                    "evidence": [ev(v, 3, "Weaker growth would add to government debt")]}],
         "indicators": ["cpi_inflation", "gdp", "government_debt"],
         "forecasts": [
-            claim(v, 0, "Annual CPI inflation is forecast to be 2.4% in the year to June 2027", "cpi_inflation",
+            claim(v, "southern", 0, "Annual CPI inflation is forecast to be 2.4% in the year to June 2027", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2027", 2.4, "down"),
-            claim(v, 1, "Economic growth is forecast to be 1.2% in the year to March 2027", "gdp", "Economic growth",
+            claim(v, "southern", 1, "Economic growth is forecast to be 1.2% in the year to March 2027", "gdp", "Economic growth",
                   "year to March 2027", 1.2, "up"),
-            claim(v, 2, "Net core Crown debt is forecast to reach 43.5% of GDP in the year to June 2027",
+            claim(v, "southern", 2, "Net core Crown debt is forecast to reach 43.5% of GDP in the year to June 2027",
                   "government_debt", "Net core Crown debt", "year to June 2027", 43.5, "up", unit="percent_of_gdp"),
         ],
     })  # fmt: skip
@@ -180,7 +181,7 @@ def tasman(conn) -> None:
         "outlook": {"text": "Inflation is forecast to keep easing.",
                     "evidence": [ev(v, 0, "Annual CPI inflation is forecast to be 2.6% in the year to June 2027")]},
         "indicators": ["cpi_inflation"],
-        "forecasts": [claim(v, 0, "forecast to be 2.6% in the year to June 2027", "cpi_inflation",
+        "forecasts": [claim(v, "tasman", 0, "forecast to be 2.6% in the year to June 2027", "cpi_inflation",
                             "Annual CPI inflation", "year to June 2027", 2.6, "down")],
     })  # fmt: skip
 
@@ -198,11 +199,11 @@ def earlier_vintages(conn) -> None:
                     "evidence": [ev(h1, 1, "We expect annual CPI inflation of 3.0% in the year to June 2026")]},
         "indicators": ["cpi_inflation"],
         "forecasts": [
-            claim(h1, 0, "Annual CPI inflation is forecast to be 2.5% in the year to June 2027", "cpi_inflation",
+            claim(h1, "harbourside", 0, "Annual CPI inflation is forecast to be 2.5% in the year to June 2027", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2027", 2.5, "down"),
-            claim(h1, 1, "We expect annual CPI inflation of 3.0% in the year to June 2026", "cpi_inflation",
+            claim(h1, "harbourside", 1, "We expect annual CPI inflation of 3.0% in the year to June 2026", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2026", 3.0, "flat"),
-            claim(h1, 2, "Annual CPI inflation is forecast to be 3.2% in the year to March 2026", "cpi_inflation",
+            claim(h1, "harbourside", 2, "Annual CPI inflation is forecast to be 3.2% in the year to March 2026", "cpi_inflation",
                   "Annual CPI inflation", "year to March 2026", 3.2, "up"),
         ],
     })  # fmt: skip
@@ -216,11 +217,11 @@ def earlier_vintages(conn) -> None:
                     "evidence": [ev(h2, 1, "We now expect annual CPI inflation of 3.6% in the year to June 2026")]},
         "indicators": ["cpi_inflation", "ocr"],
         "forecasts": [
-            claim(h2, 0, "Annual CPI inflation is forecast to be 2.7% in the year to June 2027", "cpi_inflation",
+            claim(h2, "harbourside", 0, "Annual CPI inflation is forecast to be 2.7% in the year to June 2027", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2027", 2.7, "down"),
-            claim(h2, 1, "We now expect annual CPI inflation of 3.6% in the year to June 2026", "cpi_inflation",
+            claim(h2, "harbourside", 1, "We now expect annual CPI inflation of 3.6% in the year to June 2026", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2026", 3.6, "up"),
-            claim(h2, 2, "The OCR is forecast to be 3.0% in December 2026", "ocr", "OCR", "December 2026", 3.0, "flat"),
+            claim(h2, "harbourside", 2, "The OCR is forecast to be 3.0% in December 2026", "ocr", "OCR", "December 2026", 3.0, "flat"),
         ],
     })  # fmt: skip
     k1 = seed_version(conn, [
@@ -232,9 +233,9 @@ def earlier_vintages(conn) -> None:
                     "evidence": [ev(k1, 1, "We forecast annual CPI inflation of 3.9% in the year to June 2026")]},
         "indicators": ["cpi_inflation"],
         "forecasts": [
-            claim(k1, 0, "Annual average CPI inflation is forecast to be 2.8% in the year to June 2027",
+            claim(k1, "kauri", 0, "Annual average CPI inflation is forecast to be 2.8% in the year to June 2027",
                   "cpi_inflation", "CPI inflation, annual average", "year to June 2027", 2.8, "down"),
-            claim(k1, 1, "We forecast annual CPI inflation of 3.9% in the year to June 2026", "cpi_inflation",
+            claim(k1, "kauri", 1, "We forecast annual CPI inflation of 3.9% in the year to June 2026", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2026", 3.9, "up"),
         ],
     })  # fmt: skip
@@ -247,9 +248,9 @@ def earlier_vintages(conn) -> None:
                     "evidence": [ev(s1, 0, "Annual CPI inflation is forecast to be 2.6% in the year to June 2027")]},
         "indicators": ["cpi_inflation"],
         "forecasts": [
-            claim(s1, 0, "Annual CPI inflation is forecast to be 2.6% in the year to June 2027", "cpi_inflation",
+            claim(s1, "southern", 0, "Annual CPI inflation is forecast to be 2.6% in the year to June 2027", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2027", 2.6, "down"),
-            claim(s1, 1, "Annual CPI inflation is forecast to be 3.4% in the year to June 2026", "cpi_inflation",
+            claim(s1, "southern", 1, "Annual CPI inflation is forecast to be 3.4% in the year to June 2026", "cpi_inflation",
                   "Annual CPI inflation", "year to June 2026", 3.4, "up"),
         ],
     })  # fmt: skip

@@ -139,6 +139,8 @@ def current_evidence(
         summary = OutlookSummary.model_validate_json(row["output_json"] or "")
     except ValidationError:
         return "the stored output no longer parses as a summary", None, 0
+    if summary.version_id != row["version_id"]:
+        return "the stored output belongs to a different document version", None, 0
     sections = load_sections(conn, row["version_id"])
     published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
     injected = tuple(injection_findings(sections))

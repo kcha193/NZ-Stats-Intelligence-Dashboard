@@ -3,7 +3,8 @@
 Read-only: no request and no write. Three rules keep a comparison honest:
 
 1. Vintage. The official value comes from the newest stored bundle published and captured on or before the
-   document's date (Pacific/Auckland), never from a later revision. A period no such bundle holds has no value.
+   document's date (Pacific/Auckland), never from a later revision. Missing calculation inputs in that bundle
+   are not replaced by an older one. Undated bundle reactivations make later historical selection uncertain.
 2. Basis. A figure is compared only with a series on the same adjustment basis. When the document does not state
    its basis, the comparison is refused for measures Stats NZ publishes on more than one basis (a monthly or
    quarterly level, or a change on the previous period). Annual changes and rolling-year totals are conventionally
@@ -99,6 +100,24 @@ def _round_like(value: Decimal, document_value: float | int | str | Decimal) -> 
     return float((value / step).quantize(Decimal(1), rounding=ROUND_HALF_UP) * step)
 
 
+def _activation_uncertain(conn: sqlite3.Connection, vintage_id: int, published_on: date) -> bool:
+    rows = conn.execute(
+        "SELECT id, activation, captured_at, bundle_sha256 FROM vintage WHERE release_id ="
+        " (SELECT release_id FROM vintage WHERE id = ?)",
+        (vintage_id,),
+    ).fetchall()
+    visible_bundles = {
+        row["bundle_sha256"]
+        for row in rows
+        if akl_date(row["captured_at"]) <= published_on.isoformat()
+    }
+    # Migration 002 starts activation at id; create_vintage advances both counters together until
+    # a reactivation advances only activation. No activation timestamps survive. A counter offset
+    # can also follow an unrelated release's reactivation, so refusal is deliberately conservative.
+    # Before the second bundle's capture, there is still only one eligible historical value.
+    return len(visible_bundles) > 1 and any(row["activation"] != row["id"] for row in rows)
+
+
 def compare_figure(
     conn: sqlite3.Connection,
     *,
@@ -128,6 +147,11 @@ def compare_figure(
         points = {p: pt.value for p, pt in vintage_points(conn, info.vintage_id).items()}
         if period not in points:
             continue
+        if _activation_uncertain(conn, info.vintage_id, published_on):
+            return Comparison(
+                "not_comparable",
+                "the release's bundle activation history has no dates; its historical value is uncertain",
+            )
         meta = get_series_row(conn, series, info.vintage_id)
         if meta is None:
             return Comparison(
@@ -144,7 +168,11 @@ def compare_figure(
             return Comparison("not_comparable", refusal)
         value = _value(points, period, measure, frequency)
         if value is None:
-            continue
+            return Comparison(
+                "no_official_value",
+                f"the selected vintage ({info.release_key}) lacks usable inputs for {measure} of"
+                f" {series} for {period}",
+            )
         official = _round_like(value, document_value)
         status: Status = (
             "match"
