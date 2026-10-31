@@ -54,6 +54,15 @@ Ten new permutations preserve real mismatch scoring, and one further positive ta
 current-year historical observations accepted. Total added cases: 71; the final research suite has 1,700 cases.
 Fresh-head review and CI evidence remain in the PR conversation.
 
+The second review found two further policy field-binding issues: dates and votes could still be taken from
+another decision in the nearby passage. A focused primary-versus-supplement audit reproduced twenty-one failures.
+The cited decision's explicit fields now take precedence, and supplementary context excludes complete
+neighbouring decisions while retaining separate and same-sentence vote/member-count records. Thirty new cases
+cover both context orders, date formats, correct/incorrect fields, later meeting dates in guidance, meeting/vote
+prefixes before the adopted clause, and valid supplements. Total added cases: 101; research suite: 1,730.
+Full backend at `03c938f` passed 3,458; final-source research and
+review receipts remain in the PR.
+
 ## Phase 4H execution, 31 October 2026
 
 Report: [phase-4h-execution.md](phase-4h-execution.md) (issue #31). After a new verified read-only backup

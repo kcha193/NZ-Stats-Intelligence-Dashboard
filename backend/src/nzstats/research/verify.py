@@ -698,6 +698,18 @@ def _adopted_decision(text: str) -> str:
     return text[start:end]
 
 
+def _decision_event(text: str) -> str:
+    """Date/vote metadata may precede the adopted action or appear in its member preferences."""
+    marker = _decision_marker(text)
+    if marker is None:
+        return ""
+    forward = _FORWARD.search(text, marker.end())
+    prefix = " ".join(
+        part for part in _CLAUSE.split(text[: marker.start()]) if not _FORWARD.search(part)
+    )
+    return prefix + text[marker.start() : forward.start() if forward else None]
+
+
 def _decision_rates(text: str) -> set[float]:
     """Resulting rate levels, rather than the previous rate or size of the policy move."""
     return {
@@ -706,6 +718,19 @@ def _decision_rates(text: str) -> set[float]:
         if re.search(r"\b(?:at|to)\s+$", text[:start], re.I)
         and re.match(r"\s*(?:%|percent\b|per\s+cent\b)", text[end:], re.I)
     }
+
+
+def _decision_support(found: list[tuple[EvidenceRef, _Located]]) -> str:
+    """Nearby supplements, excluding complete decisions whose fields belong to another event."""
+    parts = []
+    for _, loc in found:
+        parts.append(loc.heading)
+        for index in range(max(loc.first - 1, 0), min(loc.last + 2, len(loc.sentences))):
+            sentence = loc.text[slice(*loc.sentences[index])]
+            if _decision_wording(sentence) and _decision_rates(_adopted_decision(sentence)):
+                continue
+            parts.append(sentence)
+    return " ".join(parts)
 
 
 def _date_stated(day: date, text: str) -> bool:
@@ -1476,26 +1501,32 @@ class _RecordChecker(_Checker):
         if maker is not None and maker != self.ctx.institution and maker not in issuers.named(near):
             self.error("issuer_not_in_evidence", path,
                        f"decision maker {d.decision_maker!r} is not named in or near the evidence")  # fmt: skip
-        if re.search(r"\btoday\b", decision_text, re.I) and d.decided_on != self.ctx.published_on:
+        support = _decision_support(found)
+        event_text = " ".join(_decision_event(sentence) for sentence in sentences)
+        dated_decision = _explicit_date(event_text)
+        date_context = event_text if dated_decision else support
+        if dated_decision and not _date_stated(d.decided_on, date_context):
+            self.error("decision_date_not_supported", path,
+                       "the claimed date contradicts the date in the cited decision")  # fmt: skip
+        elif (
+            not dated_decision
+            and re.search(r"\btoday\b", decision_text, re.I)
+            and d.decided_on != self.ctx.published_on
+        ):
             self.error("decision_date_not_supported", path,
                        "the adopted decision says today, which is not the claimed date")  # fmt: skip
-        elif not _date_stated(d.decided_on, near):
-            decision_sentences = " ".join(loc.sentence_text() for _, loc in found)
-            if (
-                d.decided_on != self.ctx.published_on
-                or _date_conflicts(d.decided_on, near)
-                or _explicit_date(decision_sentences)
-            ):
+        elif not _date_stated(d.decided_on, date_context):
+            if d.decided_on != self.ctx.published_on or _date_conflicts(d.decided_on, date_context):
                 self.error("decision_date_not_supported", path,
                            f"decision date {d.decided_on.isoformat()} is not stated near the quote and is not"
                            " the publication date")  # fmt: skip
-            elif not re.search(r"\btoday\b", near, re.IGNORECASE):
+            elif not re.search(r"\btoday\b", decision_text, re.IGNORECASE):
                 self.warn(
                     "decision_date_assumed",
                     path,
                     "the decision date is taken from the publication date",
                 )
-        votes = _votes(near, d.action)
+        votes = _votes(event_text, d.action) or _votes(support, d.action)
         if d.vote_for is not None:
             if (d.vote_for, d.vote_against) not in votes:
                 self.error("vote_not_in_evidence", path,

@@ -26,8 +26,9 @@ calendar years cannot finish early. Fiscal pairs retain both years for column ma
 for completion. Fiscal/calendar and statistical-definition checks include the located table context.
 
 Policy verification extracts the adopted clause once for action, resulting rate and maker checks. A reporter,
-dissenter, previous rate or subsequent guidance cannot supply those fields. Dates and votes retain their existing
-checks. Stored summary identity is additionally bound to the row's document version before either display gate
+dissenter, previous rate or subsequent guidance cannot supply those fields. Dates and votes prioritise the cited
+decision; nearby supplements exclude complete decisions describing other events. Stored summary identity is
+additionally bound to the row's document version before either display gate
 revalidates the evidence.
 
 Historical comparisons must distinguish publication, capture, current activation and data availability. The
@@ -99,7 +100,7 @@ institutional page, statistical endpoint or model was called. No merge or deploy
 
 ## Verification and review record
 
-The final research suite has 1,689 tests (60 added cases). Backend Ruff lint/format, 524 frontend tests, types,
+The first fix batch passed 1,689 research tests (60 added cases). Backend Ruff lint/format, 524 frontend tests, types,
 lint and build pass; frontend lint retains three existing Fast Refresh warnings and the build retains its
 existing chunk-size warning. The regenerated API schema is unchanged. The synthetic research browser suite
 passes 18 with three expected screenshot skips. Replay retains all recorded metric floors and 38/38 probes.
@@ -118,6 +119,24 @@ author-only gold without evidence identities retains the narrower limitation des
 The adjacent positive-case audit also preserves completed current-year observations described simply as
 "historical GDP growth"; explicit "historical forecasts" still take precedence. Its regression failed before
 the classifier was corrected. The second fix batch adds 11 cases (71 total additions; 1,700 research cases).
+
+### Fresh review iteration 2 and focused policy audit
+
+Completed review of `03c938f1d363f121934bab94a974cc5328f226d8` found two P2s:
+`discussion_r4433360168` and `discussion_r4433360176`. The earlier clause extraction had not applied field scope
+consistently to dates and votes: both still accepted any matching value in the nearby passage. This was the
+same context-binding defect, so the follow-up audited both primary fields and fallback support together.
+
+Twenty-one failures reproduced across 30 new cases. Explicit dates and vote divisions in the selected event now take
+precedence. Fallback supplements retain undated vote sentences and member preferences but exclude complete
+neighbouring decisions, preventing both borrowed fields and false missing-vote errors. Coverage includes
+neighbours before/after the citation, ISO/written dates, valid/incorrect dates and votes, an unvoted current
+decision, a separate valid vote supplement and forward guidance naming a later meeting date. The latter date
+cannot override the adopted decision's date. Member preferences in the cited decision remain available to
+the vote check while excluded from action/rate matching. A focused independent review also caught date/vote
+metadata before a semicolon being discarded; six failing-first cases now preserve meeting dates and vote
+prefixes from the selected event. Date/vote checks use that event, while action/rate/maker checks use its narrower
+adopted clause. Total additions: 101 cases; research suite: 1,730 cases.
 
 See the PR conversation for the full-backend result, remote head SHA, head-specific CI and completed review
 receipts. Hosted infrastructure failure is a blocker to COMPLETE, even when local checks pass.
