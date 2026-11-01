@@ -53,7 +53,7 @@
 
 - [x] Record live public catalogue/ZDR evidence, pricing, privacy caveats, pending source-specific rights/owner review, human gold/display gates and conservative cost bounds.
 - [x] Run frontend checks, browsers, replay, audits, secret scanning; inspect final diff.
-- [ ] Commit/push PR A as authorised; request independent Codex High review (maximum three cycles). Do not merge. PR B/C stay blocked by explicit approvals.
+- [x] Commit/push PR A as authorised; request independent Codex High review (maximum three cycles). Do not merge. PR B/C stay blocked by explicit approvals.
 
 ## Execution record
 
@@ -67,3 +67,5 @@
   Ruff, API schema, npm audit, fresh-environment pip-audit, Gitleaks and documentation checks pass.
 - Ruling: audit of the shared environment found vulnerable certifi/pip/pypdf. Do not mutate that shared
   environment; validate in an updated isolated Python 3.12 environment and require pypdf >=6.21.4.
+- Draft PR A: https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/37, implementation `c19a6f0`.
+  No merge. PR B/C and all actual processing/display remain gated.

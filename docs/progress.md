@@ -1,7 +1,8 @@
 # Progress and verification record
 
 Last updated 2026-11-01. Phase 4K prepares hosted inference from main `13cd20e`, including PRs #34–#36.
-The OpenRouter integration is under review; **NO-GO for real transmission, acceptance or display** until
+The OpenRouter integration is open as draft [PR #37](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/37);
+**NO-GO for real transmission, acceptance or display** until
 source-specific rights, hosted/provider/budget and human-review gates pass. PR #36's local consent is unchanged.
 The source registry remains unchanged. Hosted jobs now start, so the old billing blocker is historical.
 Local operation only; no scheduler, Docker or hosting work is introduced.
@@ -20,6 +21,8 @@ Record: [phase-4k-openrouter.md](phase-4k-openrouter.md). Inert proposal:
 - Independent expiring consent binds exact document version, raw/text/request hashes, model/provider and
   owner rights/privacy/budget review. The CLI supplies no consents. Institution-wide hosted permission cannot
   bypass it. PR #36 and the source registry are untouched; real processing needs separately reviewed PR B.
+  Integration commit `c19a6f0` is pushed on `feat/phase-4k-openrouter`; PR #37 targets main, remains a draft
+  and is not merged. Hosted CI is tracked in the PR and is not represented by the local test results below.
 - Existing atomic reservations now also enforce two OpenRouter attempts lifetime, one per version and US$5
   total, including errors/interruption and concurrent runs. Dry runs simulate cumulative capacity without writes.
   Consent is rechecked after reservation, immediately before dispatch. Billed HTTP/metadata/JSON failures retain
