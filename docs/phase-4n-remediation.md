@@ -67,15 +67,16 @@ model text and cannot reach review or display.
 | Class | Meaning |
 |---|---|
 | `reasoning_budget_exhausted` | Length stop, no final text, reasoning equals output, and output reached the cap |
-| `final_json_truncated` | Length stop with final text that is not complete JSON |
-| `output_truncated` | Length stop where a specific cause is not established, including text that happens to parse. Always rejected |
+| `final_json_truncated` | Length stop where the JSON parser ran out of text mid-document |
+| `output_truncated` | Length stop where a specific cause is not established, including text that parses or is invalid before its end. Always rejected |
 | `missing_final_content` | Normal stop with null, empty or blank content |
 | `invalid_json` | Normal stop with content that is not one JSON object |
 | `schema_mismatch` | Valid JSON that fails `SummaryDraft` (stored status `invalid_output`) |
 | `failed_verification` | Parsed output the evidence verifier rejects (a stored status) |
 | `route_unverified` | Returned model or provider differs from the approved route |
 | `usage_unverified`, `usage_exceeded` | Usage is missing or inconsistent, or above the cap or price |
-| `upstream_error`, `refused` | A non-null error field inside HTTP 200, or a content-filter stop |
+| `upstream_error`, `refused` | A non-null error field in the body or any choice under HTTP 200; a content-filter stop or refusal metadata |
+| `invalid_response` | A malformed envelope, or more than one choice |
 
 ## Historical pilot evidence
 

@@ -535,13 +535,81 @@ def test_a_null_error_field_is_not_a_failure():
     assert adapter(lambda r: httpx.Response(200, json=valid)).summarise(REQUEST).text == "{}"
 
 
-def test_changed_timeout_invalidates_an_existing_request_hash():
+def test_changed_timeout_invalidates_an_existing_consent_before_transmission(conn):
+    v = seed_version(conn)
+    p = adapter(lambda r: httpx.Response(500))
+    original = grant(conn, p, v)
     base = pv.load_llm_settings(ENV_4N)
-    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
     longer = replace(base, limits=replace(base.limits, timeout_seconds=301))
-    first = pv.build_provider(base, client=client).parameters()
-    assert first["timeout_seconds"] == 300
-    assert pv.build_provider(longer, client=client).parameters()["timeout_seconds"] == 301
+    calls = []
+    other = pv.build_provider(
+        longer,
+        client=httpx.Client(
+            transport=httpx.MockTransport(lambda r: calls.append(r) or httpx.Response(500))
+        ),
+    )
+    assert grant(conn, other, v).request_sha256 != original.request_sha256
+    result = summarise_versions(
+        conn,
+        registry(llm="denied"),
+        other,
+        pricing=longer.pricing,
+        limits=longer.limits,
+        hosted_consents=[replace(original, experiment="phase-4m")],
+        version_ids=[v],
+        now_fn=lambda: NOW,
+    )
+    assert calls == [] and result.refusals
+    assert rows(conn, "research_llm_reservation") == []
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda b: b["choices"][0].update(native_finish_reason="refusal"),
+        lambda b: b["choices"][0]["message"].update(refusal="SYNTHETIC decline"),
+        lambda b: b["choices"][0]["message"].update(refusal=""),
+    ],
+)
+def test_refusal_metadata_rejects_otherwise_valid_json(change):
+    body = billed(content=draft_json(1), finish="stop", native="end_turn", out=10)
+    change(body)
+    error = failure(body)
+    assert error.error_class == "refused" and "SYNTHETIC" not in str(error)
+
+
+def test_a_null_message_refusal_is_not_a_failure():
+    body = billed(content="{}", finish="stop", native="end_turn", out=10)
+    body["choices"][0]["message"]["refusal"] = None
+    assert adapter(lambda r: httpx.Response(200, json=body)).summarise(REQUEST).text == "{}"
+
+
+def test_an_error_in_any_choice_is_an_upstream_failure():
+    body = billed(content="{}", finish="stop", native="end_turn", out=10)
+    body["choices"].append({"error": {"code": 502, "message": "SYNTHETIC"}})
+    assert failure(body).error_class == "upstream_error"
+
+
+def test_more_than_one_choice_is_never_accepted():
+    body = billed(content="{}", finish="stop", native="end_turn", out=10)
+    body["choices"].append(body["choices"][0])
+    assert failure(body).error_class == "invalid_response"
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ('{"outlook":{"text":"SYNTHETIC', "final_json_truncated"),  # inside a string
+        ('{"outlook":', "final_json_truncated"),  # value expected at the end
+        ('{"a":1,', "final_json_truncated"),
+        ('{"a":1', "final_json_truncated"),
+        ('{"outlook":1} trailing text', "output_truncated"),  # closed object, then other text
+        ('{"a":1 x}', "output_truncated"),  # invalid mid-document, not cut off
+        ("not JSON", "output_truncated"),
+    ],
+)
+def test_truncation_is_named_only_when_the_parser_ran_out_of_text(content, expected):
+    assert failure(billed(content=content, reasoning=100)).error_class == expected
 
 
 def test_prompt_effort_or_cap_change_invalidates_an_existing_request_hash(conn):

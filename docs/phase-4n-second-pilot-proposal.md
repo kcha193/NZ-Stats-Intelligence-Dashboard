@@ -85,7 +85,7 @@ Report every measure with numerator and denominator. An empty denominator is unm
 | HTTP 200, `finish_reason=stop`, complete JSON | Every attempt |
 | Schema-valid (`SummaryDraft`, contract 2) | Every attempt |
 | Requested and returned model and provider | Exact match |
-| Reasoning and final-output tokens | Recorded separately for every attempt |
+| Reasoning and final-output tokens | Recorded separately when reported. An absent count is recorded as unknown, makes this budget analysis unmeasured and does not by itself reject the output |
 | Accepted aligned numerical fidelity | 100% |
 | Accepted forecast issuer accuracy | 100%, including every Treasury/IMF attribution |
 | Citation correctness | At least 95% |

@@ -157,12 +157,13 @@ def _first_choice(data: Any) -> dict[str, Any]:
     return first if isinstance(first, dict) else {}
 
 
-def _is_json(text: str) -> bool:
+def _json_cut_off(text: str) -> bool:
+    """True only when the parser ran out of text, so the JSON stops mid-document."""
     try:
         json.loads(text)
-    except ValueError:
-        return False
-    return True
+    except json.JSONDecodeError as exc:
+        return exc.msg.startswith("Unterminated string") or exc.pos >= len(text.rstrip())
+    return False
 
 
 def _usage_details(data: Any) -> dict[str, Any]:
@@ -287,12 +288,16 @@ class OpenRouterProvider(OpenAICompatibleProvider):
             )
 
         # OpenRouter can report an upstream failure inside an HTTP 200 body.
+        choices = data.get("choices") if isinstance(data, dict) else None
+        choices = choices if isinstance(choices, list) else []
         if (
             (isinstance(data, dict) and data.get("error") is not None)
-            or choice.get("error") is not None
+            or any(isinstance(c, dict) and c.get("error") is not None for c in choices)
             or choice.get("finish_reason") == "error"
         ):
             refuse("upstream_error")
+        if len(choices) > 1:  # the request asks for one completion
+            refuse("invalid_response")
         if (
             not isinstance(data, dict)
             or data.get("model") != self.model
@@ -314,12 +319,18 @@ class OpenRouterProvider(OpenAICompatibleProvider):
             or cost > calculated + 0.000001
         ):
             refuse("usage_exceeded")
+        if (
+            choice.get("finish_reason") == "content_filter"
+            or choice.get("native_finish_reason") == "refusal"
+            or message.get("refusal") is not None
+        ):
+            refuse("refused")
         if choice.get("finish_reason") == "length" or (
             choice.get("native_finish_reason") == "max_tokens"
         ):
             cap = self._settings.limits.max_output_tokens
             if has_content:
-                refuse("output_truncated" if _is_json(content) else "final_json_truncated")
+                refuse("final_json_truncated" if _json_cut_off(content) else "output_truncated")
             if reasoning == out_tok and out_tok >= cap:
                 refuse("reasoning_budget_exhausted")
             refuse("output_truncated")
