@@ -166,3 +166,46 @@ def test_fiscal_pair_heading_can_qualify_its_explicit_local_end_year(kind):
         heading=f"June year {year - 1}/{year % 100:02d} figures",
     )
     assert codes(report) == set()
+
+
+@pytest.mark.parametrize("kind", ["fact", "forecast"])
+@pytest.mark.parametrize("source_after", [False, True])
+@pytest.mark.parametrize("wrong", [False, True])
+def test_table_source_date_cannot_replace_or_conflict_with_the_selected_column(
+    kind, source_after, wrong
+):
+    year = 2028 if kind == "forecast" else 2025
+    caption = "forecasts" if kind == "forecast" else "historical results"
+    source = "Source: Treasury, October 2026"
+    row = "GDP growth 1.0 2.5"
+    text = f"Table 1: GDP {caption} (percent)\n"
+    if not source_after:
+        text += source + "\n"
+    text += f"{year - 1} {year}\n{row}"
+    if source_after:
+        text += "\n" + source
+    report = scoped_report(kind, text, row, "2026" if wrong else str(year))
+    if wrong:
+        assert {"period_not_supported", "horizon_not_supported", "table_column_mismatch"} & codes(
+            report
+        )
+    else:
+        assert codes(report) == set()
+
+
+@pytest.mark.parametrize("kind", ["fact", "forecast"])
+@pytest.mark.parametrize("period", ["2025", "June 2025", "Q2 2025"])
+@pytest.mark.parametrize("local_override", [False, True])
+def test_coordinated_assertions_inherit_only_a_shared_temporal_prefix(kind, period, local_override):
+    year = 2028 if kind == "forecast" else 2025
+    period = period.replace("2025", str(year))
+    first = "We forecast CPI inflation 1.0%" if kind == "forecast" else "GDP grew 1.0%"
+    quote = "we forecast GDP growth 2.5%" if kind == "forecast" else "CPI inflation was 2.5%"
+    suffix = f" in {year - 1}" if local_override else ""
+    text = f"In {period}, {first} and {quote}{suffix}."
+    correct = str(year - 1) if local_override else period
+    wrong = period if local_override else str(year - 1)
+    assert codes(scoped_report(kind, text, quote, correct)) == set()
+    assert {"period_not_supported", "horizon_not_supported"} & codes(
+        scoped_report(kind, text, quote, wrong)
+    )

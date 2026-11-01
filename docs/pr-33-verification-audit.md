@@ -164,6 +164,24 @@ live 174 passed; synthetic research 18 passed / 3 skips; static/parity 315 passe
 Offline replay retained all metric floors and 38/38 labelled probes. Staged and PR-range Gitleaks
 passed. Existing Starlette/httpx deprecation, Fast Refresh and build-size warnings remain.
 
+#### Bounded closure review cycle 1
+
+Codex completed review of `35e07cb10172eadac0aafc2ff800a1392f0dbe11` with two P2 findings:
+`discussion_r4433814050` (dated table source treated as a column period) and
+`discussion_r4433814052` (shared temporal prefix lost across coordinated assertions).
+Both reproduced failing-first: ten failures across twenty new cases. Table period support now uses
+the selected column/row first, with source lines excluded from fallback reference-period context;
+other table consumers retain source context. Coordinated assertions can inherit a period-only
+sentence introduction, while explicit local periods still override it. Wrong/source-column periods
+and independent adjacent figures remain rejected. The period regression file now has 78 cases;
+total stabilisation additions: 179. Follow-up verification: 1,808 research tests, 38/38 replay probes,
+18 synthetic research browser tests (3 skips), and Ruff lint/format pass. The earlier full backend
+run passed 3,546 on Python 3.12.
+
+The current-head run `41256124195` did start jobs, so the earlier account-billing failure is historical.
+Its frontend job fails specifically at the required npm audit; backend and static-site results are
+tracked in the PR conversation. The remaining review budget is two requests, including cycle 2.
+
 #### CI diagnosis and remaining external/tooling blockers
 
 Run [41244466427](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/41244466427)

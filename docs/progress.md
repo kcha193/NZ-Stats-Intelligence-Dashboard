@@ -80,6 +80,14 @@ startup; this is an external blocker. Local `npm audit` also fails on `GHSA-g3hv
 generator's development dependency tree. An attempted Redocly major-version override broke type generation
 and was reverted; no audit policy was relaxed. Details and recommended follow-up are in the audit report.
 
+Bounded closure cycle 1 reviewed `35e07cb` and found two P2 false rejections: dated table source
+lines were combined with column periods, and coordinated assertions lost a shared temporal prefix.
+Both have failing-first coverage (10 failures / 20 cases) and scoped fixes; period regressions now
+number 78 (179 stabilisation additions). Follow-up research 1,808, replay 38/38, synthetic research
+browser 18 + 3 skips, and Ruff pass. Current-head CI `41256124195` starts jobs: the historical
+billing error has cleared for this run, while frontend fails specifically at the npm audit gate.
+Final head, CI outcomes and the bounded review receipt are recorded in the PR conversation.
+
 ## Phase 4H execution, 31 October 2026
 
 Report: [phase-4h-execution.md](phase-4h-execution.md) (issue #31). After a new verified read-only backup

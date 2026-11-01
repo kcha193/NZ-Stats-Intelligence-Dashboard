@@ -401,7 +401,7 @@ class _Layout:
     def cell_index(self, i: int, offset: int) -> int:
         return next(n for n, (_, a, b) in enumerate(self.row(i).cells) if a <= offset < b)
 
-    def table(self, i: int) -> _Table:
+    def table(self, i: int, *, include_sources: bool = True) -> _Table:
         kinds, width = self.kinds, len(self.row(i).cells)
 
         def same(j: int) -> bool:
@@ -446,7 +446,11 @@ class _Layout:
             for n in sorted(fragments) + after
             if _SOURCE_LINE.match(self.line_text(n))
         ]
-        context = " ".join(caption + [self.line_text(n) for n in sorted(fragments) + after])
+        context = " ".join(
+            text
+            for text in caption + [self.line_text(n) for n in sorted(fragments) + after]
+            if include_sources or not _SOURCE_LINE.match(text)
+        )
         return _Table(years, " ".join(caption), context, labels)
 
 
@@ -668,10 +672,12 @@ def _period_missing(
     failures = []
     for loc, at in value_at or [(loc, loc.start) for _, loc in found]:
         place, line = loc.layout.place(at)
+        table_context = ""
         if place == "cell":
-            table = loc.layout.table(line)
+            table = loc.layout.table(line, include_sources=False)
             column = table.years[loc.layout.cell_index(line, at)] if table.years else ""
-            local = f"{column} {loc.layout.row(line).label} {table.context}"
+            local = f"{column} {loc.layout.row(line).label}"
+            table_context = table.context
         else:
             a, b = loc._clause_span(at)
             start, end = a, b
@@ -687,6 +693,14 @@ def _period_missing(
         support = [local]
         neighbors = []
         sentence = next(i for i, (a, b) in enumerate(loc.sentences) if a <= at < b)
+        # A temporal introduction applies to coordinated assertions in the same sentence.
+        prefix = re.match(
+            r"\s*(?:in|for|during|over)\b[^,;]*,", loc.with_lines(*loc.sentences[sentence]), re.I
+        )
+        shared_prefix = prefix.group() if prefix else ""
+        remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", shared_prefix)))
+        if _numbers(remainder):
+            shared_prefix = ""  # an earlier numerical assertion is not a shared temporal prefix
         for i in (sentence - 1, sentence + 1):
             if not 0 <= i < len(loc.sentences):
                 continue
@@ -703,7 +717,7 @@ def _period_missing(
                 continue
             neighbors.append(text)
         # The section heading takes precedence over neighboring period-only context.
-        for candidates in ([loc.heading], neighbors):
+        for candidates in ([shared_prefix], [table_context], [loc.heading], neighbors):
             compatible = [
                 text
                 for text in candidates
