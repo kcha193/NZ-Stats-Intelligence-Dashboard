@@ -1,0 +1,51 @@
+{
+  "status": "proposal_only_not_runtime_configuration",
+  "prepared_on": "2026-11-01",
+  "base_commit": "c09a7591213c041b820ca2d09e87fee3a01b6cf9",
+  "documents": {"treasury": 1, "rbnz": 2},
+  "model": {
+    "repository": "Qwen/Qwen3-14B-GGUF",
+    "revision": "530227a7d994db8eca5ab5ced2fb692b614357fd",
+    "filename": "Qwen3-14B-Q5_K_M.gguf",
+    "quantisation": "Q5_K_M",
+    "licence": "Apache-2.0",
+    "expected_bytes": 10514569568,
+    "expected_sha256_from_publisher_metadata": "e7c9aba1129ca2936be9eca01419d9f86af40e08caa01230d5574b34d08e3e31",
+    "downloaded_sha256": null,
+    "thinking_enabled": false
+  },
+  "runtime": {
+    "repository": "https://github.com/ggml-org/llama.cpp",
+    "tag": "v0.8.0",
+    "commit": "8642541b255bfb5dc39cd351a178be09013a55d6",
+    "installed_version": null,
+    "executable_sha256": null,
+    "alias": "phase4j-qwen3-14b-q5km",
+    "host": "127.0.0.1",
+    "port": 8081,
+    "context_tokens": 32768,
+    "parallel_requests": 1,
+    "kv_cache": "q8_0",
+    "seed": 42,
+    "temperature": 0,
+    "network_profile": "config/phase-4j-loopback.sb"
+  },
+  "limits": {
+    "max_input_chars": 45000,
+    "max_output_tokens": 6000,
+    "timeout_seconds": 900,
+    "max_retries": 0,
+    "max_documents_per_source": 1,
+    "max_total_document_attempts": 2
+  },
+  "approvals": {
+    "treasury_local_only": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "rbnz_local_only": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "selected_model_and_runtime": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "weights_download_and_local_execution": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "gold_owner_review": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "treasury_private_display": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "rbnz_private_display": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "private_browser_ui": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null}
+  }
+}

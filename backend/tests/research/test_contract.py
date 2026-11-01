@@ -202,6 +202,30 @@ def test_a_duplicate_key_anywhere_is_rejected():
         contract.parse_draft(raw)
 
 
+@pytest.mark.parametrize("raw_number", ["NaN", "Infinity", "-Infinity", "1e309", "-1e309"])
+@pytest.mark.parametrize("kind", ["forecasts", "facts"])
+def test_draft_rejects_nonfinite_claim_values(kind, raw_number):
+    claim = summary().forecasts[0].model_dump(mode="json")
+    if kind == "facts":
+        claim = {
+            "text": "Synthetic reported figure.",
+            "source": "Synthetic institution",
+            "value": 5.4,
+            "unit": "percent",
+            "evidence": claim["evidence"],
+        }
+    raw = _draft_json(forecasts=[], **{kind: [claim]}) if kind == "facts" else _draft_json()
+    raw = raw.replace('"value": 5.4', f'"value": {raw_number}', 1)
+    with pytest.raises(ValueError):
+        contract.parse_draft(raw)
+
+
+def test_stored_summary_rejects_nonfinite_claim_value():
+    raw = summary().model_dump_json().replace('"value":5.4', '"value":1e309', 1)
+    with pytest.raises(ValueError):
+        parse_summary(raw)
+
+
 def test_draft_rejects_provenance_or_review_fields_written_by_the_model():
     for extra in (
         {"review_status": "approved"},
