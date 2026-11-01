@@ -39,8 +39,8 @@
     "max_total_document_attempts": 2
   },
   "approvals": {
-    "treasury_local_only": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
-    "rbnz_local_only": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
+    "treasury_local_only": {"state":"approved","approved_by":"Kevin Chang","approved_on":"2026-11-01","evidence":"Explicit owner message in ChatGPT on 2026-11-01: 'yes, I approve the local-only AI processing for the pilot'. Scope: one already manually imported document for this institution, Phase 4K only; no hosted model, automated institutional access, private/public display, runtime selection, model download or gold annotation approval."},
+    "rbnz_local_only": {"state":"approved","approved_by":"Kevin Chang","approved_on":"2026-11-01","evidence":"Explicit owner message in ChatGPT on 2026-11-01: 'yes, I approve the local-only AI processing for the pilot'. Scope: one already manually imported document for this institution, Phase 4K only; no hosted model, automated institutional access, private/public display, runtime selection, model download or gold annotation approval."},
     "selected_model_and_runtime": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
     "weights_download_and_local_execution": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
     "gold_owner_review": {"state": "pending", "approved_by": null, "approved_on": null, "evidence": null},
