@@ -7,12 +7,14 @@ exact frozen input scope before signing. This module checks the record, not lega
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from nzstats.research.contract import Provider, SummaryRequest
+from nzstats.research.contract import Provider, SectionText, SummaryRequest
 from nzstats.research.prompt import input_sha256
 
 
@@ -31,6 +33,31 @@ class HostedConsent:
     rights_review: str
     provider_review: str
     budget_approved_usd: float
+    approved_section_ordinals: tuple[int, ...]
+    sections_sha256: str
+
+
+def section_inventory_sha256(sections: Mapping[int, SectionText]) -> str:
+    """Bind all stored sections, including excluded ones, without exposing their text."""
+    rows = [[n, s.text, s.page_start, s.page_end, s.heading] for n, s in sorted(sections.items())]
+    return hashlib.sha256(
+        json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def approved_sections(
+    sections: Mapping[int, SectionText], grant: HostedConsent
+) -> dict[int, SectionText]:
+    ordinals = grant.approved_section_ordinals
+    if (
+        not isinstance(ordinals, tuple)
+        or not ordinals
+        or any(type(n) is not int or n not in sections for n in ordinals)
+        or tuple(sorted(set(ordinals))) != ordinals
+        or grant.sections_sha256 != section_inventory_sha256(sections)
+    ):
+        raise ValueError("hosted section scope missing or mismatched")
+    return {n: sections[n] for n in ordinals}
 
 
 def consent_refusal(
@@ -54,6 +81,19 @@ def consent_refusal(
         (request.version_id,),
     ).fetchone()
     if row is None or row["purged_at"]:
+        return refusal
+    sections = {
+        r["ordinal"]: SectionText(r["text"], r["page_start"], r["page_end"], r["heading"])
+        for r in conn.execute(
+            "SELECT ordinal,text,page_start,page_end,heading FROM research_section WHERE version_id=?",
+            (request.version_id,),
+        )
+    }
+    try:
+        selected = approved_sections(sections, grant)
+    except ValueError:
+        return refusal
+    if tuple(s.ordinal for s in request.sections) != tuple(selected):
         return refusal
     if not all(
         isinstance(s, str) and s.strip()

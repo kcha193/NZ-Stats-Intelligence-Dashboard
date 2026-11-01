@@ -37,7 +37,7 @@ from nzstats.research.contract import (
     build_request,
     parse_draft,
 )
-from nzstats.research.hosted import HostedConsent, consent_refusal
+from nzstats.research.hosted import HostedConsent, approved_sections, consent_refusal
 from nzstats.research.prompt import PROMPT_VERSION, injection_findings, input_sha256
 from nzstats.research.providers import Pricing, estimate_tokens, request_chars
 from nzstats.research.registry import ContentPolicy, Institution
@@ -249,6 +249,27 @@ def summarise_versions(
     try:
         for candidate in candidates:
             sections = load_sections(conn, candidate.version_id)
+            if provider.name == "openrouter":
+                grant = next(
+                    (
+                        g
+                        for g in hosted_consents
+                        if isinstance(g, HostedConsent) and g.version_id == candidate.version_id
+                    ),
+                    None,
+                )
+                try:
+                    if grant is None:
+                        raise ValueError("missing consent")
+                    sections = approved_sections(sections, grant)
+                except ValueError:
+                    result.refusals.append(
+                        (
+                            candidate.institution,
+                            f"version {candidate.version_id}: independent hosted consent missing or mismatched",
+                        )
+                    )
+                    continue
             inst = registry.get(candidate.institution)
             request = build_request(candidate.version_id, sections, prompt_version=PROMPT_VERSION,
                                     limits=limits, published_on=candidate.published_on,

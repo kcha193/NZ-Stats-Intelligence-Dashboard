@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -89,9 +90,15 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     name = "openrouter"
     hosted = True
 
-    def __init__(self, settings: LlmSettings, client: Any) -> None:
+    def __init__(
+        self,
+        settings: LlmSettings,
+        client: Any,
+        *,
+        capture: Callable[[str, bytes], None] | None = None,
+    ) -> None:
         self.route = validate_settings(settings)
-        super().__init__(settings, client)
+        super().__init__(settings, client, capture=capture)
 
     def validate_run(self, pricing: Pricing, limits: LlmLimits) -> None:
         """The reservation must cover exactly the adapter's actual output/timeout caps."""

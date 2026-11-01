@@ -1,12 +1,60 @@
 # Progress and verification record
 
-Last updated 2026-11-01. Phase 4L preflight starts from latest main `7922fd7`, after merged
-[PR #37](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/37).
-**NO-GO for real transmission, acceptance or display**: both sources' hosted rights/scope decisions,
-provider/privacy/budget/account evidence and human gold review remain pending. PR #36's local consent,
-the source registry, adapter, verifier and display gates are unchanged. A verified fresh backup and local
-owner-review packet are ready. No institutional crawl, inference, scheduler, publication or deployment occurred.
-Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries below are historical.
+Last updated 2026-11-02. Phase 4M started from fetched main `9e85e5b`, after merged
+[PR #38](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/38).
+**Actual pilot completed: two requests, two rejected/truncated responses. NO-GO for economic intelligence/display.**
+All processing approvals were explicitly recorded before execution. Both attempt slots are consumed; no retry,
+fall back, prompt/cap/threshold adjustment, output approval, crawl, ingestion activation, publication, merge or deployment.
+Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4M: owner approval and first actual pilot, 1–2 November 2026
+
+Full record: [phase-4m-owner-approval.md](phase-4m-owner-approval.md). Local human review:
+`data/phase-4m/actual-run-20261102/human-review.html`; metadata: `outcome-metadata.json` in the same directory.
+
+- Kevin approved final manifest `8a73c08c6a52357b89eeedd6de290b2c396a52bcd3556f3bc6747fdd5234c19a`,
+  Treasury v1 sections **0–6**, RBNZ v2 **1–14** excluding chrome 0, one request each, full retained-text/third-party
+  rights confirmation and a **60-minute** consent window. Consent receipt/recording time: 2026-11-01 20:25:27 UTC
+  (2 November 09:25:27 NZDT), expiry 21:25:27 UTC. Rights/account evidence is explicitly owner-attested, not an
+  independent legal/account audit. Unchanged gold `f04d64f…` and documented rejection cases were confirmed.
+- Bounded `HostedConsent` path binds ordered ordinals, full stored section inventory, raw/text/canonical/wire hashes,
+  model/route/caps, rights/gold and expiring approval. Only the selected subset reaches request construction and
+  verification. `scripts/run_hosted_pilot.py` keeps backup wiring outside research isolation and creates no runtime,
+  scheduler or migrations. Global source/display permissions remain unchanged.
+- Fresh key/model/catalogue/ZDR and 45-artifact schema-13 backup/restore checks passed. Exact request capture hashes
+  match both approved bodies. Only `anthropic/claude-opus-5.5` / `google-vertex/europe` was requested; both responses
+  identified `anthropic/claude-opus-5.5` / `Google`. Catalogue canonical identity: `anthropic/claude-opus-5.5-20260921`.
+- Treasury: **16,460 input / 6,000 output tokens**, all **6,000 reasoning**; **US$0.202379760**, **56.090 s**.
+  HTTP 200 / finish `length`, no final content, stored `provider_error` / `invalid_response`.
+- RBNZ: **11,299 input / 6,000 output tokens**, **1,457 reasoning**; **US$0.179898444**, **43.995 s**.
+  HTTP 200 / finish `length`, incomplete JSON, stored `provider_error` / `output_truncated`.
+- Total **US$0.382278204**, exactly reconciling to key usage; **US$4.617721796 remaining**, non-resetting US$5 limit,
+  BYOK zero. Total input/output **27,759 / 12,000**, recorded combined latency **100.085 s**. Both reservations
+  settled on reported billing. Run/summary/usage/reservation rows: **1 / 2 / 2 / 2**. Only those four tables changed
+  against the fresh backup; statistics, source/section permissions and original annotations stayed unchanged.
+- Complete JSON, valid schema, accepted summaries and scoreable document coverage: **0/2** each. Accepted numerical
+  fidelity, issuer accuracy and citation correctness: **0/0**, unmeasured, never passing. No complete prediction set
+  exists for raw/accepted precision/recall or statistical claim verification. No prompt/cap/verifier change or JSON
+  repair was used. **0 accepted claims**. The local packet displays all **20** intact RBNZ forensic fragments, all
+  rejected, their received evidence, full surviving content/tail and approved sections; fragments are not rescored
+  or admitted as a repaired summary. Gold evaluation counts two provider errors, no scoreable output.
+- Full isolated Python 3.12 backend **3,738 passed** before the final canonical-alias guard; final-source research
+  **1,981 passed**, latest runner/isolation **28 passed**. Ruff lint/format (326 files), isolated dependency audit,
+  artifact/links/permissions/ignore/known-credential and diff checks pass. One existing Starlette/httpx warning.
+  Fresh full-suite rerun for PR delivery on the final code: **3,739 passed**, one existing warning, 319.26 seconds;
+  receipt `data/phase-4m/backend-pr-tests.log`. Staged Gitleaks found no leaks in the 11-file delivery.
+  Shared runtime unchanged. Frontend/browser skipped: no API/UI/display change.
+- Independent Codex Sol 6.1 High code review found two capture issues, reproduced RED→GREEN and fixed: credential
+  echo retention and lost partial-stream evidence; billing/error regressions preserved. Independent actual-outcome
+  metadata review confirmed approval scopes/arithmetic/NO-GO and found stale historical preflight wording, corrected.
+  Both reviews excluded original bodies, underlying rights/economic meaning and account settings. Local receipts:
+  `implementation-review.txt` and `outcome-review.txt` under ignored `data/phase-4m/`.
+
+**No processing owner approval is missing. Human output approval and separate private-display/UI approval remain
+absent; these failed outputs do not qualify for promotion.** Both attempts are consumed, with no ordinary rerun
+permitted. Economic Outlook UI PR withheld. The owner subsequently requested a new PR for the bounded runner,
+tests and metadata-only outcome report; report bodies, consent/key records and gold remain ignored locally.
+This delivery grants no further inference, output/display approval, merge or deployment authority.
 
 ## Phase 4L: controlled hosted pilot preflight, 1 November 2026
 
