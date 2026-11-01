@@ -89,6 +89,28 @@ def spent_since(conn: sqlite3.Connection, since: datetime) -> float:
     return float(legacy) + float(reserved)
 
 
+def openrouter_available(
+    conn: sqlite3.Connection,
+    version_id: int,
+    amount_usd: float,
+    *,
+    pending_usd: float = 0,
+    pending_attempts: int = 0,
+) -> bool:
+    """Read-only pilot availability; callers reserving must hold the database write lock."""
+    pilot = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(CASE WHEN state='settled' THEN actual_usd"
+        " ELSE reserved_usd END), 0), COALESCE(MAX(version_id=?), 0)"
+        " FROM research_llm_reservation WHERE provider='openrouter'",
+        (version_id,),
+    ).fetchone()
+    return (
+        pilot[0] + pending_attempts < 2
+        and not pilot[2]
+        and pilot[1] + pending_usd + amount_usd <= 5 + 1e-9
+    )
+
+
 def reserve(
     conn: sqlite3.Connection,
     *,
@@ -110,6 +132,12 @@ def reserve(
     """
     conn.execute("BEGIN IMMEDIATE")
     try:
+        if provider == "openrouter":
+            # Lifetime limits: failures, interruptions, prompt/model changes and elapsed
+            # billing windows never reset this pilot. Same write lock as the budget check.
+            if not openrouter_available(conn, version_id, amount_usd):
+                conn.execute("ROLLBACK")
+                return None
         if spent_since(conn, since) + amount_usd > period_cap_usd + 1e-9:
             conn.execute("ROLLBACK")
             return None

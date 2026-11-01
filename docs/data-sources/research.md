@@ -148,6 +148,11 @@ Stats NZ tables, the API or the public snapshot. Plan: [2026-10-25-phase-3b-llm-
 
 ### Two gates, both closed by default
 
+**OpenRouter exception (Phase 4K, preparation only):** use the independent exact-version hosted gate in
+[phase-4k-openrouter.md](../phase-4k-openrouter.md). An institution-wide `hosted` setting never authorises an
+OpenRouter request. The CLI supplies no `HostedConsent` records, so it refuses all such versions. The historical
+local-only consent from PR #36 is unchanged. Do not set a whole institution to `hosted` for this pilot.
+
 1. **Source permission** (`config/research_sources.toml`): `llm_processing = "denied"` (default), `"local_only"` (a
    model on this machine only) or `"hosted"` (a hosted API as well). Sending text to a hosted model is processing by a
    third party: set `hosted` only after reading that the terms allow it, and record what they say in
@@ -157,7 +162,7 @@ Stats NZ tables, the API or the public snapshot. Plan: [2026-10-25-phase-3b-llm-
 
 | Variable | Meaning |
 |---|---|
-| `NZSTATS_LLM_PROVIDER` | `disabled` (default), `anthropic`, or `openai_compatible` |
+| `NZSTATS_LLM_PROVIDER` | `disabled` (default), `anthropic`, `openai_compatible`, or `openrouter` (version consent required; CLI blocked) |
 | `NZSTATS_LLM_MODEL` | required, for example `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, or a local model name |
 | `NZSTATS_LLM_API_KEY` | required for `anthropic`; optional bearer token for `openai_compatible` |
 | `NZSTATS_LLM_BASE_URL` | `openai_compatible` only: `https://…`, or `http://` on `localhost`, `127.0.0.1` or `::1`. Only a loopback URL counts as local; anything else is hosted. Refused for `anthropic` (fixed endpoint) |
@@ -166,6 +171,7 @@ Stats NZ tables, the API or the public snapshot. Plan: [2026-10-25-phase-3b-llm-
 | `NZSTATS_LLM_MAX_OUTPUT_TOKENS` | default 4000. Claude Opus 5.5 always thinks and its thinking counts as output: use 16000 |
 | `NZSTATS_LLM_MAX_INPUT_CHARS` | default 60000; a longer document is refused (`input_too_long`), never truncated |
 | `NZSTATS_LLM_TIMEOUT_SECONDS`, `NZSTATS_LLM_MAX_RETRIES`, `NZSTATS_LLM_MAX_DOCUMENTS` | defaults 120, 2, 5 |
+| `NZSTATS_OPENROUTER_PROVIDER` | required exact reviewed route: `google-vertex/europe` for `anthropic/claude-opus-5.5`, or `azure/eu` for the optional `openai/gpt-5.6-sol` comparison. Fixed HTTPS endpoint; dedicated key required; exact reviewed prices 4.4/22; explicitly set retries 0, documents ≤2, input characters ≤45000, output tokens ≤6000, both spend caps ≤5. See the Phase 4K proposal before any use |
 
 The adapters call the Anthropic Messages API (`anthropic-version: 2026-10-21`, which rejects `temperature`, so none is
 sent) or a `/chat/completions` endpoint (OpenAI, or llama.cpp, vLLM or Ollama on loopback) over plain HTTPS with httpx.

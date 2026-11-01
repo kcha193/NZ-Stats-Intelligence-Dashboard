@@ -1,0 +1,81 @@
+{
+  "checked_on": "2026-11-01",
+  "source": "https://openrouter.ai/api/v1/endpoints/zdr",
+  "note": "Public metadata only; eligibility is not processing authorisation. Recheck before pilot; no inference POST performed.",
+  "endpoints": [
+    {
+      "name": "Google | anthropic/claude-opus-5.5-20260921",
+      "model_id": "anthropic/claude-opus-5.5",
+      "tag": "google-vertex/europe",
+      "provider_name": "Google",
+      "safety_retention": false,
+      "context_length": 1000000,
+      "max_completion_tokens": 128000,
+      "max_prompt_tokens": null,
+      "supported_parameters": [
+        "reasoning",
+        "include_reasoning",
+        "max_tokens",
+        "response_format",
+        "tool_choice",
+        "tools",
+        "verbosity",
+        "structured_outputs",
+        "stop",
+        "reasoning_effort"
+      ],
+      "pricing": {
+        "prompt": "0.0000044",
+        "completion": "0.000022",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000022",
+        "input_cache_write": "0.0000055",
+        "input_cache_write_1h": "0.0000088",
+        "discount": 0
+      },
+      "status": 0,
+      "supports_implicit_caching": false
+    },
+    {
+      "name": "Azure | openai/gpt-5.6-sol-20260709",
+      "model_id": "openai/gpt-5.6-sol",
+      "tag": "azure/eu",
+      "provider_name": "Azure",
+      "safety_retention": false,
+      "context_length": 1050000,
+      "max_completion_tokens": 128000,
+      "max_prompt_tokens": null,
+      "supported_parameters": [
+        "reasoning",
+        "include_reasoning",
+        "max_completion_tokens",
+        "tools",
+        "tool_choice",
+        "seed",
+        "response_format",
+        "structured_outputs",
+        "verbosity",
+        "reasoning_effort"
+      ],
+      "pricing": {
+        "prompt": "0.0000044",
+        "completion": "0.000022",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000044",
+        "input_cache_write": "0.0000055",
+        "discount": 0,
+        "overrides": [
+          {
+            "min_prompt_tokens": 272000,
+            "prompt": "0.0000088",
+            "completion": "0.000033",
+            "input_cache_read": "0.00000088",
+            "input_cache_write": "0.000011"
+          }
+        ]
+      },
+      "status": 0,
+      "supports_implicit_caching": false
+    }
+  ]
+}

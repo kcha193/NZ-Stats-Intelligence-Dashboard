@@ -1,10 +1,54 @@
 # Progress and verification record
 
-Last updated 2026-11-01. Phase 4I is merged through PR #33 (main `c09a759`). Phase 4J has an approval-ready local
-pilot proposal, with **NO-GO for acceptance/display** until actual model evidence and human approvals exist.
-The source registry remains unchanged. Separate CI remediation is open as PR #34; hosted jobs now start, so
-the old billing blocker is historical. Local operation only; no scheduler, Docker or hosting work is introduced.
+Last updated 2026-11-01. Phase 4K prepares hosted inference from main `13cd20e`, including PRs #34–#36.
+The OpenRouter integration is under review; **NO-GO for real transmission, acceptance or display** until
+source-specific rights, hosted/provider/budget and human-review gates pass. PR #36's local consent is unchanged.
+The source registry remains unchanged. Hosted jobs now start, so the old billing blocker is historical.
+Local operation only; no scheduler, Docker or hosting work is introduced.
 Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries below are historical.
+
+## Phase 4K: OpenRouter integration and hosted-processing proposal, 1 November 2026
+
+Record: [phase-4k-openrouter.md](phase-4k-openrouter.md). Inert proposal:
+[phase-4k-pilot.json](../config/phase-4k-pilot.json); public catalogue/ZDR evidence:
+[phase-4k-catalogue.json](../config/phase-4k-catalogue.json).
+
+- Reuses the compatible HTTP adapter with fixed HTTPS, exact provider allowlist, ZDR, no data collection,
+  no redirects/proxies/retries/fallback, JSON-object mode, high reasoning and strict response/usage checks.
+  Proposed primary `anthropic/claude-opus-5.5` via `google-vertex/europe`; optional comparison
+  `openai/gpt-5.6-sol` via `azure/eu`, both US$4.40/M input and US$22/M output at the checked routes.
+- Independent expiring consent binds exact document version, raw/text/request hashes, model/provider and
+  owner rights/privacy/budget review. The CLI supplies no consents. Institution-wide hosted permission cannot
+  bypass it. PR #36 and the source registry are untouched; real processing needs separately reviewed PR B.
+- Existing atomic reservations now also enforce two OpenRouter attempts lifetime, one per version and US$5
+  total, including errors/interruption and concurrent runs. Dry runs simulate cumulative capacity without writes.
+  Consent is rechecked after reservation, immediately before dispatch. Billed HTTP/metadata/JSON failures retain
+  cost and safe response identity. Credential-bearing upstream strings are not logged or stored as diagnostics.
+- First independent Codex Sol 6.1 High review found five issues (normalised-host bypass, stale consent before
+  dispatch, billed HTTP error cost, rejected-response identity and dry-run durable capacity). All reproduced
+  failing-first and fixed. Second review found malformed-identity billing loss and cumulative dry-run capacity;
+  both reproduced failing-first and fixed. Third and final review found rendered-context admission happening
+  after reservation; two failing-first cases now enforce admission before dry-run acceptance or consumption.
+  All eight findings are addressed. The last fix is locally verified without a fourth independent review,
+  honouring the owner's three-cycle cap; no exact-final-head clean independent review is claimed.
+- Verification: Python 3.14 full suite **3,659 passed** before review remediation; Python 3.12 full suite
+  **3,672 passed** before the final narrow review fixes. Latest-source research/publication/privacy suite
+  **2,021 passed**, including all final fixes; focused provider/hosted/budget **146 passed**. Ruff lint/format,
+  frontend **524**, types/lint/build and unchanged generated API types pass. Live browsers **174 passed**;
+  synthetic research **18 passed, 3 skipped**; static/parity **315 passed, 24 skipped**. Synthetic replay **38/38**.
+  Read-only real-document evidence check: **46/46** anchors/pages; historical comparisons **7 match, 9 unavailable,
+  2 uncomparable**. These checks do not approve the gold or establish real-model quality. Staged Gitleaks and
+  proposal JSON/documentation links pass. No live inference smoke was attempted before hosted approvals.
+- `npm audit --audit-level=low`: zero vulnerabilities. Audit of the existing shared Python environment found
+  vulnerabilities in certifi, pip and pypdf; that environment was not changed. Raised the optional/dev pypdf
+  floor to **6.21.4** and created an isolated updated Python 3.12 verification environment: `pip-audit` reports
+  **no known vulnerabilities** (only this unpublished editable project is skipped). Rebuild/reinstall the actual
+  runtime before execution. Existing Starlette/httpx deprecation, Fast Refresh and bundle-size warnings remain.
+
+Real inference requests **0**, real pilot spend **US$0**, actual economic metrics unavailable. Source rights,
+third-party material and exact input scopes need human review; no source currently passes hosted approval.
+Gold/output approval and private-display/UI permission remain separate. No report text, real key, institutional
+fetch, model execution, summary approval, new private UI, scheduler activation, public/static research or merge.
 
 ## Phase 4J: annotation review and local-model preflight, 1 November 2026
 

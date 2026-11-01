@@ -1,0 +1,112 @@
+{
+  "status": "proposal_only_not_runtime_configuration",
+  "prepared_on": "2026-11-01",
+  "base_commit": "13cd20e68facd9308c847368c48484d6ed7cca55",
+  "historical_local_consent": "config/phase-4j-pilot.json (PR #36), unchanged and insufficient for hosted processing",
+  "primary": {
+    "model": "anthropic/claude-opus-5.5",
+    "provider_id": "google-vertex/europe",
+    "response_provider": "Google"
+  },
+  "optional_comparison": {
+    "model": "openai/gpt-5.6-sol",
+    "provider_id": "azure/eu",
+    "response_provider": "Azure",
+    "state": "not_enabled; separate owner decision, never automatic fallback"
+  },
+  "routing": {
+    "zdr": true,
+    "data_collection": "deny",
+    "allow_fallbacks": false,
+    "require_parameters": true
+  },
+  "limits": {
+    "max_documents": 2,
+    "max_attempts_per_version": 1,
+    "max_retries": 0,
+    "lifetime_inference_spend_usd": 5,
+    "max_input_chars": 45000,
+    "max_output_tokens": 6000,
+    "timeout_seconds": 120,
+    "scheduler": false
+  },
+  "documents": [
+    {
+      "version_id": 1,
+      "institution": "treasury",
+      "content_sha256": "63aaa9df152fb8793e3ec1f7489e79893cc38c5985ad8fbf2afba78565483073",
+      "text_sha256": "d5f72d5eb82977459f6ff6e9158fb88cede1aebeb059a1adf742ff44d868dc4b",
+      "acquisition": "manual",
+      "published_on": "2026-10-19",
+      "hosted_processing": {
+        "state": "pending",
+        "approved_by": null,
+        "approved_at": null,
+        "expires_at": null,
+        "rights_review": null,
+        "third_party_rights": null,
+        "provider_review": null,
+        "request_sha256": null,
+        "approved_section_ordinals": null
+      },
+      "private_display": "pending"
+    },
+    {
+      "version_id": 2,
+      "institution": "rbnz",
+      "content_sha256": "ee38b509c027e828f66c35ea20ed8d6658ab1db0e6a5a97e19a8f7e921fb32ed",
+      "text_sha256": "ca5486fb5ea1b85666a117650e4d3271376cc7184d62d2004c88def843191290",
+      "acquisition": "manual",
+      "published_on": "2026-10-28",
+      "hosted_processing": {
+        "state": "pending",
+        "approved_by": null,
+        "approved_at": null,
+        "expires_at": null,
+        "rights_review": null,
+        "third_party_rights": null,
+        "provider_review": null,
+        "request_sha256": null,
+        "approved_section_ordinals": null
+      },
+      "private_display": "pending"
+    }
+  ],
+  "approvals": {
+    "primary_model_provider_privacy": {
+      "state": "pending",
+      "approved_by": null,
+      "evidence": null
+    },
+    "budget_and_dedicated_key": {
+      "state": "pending",
+      "approved_by": null,
+      "evidence": null
+    },
+    "account_logging_and_training_disabled": {
+      "state": "pending",
+      "approved_by": null,
+      "evidence": null
+    },
+    "gold_human_review": {
+      "state": "pending",
+      "approved_by": null,
+      "evidence": null
+    },
+    "fresh_verified_backup": {
+      "state": "pending",
+      "approved_by": null,
+      "evidence": null
+    },
+    "exact_input_scope": {
+      "state": "pending",
+      "approved_by": null,
+      "evidence": null
+    },
+    "private_browser_ui": {
+      "state": "pending",
+      "approved_by": null,
+      "evidence": null
+    }
+  }
+}
