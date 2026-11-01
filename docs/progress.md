@@ -88,6 +88,12 @@ browser 18 + 3 skips, and Ruff pass. Current-head CI `41256124195` starts jobs: 
 billing error has cleared for this run, while frontend fails specifically at the npm audit gate.
 Final head, CI outcomes and the bounded review receipt are recorded in the PR conversation.
 
+Bounded closure cycle 2 reviewed `4f67cb9` and found one P2: `and` within coordinated reference
+periods was being split as another assertion. Sixteen failing-first cases cover years, months,
+quarters, shortened/full quotes and a following independent value. The narrow conjunction fix retains
+all 94 period regressions (195 stabilisation additions). Research 1,824, Ruff and replay 38/38 pass.
+CI `41256124195` completed: backend/static-site pass, frontend audit fails, Docker skips. Review cycle 3 is the final permitted request.
+
 ## Phase 4H execution, 31 October 2026
 
 Report: [phase-4h-execution.md](phase-4h-execution.md) (issue #31). After a new verified read-only backup

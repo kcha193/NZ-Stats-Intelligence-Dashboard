@@ -209,3 +209,30 @@ def test_coordinated_assertions_inherit_only_a_shared_temporal_prefix(kind, peri
     assert {"period_not_supported", "horizon_not_supported"} & codes(
         scoped_report(kind, text, quote, wrong)
     )
+
+
+@pytest.mark.parametrize("kind", ["fact", "forecast"])
+@pytest.mark.parametrize("period", ["2024 and 2025", "June and September 2025", "Q1 and Q2 2025"])
+@pytest.mark.parametrize("whole_quote", [False, True])
+def test_one_figure_can_apply_to_coordinated_reference_periods(kind, period, whole_quote):
+    if kind == "forecast":
+        period = period.replace("2024", "2027").replace("2025", "2028")
+    lead = "We forecast GDP growth" if kind == "forecast" else "GDP grew"
+    short = f"{lead} 2.5%"
+    text = f"{short} in {period}."
+    assert codes(scoped_report(kind, text, text if whole_quote else short, period)) == set()
+
+
+@pytest.mark.parametrize("kind", ["fact", "forecast"])
+@pytest.mark.parametrize("separator", [" and ", " before "])
+def test_coordinated_periods_end_before_the_next_numerical_assertion(kind, separator):
+    year = 2028 if kind == "forecast" else 2025
+    period = f"{year - 1} and {year}"
+    lead = "We forecast GDP growth" if kind == "forecast" else "GDP grew"
+    short = f"{lead} 2.5%"
+    other = f"{lead} 1.0% in {year + 1}."
+    text = f"{short} in {period}{separator}{other}"
+    assert codes(scoped_report(kind, text, short, period)) == set()
+    assert {"period_not_supported", "horizon_not_supported"} & codes(
+        scoped_report(kind, text, short, str(year + 1))
+    )

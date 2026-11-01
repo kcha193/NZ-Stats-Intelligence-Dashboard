@@ -182,6 +182,18 @@ The current-head run `41256124195` did start jobs, so the earlier account-billin
 Its frontend job fails specifically at the required npm audit; backend and static-site results are
 tracked in the PR conversation. The remaining review budget is two requests, including cycle 2.
 
+#### Bounded closure review cycle 2
+
+Codex completed review of `4f67cb9753a6f2bb6aa2439da1bce341c43fdb97` with one P2,
+`discussion_r4433838718`: a conjunction within a single reference period was treated as an assertion
+boundary. Sixteen new cases all failed before the fix. Period-only years/months/quarters after `and`
+now remain with their figure, including when another numerical assertion follows. Independent figures
+still delimit the selected assertion. The period regression file now has 94 cases (195 stabilisation
+additions). Follow-up verification: all 1,824 research tests, Ruff lint/format and replay 38/38 pass.
+Run `41256124195` completed with backend/static-site passing, frontend failing only at npm audit,
+and Docker skipped. The next request is the third and final permitted review cycle; further actionable findings
+must be reported as blockers rather than triggering another review.
+
 #### CI diagnosis and remaining external/tooling blockers
 
 Run [41244466427](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/41244466427)

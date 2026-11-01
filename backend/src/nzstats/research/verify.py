@@ -682,7 +682,23 @@ def _period_missing(
             a, b = loc._clause_span(at)
             start, end = a, b
             # Paired figures may have separate periods without a comma ("... before falling").
-            for separator in re.finditer(r"\b(?:and|before|after|then)\b", loc.text[a:b]):
+            separators = list(re.finditer(r"\b(?:and|before|after|then)\b", loc.text[a:b]))
+            for i, separator in enumerate(separators):
+                stop = separators[i + 1].start() if i + 1 < len(separators) else b - a
+                tail = loc.text[a + separator.end() : a + stop]
+                remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail)))
+                remainder = re.sub(
+                    r"\b(?:in|the|years?|quarters?|months?|calendar|fiscal|financial|to|through|ending|ended|of)\b",
+                    "",
+                    remainder,
+                    flags=re.I,
+                )
+                if (
+                    separator.group().lower() == "and"
+                    and any(_period_parts(tail)[:3])
+                    and not re.search(r"\w", remainder)
+                ):
+                    continue  # coordinated dates qualify the same figure, not another assertion
                 if a + separator.end() <= at:
                     start = a + separator.end()
                 elif a + separator.start() > at:
