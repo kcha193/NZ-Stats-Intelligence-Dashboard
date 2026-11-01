@@ -1,0 +1,75 @@
+{
+  "state": "proposal_pending_owner_decisions",
+  "note": "Inert record. Nothing loads this file and it grants nothing. Execution requires a separate, signed, expiring pilot.Approval bound to a fresh freeze.",
+  "experiment": "phase-4n-second-pilot",
+  "supersedes_nothing": "Phase 4M rows, attempts, costs and rejections stay in the append-only ledger and keep counting toward the US$5 lifetime cap.",
+  "route": {
+    "model": "anthropic/claude-opus-5.5",
+    "canonical_model": "anthropic/claude-opus-5.5-20260921",
+    "provider_only": "google-vertex/europe",
+    "expected_response_provider": "Google",
+    "zdr": true,
+    "data_collection": "deny",
+    "allow_fallbacks": false,
+    "require_parameters": true,
+    "safety_retention_required": false
+  },
+  "request": {
+    "reasoning": { "effort": "low" },
+    "max_tokens": 12000,
+    "timeout_seconds": 300,
+    "response_format": "json_object",
+    "retries": 0,
+    "prompt_version": "outlook-v4",
+    "system_text_sha256": "e2298a91098f6bfc1240bdb685cf25e9c9264ef99eafb9dc658cf37b1346f097",
+    "rules_sha256": "b77701837d1ad6a9d8bf0e06ce7789dc16710bc467d88e6d47c0c88ecfa1c821",
+    "contract_version": 2,
+    "draft_schema_sha256": "95f1ff48a55cca4cda6662d86f2461c5c7380bd49d3531c10da2854d2451c3e4",
+    "verifier_version": "verify-3",
+    "processing_version": "3b-1",
+    "final_json_target_chars": 20000
+  },
+  "frozen_candidates": [
+    {
+      "order": 1,
+      "version_id": 1,
+      "institution": "treasury",
+      "section_ordinals": [0, 1, 2, 3, 4, 5, 6],
+      "freeze_sha256": "2dafbb10d917776bb3cdc834cfddd6c50e4c135ed0898f3500033de3a42c40b8",
+      "request_sha256": "15dab6ba1f3872b7b0045e9eebf06e8a09ed3b85d575314cbe887cdb7d809037",
+      "body_sha256": "74fcbc098cf3487319d5702918b37d2f9844e6cefc102e91dc1105de7df00f64",
+      "conservative_bound_usd": 0.4532308
+    },
+    {
+      "order": 2,
+      "version_id": 2,
+      "institution": "rbnz",
+      "section_ordinals": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "freeze_sha256": "52f4500cce51f04da46b0e5564f2c5442a9d4058d97034054646c5ca00a9702b",
+      "request_sha256": "f857f4873b06b7f0842d242590c226725b08de80d89d316b68b7ab7fd36633a1",
+      "body_sha256": "75242268b91d5a5adc7b5bf33ab5009fb51ab2b13d97d1b2669817d846bf33a7",
+      "conservative_bound_usd": 0.4115056
+    }
+  ],
+  "limits": {
+    "attempts_requested": 2,
+    "attempts_per_version": 1,
+    "experiment_spend_limit_usd": 1.0,
+    "conservative_bound_total_usd": 0.8647364,
+    "lifetime_cap_usd": 5,
+    "lifetime_spent_usd": 0.382278204,
+    "lifetime_after_conservative_bound_usd": 1.2470146,
+    "ledger_lifetime_attempts": 4
+  },
+  "decisions_pending": [
+    "experiment_and_spend_limit",
+    "reasoning_effort_and_output_cap",
+    "treasury_v1_fresh_rights_and_scope_consent",
+    "rbnz_v2_fresh_rights_and_scope_consent",
+    "route_privacy_and_account_controls_recheck",
+    "dedicated_key_recheck",
+    "reviewed_gold_binding",
+    "exact_request_freeze_and_expiring_approval"
+  ],
+  "granted": []
+}

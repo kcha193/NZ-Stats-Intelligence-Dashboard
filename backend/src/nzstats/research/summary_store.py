@@ -93,26 +93,68 @@ class AttemptConsumed(Exception):
     """This document version already used its one permitted hosted attempt."""
 
 
+FIRST_PILOT = "phase-4m"
+LIFETIME_USD = 5.0  # every OpenRouter experiment shares this; history keeps counting against it
+# Reviewed code must raise this to add an experiment. A retagged run row cannot add attempts.
+LIFETIME_ATTEMPTS = 4
+
+
+@dataclass(frozen=True)
+class PilotScope:
+    """One authorised experiment's share of the append-only ledger: one attempt per version.
+
+    A run names its experiment in `research_llm_run.limits`. Runs without one are the first pilot,
+    whose two attempts are consumed, so history is never reset, deleted or rewritten.
+    """
+
+    experiment: str = FIRST_PILOT
+    max_attempts: int = 2
+    max_usd: float = LIFETIME_USD
+
+
+def lifetime_spent(conn: sqlite3.Connection) -> float:
+    """All OpenRouter spend across every experiment: settled cost, otherwise the reserved worst case."""
+    return float(
+        conn.execute(
+            "SELECT COALESCE(SUM(CASE WHEN state='settled' THEN actual_usd ELSE reserved_usd END), 0)"
+            " FROM research_llm_reservation WHERE provider='openrouter'"
+        ).fetchone()[0]
+    )
+
+
 def openrouter_refusal(
     conn: sqlite3.Connection,
     version_id: int,
     amount_usd: float,
     *,
+    scope: PilotScope | None = None,
     pending_usd: float = 0,
     pending_attempts: int = 0,
 ) -> str | None:
     """Read-only pilot refusal reason; reserving callers must hold the database write lock."""
+    scope = scope or PilotScope()
+    in_scope = f"COALESCE(json_extract(r.limits, '$.experiment'), '{FIRST_PILOT}') = ?"
+    cost = "CASE WHEN x.state='settled' THEN x.actual_usd ELSE x.reserved_usd END"
     pilot = conn.execute(
-        "SELECT COUNT(*), COALESCE(SUM(CASE WHEN state='settled' THEN actual_usd"
-        " ELSE reserved_usd END), 0), COALESCE(MAX(version_id=?), 0)"
-        " FROM research_llm_reservation WHERE provider='openrouter'",
-        (version_id,),
+        f"SELECT COUNT(*), COALESCE(SUM(CASE WHEN {in_scope} THEN 1 ELSE 0 END), 0),"
+        f" COALESCE(SUM(CASE WHEN {in_scope} THEN {cost} ELSE 0 END), 0),"
+        f" COALESCE(MAX({in_scope} AND x.version_id=?), 0)"
+        " FROM research_llm_reservation x LEFT JOIN research_llm_run r ON r.id = x.run_id"
+        " WHERE x.provider='openrouter'",
+        (scope.experiment, scope.experiment, scope.experiment, version_id),
     ).fetchone()
-    if pilot[2]:
+    if pilot[3]:
         return "attempt_consumed"
-    if pilot[0] + pending_attempts >= 2:
+    if (
+        pilot[1] + pending_attempts >= scope.max_attempts
+        or pilot[0] + pending_attempts >= LIFETIME_ATTEMPTS
+    ):
         return "lifetime_attempts_exhausted"
-    if pilot[1] + pending_usd + amount_usd > 5 + 1e-9:
+    pending = pending_usd + amount_usd
+    if (
+        lifetime_spent(conn) + pending > LIFETIME_USD + 1e-9
+        or pilot[2] + pending > scope.max_usd + 1e-9
+    ):
         return "lifetime_budget_exhausted"
     return None
 
@@ -130,6 +172,7 @@ def reserve(
     since: datetime,
     now: datetime,
     expires_at: datetime,
+    scope: PilotScope | None = None,
 ) -> int | None:
     """Hold `amount_usd`, or return None for global exhaustion. Raise AttemptConsumed for a used version.
 
@@ -141,7 +184,7 @@ def reserve(
         if provider == "openrouter":
             # Lifetime limits: failures, interruptions, prompt/model changes and elapsed
             # billing windows never reset this pilot. Same write lock as the budget check.
-            refusal = openrouter_refusal(conn, version_id, amount_usd)
+            refusal = openrouter_refusal(conn, version_id, amount_usd, scope=scope)
             if refusal == "attempt_consumed":
                 raise AttemptConsumed
             if refusal is not None:

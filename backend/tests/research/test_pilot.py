@@ -43,6 +43,8 @@ def setup_pilot(tmp_path):
     gold.write_text('{"synthetic":true}')
     approval = pilot.Approval(
         state="approved",
+        experiment="phase-4n-second-pilot",
+        experiment_spend_limit_usd=1.0,
         approved_by="Synthetic Owner",
         approved_at=NOW,
         expires_at=NOW + timedelta(hours=1),
@@ -96,6 +98,11 @@ def remote(request, posts, response=None, unsafe=False):
                     {
                         "id": "anthropic/claude-opus-5.5",
                         "canonical_slug": "anthropic/claude-opus-5.5-20260921",
+                        "reasoning": {
+                            "mandatory": True,
+                            "supported_efforts": ["max", "xhigh", "high", "medium", "low"],
+                            "default_effort": "high",
+                        },
                     }
                 ]
             },
@@ -478,3 +485,325 @@ def test_model_alias_retargeting_cannot_use_the_existing_request_approval(tmp_pa
                 now_fn=lambda: NOW,
             )
     assert not posts
+
+
+# Phase 4N: synthetic regressions for the revised frozen request and second-pilot controls.
+def frozen_manifest(frozen):
+    return json.loads((frozen / "freeze.json").read_bytes())
+
+
+def test_frozen_second_pilot_binds_effort_cap_prompt_timeout_and_cost(tmp_path):
+    conn, reg, data, frozen, approval = setup_pilot(tmp_path)
+    manifest = frozen_manifest(frozen)
+    assert (manifest["format"], manifest["experiment"]) == (2, "phase-4n-second-pilot")
+    assert manifest["reasoning_effort"] == "low"
+    assert manifest["max_output_tokens"] == 12000
+    assert manifest["timeout_seconds"] == 300
+    assert manifest["experiment_spend_limit_usd"] == 1.0
+    assert manifest["prompt_version"] == "outlook-v4"
+    body = json.loads((frozen / "v1-request.json").read_bytes())
+    assert (body["reasoning"], body["max_tokens"]) == ({"effort": "low"}, 12000)
+    document = manifest["documents"][0]
+    prompt_bytes = sum(len(m["content"].encode()) for m in body["messages"])
+    bound = prompt_bytes + 2048
+    assert document["worst_case_usd"] == pytest.approx((bound * 4.4 + 12000 * 22) / 1e6)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda c, d, f, a: a.model_copy(update={"experiment": "phase-4m"}),
+        lambda c, d, f, a: a.model_copy(update={"experiment_spend_limit_usd": 5.0}),
+        lambda c, d, f, a: a.model_copy(update={"approved_at": NOW - timedelta(days=2)}),
+        lambda c, d, f, a: a.model_copy(update={"expires_at": NOW - timedelta(seconds=1)}),
+    ],
+)
+def test_old_or_mismatched_second_pilot_approval_refuses(tmp_path, change):
+    conn, reg, data, frozen, approval, posts, client = execute_fixture(tmp_path, change=change)
+    with pytest.raises(pilot.PilotRefused):
+        run(
+            conn,
+            reg,
+            data,
+            frozen,
+            approval,
+            data / "run",
+            "synthetic-secret",
+            client=client,
+            now_fn=lambda: NOW,
+        )
+    assert not posts and conn.execute("SELECT count(*) FROM research_llm_run").fetchone()[0] == 0
+
+
+def test_phase_4m_approval_shape_cannot_be_reused():
+    with pytest.raises(ValueError):
+        pilot.Approval.model_validate(
+            {
+                "state": "approved",
+                "approved_by": "Synthetic Owner",
+                "approved_at": NOW,
+                "expires_at": NOW + timedelta(hours=1),
+                "frozen_sha256": "0" * 64,
+                "gold_path": Path("gold.json"),
+                "gold_sha256": "0" * 64,
+                "gold_review": "Synthetic",
+                "provider_review": "Synthetic",
+                "account_controls_evidence": "Synthetic",
+                "dedicated_key_confirmed": True,
+                "rights": (),
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"format": 1},
+        {"experiment": "phase-4m"},
+        {"reasoning_effort": "high"},
+        {"max_output_tokens": 6000},
+        {"timeout_seconds": 120},
+        {"experiment_spend_limit_usd": 5},
+        {"prompt_version": "outlook-v3"},
+    ],
+)
+def test_phase_4m_or_edited_freeze_manifest_cannot_execute(tmp_path, change):
+    conn, reg, data, frozen, approval = setup_pilot(tmp_path)
+    manifest = {**frozen_manifest(frozen), **change}
+    (frozen / "freeze.json").write_bytes(json.dumps(manifest).encode())
+    approval = approval.model_copy(
+        update={"frozen_sha256": pilot.file_sha256(frozen / "freeze.json")}
+    )
+    posts = []
+    client = httpx.Client(transport=httpx.MockTransport(lambda req: remote(req, posts)))
+    with pytest.raises(pilot.PilotRefused):
+        run(
+            conn,
+            reg,
+            data,
+            frozen,
+            approval,
+            data / "run",
+            "synthetic-secret",
+            client=client,
+            now_fn=lambda: NOW,
+        )
+    assert not posts
+
+
+def mutate_entry(payload, change):
+    entries = payload["data"] if isinstance(payload["data"], list) else payload["data"]["endpoints"]
+    change(entries[0])
+
+
+@pytest.mark.parametrize("path", ["/endpoints", "/endpoints/zdr"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda e: e["pricing"].update(completion="0.000023"),
+        lambda e: e["pricing"].update(prompt="0.0000045"),
+        lambda e: e.update(max_completion_tokens=11999),
+        lambda e: e.update(status=-1),
+        lambda e: e["supported_parameters"].remove("reasoning"),
+        lambda e: e["supported_parameters"].remove("response_format"),
+    ],
+)
+def test_changed_price_or_endpoint_capability_refuses_before_inference(tmp_path, path, change):
+    conn, reg, data, frozen, approval = setup_pilot(tmp_path)
+    posts = []
+
+    def handler(req):
+        response = remote(req, posts)
+        if req.url.path.endswith(path):
+            payload = response.json()
+            mutate_entry(payload, change)
+            return httpx.Response(200, json=payload)
+        return response
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(pilot.PilotRefused):
+            run(
+                conn,
+                reg,
+                data,
+                frozen,
+                approval,
+                data / "run",
+                "synthetic-secret",
+                client=client,
+                now_fn=lambda: NOW,
+            )
+    assert not posts
+
+
+@pytest.mark.parametrize(
+    "reasoning",
+    [
+        None,
+        {},
+        {"supported_efforts": None},
+        {"supported_efforts": ["max", "high"]},
+        {"supported_efforts": "low"},
+    ],
+)
+def test_model_catalogue_must_still_list_the_approved_effort(tmp_path, reasoning):
+    conn, reg, data, frozen, approval = setup_pilot(tmp_path)
+    posts = []
+
+    def handler(req):
+        response = remote(req, posts)
+        if req.url.path == "/api/v1/models":
+            payload = response.json()
+            payload["data"][0]["reasoning"] = reasoning
+            return httpx.Response(200, json=payload)
+        return response
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(pilot.PilotRefused):
+            run(
+                conn,
+                reg,
+                data,
+                frozen,
+                approval,
+                data / "run",
+                "synthetic-secret",
+                client=client,
+                now_fn=lambda: NOW,
+            )
+    assert not posts
+
+
+def historical_ledger(conn, version_id, cost):
+    from nzstats.research import summary_store as ss
+
+    rid = ss.start_run(
+        conn,
+        provider="openrouter",
+        model=pilot.MODEL,
+        hosted=True,
+        prompt_version="outlook-v3",
+        processing_version="3b-1",
+        limits={},
+        dry_run=False,
+        now=NOW - timedelta(hours=1),
+    )
+    held = ss.reserve(
+        conn,
+        run_id=rid,
+        version_id=version_id,
+        call_no=1,
+        provider="openrouter",
+        model=pilot.MODEL,
+        amount_usd=0.3,
+        period_cap_usd=5,
+        since=NOW - timedelta(days=30),
+        now=NOW - timedelta(hours=1),
+        expires_at=NOW,
+    )
+    ss.settle(conn, held, actual_usd=cost, basis="reported", now=NOW - timedelta(minutes=59))
+
+
+def key_response(usage):
+    return {
+        "data": {
+            "limit": 5,
+            "limit_reset": None,
+            "limit_remaining": 5 - usage,
+            "usage": usage,
+            "byok_usage": 0,
+            "is_management_key": False,
+        }
+    }
+
+
+def test_key_usage_must_reconcile_with_the_ledger_and_history_stays_unchanged(tmp_path):
+    conn, reg, data, frozen, approval = setup_pilot(tmp_path)
+    historical_ledger(conn, 1, 0.2)
+    before = [dict(r) for r in conn.execute("SELECT * FROM research_llm_reservation")]
+    posts = []
+
+    def handler(usage):
+        def respond(req):
+            if req.url.path == "/api/v1/key":
+                return httpx.Response(200, json=key_response(usage))
+            return remote(req, posts)
+
+        return respond
+
+    # Spend nobody recorded means another consumer of the key, or a broken ledger.
+    with httpx.Client(transport=httpx.MockTransport(handler(0.5))) as client:
+        with pytest.raises(pilot.PilotRefused):
+            run(
+                conn,
+                reg,
+                data,
+                frozen,
+                approval,
+                data / "run",
+                "synthetic-secret",
+                client=client,
+                now_fn=lambda: NOW,
+            )
+    assert not posts
+    with httpx.Client(transport=httpx.MockTransport(handler(0.2))) as client:
+        outcome = run(
+            conn,
+            reg,
+            data,
+            frozen,
+            approval,
+            data / "ok",
+            "synthetic-secret",
+            client=client,
+            now_fn=lambda: NOW,
+        )
+    assert outcome[0].items[0].outcome != "provider_error", outcome[0].items[0].error_class
+    assert len(posts) == 1
+    after = [dict(r) for r in conn.execute("SELECT * FROM research_llm_reservation")]
+    assert after[: len(before)] == before and len(after) == len(before) + 1
+
+
+def test_transmitted_request_uses_the_frozen_timeout_not_the_client_default(tmp_path):
+    conn, reg, data, frozen, approval, posts, _ = execute_fixture(tmp_path)
+    client = httpx.Client(
+        timeout=120, transport=httpx.MockTransport(lambda req: remote(req, posts))
+    )
+    run(
+        conn, reg, data, frozen, approval, data / "run", "synthetic-secret",
+        client=client, now_fn=lambda: NOW,
+    )  # fmt: skip
+    assert posts[0].extensions["timeout"]["read"] == 300
+
+
+def test_truncated_response_is_preserved_privately_with_metadata_only_diagnostics(tmp_path):
+    body = envelope(
+        choices=[
+            {
+                "finish_reason": "length",
+                "native_finish_reason": "max_tokens",
+                "message": {"content": '{"outlook":"SYNTHETIC PARTIAL', "reasoning": "SYNTHETIC"},
+            }
+        ],
+        usage={
+            "prompt_tokens": 100,
+            "completion_tokens": 12000,
+            "total_tokens": 12100,
+            "cost": 0.26444,
+            "completion_tokens_details": {"reasoning_tokens": 1000},
+        },
+    )
+    response = httpx.Response(200, json=body)
+    conn, reg, data, frozen, approval, posts, client = execute_fixture(tmp_path, response=response)
+    result = run(
+        conn, reg, data, frozen, approval, data / "run", "synthetic-secret",
+        client=client, now_fn=lambda: NOW,
+    )  # fmt: skip
+    assert result[0].items[0].error_class == "final_json_truncated"
+    assert b"SYNTHETIC PARTIAL" in (data / "run/v1/response.bin").read_bytes()
+    diagnostics = (data / "run/v1/diagnostics.json").read_bytes()
+    assert b"SYNTHETIC PARTIAL" not in diagnostics
+    assert json.loads(diagnostics)["reasoning_tokens"] == 1000
+    assert stat.S_IMODE((data / "run/v1/diagnostics.json").stat().st_mode) == 0o600
+    row = conn.execute("SELECT raw_output, status FROM research_summary").fetchone()
+    assert (row["raw_output"], row["status"]) == (None, "provider_error")

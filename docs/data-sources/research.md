@@ -163,6 +163,7 @@ local-only consent from PR #36 is unchanged. Do not set a whole institution to `
 | Variable | Meaning |
 |---|---|
 | `NZSTATS_LLM_PROVIDER` | `disabled` (default), `anthropic`, `openai_compatible`, or `openrouter` (version consent required; CLI blocked) |
+| `NZSTATS_OPENROUTER_REASONING_EFFORT` | required for `openrouter`, with no default: `low` or `medium`. `high` and above are refused because reasoning counts toward the output cap. OpenRouter also caps `NZSTATS_LLM_MAX_OUTPUT_TOKENS` at 12000 and needs a timeout of at least one second per 60 output tokens |
 | `NZSTATS_LLM_MODEL` | required, for example `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, or a local model name |
 | `NZSTATS_LLM_API_KEY` | required for `anthropic`; optional bearer token for `openai_compatible` |
 | `NZSTATS_LLM_BASE_URL` | `openai_compatible` only: `https://…`, or `http://` on `localhost`, `127.0.0.1` or `::1`. Only a loopback URL counts as local; anything else is hosted. Refused for `anthropic` (fixed endpoint) |

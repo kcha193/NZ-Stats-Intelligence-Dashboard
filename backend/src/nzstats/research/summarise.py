@@ -231,6 +231,7 @@ def summarise_versions(
     run_limits = limits
     limits = replace(limits, max_run_usd=min(limits.max_run_usd, remaining))
     parameters = dict(provider.parameters())
+    scope = provider.pilot_scope if provider.name == "openrouter" else None
     if not dry_run:
         result.run_id = ss.start_run(
             conn, provider=provider.name, model=provider.model, hosted=provider.hosted,
@@ -238,7 +239,8 @@ def summarise_versions(
             limits={"max_input_chars": limits.max_input_chars, "max_output_tokens": limits.max_output_tokens,
                     "max_retries": limits.max_retries, "max_run_usd": run_limits.max_run_usd,
                     "max_period_usd": limits.max_period_usd, "period_days": PERIOD_DAYS,
-                    "period_remaining_usd": round(remaining, 6), "timeout_seconds": limits.timeout_seconds},
+                    "period_remaining_usd": round(remaining, 6), "timeout_seconds": limits.timeout_seconds,
+                    **({"experiment": scope.experiment} if scope else {})},
             dry_run=False, now=started,
         )  # fmt: skip
         # A reservation held past its own deadline belongs to a process that is gone.
@@ -307,7 +309,7 @@ def summarise_versions(
                 continue
             pilot_refusal = (
                 ss.openrouter_refusal(
-                    conn, candidate.version_id, worst,
+                    conn, candidate.version_id, worst, scope=scope,
                     pending_usd=dry_spent, pending_attempts=dry_attempts,
                 )
                 if provider.name == "openrouter" else None
@@ -336,7 +338,7 @@ def summarise_versions(
             else:
                 stopped = _process(conn, provider, request, sections, key, parameters, item, result,
                                    pricing=pricing, limits=limits, worst=worst, now_fn=now_fn,
-                                   sleep=sleep, clock=clock,
+                                   sleep=sleep, clock=clock, scope=scope,
                                    consent_check=(lambda req=request: consent_refusal(
                                        conn, req, provider, hosted_consents, now_fn()))
                                    if provider.name == "openrouter" else None)  # fmt: skip
@@ -388,6 +390,7 @@ def _process(
     now_fn: Callable[[], datetime],
     sleep: Callable[[float], None],
     clock: Callable[[], float],
+    scope: ss.PilotScope | None = None,
     consent_check: Callable[[], str | None] | None = None,
 ) -> bool:
     """Call, parse, verify and store one document. True when the run budget stops the run."""
@@ -405,7 +408,7 @@ def _process(
                 provider=provider.name, model=provider.model, amount_usd=worst,
                 period_cap_usd=limits.max_period_usd,
                 since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
-                expires_at=now_fn() + stale_after(limits),
+                expires_at=now_fn() + stale_after(limits), scope=scope,
             )  # fmt: skip
         except ss.AttemptConsumed:
             item.outcome = "attempt_consumed"
@@ -480,7 +483,14 @@ def _process(
         status, error_class = "provider_error", error.error_class if error else "budget_exhausted"
         if error is not None:
             parameters = dict(parameters)
-            for name in ("serving_provider", "response_model", "response_id"):
+            for name in (
+                "serving_provider",
+                "response_model",
+                "response_id",
+                "reasoning_tokens",
+                "finish_reason",
+                "native_finish_reason",
+            ):
                 value = getattr(error, name)
                 if value is not None:
                     parameters[name] = value
@@ -491,6 +501,10 @@ def _process(
             parameters["serving_provider"] = response.serving_provider
         if response.response_id is not None:
             parameters["response_id"] = response.response_id
+        if response.reasoning_tokens is not None:
+            parameters["reasoning_tokens"] = response.reasoning_tokens
+        if response.stop_reason is not None:
+            parameters["finish_reason"] = response.stop_reason
         status, error_class, output_json, verification, claims = _interpret(
             response.text, response.model, request, sections, key, parameters, now_fn()
         )

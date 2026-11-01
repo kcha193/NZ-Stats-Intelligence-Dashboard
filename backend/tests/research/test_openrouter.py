@@ -24,6 +24,7 @@ ENV = {
     "NZSTATS_LLM_MAX_OUTPUT_TOKENS": "6000",
     "NZSTATS_LLM_MAX_RUN_USD": "5",
     "NZSTATS_LLM_MAX_PERIOD_USD": "5",
+    "NZSTATS_OPENROUTER_REASONING_EFFORT": "low",
 }
 
 
@@ -65,7 +66,7 @@ def test_request_pins_privacy_route_and_disables_tools_and_fallbacks():
         "require_parameters": True,
     }
     assert body["response_format"] == {"type": "json_object"}
-    assert body["reasoning"] == {"effort": "high"}
+    assert body["reasoning"] == {"effort": "low"}
     assert body["max_tokens"] == 6000
     assert not {"temperature", "tools", "plugins", "models", "route", "transforms"} & body.keys()
     assert (response.serving_provider, response.cost_usd, response.response_id) == (
@@ -90,7 +91,7 @@ def test_request_pins_privacy_route_and_disables_tools_and_fallbacks():
         {"NZSTATS_LLM_MAX_RUN_USD": "6"},
         {"NZSTATS_LLM_MAX_PERIOD_USD": "6"},
         {"NZSTATS_LLM_MAX_INPUT_CHARS": "45001"},
-        {"NZSTATS_LLM_MAX_OUTPUT_TOKENS": "6001"},
+        {"NZSTATS_LLM_MAX_OUTPUT_TOKENS": "12001"},
         {"NZSTATS_LLM_INPUT_USD_PER_MTOK": "0"},
         {"NZSTATS_LLM_OUTPUT_USD_PER_MTOK": "0"},
         {"NZSTATS_LLM_MODEL": "openrouter/auto"},
