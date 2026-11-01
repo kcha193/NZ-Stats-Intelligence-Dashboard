@@ -3,2972 +3,2462 @@
  * Do not make direct changes to the file.
  */
 
+
 export interface paths {
-    "/api/research/feed": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Feed */
-        get: operations["feed_api_research_feed_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/research/summaries/{summary_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Detail */
-        get: operations["detail_api_research_summaries__summary_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/research/forecasts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Forecasts */
-        get: operations["forecasts_api_research_forecasts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/research/forecast-history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** History */
-        get: operations["history_api_research_forecast_history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/research/forecast-evaluation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Evaluation */
-        get: operations["evaluation_api_research_forecast_evaluation_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/research/consensus": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Consensus View */
-        get: operations["consensus_view_api_research_consensus_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/refresh/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Refresh Status
-         * @description Read-only: the last check and what is pending. Never starts a check.
-         */
-        get: operations["get_refresh_status_api_refresh_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Refresh
-         * @description Start a check unless one is running or a recent result stands; answers at once with the status.
-         */
-        post: operations["post_refresh_api_refresh_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Health */
-        get: operations["health_api_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ops/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Ops Status
-         * @description Operational status for the local operator (Data health page). Read-only; never starts the scheduler or fetches.
-         */
-        get: operations["ops_status_api_ops_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/capabilities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Capabilities */
-        get: operations["capabilities_api_capabilities_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/overview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Overview */
-        get: operations["overview_api_overview_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/releases": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Releases */
-        get: operations["releases_api_releases_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/releases/{release_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Release Detail */
-        get: operations["release_detail_api_releases__release_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/calendar": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Calendar */
-        get: operations["calendar_api_calendar_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/series": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Series List */
-        get: operations["series_list_api_series_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/series/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Series Data */
-        get: operations["series_data_api_series__key__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/series/{key}/csv": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Series Csv */
-        get: operations["series_csv_api_series__key__csv_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/revisions/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Revisions View */
-        get: operations["revisions_view_api_revisions__key__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/migration/countries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Countries */
-        get: operations["countries_api_migration_countries_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/cpi": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Cpi Dashboard */
-        get: operations["cpi_dashboard_api_cpi_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/ect": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Ect Dashboard */
-        get: operations["ect_dashboard_api_ect_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/gdp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Gdp Dashboard */
-        get: operations["gdp_dashboard_api_gdp_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/labour-market": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Labour Dashboard */
-        get: operations["labour_dashboard_api_labour_market_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  "/api/research/feed": {
+    /** Feed */
+    get: operations["feed_api_research_feed_get"];
+  };
+  "/api/research/summaries/{summary_id}": {
+    /** Detail */
+    get: operations["detail_api_research_summaries__summary_id__get"];
+  };
+  "/api/research/forecasts": {
+    /** Forecasts */
+    get: operations["forecasts_api_research_forecasts_get"];
+  };
+  "/api/research/forecast-history": {
+    /** History */
+    get: operations["history_api_research_forecast_history_get"];
+  };
+  "/api/research/forecast-evaluation": {
+    /** Evaluation */
+    get: operations["evaluation_api_research_forecast_evaluation_get"];
+  };
+  "/api/research/consensus": {
+    /** Consensus View */
+    get: operations["consensus_view_api_research_consensus_get"];
+  };
+  "/api/refresh/status": {
+    /**
+     * Get Refresh Status
+     * @description Read-only: the last check and what is pending. Never starts a check.
+     */
+    get: operations["get_refresh_status_api_refresh_status_get"];
+  };
+  "/api/refresh": {
+    /**
+     * Post Refresh
+     * @description Start a check unless one is running or a recent result stands; answers at once with the status.
+     */
+    post: operations["post_refresh_api_refresh_post"];
+  };
+  "/api/health": {
+    /** Health */
+    get: operations["health_api_health_get"];
+  };
+  "/api/ops/status": {
+    /**
+     * Ops Status
+     * @description Operational status for the local operator (Data health page). Read-only; never starts the scheduler or fetches.
+     */
+    get: operations["ops_status_api_ops_status_get"];
+  };
+  "/api/capabilities": {
+    /** Capabilities */
+    get: operations["capabilities_api_capabilities_get"];
+  };
+  "/api/overview": {
+    /** Overview */
+    get: operations["overview_api_overview_get"];
+  };
+  "/api/releases": {
+    /** Releases */
+    get: operations["releases_api_releases_get"];
+  };
+  "/api/releases/{release_id}": {
+    /** Release Detail */
+    get: operations["release_detail_api_releases__release_id__get"];
+  };
+  "/api/calendar": {
+    /** Calendar */
+    get: operations["calendar_api_calendar_get"];
+  };
+  "/api/series": {
+    /** Series List */
+    get: operations["series_list_api_series_get"];
+  };
+  "/api/series/{key}": {
+    /** Series Data */
+    get: operations["series_data_api_series__key__get"];
+  };
+  "/api/series/{key}/csv": {
+    /** Series Csv */
+    get: operations["series_csv_api_series__key__csv_get"];
+  };
+  "/api/revisions/{key}": {
+    /** Revisions View */
+    get: operations["revisions_view_api_revisions__key__get"];
+  };
+  "/api/migration/countries": {
+    /** Countries */
+    get: operations["countries_api_migration_countries_get"];
+  };
+  "/api/cpi": {
+    /** Cpi Dashboard */
+    get: operations["cpi_dashboard_api_cpi_get"];
+  };
+  "/api/ect": {
+    /** Ect Dashboard */
+    get: operations["ect_dashboard_api_ect_get"];
+  };
+  "/api/gdp": {
+    /** Gdp Dashboard */
+    get: operations["gdp_dashboard_api_gdp_get"];
+  };
+  "/api/labour-market": {
+    /** Labour Dashboard */
+    get: operations["labour_dashboard_api_labour_market_get"];
+  };
 }
+
 export type webhooks = Record<string, never>;
+
 export interface components {
-    schemas: {
-        /** AccuracySummaryOut */
-        AccuracySummaryOut: {
-            institution: components["schemas"]["InstitutionOut"];
-            /** Measure */
-            measure: string;
-            /** Measure Label */
-            measure_label: string;
-            /**
-             * Band
-             * @enum {string}
-             */
-            band: "h0" | "h1_2" | "h3_4" | "h5_8" | "h9";
-            /** N */
-            n: number;
-            /** Sufficient */
-            sufficient: boolean;
-            /** Mean Error */
-            mean_error: number | null;
-            /** Mae */
-            mae: number | null;
-            /** Rmse */
-            rmse: number | null;
-        };
-        /** ActualOut */
-        ActualOut: {
-            /** Value */
-            value: number;
-            /** Release */
-            release: string;
-            /** Released On */
-            released_on: string;
-            /** First Release */
-            first_release: boolean;
-        };
-        /**
-         * AlertDelivery
-         * @description Whether alerts reach the operator. Kept apart from `overall`: a failing channel is not a failing dashboard.
-         */
-        AlertDelivery: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "none_recorded" | "ok" | "failing";
-            /** Last Attempt At */
-            last_attempt_at: string | null;
-            /** Last Success At */
-            last_success_at: string | null;
-            /** Failures */
-            failures: number;
-            /** Rate Limited */
-            rate_limited: number;
-            /** Window Hours */
-            window_hours: number;
-        };
-        /** BackupEntry */
-        BackupEntry: {
-            /** Name */
-            name: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "bundle" | "file";
-            /** Created At */
-            created_at: string;
-            /** Age Hours */
-            age_hours: number;
-            /**
-             * Verification
-             * @enum {string}
-             */
-            verification: "verified" | "unverified" | "failed" | "incomplete";
-            /** Raw Artifacts */
-            raw_artifacts: number | null;
-            /** Problems */
-            problems: string[];
-        };
-        /** BackupInfo */
-        BackupInfo: {
-            /** Directory */
-            directory: string;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "ok" | "stale" | "none" | "failed";
-            latest: components["schemas"]["BackupEntry"] | null;
-            latest_good: components["schemas"]["BackupEntry"] | null;
-            /** Entries Seen */
-            entries_seen: number;
-        };
-        /** CalendarInfo */
-        CalendarInfo: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "current" | "missed" | "stale" | "never";
-            /** Last Checked At */
-            last_checked_at: string | null;
-            /** Last Success At */
-            last_success_at: string | null;
-            /** Last Success Age Hours */
-            last_success_age_hours: number | null;
-            /**
-             * Missed Refreshes
-             * @default 0
-             */
-            missed_refreshes: number;
-            /** Next Refresh At */
-            next_refresh_at?: string | null;
-        };
-        /** CalendarOut */
-        CalendarOut: {
-            /** Items */
-            items: components["schemas"]["ReleaseSummary"][];
-            /** Last Checked At */
-            last_checked_at: string | null;
-            /** Last Success At */
-            last_success_at: string | null;
-        };
-        /**
-         * CapabilitiesOut
-         * @description Feature switches the UI reads so it does not request routes the server has not turned on.
-         */
-        CapabilitiesOut: {
-            /** Research Public */
-            research_public: boolean;
-        };
-        /** ChangeOut */
-        ChangeOut: {
-            /** Label */
-            label: string;
-            /** Comparison Period */
-            comparison_period: string;
-            /** Previous */
-            previous: number;
-            /** Absolute */
-            absolute: number;
-            /** Percent */
-            percent: number | null;
-        };
-        /** CollectionInfo */
-        CollectionInfo: {
-            /**
-             * Mode
-             * @enum {string}
-             */
-            mode: "enabled" | "on_open" | "disabled" | "paused" | "unknown";
-            /** Summary */
-            summary: string;
-        };
-        /** ConsensusGroupOut */
-        ConsensusGroupOut: {
-            /** Key */
-            key: string;
-            /** Indicator */
-            indicator: string;
-            /** Indicator Name */
-            indicator_name: string;
-            /** Unit */
-            unit: string;
-            /** Unit Label */
-            unit_label: string;
-            /** Basis */
-            basis: string;
-            /** Basis Label */
-            basis_label: string;
-            /** Horizon Key */
-            horizon_key: string;
-            /** Horizon Label */
-            horizon_label: string;
-            /**
-             * Kind
-             * @default central
-             * @constant
-             */
-            kind: "central";
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "available" | "insufficient";
-            /** N */
-            n: number;
-            /** Mean */
-            mean: number | null;
-            /** Median */
-            median: number | null;
-            /** Minimum */
-            minimum: number | null;
-            /** Maximum */
-            maximum: number | null;
-            /** Range */
-            range: number | null;
-            /** Std Dev */
-            std_dev: number | null;
-            /** Outliers Assessed */
-            outliers_assessed: boolean;
-            /** Outliers */
-            outliers: components["schemas"]["ContributorOut"][];
-            /** Contributors */
-            contributors: components["schemas"]["ContributorOut"][];
-            /** Excluded */
-            excluded: components["schemas"]["ExcludedForecastOut"][];
-            /** As Of */
-            as_of: string | null;
-            /**
-             * Note
-             * @default A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast.
-             */
-            note: string;
-        };
-        /** ConsensusOut */
-        ConsensusOut: {
-            /** Groups */
-            groups: components["schemas"]["ConsensusGroupOut"][];
-            /**
-             * Note
-             * @default A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast.
-             */
-            note: string;
-        };
-        /** ContributorOut */
-        ContributorOut: {
-            /** Key */
-            key: string;
-            /** Name */
-            name: string;
-            /** Value */
-            value: number;
-            /** Published On */
-            published_on: string | null;
-            /** Summary Id */
-            summary_id: number;
-        };
-        /** CorrectionBlock */
-        CorrectionBlock: {
-            /** Available */
-            available: boolean;
-            /** Note */
-            note: string;
-            /** Against Captured At */
-            against_captured_at: string | null;
-            /** Captured At */
-            captured_at: string;
-            /** Series */
-            series: components["schemas"]["CorrectionSeriesOut"][];
-        };
-        /** CorrectionRowOut */
-        CorrectionRowOut: {
-            /** Period */
-            period: string;
-            /** Original */
-            original: number | null;
-            /** Revised */
-            revised: number | null;
-            /** Original Status */
-            original_status: string | null;
-            /** Revised Status */
-            revised_status: string | null;
-            /** Original Std Error */
-            original_std_error: number | null;
-            /** Revised Std Error */
-            revised_std_error: number | null;
-            /** Original Released In */
-            original_released_in: string | null;
-            /** Revised Released In */
-            revised_released_in: string | null;
-        };
-        /** CorrectionSeriesOut */
-        CorrectionSeriesOut: {
-            /** Series Key */
-            series_key: string;
-            /** Label */
-            label: string;
-            /** Unit */
-            unit: string;
-            /** N Changed */
-            n_changed: number;
-            /** Changes */
-            changes: components["schemas"]["CorrectionRowOut"][];
-        };
-        /** CountriesOut */
-        CountriesOut: {
-            provenance?: components["schemas"]["CountryProvenance"] | null;
-            /** Available */
-            available: boolean;
-            /** Months */
-            months: number;
-            /** Period Start */
-            period_start: string | null;
-            /** Period End */
-            period_end: string | null;
-            /** Total */
-            total: number | null;
-            /** Countries */
-            countries: components["schemas"]["CountryRank"][];
-            /** Regions */
-            regions: components["schemas"]["CountryRank"][];
-            unallocated: components["schemas"]["CountryRank"] | null;
-            /** Derived */
-            derived: boolean;
-            /** Note */
-            note: string;
-        };
-        /** CountryProvenance */
-        CountryProvenance: {
-            /** Release Key */
-            release_key: string | null;
-            /** Title */
-            title: string | null;
-            /** Published At */
-            published_at: string | null;
-            /** Source Url */
-            source_url: string | null;
-            /** Captured At */
-            captured_at: string | null;
-            /** Bundle Sha256 */
-            bundle_sha256: string | null;
-        };
-        /** CountryRank */
-        CountryRank: {
-            /** Name */
-            name: string;
-            /** Series Key */
-            series_key: string;
-            /** Value */
-            value: number;
-            /** Prior Value */
-            prior_value: number | null;
-            /** Change */
-            change: number | null;
-            /** Change Percent */
-            change_percent: number | null;
-            /** Share Percent */
-            share_percent: number | null;
-            /** Provisional */
-            provisional: boolean;
-            /** Prior Provisional */
-            prior_provisional?: boolean | null;
-        };
-        /** Coverage */
-        Coverage: {
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "release_files" | "snapshot" | "none";
-            /** N Vintages */
-            n_vintages: number;
-            /** Earliest Release */
-            earliest_release: string | null;
-            /** Note */
-            note: string;
-        };
-        /** CoverageOut */
-        CoverageOut: {
-            institution: components["schemas"]["InstitutionOut"];
-            /** Matched */
-            matched: number;
-            /** Pending */
-            pending: number;
-            /** Excluded */
-            excluded: number;
-        };
-        /** CpiContributionBlock */
-        CpiContributionBlock: {
-            /**
-             * Horizon
-             * @enum {string}
-             */
-            horizon: "quarterly" | "annual";
-            /** Available */
-            available: boolean;
-            /** Reference Period */
-            reference_period: string | null;
-            /** Unit */
-            unit: string;
-            /** Items */
-            items: components["schemas"]["CpiContributionItem"][];
-            /** Sum Points */
-            sum_points: number | null;
-            /** Headline Pct */
-            headline_pct: number | null;
-            /** Gap Points */
-            gap_points: number | null;
-            /** Note */
-            note: string;
-        };
-        /** CpiContributionItem */
-        CpiContributionItem: {
-            /** Slug */
-            slug: string;
-            /** Group */
-            group: string;
-            /** Points */
-            points: number;
-            /** Rank */
-            rank: number;
-        };
-        /** CpiDashboardOut */
-        CpiDashboardOut: {
-            analysis: components["schemas"]["ReleaseAnalysis"];
-            /** Reference Period */
-            reference_period: string;
-            /** Published At */
-            published_at: string;
-            /** Captured At */
-            captured_at: string;
-            /** Base */
-            base: string;
-            /** Series */
-            series: components["schemas"]["CpiSeriesOut"][];
-            /** Contributions */
-            contributions: components["schemas"]["CpiContributionBlock"][];
-            /** Underlying */
-            underlying: components["schemas"]["CpiUnderlyingOut"][];
-            /** Sources */
-            sources: string[];
-            /** Caveats */
-            caveats: string[];
-        };
-        /** CpiPoint */
-        CpiPoint: {
-            /** Period */
-            period: string;
-            /** Index */
-            index: number;
-            /** Quarterly Pct */
-            quarterly_pct: number | null;
-            /** Annual Pct */
-            annual_pct: number | null;
-        };
-        /** CpiSeriesOut */
-        CpiSeriesOut: {
-            /** Key */
-            key: string;
-            /** Slug */
-            slug: string;
-            /** Name */
-            name: string;
-            /** Unit */
-            unit: string;
-            /** Adjustment */
-            adjustment: string;
-            /** Classification */
-            classification: string;
-            /** Source Reference */
-            source_reference: string | null;
-            /** Status */
-            status: string;
-            /** Points */
-            points: components["schemas"]["CpiPoint"][];
-            /** Source Url */
-            source_url: string | null;
-        };
-        /** CpiUnderlyingOut */
-        CpiUnderlyingOut: {
-            /** Key */
-            key: string;
-            /** Name */
-            name: string;
-            /** Unit */
-            unit: string;
-            /** Points */
-            points: components["schemas"]["PointOut"][];
-        };
-        /** DatabaseInfo */
-        DatabaseInfo: {
-            /** Readable */
-            readable: boolean;
-            /** Schema Version */
-            schema_version: number | null;
-            /** Expected Schema Version */
-            expected_schema_version: number;
-            /** Instrumented */
-            instrumented: boolean;
-            /**
-             * Integrity
-             * @default not_checked
-             * @enum {string}
-             */
-            integrity: "not_checked" | "ok" | "failed";
-        };
-        /** Decomposition */
-        Decomposition: {
-            /** Label */
-            label: string;
-            /** Series Key */
-            series_key: string;
-            /** Previous Release Title */
-            previous_release_title: string;
-            /** Previous Period */
-            previous_period: string;
-            /** Previous Published Value */
-            previous_published_value: number;
-            /** Same Period Now */
-            same_period_now: number;
-            /** New Period */
-            new_period: string;
-            /** New Value */
-            new_value: number;
-            /** Revision Component */
-            revision_component: number;
-            /** New Period Component */
-            new_period_component: number;
-            /** Total Change */
-            total_change: number;
-        };
-        /** DocumentOut */
-        DocumentOut: {
-            /** Title */
-            title: string;
-            /** Url */
-            url: string;
-            /** Published On */
-            published_on: string | null;
-            /** Version No */
-            version_no: number;
-            /** Fetched At */
-            fetched_at: string;
-            /** Format */
-            format: string;
-            /** Page Count */
-            page_count: number | null;
-        };
-        /** EctDashboardOut */
-        EctDashboardOut: {
-            analysis: components["schemas"]["ReleaseAnalysis"];
-            /** Series */
-            series: components["schemas"]["SeriesDataOut"][];
-        };
-        /** EvaluatedForecastOut */
-        EvaluatedForecastOut: {
-            forecast: components["schemas"]["ForecastOut"];
-            /** Measure */
-            measure: string;
-            /** Measure Label */
-            measure_label: string;
-            /** Target Quarter */
-            target_quarter: string;
-            /** Target Label */
-            target_label: string;
-            /** Horizon Quarters */
-            horizon_quarters: number;
-            /**
-             * Band
-             * @enum {string}
-             */
-            band: "h0" | "h1_2" | "h3_4" | "h5_8" | "h9";
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "matched" | "pending";
-            first: components["schemas"]["ActualOut"] | null;
-            latest: components["schemas"]["ActualOut"] | null;
-            /** Error First */
-            error_first: number | null;
-            /** Error Latest */
-            error_latest: number | null;
-            /** Outcome Revision */
-            outcome_revision: number | null;
-        };
-        /** Evidence */
-        Evidence: {
-            /** Series Key */
-            series_key: string;
-            /** Period */
-            period: string;
-            /** Value */
-            value: number;
-            /** Release Key */
-            release_key: string;
-        };
-        /** EvidenceOut */
-        EvidenceOut: {
-            /** Section Ordinal */
-            section_ordinal: number;
-            /** Page */
-            page: number | null;
-            /** Quote */
-            quote: string | null;
-        };
-        /** ExcludedForecastOut */
-        ExcludedForecastOut: {
-            forecast: components["schemas"]["ForecastOut"];
-            /** Reason */
-            reason: string;
-        };
-        /** FacetOut */
-        FacetOut: {
-            /** Value */
-            value: string;
-            /** Label */
-            label: string;
-            /** Count */
-            count: number;
-        };
-        /** FailedRun */
-        FailedRun: {
-            /** Release Key */
-            release_key: string;
-            /** Series Slug */
-            series_slug: string;
-            /** Started At */
-            started_at: string | null;
-            /** Outcome */
-            outcome: string | null;
-            /** Error Class */
-            error_class: string | null;
-        };
-        /** FeaturedOut */
-        FeaturedOut: {
-            release: components["schemas"]["ReleaseSummary"];
-            /** Headline */
-            headline: string | null;
-            /** First Insight */
-            first_insight: string | null;
-        };
-        /** FirstLatestRow */
-        FirstLatestRow: {
-            /** Period */
-            period: string;
-            /** First Value */
-            first_value: number;
-            /** First Release */
-            first_release: string;
-            /** First Is Publication */
-            first_is_publication: boolean;
-            /** Latest Value */
-            latest_value: number;
-            /** Latest Release */
-            latest_release: string;
-            /** Revision */
-            revision: number;
-        };
-        /** FirstLatestTable */
-        FirstLatestTable: {
-            /** Series Key */
-            series_key: string;
-            /** Label */
-            label: string;
-            /** Available */
-            available: boolean;
-            /** Note */
-            note: string;
-            /** Rows */
-            rows: components["schemas"]["FirstLatestRow"][];
-        };
-        /** ForecastComparisonOut */
-        ForecastComparisonOut: {
-            /** Groups */
-            groups: components["schemas"]["ForecastGroupOut"][];
-            /** Excluded */
-            excluded: components["schemas"]["ExcludedForecastOut"][];
-            /** Indicators */
-            indicators: components["schemas"]["FacetOut"][];
-            /** Institutions */
-            institutions: components["schemas"]["FacetOut"][];
-            /** Horizons */
-            horizons: components["schemas"]["FacetOut"][];
-            /**
-             * Note
-             * @default Forecasts are compared only when the indicator, unit, statistical basis and horizon all match, and central forecasts are never mixed with scenarios. Each institution's latest published forecast is shown.
-             */
-            note: string;
-        };
-        /** ForecastEvaluationOut */
-        ForecastEvaluationOut: {
-            /** Indicator */
-            indicator: string;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "available" | "no_official_series" | "nothing_to_evaluate";
-            /** Official Series */
-            official_series: string | null;
-            /** Unavailable Reason */
-            unavailable_reason?: string | null;
-            /** Actuals As Of */
-            actuals_as_of: string | null;
-            /** Actuals Released On */
-            actuals_released_on: string | null;
-            /** Vintages From */
-            vintages_from: string | null;
-            /** Vintages To */
-            vintages_to: string | null;
-            /** Evaluated */
-            evaluated: components["schemas"]["EvaluatedForecastOut"][];
-            /** Excluded */
-            excluded: components["schemas"]["ExcludedForecastOut"][];
-            /** Summaries */
-            summaries: components["schemas"]["AccuracySummaryOut"][];
-            /** Rankings */
-            rankings: components["schemas"]["RankingOut"][];
-            /** Coverage */
-            coverage: components["schemas"]["CoverageOut"][];
-            /** Min For Summary */
-            min_for_summary: number;
-            /** Min For Ranking */
-            min_for_ranking: number;
-            /**
-             * Note
-             * @default Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the OCR cannot (no approved source). Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. First-published scores require an uncorrected source captured on the official release day; historical captures are earliest stored and are not scored as first published. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
-             */
-            note: string;
-        };
-        /** ForecastGroupOut */
-        ForecastGroupOut: {
-            /** Key */
-            key: string;
-            /** Indicator */
-            indicator: string;
-            /** Indicator Name */
-            indicator_name: string;
-            /** Unit */
-            unit: string;
-            /** Unit Label */
-            unit_label: string;
-            /** Basis */
-            basis: string;
-            /** Basis Label */
-            basis_label: string;
-            /** Horizon Key */
-            horizon_key: string;
-            /** Horizon Label */
-            horizon_label: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "central" | "scenario";
-            /** Scenario */
-            scenario: string | null;
-            /** Rows */
-            rows: components["schemas"]["ForecastRowOut"][];
-            /** Comparable */
-            comparable: boolean;
-            /** Note */
-            note: string;
-        };
-        /** ForecastHistoryOut */
-        ForecastHistoryOut: {
-            /** Series */
-            series: components["schemas"]["ForecastSeriesOut"][];
-            /** Measure Changes */
-            measure_changes: components["schemas"]["MeasureChangeOut"][];
-            /** Excluded */
-            excluded: components["schemas"]["ExcludedForecastOut"][];
-            /**
-             * Note
-             * @default A vintage is one published document's forecast. A revision is a change of value for the same institution, measure, horizon and kind; a change of measure (for example annual average to through the year) is shown separately and is never a revision.
-             */
-            note: string;
-        };
-        /** ForecastOut */
-        ForecastOut: {
-            /** Summary Id */
-            summary_id: number;
-            institution: components["schemas"]["InstitutionOut"];
-            /** Document Title */
-            document_title: string;
-            /** Published On */
-            published_on: string | null;
-            /** Indicator */
-            indicator: string;
-            /** Indicator Label */
-            indicator_label: string;
-            /** Horizon */
-            horizon: string;
-            /** Value */
-            value: number | null;
-            /** Unit */
-            unit: string | null;
-            /** Direction */
-            direction: string;
-            /** Scenario */
-            scenario: string | null;
-            /** Qualification */
-            qualification: string | null;
-            /** Evidence */
-            evidence: components["schemas"]["EvidenceOut"][];
-        };
-        /** ForecastRowOut */
-        ForecastRowOut: {
-            forecast: components["schemas"]["ForecastOut"];
-            /** Earlier Vintages */
-            earlier_vintages: components["schemas"]["ForecastOut"][];
-        };
-        /** ForecastSeriesOut */
-        ForecastSeriesOut: {
-            /** Key */
-            key: string;
-            /** Target Key */
-            target_key: string;
-            institution: components["schemas"]["InstitutionOut"];
-            /** Indicator */
-            indicator: string;
-            /** Indicator Name */
-            indicator_name: string;
-            /** Unit */
-            unit: string;
-            /** Unit Label */
-            unit_label: string;
-            /** Basis */
-            basis: string;
-            /** Basis Label */
-            basis_label: string;
-            /** Horizon Key */
-            horizon_key: string;
-            /** Horizon Label */
-            horizon_label: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "central" | "scenario";
-            /** Scenario */
-            scenario: string | null;
-            /** Vintages */
-            vintages: components["schemas"]["ForecastVintageOut"][];
-            latest: components["schemas"]["ForecastVintageOut"];
-            /** N Revisions */
-            n_revisions: number;
-            /** Total Revision */
-            total_revision: number | null;
-        };
-        /** ForecastVintageOut */
-        ForecastVintageOut: {
-            /** Summary Id */
-            summary_id: number;
-            /** Published On */
-            published_on: string | null;
-            /** Document Title */
-            document_title: string;
-            /** Value */
-            value: number;
-            /** Indicator Label */
-            indicator_label: string;
-            /** Horizon */
-            horizon: string;
-            /** Qualification */
-            qualification: string | null;
-            /** Evidence */
-            evidence: components["schemas"]["EvidenceOut"][];
-            /** Superseded */
-            superseded: boolean;
-            /** Revision */
-            revision: number | null;
-        };
-        /** FreshnessRow */
-        FreshnessRow: {
-            /** Series Slug */
-            series_slug: string;
-            /** Label */
-            label: string;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "current" | "overdue" | "no_data";
-            /** Latest Release Key */
-            latest_release_key: string | null;
-            /** Latest Reference Period */
-            latest_reference_period: string | null;
-            /** Latest Published At */
-            latest_published_at: string | null;
-            /** Latest Captured At */
-            latest_captured_at: string | null;
-            /** Overdue */
-            overdue: components["schemas"]["OverdueRelease"][];
-            /** Next Release At */
-            next_release_at: string | null;
-            /** Next Reference Period */
-            next_reference_period: string | null;
-        };
-        /** GdpDashboardOut */
-        GdpDashboardOut: {
-            analysis: components["schemas"]["ReleaseAnalysis"];
-            /** Reference Period */
-            reference_period: string;
-            /** Published At */
-            published_at: string;
-            /** Captured At */
-            captured_at: string;
-            /** Series */
-            series: components["schemas"]["GdpSeriesOut"][];
-            /** Revisions */
-            revisions: components["schemas"]["FirstLatestTable"][];
-            /** Sources */
-            sources: string[];
-            /** Caveats */
-            caveats: string[];
-        };
-        /** GdpSeriesOut */
-        GdpSeriesOut: {
-            /** Key */
-            key: string;
-            /** Name */
-            name: string;
-            /** Unit */
-            unit: string;
-            /**
-             * Measure
-             * @enum {string}
-             */
-            measure: "level" | "quarterly_change" | "annual_change" | "annual_average_change";
-            /**
-             * Approach
-             * @enum {string}
-             */
-            approach: "production" | "expenditure";
-            /**
-             * Price Basis
-             * @enum {string}
-             */
-            price_basis: "chain_volume" | "current_prices";
-            /** Adjustment */
-            adjustment: string;
-            /** Per Capita */
-            per_capita: boolean;
-            /** Definition */
-            definition: string;
-            /** Points */
-            points: components["schemas"]["PointOut"][];
-            /** Source Url */
-            source_url: string | null;
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /** HealthOut */
-        HealthOut: {
-            /** Generated At */
-            generated_at: string;
-            /** Database Ok */
-            database_ok: boolean;
-            /** Sources */
-            sources: components["schemas"]["SourceHealthOut"][];
-            /** Recent Runs */
-            recent_runs: components["schemas"]["RunOut"][];
-            /** Release Counts */
-            release_counts: {
-                [key: string]: number;
-            };
-            /** Series Count */
-            series_count: number;
-            /** Vintage Count */
-            vintage_count: number;
-        };
-        /** InactiveCategory */
-        InactiveCategory: {
-            /** Name */
-            name: string;
-            /** Reason */
-            reason: string;
-        };
-        /** Insight */
-        Insight: {
-            /** Id */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "observation" | "inference";
-            /** Text */
-            text: string;
-            /** Evidence */
-            evidence: components["schemas"]["Evidence"][];
-            /** Caveat */
-            caveat?: string | null;
-        };
-        /** InstitutionOut */
-        InstitutionOut: {
-            /** Key */
-            key: string;
-            /** Name */
-            name: string;
-            /** Kind */
-            kind: string;
-        };
-        /** Issue */
-        Issue: {
-            /** Key */
-            key: string;
-            /**
-             * Severity
-             * @enum {string}
-             */
-            severity: "attention" | "critical";
-            /**
-             * Category
-             * @enum {string}
-             */
-            category: "database" | "process" | "scheduler" | "refresh" | "calendar" | "release" | "source" | "backup" | "freshness";
-            /** Title */
-            title: string;
-            /** Detail */
-            detail: string;
-            /** Action */
-            action: string;
-        };
-        /** JobInfo */
-        JobInfo: {
-            /** Job Id */
-            job_id: string;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "running" | "idle" | "never_ran";
-            /** Running For Seconds */
-            running_for_seconds?: number | null;
-            /** Last Started At */
-            last_started_at?: string | null;
-            /** Last Finished At */
-            last_finished_at?: string | null;
-            /** Last Success At */
-            last_success_at?: string | null;
-            /** Last Outcome */
-            last_outcome?: string | null;
-            /** Last Error Class */
-            last_error_class?: string | null;
-            /**
-             * Consecutive Failures
-             * @default 0
-             */
-            consecutive_failures: number;
-        };
-        /** Kpi */
-        Kpi: {
-            metric: components["schemas"]["Metric"];
-            /** Release Id */
-            release_id: number;
-            /** Published At */
-            published_at: string;
-            /** Source Url */
-            source_url: string | null;
-        };
-        /** LabourDashboardOut */
-        LabourDashboardOut: {
-            analysis: components["schemas"]["ReleaseAnalysis"];
-            /** Reference Period */
-            reference_period: string;
-            /** Published At */
-            published_at: string;
-            /** Captured At */
-            captured_at: string;
-            /** Series */
-            series: components["schemas"]["LabourSeriesOut"][];
-            /** Revisions */
-            revisions: components["schemas"]["FirstLatestTable"][];
-            /** Sources */
-            sources: string[];
-            /** Caveats */
-            caveats: string[];
-        };
-        /** LabourSeriesOut */
-        LabourSeriesOut: {
-            /** Key */
-            key: string;
-            /** Name */
-            name: string;
-            /** Unit */
-            unit: string;
-            /**
-             * Survey
-             * @enum {string}
-             */
-            survey: "hlfs" | "lci";
-            /**
-             * Measure
-             * @enum {string}
-             */
-            measure: "rate" | "level" | "index" | "quarterly_change" | "annual_change";
-            /** Adjustment */
-            adjustment: string;
-            /** Definition */
-            definition: string;
-            /** Points */
-            points: components["schemas"]["PointOut"][];
-            /** Source Url */
-            source_url: string | null;
-        };
-        /** LatestIngestion */
-        LatestIngestion: {
-            /** Release Key */
-            release_key: string;
-            /** Finished At */
-            finished_at: string;
-            /** Outcome */
-            outcome: string;
-        };
-        /** LatestStatisticOut */
-        LatestStatisticOut: {
-            /** Series Slug */
-            series_slug: string;
-            /** Label */
-            label: string;
-            /** Reference Period */
-            reference_period: string | null;
-            /** Period Label */
-            period_label: string | null;
-            /** Published At */
-            published_at: string;
-        };
-        /** MeasureChangeOut */
-        MeasureChangeOut: {
-            institution: components["schemas"]["InstitutionOut"];
-            /** Indicator */
-            indicator: string;
-            /** Indicator Name */
-            indicator_name: string;
-            /** Horizon Key */
-            horizon_key: string;
-            /** Horizon Label */
-            horizon_label: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "central" | "scenario";
-            /** Scenario */
-            scenario: string | null;
-            /** From Basis */
-            from_basis: string;
-            /** From Basis Label */
-            from_basis_label: string;
-            /** To Basis */
-            to_basis: string;
-            /** To Basis Label */
-            to_basis_label: string;
-            /** From Summary Id */
-            from_summary_id: number;
-            /** From Published On */
-            from_published_on: string | null;
-            /** To Summary Id */
-            to_summary_id: number;
-            /** To Published On */
-            to_published_on: string | null;
-            /** Note */
-            note: string;
-        };
-        /** Methodology */
-        Methodology: {
-            /** Definitions */
-            definitions: string[];
-            /** Notes */
-            notes: string[];
-            /** Source Url */
-            source_url: string | null;
-        };
-        /** Metric */
-        Metric: {
-            /** Series Key */
-            series_key: string;
-            /** Label */
-            label: string;
-            /** Value */
-            value: number;
-            /** Unit */
-            unit: string;
-            /** Frequency */
-            frequency: string;
-            /** Period */
-            period: string;
-            /** Period Label */
-            period_label: string;
-            /** Status */
-            status: string;
-            /** Std Error */
-            std_error: number | null;
-            change_prior: components["schemas"]["ChangeOut"] | null;
-            change_year_ago: components["schemas"]["ChangeOut"] | null;
-        };
-        /** OpsStatus */
-        OpsStatus: {
-            /** Generated At */
-            generated_at: string;
-            /**
-             * Overall
-             * @enum {string}
-             */
-            overall: "ok" | "attention" | "critical";
-            /** Summary */
-            summary: string;
-            database: components["schemas"]["DatabaseInfo"];
-            process: components["schemas"]["ProcessInfo"];
-            collection: components["schemas"]["CollectionInfo"];
-            /**
-             * @default {
-             *       "state": "never",
-             *       "ingested": 0,
-             *       "pending": 0,
-             *       "failures": 0
-             *     }
-             */
-            refresh: components["schemas"]["RefreshInfo"];
-            /** Jobs */
-            jobs: components["schemas"]["JobInfo"][];
-            calendar: components["schemas"]["CalendarInfo"];
-            next_release: components["schemas"]["ReleaseRefInfo"] | null;
-            /** Known Upcoming Releases */
-            known_upcoming_releases: number;
-            latest_ingestion: components["schemas"]["LatestIngestion"] | null;
-            /** Failed Runs */
-            failed_runs: components["schemas"]["FailedRun"][];
-            /** Freshness */
-            freshness: components["schemas"]["FreshnessRow"][];
-            /** Sources */
-            sources: components["schemas"]["SourceStatus"][];
-            backup: components["schemas"]["BackupInfo"];
-            alert_delivery: components["schemas"]["AlertDelivery"];
-            /** Issues */
-            issues: components["schemas"]["Issue"][];
-            /** Notes */
-            notes: string[];
-        };
-        /** OverdueRelease */
-        OverdueRelease: {
-            /** Release Key */
-            release_key: string;
-            /** Published At */
-            published_at: string;
-            /** Hours Late */
-            hours_late: number;
-            /** Status */
-            status: string;
-            /** Last Outcome */
-            last_outcome: string | null;
-            /** Last Error Class */
-            last_error_class: string | null;
-        };
-        /** OverviewOut */
-        OverviewOut: {
-            /** Generated At */
-            generated_at: string;
-            /** Data Updated At */
-            data_updated_at: string | null;
-            /** Kpis */
-            kpis: components["schemas"]["Kpi"][];
-            /** Latest Releases */
-            latest_releases: components["schemas"]["ReleaseSummary"][];
-            /** Upcoming */
-            upcoming: components["schemas"]["ReleaseSummary"][];
-            /** Freshness */
-            freshness: components["schemas"]["SourceHealthOut"][];
-            featured: components["schemas"]["FeaturedOut"] | null;
-            /** Inactive Categories */
-            inactive_categories: components["schemas"]["InactiveCategory"][];
-        };
-        /** PointOut */
-        PointOut: {
-            /** Period */
-            period: string;
-            /** Value */
-            value: number;
-            /** Status */
-            status: string;
-            /** Std Error */
-            std_error: number | null;
-            /** Released In */
-            released_in: string | null;
-        };
-        /** PreviousComparison */
-        PreviousComparison: {
-            /** Available */
-            available: boolean;
-            /** Note */
-            note: string;
-            /** Previous Release Title */
-            previous_release_title: string | null;
-            /** Decompositions */
-            decompositions: components["schemas"]["Decomposition"][];
-        };
-        /** ProcessInfo */
-        ProcessInfo: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "never_started" | "running" | "stalled" | "lost" | "stopped";
-            /** Pid */
-            pid?: number | null;
-            /** Started At */
-            started_at?: string | null;
-            /** Last Heartbeat At */
-            last_heartbeat_at?: string | null;
-            /** Heartbeat Age Seconds */
-            heartbeat_age_seconds?: number | null;
-            /** Scheduler Enabled */
-            scheduler_enabled?: boolean | null;
-            /** Collection Mode */
-            collection_mode?: ("scheduler" | "on_open" | "off") | null;
-            /** Stop Reason */
-            stop_reason?: string | null;
-            /**
-             * Suspend Count
-             * @default 0
-             */
-            suspend_count: number;
-            /** Last Suspend At */
-            last_suspend_at?: string | null;
-            /** Last Suspend Seconds */
-            last_suspend_seconds?: number | null;
-            /**
-             * Unexpected Restarts 7D
-             * @default 0
-             */
-            unexpected_restarts_7d: number;
-        };
-        /** ProcessingOut */
-        ProcessingOut: {
-            /**
-             * Ai Summary
-             * @default true
-             * @constant
-             */
-            ai_summary: true;
-            /**
-             * Evidence Verified
-             * @default true
-             * @constant
-             */
-            evidence_verified: true;
-            /** Human Reviewed On */
-            human_reviewed_on: string;
-            /** Published Here On */
-            published_here_on: string;
-            /** Verifier Version */
-            verifier_version: string;
-            /** Warnings */
-            warnings: number;
-            /**
-             * Checks Scope
-             * @default Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here.
-             */
-            checks_scope: string;
-        };
-        /** ProvenanceOut */
-        ProvenanceOut: {
-            /** Provider */
-            provider: string;
-            /** Model */
-            model: string;
-            /** Hosted */
-            hosted: boolean;
-            /** Prompt Version */
-            prompt_version: string;
-            /** Processing Version */
-            processing_version: string;
-            /** Verifier Version */
-            verifier_version: string;
-            /** Created At */
-            created_at: string;
-        };
-        /** RankingEntryOut */
-        RankingEntryOut: {
-            institution: components["schemas"]["InstitutionOut"];
-            /** N */
-            n: number;
-            /** Mae */
-            mae: number;
-            /** Rmse */
-            rmse: number;
-            /** Mean Error */
-            mean_error: number;
-        };
-        /** RankingOut */
-        RankingOut: {
-            /** Measure */
-            measure: string;
-            /** Measure Label */
-            measure_label: string;
-            /** Available */
-            available: boolean;
-            /** Reason */
-            reason: string;
-            /** Matched Cells */
-            matched_cells: number;
-            /** Entries */
-            entries: components["schemas"]["RankingEntryOut"][];
-        };
-        /** RefreshFailureOut */
-        RefreshFailureOut: {
-            /** Key */
-            key: string;
-            /** Outcome */
-            outcome: string;
-            /** Error Class */
-            error_class: string | null;
-        };
-        /**
-         * RefreshInfo
-         * @description The last on-open check (Phase 4G). `never` on a database that has not had one.
-         */
-        RefreshInfo: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "never" | "running" | "completed" | "failed" | "interrupted";
-            /** Phase */
-            phase?: string | null;
-            /** Started At */
-            started_at?: string | null;
-            /** Finished At */
-            finished_at?: string | null;
-            /** Running For Seconds */
-            running_for_seconds?: number | null;
-            /** Last Success At */
-            last_success_at?: string | null;
-            /**
-             * Ingested
-             * @default 0
-             */
-            ingested: number;
-            /**
-             * Pending
-             * @default 0
-             */
-            pending: number;
-            /**
-             * Failures
-             * @default 0
-             */
-            failures: number;
-            /** Error Class */
-            error_class?: string | null;
-        };
-        /** RefreshPendingOut */
-        RefreshPendingOut: {
-            /** Release Key */
-            release_key: string;
-            /**
-             * Reason
-             * @enum {string}
-             */
-            reason: "not_published_yet" | "rejected_today" | "blocked_cooldown" | "catch_up_limit" | "request_budget" | "stopped";
-            /** Series Slug */
-            series_slug: string | null;
-            /** Label */
-            label: string | null;
-            /** Reference Period */
-            reference_period: string | null;
-            /** Period Label */
-            period_label: string | null;
-            /** Published At */
-            published_at: string | null;
-        };
-        /** RefreshRequest */
-        RefreshRequest: {
-            /**
-             * Manual
-             * @default false
-             */
-            manual: boolean;
-        };
-        /**
-         * RefreshStatusOut
-         * @description The on-open refresh as the dashboard header shows it. Times are Pacific/Auckland ISO-8601.
-         */
-        RefreshStatusOut: {
-            /**
-             * Mode
-             * @enum {string}
-             */
-            mode: "on_open" | "scheduler" | "off";
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "never" | "running" | "completed" | "failed" | "interrupted";
-            /** Phase */
-            phase?: ("checking" | "downloading" | "validating") | null;
-            /** Run Id */
-            run_id?: number | null;
-            /** Trigger */
-            trigger?: ("open" | "manual") | null;
-            /** Started At */
-            started_at?: string | null;
-            /** Finished At */
-            finished_at?: string | null;
-            /** Last Success At */
-            last_success_at?: string | null;
-            /**
-             * Discovered
-             * @default 0
-             */
-            discovered: number;
-            /**
-             * Ingested
-             * @default 0
-             */
-            ingested: number;
-            /**
-             * Unchanged
-             * @default 0
-             */
-            unchanged: number;
-            /**
-             * Requests
-             * @default 0
-             */
-            requests: number;
-            /**
-             * Failures
-             * @default []
-             */
-            failures: components["schemas"]["RefreshFailureOut"][];
-            /**
-             * Pending
-             * @default []
-             */
-            pending: components["schemas"]["RefreshPendingOut"][];
-            /** Error Class */
-            error_class?: string | null;
-            /** Data Version */
-            data_version?: string | null;
-            /**
-             * Latest
-             * @default []
-             */
-            latest: components["schemas"]["LatestStatisticOut"][];
-            /**
-             * Started
-             * @default false
-             */
-            started: boolean;
-        };
-        /** ReleaseAnalysis */
-        ReleaseAnalysis: {
-            release: components["schemas"]["ReleaseSummary"];
-            /** Executive Summary */
-            executive_summary: components["schemas"]["Insight"][];
-            /** Headline Metrics */
-            headline_metrics: components["schemas"]["Metric"][];
-            /** Context */
-            context: components["schemas"]["Insight"][];
-            previous_comparison: components["schemas"]["PreviousComparison"];
-            revisions: components["schemas"]["RevisionBlock"];
-            corrections: components["schemas"]["CorrectionBlock"];
-            /** Interpretation */
-            interpretation: components["schemas"]["Insight"][];
-            methodology: components["schemas"]["Methodology"];
-            /** Vintage Captured At */
-            vintage_captured_at: string;
-        };
-        /** ReleaseDetail */
-        ReleaseDetail: {
-            release: components["schemas"]["ReleaseSummary"];
-            analysis: components["schemas"]["ReleaseAnalysis"] | null;
-            /** Unavailable Reason */
-            unavailable_reason: string | null;
-        };
-        /** ReleaseRefInfo */
-        ReleaseRefInfo: {
-            /** Release Key */
-            release_key: string;
-            /** Title */
-            title: string;
-            /** Series Slug */
-            series_slug: string;
-            /** Reference Period */
-            reference_period: string | null;
-            /** Scheduled At */
-            scheduled_at: string;
-            /** Status */
-            status: string;
-        };
-        /** ReleaseSummary */
-        ReleaseSummary: {
-            /** Id */
-            id: number;
-            /** Release Key */
-            release_key: string;
-            /** Title */
-            title: string;
-            /** Series Slug */
-            series_slug: string;
-            /** Category */
-            category: string;
-            /** Importance */
-            importance: string;
-            /** Period Label */
-            period_label: string | null;
-            /** Published At */
-            published_at: string;
-            /** Status */
-            status: string;
-            /** Headline */
-            headline: string | null;
-            /** Page Url */
-            page_url: string | null;
-            /** Has Analysis */
-            has_analysis: boolean;
-        };
-        /** ResearchDetailOut */
-        ResearchDetailOut: {
-            item: components["schemas"]["ResearchItemOut"];
-            /** Forecasts */
-            forecasts: components["schemas"]["ForecastOut"][];
-            provenance: components["schemas"]["ProvenanceOut"];
-            /** Versions */
-            versions: components["schemas"]["VersionOut"][];
-        };
-        /** ResearchFeedOut */
-        ResearchFeedOut: {
-            /** Items */
-            items: components["schemas"]["ResearchItemOut"][];
-            /** Total */
-            total: number;
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Institutions */
-            institutions: components["schemas"]["FacetOut"][];
-            /** Topics */
-            topics: components["schemas"]["FacetOut"][];
-            /** Indicators */
-            indicators: components["schemas"]["FacetOut"][];
-        };
-        /** ResearchItemOut */
-        ResearchItemOut: {
-            /** Id */
-            id: number;
-            institution: components["schemas"]["InstitutionOut"];
-            document: components["schemas"]["DocumentOut"];
-            /**
-             * Display
-             * @enum {string}
-             */
-            display: "link_only" | "summary" | "excerpt";
-            /** Topics */
-            topics: string[];
-            /** Indicators */
-            indicators: string[];
-            outlook: components["schemas"]["StatementOut"] | null;
-            /** Drivers */
-            drivers: components["schemas"]["StatementOut"][];
-            /** Risks */
-            risks: components["schemas"]["StatementOut"][];
-            uncertainty: components["schemas"]["StatementOut"] | null;
-            /** N Forecasts */
-            n_forecasts: number;
-            processing: components["schemas"]["ProcessingOut"];
-            /**
-             * Interpretation Label
-             * @default AI interpretation of the document. Not an official statistic.
-             */
-            interpretation_label: string;
-            /**
-             * Not Official Statistic
-             * @default true
-             * @constant
-             */
-            not_official_statistic: true;
-        };
-        /** RevisionBlock */
-        RevisionBlock: {
-            /** Available */
-            available: boolean;
-            /** Note */
-            note: string;
-            /** Series Key */
-            series_key: string;
-            /** Against Title */
-            against_title: string | null;
-            /** N Common */
-            n_common: number;
-            /** N Revised */
-            n_revised: number;
-            /** Mean Abs */
-            mean_abs: number | null;
-            /** Largest */
-            largest: components["schemas"]["RevisionRowOut"][];
-        };
-        /** RevisionHistoryRow */
-        RevisionHistoryRow: {
-            /** Release Key */
-            release_key: string;
-            /** Title */
-            title: string;
-            /** Published At */
-            published_at: string;
-            /** N Common */
-            n_common: number;
-            /** N Revised */
-            n_revised: number;
-            /** Mean Abs */
-            mean_abs: number | null;
-            /** Max Abs Period */
-            max_abs_period: string | null;
-            /** Max Abs */
-            max_abs: number | null;
-        };
-        /** RevisionRowOut */
-        RevisionRowOut: {
-            /** Period */
-            period: string;
-            /** Original */
-            original: number;
-            /** Revised */
-            revised: number;
-            /** Absolute */
-            absolute: number;
-            /** Percent */
-            percent: number | null;
-            /** Original Status */
-            original_status: string;
-            /** Revised Status */
-            revised_status: string;
-        };
-        /** RevisionsOut */
-        RevisionsOut: {
-            series: components["schemas"]["SeriesOut"];
-            coverage: components["schemas"]["Coverage"];
-            base: components["schemas"]["VintageOut"] | null;
-            compare: components["schemas"]["VintageOut"] | null;
-            /** Source Url */
-            source_url: string | null;
-            /** N Common */
-            n_common: number;
-            /** N Revised */
-            n_revised: number;
-            /** Rows */
-            rows: components["schemas"]["RevisionRowOut"][];
-            /** History */
-            history: components["schemas"]["RevisionHistoryRow"][];
-        };
-        /** RunOut */
-        RunOut: {
-            /** Release Key */
-            release_key: string;
-            /** Started At */
-            started_at: string;
-            /** Outcome */
-            outcome: string;
-            /** Error Class */
-            error_class: string | null;
-            /** Detail */
-            detail: string | null;
-        };
-        /** SeriesDataOut */
-        SeriesDataOut: {
-            series: components["schemas"]["SeriesOut"];
-            vintage: components["schemas"]["VintageOut"];
-            /** Points */
-            points: components["schemas"]["PointOut"][];
-            /** Source Url */
-            source_url: string | null;
-            /** Caveat */
-            caveat: string;
-        };
-        /** SeriesOut */
-        SeriesOut: {
-            /** Key */
-            key: string;
-            /** Name */
-            name: string;
-            /** Unit */
-            unit: string;
-            /** Frequency */
-            frequency: string;
-            /** Adjustment */
-            adjustment: string;
-            /** Category */
-            category: string;
-            /** Definition */
-            definition: string;
-            /** Definition Id */
-            definition_id: string;
-            /** Latest Period */
-            latest_period: string | null;
-            /** N Vintages */
-            n_vintages: number;
-        };
-        /** SourceHealthOut */
-        SourceHealthOut: {
-            /** Source */
-            source: string;
-            /** State */
-            state: string;
-            /** Last Checked At */
-            last_checked_at: string | null;
-            /** Last Success At */
-            last_success_at: string | null;
-            /** Detail */
-            detail: string | null;
-        };
-        /** SourceStatus */
-        SourceStatus: {
-            /** Source */
-            source: string;
-            /** State */
-            state: string;
-            /** Last Checked At */
-            last_checked_at: string | null;
-            /** Last Success At */
-            last_success_at: string | null;
-            /** Age Hours */
-            age_hours: number | null;
-            /**
-             * Expected
-             * @enum {string}
-             */
-            expected: "daily" | "per_release";
-            /** Expired */
-            expired: boolean;
-        };
-        /** StatementOut */
-        StatementOut: {
-            /** Text */
-            text: string;
-            /** Evidence */
-            evidence: components["schemas"]["EvidenceOut"][];
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
-        /** VersionOut */
-        VersionOut: {
-            /** Version No */
-            version_no: number;
-            /** Fetched At */
-            fetched_at: string;
-            /** Current */
-            current: boolean;
-        };
-        /** VintageOut */
-        VintageOut: {
-            /** Release Key */
-            release_key: string;
-            /** Title */
-            title: string;
-            /** Published At */
-            published_at: string;
-            /** Captured At */
-            captured_at: string;
-            /** Source Kind */
-            source_kind: string;
-            /** Layout Version */
-            layout_version: string;
-            /** Superseded */
-            superseded: boolean;
-        };
+  schemas: {
+    /** AccuracySummaryOut */
+    AccuracySummaryOut: {
+      institution: components["schemas"]["InstitutionOut"];
+      /** Measure */
+      measure: string;
+      /** Measure Label */
+      measure_label: string;
+      /**
+       * Band
+       * @enum {string}
+       */
+      band: "h0" | "h1_2" | "h3_4" | "h5_8" | "h9";
+      /** N */
+      n: number;
+      /** Sufficient */
+      sufficient: boolean;
+      /** Mean Error */
+      mean_error: number | null;
+      /** Mae */
+      mae: number | null;
+      /** Rmse */
+      rmse: number | null;
     };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    /** ActualOut */
+    ActualOut: {
+      /** Value */
+      value: number;
+      /** Release */
+      release: string;
+      /** Released On */
+      released_on: string;
+      /** First Release */
+      first_release: boolean;
+    };
+    /**
+     * AlertDelivery
+     * @description Whether alerts reach the operator. Kept apart from `overall`: a failing channel is not a failing dashboard.
+     */
+    AlertDelivery: {
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "none_recorded" | "ok" | "failing";
+      /** Last Attempt At */
+      last_attempt_at: string | null;
+      /** Last Success At */
+      last_success_at: string | null;
+      /** Failures */
+      failures: number;
+      /** Rate Limited */
+      rate_limited: number;
+      /** Window Hours */
+      window_hours: number;
+    };
+    /** BackupEntry */
+    BackupEntry: {
+      /** Name */
+      name: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "bundle" | "file";
+      /** Created At */
+      created_at: string;
+      /** Age Hours */
+      age_hours: number;
+      /**
+       * Verification
+       * @enum {string}
+       */
+      verification: "verified" | "unverified" | "failed" | "incomplete";
+      /** Raw Artifacts */
+      raw_artifacts: number | null;
+      /** Problems */
+      problems: string[];
+    };
+    /** BackupInfo */
+    BackupInfo: {
+      /** Directory */
+      directory: string;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "ok" | "stale" | "none" | "failed";
+      latest: components["schemas"]["BackupEntry"] | null;
+      latest_good: components["schemas"]["BackupEntry"] | null;
+      /** Entries Seen */
+      entries_seen: number;
+    };
+    /** CalendarInfo */
+    CalendarInfo: {
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "current" | "missed" | "stale" | "never";
+      /** Last Checked At */
+      last_checked_at: string | null;
+      /** Last Success At */
+      last_success_at: string | null;
+      /** Last Success Age Hours */
+      last_success_age_hours: number | null;
+      /**
+       * Missed Refreshes
+       * @default 0
+       */
+      missed_refreshes: number;
+      /** Next Refresh At */
+      next_refresh_at?: string | null;
+    };
+    /** CalendarOut */
+    CalendarOut: {
+      /** Items */
+      items: components["schemas"]["ReleaseSummary"][];
+      /** Last Checked At */
+      last_checked_at: string | null;
+      /** Last Success At */
+      last_success_at: string | null;
+    };
+    /**
+     * CapabilitiesOut
+     * @description Feature switches the UI reads so it does not request routes the server has not turned on.
+     */
+    CapabilitiesOut: {
+      /** Research Public */
+      research_public: boolean;
+    };
+    /** ChangeOut */
+    ChangeOut: {
+      /** Label */
+      label: string;
+      /** Comparison Period */
+      comparison_period: string;
+      /** Previous */
+      previous: number;
+      /** Absolute */
+      absolute: number;
+      /** Percent */
+      percent: number | null;
+    };
+    /** CollectionInfo */
+    CollectionInfo: {
+      /**
+       * Mode
+       * @enum {string}
+       */
+      mode: "enabled" | "on_open" | "disabled" | "paused" | "unknown";
+      /** Summary */
+      summary: string;
+    };
+    /** ConsensusGroupOut */
+    ConsensusGroupOut: {
+      /** Key */
+      key: string;
+      /** Indicator */
+      indicator: string;
+      /** Indicator Name */
+      indicator_name: string;
+      /** Unit */
+      unit: string;
+      /** Unit Label */
+      unit_label: string;
+      /** Basis */
+      basis: string;
+      /** Basis Label */
+      basis_label: string;
+      /** Horizon Key */
+      horizon_key: string;
+      /** Horizon Label */
+      horizon_label: string;
+      /**
+       * Kind
+       * @default central
+       * @constant
+       */
+      kind: "central";
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "available" | "insufficient";
+      /** N */
+      n: number;
+      /** Mean */
+      mean: number | null;
+      /** Median */
+      median: number | null;
+      /** Minimum */
+      minimum: number | null;
+      /** Maximum */
+      maximum: number | null;
+      /** Range */
+      range: number | null;
+      /** Std Dev */
+      std_dev: number | null;
+      /** Outliers Assessed */
+      outliers_assessed: boolean;
+      /** Outliers */
+      outliers: components["schemas"]["ContributorOut"][];
+      /** Contributors */
+      contributors: components["schemas"]["ContributorOut"][];
+      /** Excluded */
+      excluded: components["schemas"]["ExcludedForecastOut"][];
+      /** As Of */
+      as_of: string | null;
+      /**
+       * Note
+       * @default A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast.
+       */
+      note: string;
+    };
+    /** ConsensusOut */
+    ConsensusOut: {
+      /** Groups */
+      groups: components["schemas"]["ConsensusGroupOut"][];
+      /**
+       * Note
+       * @default A descriptive summary of the latest published central forecasts from independent institutions. It is not statistically calibrated and it is not an independent forecast.
+       */
+      note: string;
+    };
+    /** ContributorOut */
+    ContributorOut: {
+      /** Key */
+      key: string;
+      /** Name */
+      name: string;
+      /** Value */
+      value: number;
+      /** Published On */
+      published_on: string | null;
+      /** Summary Id */
+      summary_id: number;
+    };
+    /** CorrectionBlock */
+    CorrectionBlock: {
+      /** Available */
+      available: boolean;
+      /** Note */
+      note: string;
+      /** Against Captured At */
+      against_captured_at: string | null;
+      /** Captured At */
+      captured_at: string;
+      /** Series */
+      series: components["schemas"]["CorrectionSeriesOut"][];
+    };
+    /** CorrectionRowOut */
+    CorrectionRowOut: {
+      /** Period */
+      period: string;
+      /** Original */
+      original: number | null;
+      /** Revised */
+      revised: number | null;
+      /** Original Status */
+      original_status: string | null;
+      /** Revised Status */
+      revised_status: string | null;
+      /** Original Std Error */
+      original_std_error: number | null;
+      /** Revised Std Error */
+      revised_std_error: number | null;
+      /** Original Released In */
+      original_released_in: string | null;
+      /** Revised Released In */
+      revised_released_in: string | null;
+    };
+    /** CorrectionSeriesOut */
+    CorrectionSeriesOut: {
+      /** Series Key */
+      series_key: string;
+      /** Label */
+      label: string;
+      /** Unit */
+      unit: string;
+      /** N Changed */
+      n_changed: number;
+      /** Changes */
+      changes: components["schemas"]["CorrectionRowOut"][];
+    };
+    /** CountriesOut */
+    CountriesOut: {
+      provenance?: components["schemas"]["CountryProvenance"] | null;
+      /** Available */
+      available: boolean;
+      /** Months */
+      months: number;
+      /** Period Start */
+      period_start: string | null;
+      /** Period End */
+      period_end: string | null;
+      /** Total */
+      total: number | null;
+      /** Countries */
+      countries: components["schemas"]["CountryRank"][];
+      /** Regions */
+      regions: components["schemas"]["CountryRank"][];
+      unallocated: components["schemas"]["CountryRank"] | null;
+      /** Derived */
+      derived: boolean;
+      /** Note */
+      note: string;
+    };
+    /** CountryProvenance */
+    CountryProvenance: {
+      /** Release Key */
+      release_key: string | null;
+      /** Title */
+      title: string | null;
+      /** Published At */
+      published_at: string | null;
+      /** Source Url */
+      source_url: string | null;
+      /** Captured At */
+      captured_at: string | null;
+      /** Bundle Sha256 */
+      bundle_sha256: string | null;
+    };
+    /** CountryRank */
+    CountryRank: {
+      /** Name */
+      name: string;
+      /** Series Key */
+      series_key: string;
+      /** Value */
+      value: number;
+      /** Prior Value */
+      prior_value: number | null;
+      /** Change */
+      change: number | null;
+      /** Change Percent */
+      change_percent: number | null;
+      /** Share Percent */
+      share_percent: number | null;
+      /** Provisional */
+      provisional: boolean;
+      /** Prior Provisional */
+      prior_provisional?: boolean | null;
+    };
+    /** Coverage */
+    Coverage: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "release_files" | "snapshot" | "none";
+      /** N Vintages */
+      n_vintages: number;
+      /** Earliest Release */
+      earliest_release: string | null;
+      /** Note */
+      note: string;
+    };
+    /** CoverageOut */
+    CoverageOut: {
+      institution: components["schemas"]["InstitutionOut"];
+      /** Matched */
+      matched: number;
+      /** Pending */
+      pending: number;
+      /** Excluded */
+      excluded: number;
+    };
+    /** CpiContributionBlock */
+    CpiContributionBlock: {
+      /**
+       * Horizon
+       * @enum {string}
+       */
+      horizon: "quarterly" | "annual";
+      /** Available */
+      available: boolean;
+      /** Reference Period */
+      reference_period: string | null;
+      /** Unit */
+      unit: string;
+      /** Items */
+      items: components["schemas"]["CpiContributionItem"][];
+      /** Sum Points */
+      sum_points: number | null;
+      /** Headline Pct */
+      headline_pct: number | null;
+      /** Gap Points */
+      gap_points: number | null;
+      /** Note */
+      note: string;
+    };
+    /** CpiContributionItem */
+    CpiContributionItem: {
+      /** Slug */
+      slug: string;
+      /** Group */
+      group: string;
+      /** Points */
+      points: number;
+      /** Rank */
+      rank: number;
+    };
+    /** CpiDashboardOut */
+    CpiDashboardOut: {
+      analysis: components["schemas"]["ReleaseAnalysis"];
+      /** Reference Period */
+      reference_period: string;
+      /** Published At */
+      published_at: string;
+      /** Captured At */
+      captured_at: string;
+      /** Base */
+      base: string;
+      /** Series */
+      series: components["schemas"]["CpiSeriesOut"][];
+      /** Contributions */
+      contributions: components["schemas"]["CpiContributionBlock"][];
+      /** Underlying */
+      underlying: components["schemas"]["CpiUnderlyingOut"][];
+      /** Sources */
+      sources: string[];
+      /** Caveats */
+      caveats: string[];
+    };
+    /** CpiPoint */
+    CpiPoint: {
+      /** Period */
+      period: string;
+      /** Index */
+      index: number;
+      /** Quarterly Pct */
+      quarterly_pct: number | null;
+      /** Annual Pct */
+      annual_pct: number | null;
+    };
+    /** CpiSeriesOut */
+    CpiSeriesOut: {
+      /** Key */
+      key: string;
+      /** Slug */
+      slug: string;
+      /** Name */
+      name: string;
+      /** Unit */
+      unit: string;
+      /** Adjustment */
+      adjustment: string;
+      /** Classification */
+      classification: string;
+      /** Source Reference */
+      source_reference: string | null;
+      /** Status */
+      status: string;
+      /** Points */
+      points: components["schemas"]["CpiPoint"][];
+      /** Source Url */
+      source_url: string | null;
+    };
+    /** CpiUnderlyingOut */
+    CpiUnderlyingOut: {
+      /** Key */
+      key: string;
+      /** Name */
+      name: string;
+      /** Unit */
+      unit: string;
+      /** Points */
+      points: components["schemas"]["PointOut"][];
+    };
+    /** DatabaseInfo */
+    DatabaseInfo: {
+      /** Readable */
+      readable: boolean;
+      /** Schema Version */
+      schema_version: number | null;
+      /** Expected Schema Version */
+      expected_schema_version: number;
+      /** Instrumented */
+      instrumented: boolean;
+      /**
+       * Integrity
+       * @default not_checked
+       * @enum {string}
+       */
+      integrity: "not_checked" | "ok" | "failed";
+    };
+    /** Decomposition */
+    Decomposition: {
+      /** Label */
+      label: string;
+      /** Series Key */
+      series_key: string;
+      /** Previous Release Title */
+      previous_release_title: string;
+      /** Previous Period */
+      previous_period: string;
+      /** Previous Published Value */
+      previous_published_value: number;
+      /** Same Period Now */
+      same_period_now: number;
+      /** New Period */
+      new_period: string;
+      /** New Value */
+      new_value: number;
+      /** Revision Component */
+      revision_component: number;
+      /** New Period Component */
+      new_period_component: number;
+      /** Total Change */
+      total_change: number;
+    };
+    /** DocumentOut */
+    DocumentOut: {
+      /** Title */
+      title: string;
+      /** Url */
+      url: string;
+      /** Published On */
+      published_on: string | null;
+      /** Version No */
+      version_no: number;
+      /** Fetched At */
+      fetched_at: string;
+      /** Format */
+      format: string;
+      /** Page Count */
+      page_count: number | null;
+    };
+    /** EctDashboardOut */
+    EctDashboardOut: {
+      analysis: components["schemas"]["ReleaseAnalysis"];
+      /** Series */
+      series: components["schemas"]["SeriesDataOut"][];
+    };
+    /** EvaluatedForecastOut */
+    EvaluatedForecastOut: {
+      forecast: components["schemas"]["ForecastOut"];
+      /** Measure */
+      measure: string;
+      /** Measure Label */
+      measure_label: string;
+      /** Target Quarter */
+      target_quarter: string;
+      /** Target Label */
+      target_label: string;
+      /** Horizon Quarters */
+      horizon_quarters: number;
+      /**
+       * Band
+       * @enum {string}
+       */
+      band: "h0" | "h1_2" | "h3_4" | "h5_8" | "h9";
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "matched" | "pending";
+      first: components["schemas"]["ActualOut"] | null;
+      latest: components["schemas"]["ActualOut"] | null;
+      /** Error First */
+      error_first: number | null;
+      /** Error Latest */
+      error_latest: number | null;
+      /** Outcome Revision */
+      outcome_revision: number | null;
+    };
+    /** Evidence */
+    Evidence: {
+      /** Series Key */
+      series_key: string;
+      /** Period */
+      period: string;
+      /** Value */
+      value: number;
+      /** Release Key */
+      release_key: string;
+    };
+    /** EvidenceOut */
+    EvidenceOut: {
+      /** Section Ordinal */
+      section_ordinal: number;
+      /** Page */
+      page: number | null;
+      /** Quote */
+      quote: string | null;
+    };
+    /** ExcludedForecastOut */
+    ExcludedForecastOut: {
+      forecast: components["schemas"]["ForecastOut"];
+      /** Reason */
+      reason: string;
+    };
+    /** FacetOut */
+    FacetOut: {
+      /** Value */
+      value: string;
+      /** Label */
+      label: string;
+      /** Count */
+      count: number;
+    };
+    /** FailedRun */
+    FailedRun: {
+      /** Release Key */
+      release_key: string;
+      /** Series Slug */
+      series_slug: string;
+      /** Started At */
+      started_at: string | null;
+      /** Outcome */
+      outcome: string | null;
+      /** Error Class */
+      error_class: string | null;
+    };
+    /** FeaturedOut */
+    FeaturedOut: {
+      release: components["schemas"]["ReleaseSummary"];
+      /** Headline */
+      headline: string | null;
+      /** First Insight */
+      first_insight: string | null;
+    };
+    /** FirstLatestRow */
+    FirstLatestRow: {
+      /** Period */
+      period: string;
+      /** First Value */
+      first_value: number;
+      /** First Release */
+      first_release: string;
+      /** First Is Publication */
+      first_is_publication: boolean;
+      /** Latest Value */
+      latest_value: number;
+      /** Latest Release */
+      latest_release: string;
+      /** Revision */
+      revision: number;
+    };
+    /** FirstLatestTable */
+    FirstLatestTable: {
+      /** Series Key */
+      series_key: string;
+      /** Label */
+      label: string;
+      /** Available */
+      available: boolean;
+      /** Note */
+      note: string;
+      /** Rows */
+      rows: components["schemas"]["FirstLatestRow"][];
+    };
+    /** ForecastComparisonOut */
+    ForecastComparisonOut: {
+      /** Groups */
+      groups: components["schemas"]["ForecastGroupOut"][];
+      /** Excluded */
+      excluded: components["schemas"]["ExcludedForecastOut"][];
+      /** Indicators */
+      indicators: components["schemas"]["FacetOut"][];
+      /** Institutions */
+      institutions: components["schemas"]["FacetOut"][];
+      /** Horizons */
+      horizons: components["schemas"]["FacetOut"][];
+      /**
+       * Note
+       * @default Forecasts are compared only when the indicator, unit, statistical basis and horizon all match, and central forecasts are never mixed with scenarios. Each institution's latest published forecast is shown.
+       */
+      note: string;
+    };
+    /** ForecastEvaluationOut */
+    ForecastEvaluationOut: {
+      /** Indicator */
+      indicator: string;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "available" | "no_official_series" | "nothing_to_evaluate";
+      /** Official Series */
+      official_series: string | null;
+      /** Unavailable Reason */
+      unavailable_reason?: string | null;
+      /** Actuals As Of */
+      actuals_as_of: string | null;
+      /** Actuals Released On */
+      actuals_released_on: string | null;
+      /** Vintages From */
+      vintages_from: string | null;
+      /** Vintages To */
+      vintages_to: string | null;
+      /** Evaluated */
+      evaluated: components["schemas"]["EvaluatedForecastOut"][];
+      /** Excluded */
+      excluded: components["schemas"]["ExcludedForecastOut"][];
+      /** Summaries */
+      summaries: components["schemas"]["AccuracySummaryOut"][];
+      /** Rankings */
+      rankings: components["schemas"]["RankingOut"][];
+      /** Coverage */
+      coverage: components["schemas"]["CoverageOut"][];
+      /** Min For Summary */
+      min_for_summary: number;
+      /** Min For Ranking */
+      min_for_ranking: number;
+      /**
+       * Note
+       * @default Errors are forecast minus the official outcome. CPI, GDP and the unemployment rate can be evaluated here; the OCR cannot (no approved source). Each forecast is matched to the quarter it names, on the measure it states, and only if it was published before that quarter's figure was released. First-published scores require an uncorrected source captured on the official release day; historical captures are earliest stored and are not scored as first published. Summary statistics need at least four distinct outcome quarters, each scored on the institution's latest vintage in the horizon band, and a ranking needs at least eight targets forecast by every ranked institution at the same horizon. No significance test is run.
+       */
+      note: string;
+    };
+    /** ForecastGroupOut */
+    ForecastGroupOut: {
+      /** Key */
+      key: string;
+      /** Indicator */
+      indicator: string;
+      /** Indicator Name */
+      indicator_name: string;
+      /** Unit */
+      unit: string;
+      /** Unit Label */
+      unit_label: string;
+      /** Basis */
+      basis: string;
+      /** Basis Label */
+      basis_label: string;
+      /** Horizon Key */
+      horizon_key: string;
+      /** Horizon Label */
+      horizon_label: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "central" | "scenario";
+      /** Scenario */
+      scenario: string | null;
+      /** Rows */
+      rows: components["schemas"]["ForecastRowOut"][];
+      /** Comparable */
+      comparable: boolean;
+      /** Note */
+      note: string;
+    };
+    /** ForecastHistoryOut */
+    ForecastHistoryOut: {
+      /** Series */
+      series: components["schemas"]["ForecastSeriesOut"][];
+      /** Measure Changes */
+      measure_changes: components["schemas"]["MeasureChangeOut"][];
+      /** Excluded */
+      excluded: components["schemas"]["ExcludedForecastOut"][];
+      /**
+       * Note
+       * @default A vintage is one published document's forecast. A revision is a change of value for the same institution, measure, horizon and kind; a change of measure (for example annual average to through the year) is shown separately and is never a revision.
+       */
+      note: string;
+    };
+    /** ForecastOut */
+    ForecastOut: {
+      /** Summary Id */
+      summary_id: number;
+      institution: components["schemas"]["InstitutionOut"];
+      /** Document Title */
+      document_title: string;
+      /** Published On */
+      published_on: string | null;
+      /** Indicator */
+      indicator: string;
+      /** Indicator Label */
+      indicator_label: string;
+      /** Horizon */
+      horizon: string;
+      /** Value */
+      value: number | null;
+      /** Unit */
+      unit: string | null;
+      /** Direction */
+      direction: string;
+      /** Scenario */
+      scenario: string | null;
+      /** Qualification */
+      qualification: string | null;
+      /** Evidence */
+      evidence: components["schemas"]["EvidenceOut"][];
+    };
+    /** ForecastRowOut */
+    ForecastRowOut: {
+      forecast: components["schemas"]["ForecastOut"];
+      /** Earlier Vintages */
+      earlier_vintages: components["schemas"]["ForecastOut"][];
+    };
+    /** ForecastSeriesOut */
+    ForecastSeriesOut: {
+      /** Key */
+      key: string;
+      /** Target Key */
+      target_key: string;
+      institution: components["schemas"]["InstitutionOut"];
+      /** Indicator */
+      indicator: string;
+      /** Indicator Name */
+      indicator_name: string;
+      /** Unit */
+      unit: string;
+      /** Unit Label */
+      unit_label: string;
+      /** Basis */
+      basis: string;
+      /** Basis Label */
+      basis_label: string;
+      /** Horizon Key */
+      horizon_key: string;
+      /** Horizon Label */
+      horizon_label: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "central" | "scenario";
+      /** Scenario */
+      scenario: string | null;
+      /** Vintages */
+      vintages: components["schemas"]["ForecastVintageOut"][];
+      latest: components["schemas"]["ForecastVintageOut"];
+      /** N Revisions */
+      n_revisions: number;
+      /** Total Revision */
+      total_revision: number | null;
+    };
+    /** ForecastVintageOut */
+    ForecastVintageOut: {
+      /** Summary Id */
+      summary_id: number;
+      /** Published On */
+      published_on: string | null;
+      /** Document Title */
+      document_title: string;
+      /** Value */
+      value: number;
+      /** Indicator Label */
+      indicator_label: string;
+      /** Horizon */
+      horizon: string;
+      /** Qualification */
+      qualification: string | null;
+      /** Evidence */
+      evidence: components["schemas"]["EvidenceOut"][];
+      /** Superseded */
+      superseded: boolean;
+      /** Revision */
+      revision: number | null;
+    };
+    /** FreshnessRow */
+    FreshnessRow: {
+      /** Series Slug */
+      series_slug: string;
+      /** Label */
+      label: string;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "current" | "overdue" | "no_data";
+      /** Latest Release Key */
+      latest_release_key: string | null;
+      /** Latest Reference Period */
+      latest_reference_period: string | null;
+      /** Latest Published At */
+      latest_published_at: string | null;
+      /** Latest Captured At */
+      latest_captured_at: string | null;
+      /** Overdue */
+      overdue: components["schemas"]["OverdueRelease"][];
+      /** Next Release At */
+      next_release_at: string | null;
+      /** Next Reference Period */
+      next_reference_period: string | null;
+    };
+    /** GdpDashboardOut */
+    GdpDashboardOut: {
+      analysis: components["schemas"]["ReleaseAnalysis"];
+      /** Reference Period */
+      reference_period: string;
+      /** Published At */
+      published_at: string;
+      /** Captured At */
+      captured_at: string;
+      /** Series */
+      series: components["schemas"]["GdpSeriesOut"][];
+      /** Revisions */
+      revisions: components["schemas"]["FirstLatestTable"][];
+      /** Sources */
+      sources: string[];
+      /** Caveats */
+      caveats: string[];
+    };
+    /** GdpSeriesOut */
+    GdpSeriesOut: {
+      /** Key */
+      key: string;
+      /** Name */
+      name: string;
+      /** Unit */
+      unit: string;
+      /**
+       * Measure
+       * @enum {string}
+       */
+      measure: "level" | "quarterly_change" | "annual_change" | "annual_average_change";
+      /**
+       * Approach
+       * @enum {string}
+       */
+      approach: "production" | "expenditure";
+      /**
+       * Price Basis
+       * @enum {string}
+       */
+      price_basis: "chain_volume" | "current_prices";
+      /** Adjustment */
+      adjustment: string;
+      /** Per Capita */
+      per_capita: boolean;
+      /** Definition */
+      definition: string;
+      /** Points */
+      points: components["schemas"]["PointOut"][];
+      /** Source Url */
+      source_url: string | null;
+    };
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components["schemas"]["ValidationError"][];
+    };
+    /** HealthOut */
+    HealthOut: {
+      /** Generated At */
+      generated_at: string;
+      /** Database Ok */
+      database_ok: boolean;
+      /** Sources */
+      sources: components["schemas"]["SourceHealthOut"][];
+      /** Recent Runs */
+      recent_runs: components["schemas"]["RunOut"][];
+      /** Release Counts */
+      release_counts: {
+        [key: string]: number;
+      };
+      /** Series Count */
+      series_count: number;
+      /** Vintage Count */
+      vintage_count: number;
+    };
+    /** InactiveCategory */
+    InactiveCategory: {
+      /** Name */
+      name: string;
+      /** Reason */
+      reason: string;
+    };
+    /** Insight */
+    Insight: {
+      /** Id */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "observation" | "inference";
+      /** Text */
+      text: string;
+      /** Evidence */
+      evidence: components["schemas"]["Evidence"][];
+      /** Caveat */
+      caveat?: string | null;
+    };
+    /** InstitutionOut */
+    InstitutionOut: {
+      /** Key */
+      key: string;
+      /** Name */
+      name: string;
+      /** Kind */
+      kind: string;
+    };
+    /** Issue */
+    Issue: {
+      /** Key */
+      key: string;
+      /**
+       * Severity
+       * @enum {string}
+       */
+      severity: "attention" | "critical";
+      /**
+       * Category
+       * @enum {string}
+       */
+      category: "database" | "process" | "scheduler" | "refresh" | "calendar" | "release" | "source" | "backup" | "freshness";
+      /** Title */
+      title: string;
+      /** Detail */
+      detail: string;
+      /** Action */
+      action: string;
+    };
+    /** JobInfo */
+    JobInfo: {
+      /** Job Id */
+      job_id: string;
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "running" | "idle" | "never_ran";
+      /** Running For Seconds */
+      running_for_seconds?: number | null;
+      /** Last Started At */
+      last_started_at?: string | null;
+      /** Last Finished At */
+      last_finished_at?: string | null;
+      /** Last Success At */
+      last_success_at?: string | null;
+      /** Last Outcome */
+      last_outcome?: string | null;
+      /** Last Error Class */
+      last_error_class?: string | null;
+      /**
+       * Consecutive Failures
+       * @default 0
+       */
+      consecutive_failures: number;
+    };
+    /** Kpi */
+    Kpi: {
+      metric: components["schemas"]["Metric"];
+      /** Release Id */
+      release_id: number;
+      /** Published At */
+      published_at: string;
+      /** Source Url */
+      source_url: string | null;
+    };
+    /** LabourDashboardOut */
+    LabourDashboardOut: {
+      analysis: components["schemas"]["ReleaseAnalysis"];
+      /** Reference Period */
+      reference_period: string;
+      /** Published At */
+      published_at: string;
+      /** Captured At */
+      captured_at: string;
+      /** Series */
+      series: components["schemas"]["LabourSeriesOut"][];
+      /** Revisions */
+      revisions: components["schemas"]["FirstLatestTable"][];
+      /** Sources */
+      sources: string[];
+      /** Caveats */
+      caveats: string[];
+    };
+    /** LabourSeriesOut */
+    LabourSeriesOut: {
+      /** Key */
+      key: string;
+      /** Name */
+      name: string;
+      /** Unit */
+      unit: string;
+      /**
+       * Survey
+       * @enum {string}
+       */
+      survey: "hlfs" | "lci";
+      /**
+       * Measure
+       * @enum {string}
+       */
+      measure: "rate" | "level" | "index" | "quarterly_change" | "annual_change";
+      /** Adjustment */
+      adjustment: string;
+      /** Definition */
+      definition: string;
+      /** Points */
+      points: components["schemas"]["PointOut"][];
+      /** Source Url */
+      source_url: string | null;
+    };
+    /** LatestIngestion */
+    LatestIngestion: {
+      /** Release Key */
+      release_key: string;
+      /** Finished At */
+      finished_at: string;
+      /** Outcome */
+      outcome: string;
+    };
+    /** LatestStatisticOut */
+    LatestStatisticOut: {
+      /** Series Slug */
+      series_slug: string;
+      /** Label */
+      label: string;
+      /** Reference Period */
+      reference_period: string | null;
+      /** Period Label */
+      period_label: string | null;
+      /** Published At */
+      published_at: string;
+    };
+    /** MeasureChangeOut */
+    MeasureChangeOut: {
+      institution: components["schemas"]["InstitutionOut"];
+      /** Indicator */
+      indicator: string;
+      /** Indicator Name */
+      indicator_name: string;
+      /** Horizon Key */
+      horizon_key: string;
+      /** Horizon Label */
+      horizon_label: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "central" | "scenario";
+      /** Scenario */
+      scenario: string | null;
+      /** From Basis */
+      from_basis: string;
+      /** From Basis Label */
+      from_basis_label: string;
+      /** To Basis */
+      to_basis: string;
+      /** To Basis Label */
+      to_basis_label: string;
+      /** From Summary Id */
+      from_summary_id: number;
+      /** From Published On */
+      from_published_on: string | null;
+      /** To Summary Id */
+      to_summary_id: number;
+      /** To Published On */
+      to_published_on: string | null;
+      /** Note */
+      note: string;
+    };
+    /** Methodology */
+    Methodology: {
+      /** Definitions */
+      definitions: string[];
+      /** Notes */
+      notes: string[];
+      /** Source Url */
+      source_url: string | null;
+    };
+    /** Metric */
+    Metric: {
+      /** Series Key */
+      series_key: string;
+      /** Label */
+      label: string;
+      /** Value */
+      value: number;
+      /** Unit */
+      unit: string;
+      /** Frequency */
+      frequency: string;
+      /** Period */
+      period: string;
+      /** Period Label */
+      period_label: string;
+      /** Status */
+      status: string;
+      /** Std Error */
+      std_error: number | null;
+      change_prior: components["schemas"]["ChangeOut"] | null;
+      change_year_ago: components["schemas"]["ChangeOut"] | null;
+    };
+    /** OpsStatus */
+    OpsStatus: {
+      /** Generated At */
+      generated_at: string;
+      /**
+       * Overall
+       * @enum {string}
+       */
+      overall: "ok" | "attention" | "critical";
+      /** Summary */
+      summary: string;
+      database: components["schemas"]["DatabaseInfo"];
+      process: components["schemas"]["ProcessInfo"];
+      collection: components["schemas"]["CollectionInfo"];
+      /**
+       * @default {
+       *   "state": "never",
+       *   "ingested": 0,
+       *   "pending": 0,
+       *   "failures": 0
+       * }
+       */
+      refresh: components["schemas"]["RefreshInfo"];
+      /** Jobs */
+      jobs: components["schemas"]["JobInfo"][];
+      calendar: components["schemas"]["CalendarInfo"];
+      next_release: components["schemas"]["ReleaseRefInfo"] | null;
+      /** Known Upcoming Releases */
+      known_upcoming_releases: number;
+      latest_ingestion: components["schemas"]["LatestIngestion"] | null;
+      /** Failed Runs */
+      failed_runs: components["schemas"]["FailedRun"][];
+      /** Freshness */
+      freshness: components["schemas"]["FreshnessRow"][];
+      /** Sources */
+      sources: components["schemas"]["SourceStatus"][];
+      backup: components["schemas"]["BackupInfo"];
+      alert_delivery: components["schemas"]["AlertDelivery"];
+      /** Issues */
+      issues: components["schemas"]["Issue"][];
+      /** Notes */
+      notes: string[];
+    };
+    /** OverdueRelease */
+    OverdueRelease: {
+      /** Release Key */
+      release_key: string;
+      /** Published At */
+      published_at: string;
+      /** Hours Late */
+      hours_late: number;
+      /** Status */
+      status: string;
+      /** Last Outcome */
+      last_outcome: string | null;
+      /** Last Error Class */
+      last_error_class: string | null;
+    };
+    /** OverviewOut */
+    OverviewOut: {
+      /** Generated At */
+      generated_at: string;
+      /** Data Updated At */
+      data_updated_at: string | null;
+      /** Kpis */
+      kpis: components["schemas"]["Kpi"][];
+      /** Latest Releases */
+      latest_releases: components["schemas"]["ReleaseSummary"][];
+      /** Upcoming */
+      upcoming: components["schemas"]["ReleaseSummary"][];
+      /** Freshness */
+      freshness: components["schemas"]["SourceHealthOut"][];
+      featured: components["schemas"]["FeaturedOut"] | null;
+      /** Inactive Categories */
+      inactive_categories: components["schemas"]["InactiveCategory"][];
+    };
+    /** PointOut */
+    PointOut: {
+      /** Period */
+      period: string;
+      /** Value */
+      value: number;
+      /** Status */
+      status: string;
+      /** Std Error */
+      std_error: number | null;
+      /** Released In */
+      released_in: string | null;
+    };
+    /** PreviousComparison */
+    PreviousComparison: {
+      /** Available */
+      available: boolean;
+      /** Note */
+      note: string;
+      /** Previous Release Title */
+      previous_release_title: string | null;
+      /** Decompositions */
+      decompositions: components["schemas"]["Decomposition"][];
+    };
+    /** ProcessInfo */
+    ProcessInfo: {
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "never_started" | "running" | "stalled" | "lost" | "stopped";
+      /** Pid */
+      pid?: number | null;
+      /** Started At */
+      started_at?: string | null;
+      /** Last Heartbeat At */
+      last_heartbeat_at?: string | null;
+      /** Heartbeat Age Seconds */
+      heartbeat_age_seconds?: number | null;
+      /** Scheduler Enabled */
+      scheduler_enabled?: boolean | null;
+      /** Collection Mode */
+      collection_mode?: ("scheduler" | "on_open" | "off") | null;
+      /** Stop Reason */
+      stop_reason?: string | null;
+      /**
+       * Suspend Count
+       * @default 0
+       */
+      suspend_count: number;
+      /** Last Suspend At */
+      last_suspend_at?: string | null;
+      /** Last Suspend Seconds */
+      last_suspend_seconds?: number | null;
+      /**
+       * Unexpected Restarts 7D
+       * @default 0
+       */
+      unexpected_restarts_7d: number;
+    };
+    /** ProcessingOut */
+    ProcessingOut: {
+      /**
+       * Ai Summary
+       * @default true
+       * @constant
+       */
+      ai_summary: true;
+      /**
+       * Evidence Verified
+       * @default true
+       * @constant
+       */
+      evidence_verified: true;
+      /** Human Reviewed On */
+      human_reviewed_on: string;
+      /** Published Here On */
+      published_here_on: string;
+      /** Verifier Version */
+      verifier_version: string;
+      /** Warnings */
+      warnings: number;
+      /**
+       * Checks Scope
+       * @default Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here.
+       */
+      checks_scope: string;
+    };
+    /** ProvenanceOut */
+    ProvenanceOut: {
+      /** Provider */
+      provider: string;
+      /** Model */
+      model: string;
+      /** Hosted */
+      hosted: boolean;
+      /** Prompt Version */
+      prompt_version: string;
+      /** Processing Version */
+      processing_version: string;
+      /** Verifier Version */
+      verifier_version: string;
+      /** Created At */
+      created_at: string;
+    };
+    /** RankingEntryOut */
+    RankingEntryOut: {
+      institution: components["schemas"]["InstitutionOut"];
+      /** N */
+      n: number;
+      /** Mae */
+      mae: number;
+      /** Rmse */
+      rmse: number;
+      /** Mean Error */
+      mean_error: number;
+    };
+    /** RankingOut */
+    RankingOut: {
+      /** Measure */
+      measure: string;
+      /** Measure Label */
+      measure_label: string;
+      /** Available */
+      available: boolean;
+      /** Reason */
+      reason: string;
+      /** Matched Cells */
+      matched_cells: number;
+      /** Entries */
+      entries: components["schemas"]["RankingEntryOut"][];
+    };
+    /** RefreshFailureOut */
+    RefreshFailureOut: {
+      /** Key */
+      key: string;
+      /** Outcome */
+      outcome: string;
+      /** Error Class */
+      error_class: string | null;
+    };
+    /**
+     * RefreshInfo
+     * @description The last on-open check (Phase 4G). `never` on a database that has not had one.
+     */
+    RefreshInfo: {
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "never" | "running" | "completed" | "failed" | "interrupted";
+      /** Phase */
+      phase?: string | null;
+      /** Started At */
+      started_at?: string | null;
+      /** Finished At */
+      finished_at?: string | null;
+      /** Running For Seconds */
+      running_for_seconds?: number | null;
+      /** Last Success At */
+      last_success_at?: string | null;
+      /**
+       * Ingested
+       * @default 0
+       */
+      ingested: number;
+      /**
+       * Pending
+       * @default 0
+       */
+      pending: number;
+      /**
+       * Failures
+       * @default 0
+       */
+      failures: number;
+      /** Error Class */
+      error_class?: string | null;
+    };
+    /** RefreshPendingOut */
+    RefreshPendingOut: {
+      /** Release Key */
+      release_key: string;
+      /**
+       * Reason
+       * @enum {string}
+       */
+      reason: "not_published_yet" | "rejected_today" | "blocked_cooldown" | "catch_up_limit" | "request_budget" | "stopped";
+      /** Series Slug */
+      series_slug: string | null;
+      /** Label */
+      label: string | null;
+      /** Reference Period */
+      reference_period: string | null;
+      /** Period Label */
+      period_label: string | null;
+      /** Published At */
+      published_at: string | null;
+    };
+    /** RefreshRequest */
+    RefreshRequest: {
+      /**
+       * Manual
+       * @default false
+       */
+      manual: boolean;
+    };
+    /**
+     * RefreshStatusOut
+     * @description The on-open refresh as the dashboard header shows it. Times are Pacific/Auckland ISO-8601.
+     */
+    RefreshStatusOut: {
+      /**
+       * Mode
+       * @enum {string}
+       */
+      mode: "on_open" | "scheduler" | "off";
+      /**
+       * State
+       * @enum {string}
+       */
+      state: "never" | "running" | "completed" | "failed" | "interrupted";
+      /** Phase */
+      phase?: ("checking" | "downloading" | "validating") | null;
+      /** Run Id */
+      run_id?: number | null;
+      /** Trigger */
+      trigger?: ("open" | "manual") | null;
+      /** Started At */
+      started_at?: string | null;
+      /** Finished At */
+      finished_at?: string | null;
+      /** Last Success At */
+      last_success_at?: string | null;
+      /**
+       * Discovered
+       * @default 0
+       */
+      discovered: number;
+      /**
+       * Ingested
+       * @default 0
+       */
+      ingested: number;
+      /**
+       * Unchanged
+       * @default 0
+       */
+      unchanged: number;
+      /**
+       * Requests
+       * @default 0
+       */
+      requests: number;
+      /**
+       * Failures
+       * @default []
+       */
+      failures: components["schemas"]["RefreshFailureOut"][];
+      /**
+       * Pending
+       * @default []
+       */
+      pending: components["schemas"]["RefreshPendingOut"][];
+      /** Error Class */
+      error_class?: string | null;
+      /** Data Version */
+      data_version?: string | null;
+      /**
+       * Latest
+       * @default []
+       */
+      latest: components["schemas"]["LatestStatisticOut"][];
+      /**
+       * Started
+       * @default false
+       */
+      started: boolean;
+    };
+    /** ReleaseAnalysis */
+    ReleaseAnalysis: {
+      release: components["schemas"]["ReleaseSummary"];
+      /** Executive Summary */
+      executive_summary: components["schemas"]["Insight"][];
+      /** Headline Metrics */
+      headline_metrics: components["schemas"]["Metric"][];
+      /** Context */
+      context: components["schemas"]["Insight"][];
+      previous_comparison: components["schemas"]["PreviousComparison"];
+      revisions: components["schemas"]["RevisionBlock"];
+      corrections: components["schemas"]["CorrectionBlock"];
+      /** Interpretation */
+      interpretation: components["schemas"]["Insight"][];
+      methodology: components["schemas"]["Methodology"];
+      /** Vintage Captured At */
+      vintage_captured_at: string;
+    };
+    /** ReleaseDetail */
+    ReleaseDetail: {
+      release: components["schemas"]["ReleaseSummary"];
+      analysis: components["schemas"]["ReleaseAnalysis"] | null;
+      /** Unavailable Reason */
+      unavailable_reason: string | null;
+    };
+    /** ReleaseRefInfo */
+    ReleaseRefInfo: {
+      /** Release Key */
+      release_key: string;
+      /** Title */
+      title: string;
+      /** Series Slug */
+      series_slug: string;
+      /** Reference Period */
+      reference_period: string | null;
+      /** Scheduled At */
+      scheduled_at: string;
+      /** Status */
+      status: string;
+    };
+    /** ReleaseSummary */
+    ReleaseSummary: {
+      /** Id */
+      id: number;
+      /** Release Key */
+      release_key: string;
+      /** Title */
+      title: string;
+      /** Series Slug */
+      series_slug: string;
+      /** Category */
+      category: string;
+      /** Importance */
+      importance: string;
+      /** Period Label */
+      period_label: string | null;
+      /** Published At */
+      published_at: string;
+      /** Status */
+      status: string;
+      /** Headline */
+      headline: string | null;
+      /** Page Url */
+      page_url: string | null;
+      /** Has Analysis */
+      has_analysis: boolean;
+    };
+    /** ResearchDetailOut */
+    ResearchDetailOut: {
+      item: components["schemas"]["ResearchItemOut"];
+      /** Forecasts */
+      forecasts: components["schemas"]["ForecastOut"][];
+      provenance: components["schemas"]["ProvenanceOut"];
+      /** Versions */
+      versions: components["schemas"]["VersionOut"][];
+    };
+    /** ResearchFeedOut */
+    ResearchFeedOut: {
+      /** Items */
+      items: components["schemas"]["ResearchItemOut"][];
+      /** Total */
+      total: number;
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+      /** Institutions */
+      institutions: components["schemas"]["FacetOut"][];
+      /** Topics */
+      topics: components["schemas"]["FacetOut"][];
+      /** Indicators */
+      indicators: components["schemas"]["FacetOut"][];
+    };
+    /** ResearchItemOut */
+    ResearchItemOut: {
+      /** Id */
+      id: number;
+      institution: components["schemas"]["InstitutionOut"];
+      document: components["schemas"]["DocumentOut"];
+      /**
+       * Display
+       * @enum {string}
+       */
+      display: "link_only" | "summary" | "excerpt";
+      /** Topics */
+      topics: string[];
+      /** Indicators */
+      indicators: string[];
+      outlook: components["schemas"]["StatementOut"] | null;
+      /** Drivers */
+      drivers: components["schemas"]["StatementOut"][];
+      /** Risks */
+      risks: components["schemas"]["StatementOut"][];
+      uncertainty: components["schemas"]["StatementOut"] | null;
+      /** N Forecasts */
+      n_forecasts: number;
+      processing: components["schemas"]["ProcessingOut"];
+      /**
+       * Interpretation Label
+       * @default AI interpretation of the document. Not an official statistic.
+       */
+      interpretation_label: string;
+      /**
+       * Not Official Statistic
+       * @default true
+       * @constant
+       */
+      not_official_statistic: true;
+    };
+    /** RevisionBlock */
+    RevisionBlock: {
+      /** Available */
+      available: boolean;
+      /** Note */
+      note: string;
+      /** Series Key */
+      series_key: string;
+      /** Against Title */
+      against_title: string | null;
+      /** N Common */
+      n_common: number;
+      /** N Revised */
+      n_revised: number;
+      /** Mean Abs */
+      mean_abs: number | null;
+      /** Largest */
+      largest: components["schemas"]["RevisionRowOut"][];
+    };
+    /** RevisionHistoryRow */
+    RevisionHistoryRow: {
+      /** Release Key */
+      release_key: string;
+      /** Title */
+      title: string;
+      /** Published At */
+      published_at: string;
+      /** N Common */
+      n_common: number;
+      /** N Revised */
+      n_revised: number;
+      /** Mean Abs */
+      mean_abs: number | null;
+      /** Max Abs Period */
+      max_abs_period: string | null;
+      /** Max Abs */
+      max_abs: number | null;
+    };
+    /** RevisionRowOut */
+    RevisionRowOut: {
+      /** Period */
+      period: string;
+      /** Original */
+      original: number;
+      /** Revised */
+      revised: number;
+      /** Absolute */
+      absolute: number;
+      /** Percent */
+      percent: number | null;
+      /** Original Status */
+      original_status: string;
+      /** Revised Status */
+      revised_status: string;
+    };
+    /** RevisionsOut */
+    RevisionsOut: {
+      series: components["schemas"]["SeriesOut"];
+      coverage: components["schemas"]["Coverage"];
+      base: components["schemas"]["VintageOut"] | null;
+      compare: components["schemas"]["VintageOut"] | null;
+      /** Source Url */
+      source_url: string | null;
+      /** N Common */
+      n_common: number;
+      /** N Revised */
+      n_revised: number;
+      /** Rows */
+      rows: components["schemas"]["RevisionRowOut"][];
+      /** History */
+      history: components["schemas"]["RevisionHistoryRow"][];
+    };
+    /** RunOut */
+    RunOut: {
+      /** Release Key */
+      release_key: string;
+      /** Started At */
+      started_at: string;
+      /** Outcome */
+      outcome: string;
+      /** Error Class */
+      error_class: string | null;
+      /** Detail */
+      detail: string | null;
+    };
+    /** SeriesDataOut */
+    SeriesDataOut: {
+      series: components["schemas"]["SeriesOut"];
+      vintage: components["schemas"]["VintageOut"];
+      /** Points */
+      points: components["schemas"]["PointOut"][];
+      /** Source Url */
+      source_url: string | null;
+      /** Caveat */
+      caveat: string;
+    };
+    /** SeriesOut */
+    SeriesOut: {
+      /** Key */
+      key: string;
+      /** Name */
+      name: string;
+      /** Unit */
+      unit: string;
+      /** Frequency */
+      frequency: string;
+      /** Adjustment */
+      adjustment: string;
+      /** Category */
+      category: string;
+      /** Definition */
+      definition: string;
+      /** Definition Id */
+      definition_id: string;
+      /** Latest Period */
+      latest_period: string | null;
+      /** N Vintages */
+      n_vintages: number;
+    };
+    /** SourceHealthOut */
+    SourceHealthOut: {
+      /** Source */
+      source: string;
+      /** State */
+      state: string;
+      /** Last Checked At */
+      last_checked_at: string | null;
+      /** Last Success At */
+      last_success_at: string | null;
+      /** Detail */
+      detail: string | null;
+    };
+    /** SourceStatus */
+    SourceStatus: {
+      /** Source */
+      source: string;
+      /** State */
+      state: string;
+      /** Last Checked At */
+      last_checked_at: string | null;
+      /** Last Success At */
+      last_success_at: string | null;
+      /** Age Hours */
+      age_hours: number | null;
+      /**
+       * Expected
+       * @enum {string}
+       */
+      expected: "daily" | "per_release";
+      /** Expired */
+      expired: boolean;
+    };
+    /** StatementOut */
+    StatementOut: {
+      /** Text */
+      text: string;
+      /** Evidence */
+      evidence: components["schemas"]["EvidenceOut"][];
+    };
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[];
+      /** Message */
+      msg: string;
+      /** Error Type */
+      type: string;
+      /** Input */
+      input?: unknown;
+      /** Context */
+      ctx?: Record<string, never>;
+    };
+    /** VersionOut */
+    VersionOut: {
+      /** Version No */
+      version_no: number;
+      /** Fetched At */
+      fetched_at: string;
+      /** Current */
+      current: boolean;
+    };
+    /** VintageOut */
+    VintageOut: {
+      /** Release Key */
+      release_key: string;
+      /** Title */
+      title: string;
+      /** Published At */
+      published_at: string;
+      /** Captured At */
+      captured_at: string;
+      /** Source Kind */
+      source_kind: string;
+      /** Layout Version */
+      layout_version: string;
+      /** Superseded */
+      superseded: boolean;
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
+
 export type $defs = Record<string, never>;
+
+export type external = Record<string, never>;
+
 export interface operations {
-    feed_api_research_feed_get: {
-        parameters: {
-            query?: {
-                q?: string | null;
-                institution?: string | null;
-                topic?: string | null;
-                indicator?: string | null;
-                sort?: "newest" | "oldest" | "institution";
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResearchFeedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+
+  /** Feed */
+  feed_api_research_feed_get: {
+    parameters: {
+      query?: {
+        q?: string | null;
+        institution?: string | null;
+        topic?: string | null;
+        indicator?: string | null;
+        sort?: "newest" | "oldest" | "institution";
+        limit?: number;
+        offset?: number;
+      };
     };
-    detail_api_research_summaries__summary_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                summary_id: number;
-            };
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResearchFeedOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResearchDetailOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    forecasts_api_research_forecasts_get: {
-        parameters: {
-            query?: {
-                indicator?: string | null;
-                institution?: string | null;
-                horizon?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForecastComparisonOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  /** Detail */
+  detail_api_research_summaries__summary_id__get: {
+    parameters: {
+      path: {
+        summary_id: number;
+      };
     };
-    history_api_research_forecast_history_get: {
-        parameters: {
-            query?: {
-                indicator?: string | null;
-                institution?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResearchDetailOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForecastHistoryOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    evaluation_api_research_forecast_evaluation_get: {
-        parameters: {
-            query?: {
-                indicator?: string;
-                institution?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForecastEvaluationOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  /** Forecasts */
+  forecasts_api_research_forecasts_get: {
+    parameters: {
+      query?: {
+        indicator?: string | null;
+        institution?: string | null;
+        horizon?: string | null;
+      };
     };
-    consensus_view_api_research_consensus_get: {
-        parameters: {
-            query?: {
-                indicator?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ForecastComparisonOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConsensusOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    get_refresh_status_api_refresh_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RefreshStatusOut"];
-                };
-            };
-        };
+  };
+  /** History */
+  history_api_research_forecast_history_get: {
+    parameters: {
+      query?: {
+        indicator?: string | null;
+        institution?: string | null;
+      };
     };
-    post_refresh_api_refresh_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ForecastHistoryOut"];
         };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["RefreshRequest"] | null;
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RefreshStatusOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+      };
     };
-    health_api_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthOut"];
-                };
-            };
-        };
+  };
+  /** Evaluation */
+  evaluation_api_research_forecast_evaluation_get: {
+    parameters: {
+      query?: {
+        indicator?: string;
+        institution?: string | null;
+      };
     };
-    ops_status_api_ops_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ForecastEvaluationOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OpsStatus"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    capabilities_api_capabilities_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CapabilitiesOut"];
-                };
-            };
-        };
+  };
+  /** Consensus View */
+  consensus_view_api_research_consensus_get: {
+    parameters: {
+      query?: {
+        indicator?: string | null;
+      };
     };
-    overview_api_overview_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ConsensusOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OverviewOut"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    releases_api_releases_get: {
-        parameters: {
-            query?: {
-                status?: string | null;
-                category?: string | null;
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+  };
+  /**
+   * Get Refresh Status
+   * @description Read-only: the last check and what is pending. Never starts a check.
+   */
+  get_refresh_status_api_refresh_status_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RefreshStatusOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReleaseSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+      };
     };
-    release_detail_api_releases__release_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                release_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReleaseDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  /**
+   * Post Refresh
+   * @description Start a check unless one is running or a recent result stands; answers at once with the status.
+   */
+  post_refresh_api_refresh_post: {
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["RefreshRequest"] | null;
+      };
     };
-    calendar_api_calendar_get: {
-        parameters: {
-            query?: {
-                from?: string | null;
-                to?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RefreshStatusOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CalendarOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    series_list_api_series_get: {
-        parameters: {
-            query?: {
-                category?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+  };
+  /** Health */
+  health_api_health_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["HealthOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeriesOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+      };
     };
-    series_data_api_series__key__get: {
-        parameters: {
-            query?: {
-                vintage?: string | null;
-                from?: string | null;
-                to?: string | null;
-            };
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
+  };
+  /**
+   * Ops Status
+   * @description Operational status for the local operator (Data health page). Read-only; never starts the scheduler or fetches.
+   */
+  ops_status_api_ops_status_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OpsStatus"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeriesDataOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+      };
     };
-    series_csv_api_series__key__csv_get: {
-        parameters: {
-            query?: {
-                vintage?: string | null;
-                from?: string | null;
-                to?: string | null;
-            };
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
+  };
+  /** Capabilities */
+  capabilities_api_capabilities_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CapabilitiesOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+      };
     };
-    revisions_view_api_revisions__key__get: {
-        parameters: {
-            query?: {
-                base?: string | null;
-                compare?: string | null;
-            };
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
+  };
+  /** Overview */
+  overview_api_overview_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OverviewOut"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevisionsOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+      };
     };
-    countries_api_migration_countries_get: {
-        parameters: {
-            query?: {
-                months?: number;
-                top?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CountriesOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  /** Releases */
+  releases_api_releases_get: {
+    parameters: {
+      query?: {
+        status?: string | null;
+        category?: string | null;
+        limit?: number;
+        offset?: number;
+      };
     };
-    cpi_dashboard_api_cpi_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseSummary"][];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CpiDashboardOut"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    ect_dashboard_api_ect_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EctDashboardOut"];
-                };
-            };
-        };
+  };
+  /** Release Detail */
+  release_detail_api_releases__release_id__get: {
+    parameters: {
+      path: {
+        release_id: number;
+      };
     };
-    gdp_dashboard_api_gdp_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseDetail"];
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GdpDashboardOut"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
     };
-    labour_dashboard_api_labour_market_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LabourDashboardOut"];
-                };
-            };
-        };
+  };
+  /** Calendar */
+  calendar_api_calendar_get: {
+    parameters: {
+      query?: {
+        from?: string | null;
+        to?: string | null;
+      };
     };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CalendarOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Series List */
+  series_list_api_series_get: {
+    parameters: {
+      query?: {
+        category?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SeriesOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Series Data */
+  series_data_api_series__key__get: {
+    parameters: {
+      query?: {
+        vintage?: string | null;
+        from?: string | null;
+        to?: string | null;
+      };
+      path: {
+        key: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SeriesDataOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Series Csv */
+  series_csv_api_series__key__csv_get: {
+    parameters: {
+      query?: {
+        vintage?: string | null;
+        from?: string | null;
+        to?: string | null;
+      };
+      path: {
+        key: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Revisions View */
+  revisions_view_api_revisions__key__get: {
+    parameters: {
+      query?: {
+        base?: string | null;
+        compare?: string | null;
+      };
+      path: {
+        key: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RevisionsOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Countries */
+  countries_api_migration_countries_get: {
+    parameters: {
+      query?: {
+        months?: number;
+        top?: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CountriesOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Cpi Dashboard */
+  cpi_dashboard_api_cpi_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CpiDashboardOut"];
+        };
+      };
+    };
+  };
+  /** Ect Dashboard */
+  ect_dashboard_api_ect_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EctDashboardOut"];
+        };
+      };
+    };
+  };
+  /** Gdp Dashboard */
+  gdp_dashboard_api_gdp_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["GdpDashboardOut"];
+        };
+      };
+    };
+  };
+  /** Labour Dashboard */
+  labour_dashboard_api_labour_market_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LabourDashboardOut"];
+        };
+      };
+    };
+  };
 }
