@@ -300,6 +300,10 @@ class ProviderError(RuntimeError):
         retryable: bool,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
+        cost_usd: float | None = None,
+        serving_provider: str | None = None,
+        response_model: str | None = None,
+        response_id: str | None = None,
     ) -> None:
         super().__init__(error_class)
         self.error_class = error_class
@@ -307,6 +311,10 @@ class ProviderError(RuntimeError):
         # Usage the provider reported for a call that still failed (truncated or refused output is billed).
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
+        self.cost_usd = cost_usd
+        self.serving_provider = serving_provider
+        self.response_model = response_model
+        self.response_id = response_id
 
 
 @dataclass(frozen=True)
@@ -316,6 +324,9 @@ class ProviderResponse:
     input_tokens: int | None = None  # None when the provider does not report usage
     output_tokens: int | None = None
     stop_reason: str | None = None
+    serving_provider: str | None = None
+    cost_usd: float | None = None
+    response_id: str | None = None
 
 
 class Provider(Protocol):

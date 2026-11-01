@@ -37,6 +37,7 @@ from nzstats.research.contract import (
     build_request,
     parse_draft,
 )
+from nzstats.research.hosted import HostedConsent, consent_refusal
 from nzstats.research.prompt import PROMPT_VERSION, injection_findings, input_sha256
 from nzstats.research.providers import Pricing, estimate_tokens, request_chars
 from nzstats.research.registry import ContentPolicy, Institution
@@ -120,6 +121,7 @@ def eligible_versions(
     hosted: bool,
     institution: str | None = None,
     version_ids: Sequence[int] = (),
+    version_scoped_hosted: bool = False,
 ) -> tuple[list[Candidate], list[tuple[str, str]]]:
     """Versions this provider may process, and (institution, reason) for every refusal."""
     sql = (
@@ -147,6 +149,12 @@ def eligible_versions(
             if row["purged_at"]
             else "not in the research registry"
             if inst is None
+            else (
+                None
+                if inst.holds(row["acquisition"]) and inst.content_policy == ContentPolicy.FULL_TEXT
+                else "source acquisition or full-text storage permission refused"
+            )
+            if version_scoped_hosted
             else inst.llm_refusal(hosted=hosted, acquisition=row["acquisition"])
         )
         if reason is None and _stored_policy(row["licence_snapshot"]) not in (
@@ -194,11 +202,23 @@ def summarise_versions(
     now_fn: Callable[[], datetime] = utc_now,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    hosted_consents: Sequence[HostedConsent] = (),
 ) -> SummariseResult:
     if isinstance(provider, DisabledProvider) or provider.name == "disabled":
         raise ProviderDisabled("no LLM provider is configured")
+    if provider.name == "openrouter":
+        from nzstats.research.openrouter import OpenRouterProvider
+
+        if not isinstance(provider, OpenRouterProvider):
+            raise ValueError("OpenRouter requires the privacy-enforcing adapter")
+        provider.validate_run(pricing, limits)
     candidates, refusals = eligible_versions(
-        conn, registry, hosted=provider.hosted, institution=institution, version_ids=version_ids
+        conn,
+        registry,
+        hosted=provider.hosted,
+        institution=institution,
+        version_ids=version_ids,
+        version_scoped_hosted=provider.name == "openrouter",
     )
     cap = min(limit or limits.max_documents_per_run, limits.max_documents_per_run)
     result = SummariseResult(refusals=refusals)
@@ -224,6 +244,7 @@ def summarise_versions(
         # A reservation held past its own deadline belongs to a process that is gone.
         ss.abandon_stale(conn, now=started)
     stopped = False
+    dry_spent, dry_attempts = 0.0, 0
     slots = 0  # the cap bounds work still to do; finished and oversize versions never use a slot
     try:
         for candidate in candidates:
@@ -233,8 +254,15 @@ def summarise_versions(
                                     limits=limits, published_on=candidate.published_on,
                                     institution=candidate.institution,
                                     author=inst.name if inst else None)  # fmt: skip
+            if provider.name == "openrouter":
+                reason = consent_refusal(conn, request, provider, hosted_consents, now_fn())
+                if reason:
+                    result.refusals.append((candidate.institution, reason))
+                    continue
             item = ItemResult(candidate.version_id, candidate.institution, "pending")
-            if request.truncated:
+            if request.truncated or (
+                provider.name == "openrouter" and not provider.input_fits(request)
+            ):
                 item.outcome = "input_too_long"
                 result.items.append(item)
                 continue
@@ -242,11 +270,29 @@ def summarise_versions(
                 candidate.version_id, provider.name, provider.model, PROMPT_VERSION, PROCESSING_VERSION,
                 input_sha256(request, provider=provider.name, model=provider.model, parameters=parameters),
             )  # fmt: skip
-            worst = pricing.cost(estimate_tokens(request_chars(request)), limits.max_output_tokens)
+            if provider.name == "openrouter":
+                from nzstats.research.openrouter import input_token_bound
+
+                worst = pricing.cost(input_token_bound(request), limits.max_output_tokens)
+            else:
+                worst = pricing.cost(
+                    estimate_tokens(request_chars(request)), limits.max_output_tokens
+                )
             item.estimated_usd = worst
             existing = ss.completed_summary(conn, key)
             if existing is not None:
                 item.outcome, item.summary_id = "exists", int(existing["id"])
+                result.items.append(item)
+                continue
+            pilot_refusal = (
+                ss.openrouter_refusal(
+                    conn, candidate.version_id, worst,
+                    pending_usd=dry_spent, pending_attempts=dry_attempts,
+                )
+                if provider.name == "openrouter" else None
+            )  # fmt: skip
+            if pilot_refusal == "attempt_consumed":
+                item.outcome = "attempt_consumed"
                 result.items.append(item)
                 continue
             if slots >= cap:
@@ -255,12 +301,26 @@ def summarise_versions(
             result.items.append(item)
             if stopped:
                 item.outcome = "budget_exhausted"
+            elif (
+                dry_run
+                and provider.name == "openrouter"
+                and (dry_spent + worst > limits.max_run_usd or pilot_refusal is not None)
+            ):
+                item.outcome = "budget_exhausted"
+                stopped = True
             elif dry_run:
                 item.outcome = "would_summarise"
+                dry_spent += worst
+                dry_attempts += 1
             else:
                 stopped = _process(conn, provider, request, sections, key, parameters, item, result,
                                    pricing=pricing, limits=limits, worst=worst, now_fn=now_fn,
-                                   sleep=sleep, clock=clock)  # fmt: skip
+                                   sleep=sleep, clock=clock,
+                                   consent_check=(lambda req=request: consent_refusal(
+                                       conn, req, provider, hosted_consents, now_fn()))
+                                   if provider.name == "openrouter" else None)  # fmt: skip
+                if item.outcome == "attempt_consumed":
+                    slots -= 1  # another process consumed this version after the read-only check
     except BaseException:
         if result.run_id is not None:
             _record_abort(conn, result, now_fn())
@@ -307,6 +367,7 @@ def _process(
     now_fn: Callable[[], datetime],
     sleep: Callable[[float], None],
     clock: Callable[[], float],
+    consent_check: Callable[[], str | None] | None = None,
 ) -> bool:
     """Call, parse, verify and store one document. True when the run budget stops the run."""
     calls: list[_Call] = []
@@ -317,18 +378,30 @@ def _process(
             budget_stop = True
             break
         # Reserve before contacting the provider: under the database write lock, so another process sees it.
-        held = ss.reserve(
-            conn, run_id=result.run_id or 0, version_id=key.version_id, call_no=call_no,
-            provider=provider.name, model=provider.model, amount_usd=worst,
-            period_cap_usd=limits.max_period_usd,
-            since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
-            expires_at=now_fn() + stale_after(limits),
-        )  # fmt: skip
+        try:
+            held = ss.reserve(
+                conn, run_id=result.run_id or 0, version_id=key.version_id, call_no=call_no,
+                provider=provider.name, model=provider.model, amount_usd=worst,
+                period_cap_usd=limits.max_period_usd,
+                since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
+                expires_at=now_fn() + stale_after(limits),
+            )  # fmt: skip
+        except ss.AttemptConsumed:
+            item.outcome = "attempt_consumed"
+            return False
         if held is None:
             budget_stop = True
             break
         started = clock()
         try:
+            if consent_check is not None and consent_check() is not None:
+                raise ProviderError(
+                    "hosted_consent_refused",
+                    retryable=False,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost_usd=0,
+                )
             response = provider.summarise(request)
             error = None
         except ProviderDisabled:
@@ -336,8 +409,8 @@ def _process(
             raise
         except ProviderError as exc:
             error = exc
-        except Exception:  # an adapter bug must not end the run; the message is logged, not stored
-            log.exception("provider %s raised unexpectedly", provider.name)
+        except Exception:  # never log arbitrary exception text from an adapter
+            log.error("provider %s raised unexpectedly", provider.name)
             error = ProviderError("provider_exception", retryable=False)
         latency = int((clock() - started) * 1000)
         if error is None and response is not None:
@@ -345,7 +418,11 @@ def _process(
             estimated = in_tok is None or out_tok is None
             in_tok = in_tok if in_tok is not None else estimated_in
             out_tok = out_tok if out_tok is not None else estimate_tokens(len(response.text))
-            cost = pricing.cost(in_tok, out_tok)
+            cost = (
+                response.cost_usd
+                if response.cost_usd is not None
+                else pricing.cost(in_tok, out_tok)
+            )
             calls.append(_Call(call_no, in_tok, out_tok, estimated, latency, cost, "ok", None))
             result.spent_usd += cost
             # Settled at once, in its own transaction: the cost is durable even if storing the result fails.
@@ -354,12 +431,14 @@ def _process(
             break
         assert error is not None
         reported = error.input_tokens is not None and error.output_tokens is not None
-        if reported:
+        if error.cost_usd is not None:
+            cost, basis = error.cost_usd, "reported"
+        elif reported:
             cost, basis = (
                 pricing.cost(error.input_tokens or 0, error.output_tokens or 0),
                 "reported",
             )
-        elif error.error_class in NOT_BILLED:
+        elif error.error_class in NOT_BILLED and provider.name != "openrouter":
             cost, basis = 0.0, "not_billed"
         else:
             cost, basis = worst, "worst_case"
@@ -378,8 +457,19 @@ def _process(
     raw, output_json, verification, claims = None, None, None, ()
     if response is None or error is not None:
         status, error_class = "provider_error", error.error_class if error else "budget_exhausted"
+        if error is not None:
+            parameters = dict(parameters)
+            for name in ("serving_provider", "response_model", "response_id"):
+                value = getattr(error, name)
+                if value is not None:
+                    parameters[name] = value
     else:
         raw = response.text
+        parameters = dict(parameters)
+        if response.serving_provider is not None:
+            parameters["serving_provider"] = response.serving_provider
+        if response.response_id is not None:
+            parameters["response_id"] = response.response_id
         status, error_class, output_json, verification, claims = _interpret(
             response.text, response.model, request, sections, key, parameters, now_fn()
         )

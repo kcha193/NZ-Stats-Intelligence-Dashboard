@@ -89,6 +89,34 @@ def spent_since(conn: sqlite3.Connection, since: datetime) -> float:
     return float(legacy) + float(reserved)
 
 
+class AttemptConsumed(Exception):
+    """This document version already used its one permitted hosted attempt."""
+
+
+def openrouter_refusal(
+    conn: sqlite3.Connection,
+    version_id: int,
+    amount_usd: float,
+    *,
+    pending_usd: float = 0,
+    pending_attempts: int = 0,
+) -> str | None:
+    """Read-only pilot refusal reason; reserving callers must hold the database write lock."""
+    pilot = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(CASE WHEN state='settled' THEN actual_usd"
+        " ELSE reserved_usd END), 0), COALESCE(MAX(version_id=?), 0)"
+        " FROM research_llm_reservation WHERE provider='openrouter'",
+        (version_id,),
+    ).fetchone()
+    if pilot[2]:
+        return "attempt_consumed"
+    if pilot[0] + pending_attempts >= 2:
+        return "lifetime_attempts_exhausted"
+    if pilot[1] + pending_usd + amount_usd > 5 + 1e-9:
+        return "lifetime_budget_exhausted"
+    return None
+
+
 def reserve(
     conn: sqlite3.Connection,
     *,
@@ -103,13 +131,22 @@ def reserve(
     now: datetime,
     expires_at: datetime,
 ) -> int | None:
-    """Hold `amount_usd` for one provider call, or None when the window cannot afford it.
+    """Hold `amount_usd`, or return None for global exhaustion. Raise AttemptConsumed for a used version.
 
     The check and the insert happen under one write lock (`BEGIN IMMEDIATE`), so concurrent processes see each
     other's holds: the sum of everything spent and held never exceeds the cap because of a race.
     """
     conn.execute("BEGIN IMMEDIATE")
     try:
+        if provider == "openrouter":
+            # Lifetime limits: failures, interruptions, prompt/model changes and elapsed
+            # billing windows never reset this pilot. Same write lock as the budget check.
+            refusal = openrouter_refusal(conn, version_id, amount_usd)
+            if refusal == "attempt_consumed":
+                raise AttemptConsumed
+            if refusal is not None:
+                conn.execute("ROLLBACK")
+                return None
         if spent_since(conn, since) + amount_usd > period_cap_usd + 1e-9:
             conn.execute("ROLLBACK")
             return None

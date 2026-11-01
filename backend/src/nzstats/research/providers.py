@@ -36,7 +36,8 @@ ANTHROPIC_VERSION = (
     "2026-10-21"  # on this version temperature/top_p/top_k are rejected, so none is sent
 )
 MAX_RESPONSE_BYTES = 2_000_000
-PROVIDERS = ("disabled", "anthropic", "openai_compatible")
+PROVIDERS = ("disabled", "anthropic", "openai_compatible", "openrouter")
+OPENROUTER_URL = "https://openrouter.ai/api/v1"
 _LOOPBACK = frozenset({"localhost", "127.0.0.1", "::1"})
 _RETRYABLE = {408: "timeout", 409: "conflict", 429: "rate_limited", 529: "overloaded"}
 
@@ -64,6 +65,7 @@ class LlmSettings:
     base_url: str | None = None
     pricing: Pricing = Pricing()
     limits: LlmLimits = LlmLimits()
+    openrouter_provider: str | None = None
 
     def __str__(self) -> str:
         return repr(self)
@@ -125,6 +127,15 @@ def _base_url(url: str) -> str:
     raise LlmConfigError("NZSTATS_LLM_BASE_URL must be https, or http on a loopback address")
 
 
+def _openrouter_host(url: str | None) -> bool:
+    """Match the hostname httpx actually sends, including IDNA dot aliases and DNS root dots."""
+    try:
+        host = httpx.URL(url or "").host.rstrip(".").lower()
+    except httpx.InvalidURL:
+        raise LlmConfigError("NZSTATS_LLM_BASE_URL is not a valid URL") from None
+    return host == "openrouter.ai" or host.endswith(".openrouter.ai")
+
+
 def load_llm_settings(env: Mapping[str, str]) -> LlmSettings:
     provider = (env.get("NZSTATS_LLM_PROVIDER") or "disabled").strip()
     if provider not in PROVIDERS:
@@ -141,10 +152,16 @@ def load_llm_settings(env: Mapping[str, str]) -> LlmSettings:
             raise LlmConfigError("NZSTATS_LLM_API_KEY is required for anthropic")
         if base is not None:
             raise LlmConfigError("NZSTATS_LLM_BASE_URL is not used with anthropic (fixed endpoint)")
+    elif provider == "openrouter":
+        if base is not None and base != OPENROUTER_URL:
+            raise LlmConfigError("OpenRouter requires its fixed HTTPS endpoint")
+        base = OPENROUTER_URL
     else:
         if base is None:
             raise LlmConfigError("NZSTATS_LLM_BASE_URL is required for openai_compatible")
         base = _base_url(base)
+        if _openrouter_host(base):
+            raise LlmConfigError("OpenRouter requires NZSTATS_LLM_PROVIDER=openrouter")
     pricing = Pricing(
         _number(env, "NZSTATS_LLM_INPUT_USD_PER_MTOK", None, 0, 10_000),
         _number(env, "NZSTATS_LLM_OUTPUT_USD_PER_MTOK", None, 0, 10_000),
@@ -159,17 +176,32 @@ def load_llm_settings(env: Mapping[str, str]) -> LlmSettings:
         max_run_usd=_number(env, "NZSTATS_LLM_MAX_RUN_USD", defaults.max_run_usd, 0.0001, 1_000),
         max_period_usd=_number(env, "NZSTATS_LLM_MAX_PERIOD_USD", defaults.max_period_usd, 0.0001, 10_000),
     )  # fmt: skip
-    return LlmSettings(provider, model, key, base, pricing, limits)
+    settings = LlmSettings(
+        provider, model, key, base, pricing, limits, env.get("NZSTATS_OPENROUTER_PROVIDER")
+    )
+    if provider == "openrouter":
+        from nzstats.research.openrouter import validate_settings
+
+        validate_settings(settings)
+    return settings
 
 
 def build_provider(settings: LlmSettings, *, client: httpx.Client | None = None) -> Provider:
     if settings.provider == "disabled":
         return DisabledProvider()
+    if settings.provider == "openrouter":
+        from nzstats.research.openrouter import OpenRouterProvider, validate_settings
+
+        validate_settings(settings)
+    elif _openrouter_host(settings.base_url):
+        raise LlmConfigError("OpenRouter requires NZSTATS_LLM_PROVIDER=openrouter")
     http = client or httpx.Client(
         timeout=settings.limits.timeout_seconds, follow_redirects=False, trust_env=False
     )
     if settings.provider == "anthropic":
         return AnthropicProvider(settings, http)
+    if settings.provider == "openrouter":
+        return OpenRouterProvider(settings, http)
     return OpenAICompatibleProvider(settings, http)
 
 
@@ -190,10 +222,9 @@ class _HttpProvider:
             with self._client.stream(
                 "POST", url, headers=dict(headers), json=dict(body),
                 timeout=self._settings.limits.timeout_seconds,
+                follow_redirects=False,
             ) as response:  # fmt: skip
                 status = response.status_code
-                if status != 200:
-                    raise _status_error(status)
                 data = bytearray()
                 for chunk in response.iter_bytes():
                     data += chunk
@@ -204,9 +235,17 @@ class _HttpProvider:
         except httpx.TransportError:
             raise ProviderError("network_error", retryable=True) from None
         try:
-            return json.loads(bytes(data))
+            parsed = json.loads(bytes(data))
         except ValueError:
+            if status != 200:
+                raise self.response_error(status, None) from None
             raise ProviderError("invalid_response", retryable=False) from None
+        if status != 200:
+            raise self.response_error(status, parsed)
+        return parsed
+
+    def response_error(self, status: int, data: Any) -> ProviderError:
+        return _status_error(status)
 
 
 def _status_error(status: int) -> ProviderError:
@@ -273,19 +312,26 @@ class OpenAICompatibleProvider(_HttpProvider):
     def parameters(self) -> dict[str, str | int | float | bool]:
         return {"max_tokens": self._settings.limits.max_output_tokens, "temperature": 0}
 
-    def summarise(self, request: SummaryRequest) -> ProviderResponse:
+    def request_body(self, request: SummaryRequest) -> dict[str, Any]:
         prompt = render(request, published_on=request.published_on)
-        body = {
+        return {
             "model": self.model,
             "max_tokens": self._settings.limits.max_output_tokens,
             "temperature": 0,
             "messages": [{"role": "system", "content": prompt.system},
                          {"role": "user", "content": prompt.user}],
         }  # fmt: skip
+
+    def summarise(self, request: SummaryRequest) -> ProviderResponse:
         headers = {"content-type": "application/json"}
         if self._settings.api_key:
             headers["authorization"] = f"Bearer {self._settings.api_key}"
-        data = self._post(f"{self._settings.base_url}/chat/completions", headers, body)
+        data = self._post(
+            f"{self._settings.base_url}/chat/completions", headers, self.request_body(request)
+        )
+        return self.parse_response(data, request)
+
+    def parse_response(self, data: Any, request: SummaryRequest) -> ProviderResponse:
         try:
             choice = data["choices"][0]
             text, finish = choice["message"]["content"], choice.get("finish_reason")

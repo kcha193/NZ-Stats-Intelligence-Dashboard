@@ -19,8 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 # Research PDF extraction (Phase 3A). Optional: without it, PDF documents fail with a clear error.
-research = ["pypdf>=6.21"]
-dev = ["pytest>=8", "ruff>=0.6", "pypdf>=6.21"]
+research = ["pypdf>=6.21.4"]
+dev = ["pytest>=8", "ruff>=0.6", "pypdf>=6.21.4"]
 
 [project.scripts]
 nzstats = "nzstats.cli:main"
