@@ -228,8 +228,11 @@ def summarise_versions(
     try:
         for candidate in candidates:
             sections = load_sections(conn, candidate.version_id)
+            inst = registry.get(candidate.institution)
             request = build_request(candidate.version_id, sections, prompt_version=PROMPT_VERSION,
-                                    limits=limits, published_on=candidate.published_on)  # fmt: skip
+                                    limits=limits, published_on=candidate.published_on,
+                                    institution=candidate.institution,
+                                    author=inst.name if inst else None)  # fmt: skip
             item = ItemResult(candidate.version_id, candidate.institution, "pending")
             if request.truncated:
                 item.outcome = "input_too_long"
@@ -438,6 +441,7 @@ def _interpret(
         return "invalid_output", "schema_mismatch", None, None, ()
     published = date.fromisoformat(request.published_on) if request.published_on else None
     report = verify(summary, sections, VerificationContext(
-        published_on=published, injection_ordinals=tuple(injection_findings(sections))))  # fmt: skip
+        published_on=published, injection_ordinals=tuple(injection_findings(sections)),
+        institution=request.institution))  # fmt: skip
     status = "verified" if report.passed else "failed_verification"
     return status, None, summary.model_dump_json(), report.to_json(), summary.forecasts

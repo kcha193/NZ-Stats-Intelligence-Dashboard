@@ -22,9 +22,11 @@ from typing import Any
 
 from nzstats.research.contract import (
     ForecastClaim,
+    IssuerRole,
     LlmLimits,
     ModelProvenance,
     OutlookSummary,
+    PolicyDecision,
     Provider,
     SectionText,
     SummaryRequest,
@@ -47,10 +49,10 @@ PRICE_POINTS = {
 }
 # The replay results recorded in docs/progress.md; the test fails if a change makes any of them worse.
 RECORDED_BASELINE: dict[str, float] = {
-    "raw_precision": 0.909, "raw_recall": 0.909, "accepted_precision": 0.941, "accepted_recall": 0.727,
-    "numerical_fidelity": 0.950, "scenario_accuracy": 1.0, "indicator_f1": 0.941,
-    "citation_correctness": 0.953, "completeness": 0.869, "verified_rate": 0.769,
-    "probe_detection_rate": 1.0,
+    "raw_precision": 0.913, "raw_recall": 0.913, "accepted_precision": 0.944, "accepted_recall": 0.739,
+    "numerical_fidelity": 0.952, "scenario_accuracy": 1.0, "indicator_f1": 0.947,
+    "citation_correctness": 0.959, "completeness": 0.875, "verified_rate": 0.785,
+    "probe_detection_rate": 1.0, "issuer_accuracy": 1.0, "decision_recall": 1.0, "decision_fidelity": 1.0,
 }  # fmt: skip
 
 _MONTH = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b")
@@ -70,6 +72,16 @@ class GoldClaim:
     value: float | None
     unit: str | None
     scenario: str | None
+    issuer_role: str | None = None  # "author" or "third_party"; None: not annotated
+
+
+@dataclass(frozen=True)
+class GoldDecision:
+    rate: float
+    decided_on: str  # ISO date
+    action: str
+    vote_for: int | None = None
+    vote_against: int | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +89,7 @@ class GoldVersion:
     indicators: frozenset[str]
     forecasts: tuple[GoldClaim, ...]
     key_points: tuple[tuple[str, ...], ...]
+    decisions: tuple[GoldDecision, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -98,6 +111,9 @@ class Case:
     version_ids: dict[str, int]
     gold: dict[str, GoldVersion]
     candidates: tuple[CandidateOutput, ...]
+    institution: str | None = (
+        None  # the author's registry key, when the case names a real institution
+    )
 
 
 @dataclass
@@ -136,6 +152,7 @@ class ModelResult:
     output_tokens: int
     usage_estimated: bool
     latency_ms: float
+    decisions: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -180,6 +197,9 @@ _LABELS = {
     "accepted_recall": "forecast recall (accepted)",
     "numerical_fidelity": "numerical fidelity (aligned raw claims)",
     "scenario_accuracy": "scenario versus baseline (aligned raw claims)",
+    "issuer_accuracy": "issuer (author or third party) of aligned raw claims",
+    "decision_recall": "policy decisions found",
+    "decision_fidelity": "policy decisions with the right rate, action and vote",
     "indicator_precision": "indicator classification precision",
     "indicator_recall": "indicator classification recall",
     "indicator_f1": "indicator classification F1",
@@ -250,24 +270,72 @@ def horizon_key(text: str) -> frozenset[str]:
 def extraction_counts(
     predicted: Sequence[ForecastClaim], gold: Sequence[GoldClaim]
 ) -> dict[str, int]:
-    """Align claims on (indicator, horizon key); prefer gold claims with the same value."""
+    """Align on (indicator, horizon key), then value, unit, scenario presence and annotated issuer role.
+
+    For author-only gold, unmatched third-party claims are excluded. A third-party claim with the same
+    indicator, horizon, value and unit as an unmatched gold claim is scored as a possible misattribution.
+    Without evidence identities in the gold, a coincidentally identical third-party forecast is ambiguous.
+    """
+    author_only = not any(g.issuer_role == IssuerRole.THIRD_PARTY for g in gold)
+    predicted = sorted(predicted, key=lambda c: c.issuer_role is IssuerRole.THIRD_PARTY)
     free = list(range(len(gold)))
-    aligned = correct = scenario_ok = value_ok = 0
+    aligned = correct = scenario_ok = value_ok = issuer_scored = issuer_ok = 0
+    excluded = 0
     for claim in predicted:
         options = [g for g in free if gold[g].indicator == claim.indicator.value
                    and horizon_key(gold[g].horizon) == horizon_key(claim.horizon)]  # fmt: skip
+        if author_only and claim.issuer_role is IssuerRole.THIRD_PARTY:
+            options = [
+                g
+                for g in options
+                if _same_value(gold[g].value, claim.value) and gold[g].unit == claim.unit
+            ]
+            if not options:
+                excluded += 1
+                continue
         if not options:
             continue
-        same_value = [g for g in options if _same_value(gold[g].value, claim.value)]
-        g = (same_value or options)[0]
+        # Issuer is a tie-breaker for equivalent figures, never a substitute for matching the
+        # numerical/scenario evidence. Without a matching role the mismatch is still scored.
+        g = min(
+            options,
+            key=lambda g: (
+                not _same_value(gold[g].value, claim.value),
+                gold[g].unit != claim.unit,
+                (gold[g].scenario is None) != (claim.scenario is None),
+                gold[g].issuer_role is None or gold[g].issuer_role != claim.issuer_role,
+            ),
+        )
         free.remove(g)
         aligned += 1
         scenario_match = (gold[g].scenario is None) == (claim.scenario is None)
         scenario_ok += scenario_match
         correct += scenario_match
         value_ok += _same_value(gold[g].value, claim.value) and gold[g].unit == claim.unit
-    return {"predicted": len(predicted), "gold": len(gold), "aligned": aligned, "correct": correct,
-            "scenario_correct": scenario_ok, "value_correct": value_ok}  # fmt: skip
+        if gold[g].issuer_role is not None:
+            issuer_scored += 1
+            issuer_ok += (
+                claim.issuer_role is not None and claim.issuer_role.value == gold[g].issuer_role
+            )
+    return {"predicted": len(predicted) - excluded, "gold": len(gold), "aligned": aligned, "correct": correct,
+            "scenario_correct": scenario_ok, "value_correct": value_ok, "issuer_scored": issuer_scored,
+            "issuer_correct": issuer_ok}  # fmt: skip
+
+
+def decision_counts(
+    predicted: Sequence[PolicyDecision], gold: Sequence[GoldDecision]
+) -> dict[str, int]:
+    """Match decisions on their date; a match is correct when the rate, action and vote all agree."""
+    by_date = {g.decided_on: g for g in gold}
+    matched = correct = 0
+    for d in predicted:
+        g = by_date.pop(d.decided_on.isoformat(), None)
+        if g is None:
+            continue
+        matched += 1
+        correct += (_same_value(g.rate, d.rate) and g.action == d.action.value
+                    and (g.vote_for, g.vote_against) == (d.vote_for, d.vote_against))  # fmt: skip
+    return {"predicted": len(predicted), "gold": len(gold), "matched": matched, "correct": correct}
 
 
 def _same_value(a: float | None, b: float | None) -> bool:
@@ -302,9 +370,12 @@ def load_case(path: Path, index: int = 0) -> Case:
     gold = {
         key: GoldVersion(
             frozenset(g.get("indicators", ())),
-            tuple(GoldClaim(f["indicator"], f["horizon"], f.get("value"), f.get("unit"), f.get("scenario"))
+            tuple(GoldClaim(f["indicator"], f["horizon"], f.get("value"), f.get("unit"), f.get("scenario"),
+                            f.get("issuer_role"))
                   for f in g.get("forecasts", ())),
             tuple(tuple(p) for p in g.get("key_points", ())),
+            tuple(GoldDecision(d["rate"], d["decided_on"], d["action"], d.get("vote_for"),
+                               d.get("vote_against")) for d in g.get("decisions", ())),
         )
         for key, g in raw["gold"].items()
     }  # fmt: skip
@@ -322,7 +393,7 @@ def load_case(path: Path, index: int = 0) -> Case:
             c["id"], c["version"], c.get("role", "probe"), output,
             frozenset(c.get("expected_errors", ())), frozenset(c.get("expected_warnings", ()))))  # fmt: skip
     return Case(raw["id"], raw.get("description", ""), raw.get("published_on"), versions, ids, gold,
-                tuple(candidates))  # fmt: skip
+                tuple(candidates), raw.get("institution"))  # fmt: skip
 
 
 def expand_output(output: Mapping[str, Any], version_ids: Mapping[str, int], version: str) -> str:
@@ -345,11 +416,16 @@ def expand_output(output: Mapping[str, Any], version_ids: Mapping[str, int], ver
     if output.get("uncertainty"):
         data["uncertainty"] = statement(output["uncertainty"])
     data["indicators"] = list(output.get("indicators", ()))
+    for name in ("facts", "decisions", "guidance", "assumptions"):  # contract version 2 records
+        if name in output:
+            data[name] = [dict(item, evidence=refs(item["evidence"])) for item in output[name]]
     data["forecasts"] = [
         {"indicator": f["indicator"], "indicator_label": f.get("label", f["indicator"]),
          "horizon": f["horizon"], "value": f.get("value"), "unit": f.get("unit"),
          "direction": f.get("direction", "unclear"), "qualification": f.get("qualification"),
-         "scenario": f.get("scenario"), "evidence": refs(f["evidence"])}
+         "scenario": f.get("scenario"), "evidence": refs(f["evidence"]),
+         # The synthetic documents state only their own forecasts ("we expect"), unless a case says otherwise.
+         "issuer": f.get("issuer", "Example institution"), "issuer_role": f.get("issuer_role", "author")}
         for f in output.get("forecasts", ())
     ]  # fmt: skip
     return json.dumps(data)
@@ -391,7 +467,8 @@ def _summarise_one(
     summary = assemble(draft, version_id=case.version_ids[version], provenance=provenance)
     published = date.fromisoformat(case.published_on) if case.published_on else None
     report = verify(summary, sections, VerificationContext(
-        published_on=published, injection_ordinals=tuple(injection_findings(sections))))  # fmt: skip
+        published_on=published, injection_ordinals=tuple(injection_findings(sections)),
+        institution=case.institution))  # fmt: skip
     return summary, report, latency, in_tok, out_tok, estimated
 
 
@@ -457,7 +534,7 @@ def score(
         empty = extraction_counts([], gold.forecasts)
         return ModelResult(case_id, version, False, frozenset({"invalid_output"}), empty, empty,
                            (0, 0, len(gold.indicators)), 0, 0, 0, 0, (0, len(gold.key_points)),
-                           in_tok, out_tok, estimated, latency)  # fmt: skip
+                           in_tok, out_tok, estimated, latency, decision_counts([], gold.decisions))  # fmt: skip
     errors = result.errors
     raw = extraction_counts(summary.forecasts, gold.forecasts)
     accepted = raw if result.passed else extraction_counts([], gold.forecasts)
@@ -466,19 +543,20 @@ def score(
     statements += [(f"risks[{i}]", s) for i, s in enumerate(summary.risks)]
     if summary.uncertainty is not None:
         statements.append(("uncertainty", summary.uncertainty))
-    items = [p for p, _ in statements] + [f"forecasts[{i}]" for i in range(len(summary.forecasts))]
+    records = [(f"{name}[{i}]", r) for name in ("forecasts", "facts", "decisions", "guidance", "assumptions")
+               for i, r in enumerate(getattr(summary, name))]  # fmt: skip
+    items = [p for p, _ in statements] + [p for p, _ in records]
     unsupported = sum(
         any(e.path == item or e.path.startswith(f"{item}.") for e in errors) for item in items
     )
-    refs = sum(len(s.evidence) for _, s in statements) + sum(
-        len(c.evidence) for c in summary.forecasts
-    )
+    refs = sum(len(s.evidence) for _, s in statements) + sum(len(r.evidence) for _, r in records)
     bad_refs = len({e.path for e in errors if e.code in REF_CODES})
     text = " ".join(s.text for _, s in statements)
     return ModelResult(
         case_id, version, result.passed, frozenset(e.code for e in errors), raw, accepted,
         indicator_counts({i.value for i in summary.indicators}, set(gold.indicators)), refs, bad_refs,
         len(items), unsupported, completeness(text, gold.key_points), in_tok, out_tok, estimated, latency,
+        decision_counts(summary.decisions, gold.decisions),
     )  # fmt: skip
 
 
@@ -495,6 +573,9 @@ def aggregate(report: EvalReport, pricing: Mapping[str, Pricing]) -> None:
         "accepted_recall": rate(total("accepted", "correct"), total("accepted", "gold")),
         "numerical_fidelity": rate(total("raw", "value_correct"), total("raw", "aligned")),
         "scenario_accuracy": rate(total("raw", "scenario_correct"), total("raw", "aligned")),
+        "issuer_accuracy": rate(total("raw", "issuer_correct"), total("raw", "issuer_scored")),
+        "decision_recall": rate(total("decisions", "matched"), total("decisions", "gold")),
+        "decision_fidelity": rate(total("decisions", "correct"), total("decisions", "matched")),
     }
     tp, n_pred, n_gold = (sum(mr.indicators[i] for mr in models) for i in range(3))
     precision, recall = rate(tp, n_pred), rate(tp, n_gold)

@@ -56,7 +56,7 @@ def test_a_faithful_summary_is_verified_stored_with_claims_usage_and_audit(conn)
     assert summary["status"] == "verified" and summary["review_status"] == "unreviewed"
     assert summary["version_id"] == v and summary["hosted"] == 0 and summary["provider"] == "fake"
     output = json.loads(summary["output_json"])
-    assert output["provenance"]["prompt_version"] == "outlook-v2"
+    assert output["provenance"]["prompt_version"] == "outlook-v3"
     assert output["provenance"]["input_text_sha256"] == summary["input_sha256"]
     assert output["not_official_statistic"] is True
     verification = json.loads(summary["verification"])
@@ -528,8 +528,8 @@ def scenario_aware(req):
     heading = req.sections[0].heading
     forecast = {
         "indicator": "gdp", "indicator_label": "GDP growth", "horizon": "2027", "value": -0.5,
-        "unit": "percent", "direction": "down", "scenario": heading,
-        "evidence": [{"version_id": req.version_id, "section_ordinal": 0, "page": 1,
+        "unit": "percent", "direction": "down", "scenario": heading, "issuer": "Example institution",
+        "issuer_role": "author", "evidence": [{"version_id": req.version_id, "section_ordinal": 0, "page": 1,
                       "quote": "GDP is forecast to contract 0.5% in 2027"}]}  # fmt: skip
     outlook = {"text": "Growth is forecast to weaken.", "evidence": forecast["evidence"]}
     return draft_json(req.version_id, forecasts=[forecast], outlook=outlook, indicators=["gdp"])
@@ -608,3 +608,25 @@ def test_spend_recorded_only_on_an_aborted_run_still_counts_toward_the_period_ca
     fake = FakeProvider(lambda req: draft_json(req.version_id))
     result = run(conn, fake, limits=LlmLimits(max_run_usd=5.0, max_period_usd=10.0))
     assert [i.outcome for i in result.items] == ["budget_exhausted"] and fake.calls == []
+
+
+# --- the author reaches the model and the verifier (Phase 4I) -----------------------------------------
+def test_the_request_names_the_author_and_issuers_are_checked_against_it(conn):
+    seed_version(conn, key="treasury")
+    reg = {
+        "treasury": institution(
+            "treasury", llm_processing="hosted", llm_processing_note="synthetic"
+        )
+    }
+
+    def imf_as_author(req):
+        data = draft(req.version_id)
+        data["forecasts"][0] |= {"issuer": "IMF", "issuer_role": "author"}
+        return json.dumps(data)
+
+    fake = FakeProvider(imf_as_author)
+    result = run(conn, fake, reg)
+    assert (fake.calls[0].institution, fake.calls[0].author) == ("treasury", "Example Research")
+    assert [i.outcome for i in result.items] == ["failed_verification"]
+    errors = json.loads(rows(conn, "research_summary")[0]["verification"])["errors"]
+    assert [e["code"] for e in errors] == ["issuer_mismatch"]

@@ -140,6 +140,10 @@ def test_a_model_filter_selects_one_model(conn, tmp_path):
     {"version_id": 1, "indicators": ["gdp"], "forecasts": [], "surprise": 1},
     {"version_id": 1, "indicators": ["not_an_indicator"], "forecasts": []},
     {"version_id": 0, "indicators": [], "forecasts": []},
+    # Phase 4I: a unit the contract does not know ("people", not "persons") would silently never match
+    {"version_id": 1, "forecasts": [{"indicator": "migration", "horizon": "2026", "value": 1, "unit": "people"}]},
+    {"version_id": 1, "decisions": [{"rate": 2.75, "decided_on": "28 October 2026", "action": "hold"}]},
+    {"version_id": 1, "forecasts": [{"indicator": "gdp", "horizon": "2026", "issuer_role": "imf"}]},
 ])  # fmt: skip
 def test_the_annotation_file_is_strict(tmp_path, bad):
     with pytest.raises(AnnotationError):
@@ -276,3 +280,15 @@ def test_purged_invalid_output_is_not_scored_but_usage_is_preserved(conn, tmp_pa
     (group,) = evaluate_stored(conn, ann).groups
     assert group.documents == 1 and group.report.models[0].version == str(active)
     assert group.recorded_cost_usd == pytest.approx(0.02)
+
+
+def test_issuers_and_decisions_in_the_annotation_are_scored(conn, tmp_path):
+    version = seed_version(conn)
+    store_summary(conn, version)
+    gold = {**GOLD, "forecasts": [f | {"issuer_role": "author"} for f in GOLD["forecasts"]],
+            "decisions": [{"rate": 2.75, "decided_on": "2026-10-28", "action": "hold"}]}  # fmt: skip
+    report = evaluate_stored(conn, annotations(tmp_path, {"version_id": version, **gold}))
+    (group,) = report.groups
+    m = group.report.metrics
+    assert m["issuer_accuracy"] == 1.0  # the stored draft names the author on both forecasts
+    assert (m["decision_recall"], m["decision_fidelity"]) == (0.0, None)  # no decision was reported

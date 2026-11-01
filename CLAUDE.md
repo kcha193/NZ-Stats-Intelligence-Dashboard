@@ -4,7 +4,8 @@ Self-hosted dashboard that ingests Stats NZ releases and explains them. Migratio
 Phase 4D integrates GDP, labour and the Outlook stack on main. Phase 4E has activated and reconciled the approved
 seven-release official backfill; production deployment remains gated. Phase 4G replaces native scheduled collection with
 a bounded on-open refresh (`docs/phase-4g-on-open-refresh.md`); `--offline` never contacts Stats NZ. OCR remains synthetic-only
-and institutional research publishing remains permission-gated. Resume from [docs/progress.md](docs/progress.md);
+and institutional research publishing remains permission-gated; Phase 4I adds research contract v2, verifier `verify-3`
+and a disabled, loopback-only private research preview (`docs/phase-4i-research-quality.md`). Resume from [docs/progress.md](docs/progress.md);
 current release gates and evidence are in [docs/phase-4e-release.md](docs/phase-4e-release.md).
 
 ## Stack and layout
@@ -58,6 +59,8 @@ nzstats export-snapshot ./snapshot && nzstats validate-snapshot ./snapshot --for
 - Public site: never publish fixture data (`FIXTURE_DATA` marker; the exporter refuses it), never put the database, the
   ingestion log or error text in a snapshot, and never deploy without `PUBLISH_ENABLED=1`. Static mode must render exactly
   what live mode does (the parity spec). See `docs/netlify-deployment.md`.
+- Research is shown privately only through `research/private.py` (one gate, `serve --private-research`, loopback only, its
+  own `private_display` permission). Never mount it anywhere else or relax its bind and request checks.
 - Research is shown publicly only through `research/public.py` (one gate). Never change a source's access, LLM or
   `public_display` settings without a documented, authorised review, and never add research to a snapshot.
 - Operational monitoring (`nzstats/ops/`) is read-only and offline: `status` opens the database `mode=ro`, never builds a

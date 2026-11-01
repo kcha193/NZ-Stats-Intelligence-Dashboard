@@ -1,0 +1,405 @@
+{
+  "id": "attribution-decisions",
+  "description": "Phase 4I: a third party's forecast beside the author's, a minus sign split across lines, a table cell, chart-axis labels, an OCR decision with its vote, and an unstated adjustment basis.",
+  "published_on": "2026-10-28",
+  "versions": {
+    "v1": [
+      {
+        "page": 1,
+        "text": "SYNTHETIC FIXTURE. We expect GDP to grow 2.8% in 2027. The IMF expects GDP growth of 2.9% in 2027. Business confidence fell to -\n7% in October 2026, on unadjusted figures. Net migration was 3,190 in July 2026."
+      },
+      {
+        "page": 2,
+        "text": "SYNTHETIC FIXTURE. Table 1: Example forecasts\n2025 2026 2027\nExample 0.8 1.6 2.9\nAnnual average % change\n-10\n-5\n0\n5\n10 15 20\n"
+      },
+      {
+        "page": 3,
+        "text": "SYNTHETIC FIXTURE. The Monetary Policy Committee today voted 4–3 to hold the Official Cash Rate at 2.75 percent. The Committee expects to keep the OCR at 2.75 percent until mid-2027."
+      }
+    ]
+  },
+  "gold": {
+    "v1": {
+      "indicators": [
+        "gdp",
+        "ocr"
+      ],
+      "forecasts": [
+        {
+          "indicator": "gdp",
+          "horizon": "2027",
+          "value": 2.8,
+          "unit": "percent",
+          "scenario": null,
+          "issuer_role": "author"
+        }
+      ],
+      "decisions": [
+        {
+          "rate": 2.75,
+          "decided_on": "2026-10-28",
+          "action": "hold",
+          "vote_for": 4,
+          "vote_against": 3
+        }
+      ],
+      "key_points": [
+        [
+          "growth"
+        ]
+      ]
+    }
+  },
+  "candidates": [
+    {
+      "id": "model",
+      "version": "v1",
+      "role": "model",
+      "output": {
+        "outlook": {
+          "text": "We expect GDP growth to pick up.",
+          "evidence": [
+            [
+              0,
+              1,
+              "We expect GDP to grow 2.8% in 2027"
+            ]
+          ]
+        },
+        "indicators": [
+          "gdp",
+          "ocr"
+        ],
+        "forecasts": [
+          {
+            "indicator": "gdp",
+            "label": "GDP growth",
+            "horizon": "2027",
+            "value": 2.8,
+            "unit": "percent",
+            "direction": "up",
+            "issuer": "Example institution",
+            "issuer_role": "author",
+            "evidence": [
+              [
+                0,
+                1,
+                "We expect GDP to grow 2.8% in 2027"
+              ]
+            ]
+          },
+          {
+            "indicator": "gdp",
+            "label": "GDP growth",
+            "horizon": "2027",
+            "value": 2.9,
+            "unit": "percent",
+            "direction": "up",
+            "issuer": "IMF",
+            "issuer_role": "third_party",
+            "evidence": [
+              [
+                0,
+                1,
+                "The IMF expects GDP growth of 2.9% in 2027"
+              ]
+            ]
+          }
+        ],
+        "facts": [
+          {
+            "text": "Business confidence fell to -7%.",
+            "source": "Example survey",
+            "value": -7,
+            "unit": "percent",
+            "period": "October 2026",
+            "definition": {
+              "adjustment": "unadjusted"
+            },
+            "evidence": [
+              [
+                0,
+                1,
+                "Business confidence fell to -\n7% in October 2026, on unadjusted figures"
+              ]
+            ]
+          }
+        ],
+        "decisions": [
+          {
+            "action": "hold",
+            "rate": 2.75,
+            "decided_on": "2026-10-28",
+            "vote_for": 4,
+            "vote_against": 3,
+            "decision_maker": "Monetary Policy Committee",
+            "evidence": [
+              [
+                2,
+                3,
+                "today voted 4–3 to hold the Official Cash Rate at 2.75 percent"
+              ]
+            ]
+          }
+        ],
+        "guidance": [
+          {
+            "text": "The Committee expects to keep the OCR at 2.75 percent until mid-2027.",
+            "issuer": "Monetary Policy Committee",
+            "evidence": [
+              [
+                2,
+                3,
+                "The Committee expects to keep the OCR at 2.75 percent until mid-2027"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "imf-as-author",
+      "version": "v1",
+      "expected_errors": [
+        "issuer_mismatch"
+      ],
+      "output": {
+        "forecasts": [
+          {
+            "indicator": "gdp",
+            "label": "GDP growth",
+            "horizon": "2027",
+            "value": 2.9,
+            "unit": "percent",
+            "direction": "up",
+            "issuer": "Example institution",
+            "issuer_role": "author",
+            "evidence": [
+              [
+                0,
+                1,
+                "The IMF expects GDP growth of 2.9% in 2027"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-issuer",
+      "version": "v1",
+      "expected_errors": [
+        "missing_issuer"
+      ],
+      "output": {
+        "forecasts": [
+          {
+            "indicator": "gdp",
+            "label": "GDP growth",
+            "horizon": "2027",
+            "value": 2.8,
+            "unit": "percent",
+            "direction": "up",
+            "issuer": null,
+            "issuer_role": null,
+            "evidence": [
+              [
+                0,
+                1,
+                "We expect GDP to grow 2.8% in 2027"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "split-sign-dropped",
+      "version": "v1",
+      "expected_errors": [
+        "value_not_in_evidence"
+      ],
+      "output": {
+        "facts": [
+          {
+            "text": "Business confidence fell.",
+            "source": "Example survey",
+            "value": 7,
+            "unit": "percent",
+            "period": "October 2026",
+            "definition": {
+              "adjustment": "unadjusted"
+            },
+            "evidence": [
+              [
+                0,
+                1,
+                "Business confidence fell to -\n7% in October 2026, on unadjusted figures"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "table-wrong-year",
+      "version": "v1",
+      "expected_errors": [
+        "table_column_mismatch"
+      ],
+      "output": {
+        "forecasts": [
+          {
+            "indicator": "gdp",
+            "label": "GDP growth",
+            "horizon": "2027",
+            "value": 1.6,
+            "unit": "percent",
+            "direction": "up",
+            "issuer": "Example institution",
+            "issuer_role": "author",
+            "evidence": [
+              [
+                1,
+                2,
+                "Example 0.8 1.6 2.9"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "axis-number",
+      "version": "v1",
+      "expected_errors": [
+        "axis_residue"
+      ],
+      "output": {
+        "facts": [
+          {
+            "text": "The index was 15.",
+            "source": "Example survey",
+            "value": 15,
+            "unit": "index",
+            "period": "October 2026",
+            "definition": {
+              "adjustment": "unadjusted"
+            },
+            "evidence": [
+              [
+                1,
+                2,
+                "-5 0 5 10 15 20"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "decision-as-forecast",
+      "version": "v1",
+      "expected_errors": [
+        "decision_as_forecast"
+      ],
+      "output": {
+        "forecasts": [
+          {
+            "indicator": "ocr",
+            "label": "OCR",
+            "horizon": "2027",
+            "value": 2.75,
+            "unit": "percent",
+            "direction": "flat",
+            "issuer": "Reserve Bank",
+            "issuer_role": "author",
+            "evidence": [
+              [
+                2,
+                3,
+                "today voted 4–3 to hold the Official Cash Rate at 2.75 percent"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "vote-not-captured",
+      "version": "v1",
+      "expected_errors": [
+        "vote_not_captured"
+      ],
+      "output": {
+        "decisions": [
+          {
+            "action": "hold",
+            "rate": 2.75,
+            "decided_on": "2026-10-28",
+            "vote_for": null,
+            "vote_against": null,
+            "decision_maker": "Monetary Policy Committee",
+            "evidence": [
+              [
+                2,
+                3,
+                "today voted 4–3 to hold the Official Cash Rate at 2.75 percent"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "adjustment-invented",
+      "version": "v1",
+      "expected_errors": [
+        "definition_not_in_evidence"
+      ],
+      "output": {
+        "facts": [
+          {
+            "text": "Net migration was 3,190.",
+            "source": "Example survey",
+            "value": 3190,
+            "unit": "persons",
+            "period": "July 2026",
+            "definition": {
+              "adjustment": "seasonally_adjusted"
+            },
+            "evidence": [
+              [
+                0,
+                1,
+                "Net migration was 3,190 in July 2026"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "guidance-backward",
+      "version": "v1",
+      "expected_errors": [
+        "guidance_not_forward"
+      ],
+      "output": {
+        "guidance": [
+          {
+            "text": "The OCR was held.",
+            "issuer": "Monetary Policy Committee",
+            "evidence": [
+              [
+                2,
+                3,
+                "today voted 4–3 to hold the Official Cash Rate at 2.75 percent"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

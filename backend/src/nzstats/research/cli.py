@@ -31,6 +31,7 @@ from nzstats.research.ingest import RunResult, refusal_for, run_institution
 from nzstats.research.manual_import import ImportRefused, import_document
 from nzstats.research.outcomes import stored_cpi_releases
 from nzstats.research.pilot_eval import AnnotationError, evaluate_stored, load_annotations
+from nzstats.research.private import why_not_private
 from nzstats.research.providers import (
     LlmConfigError,
     LlmSettings,
@@ -365,6 +366,9 @@ def _show(args: argparse.Namespace, settings: Settings, registry: dict[str, Inst
         _emit(f"  public: yes ({inst.display_level().value}) when NZSTATS_PUBLIC_RESEARCH=1")
     else:
         _emit(f"  public: no ({_safe(reason)})")
+    private = why_not_private(conn, registry, row["id"])
+    _emit("  private preview: yes with `nzstats serve --private-research`" if private is None
+          else f"  private preview: no ({_safe(private)})")  # fmt: skip
     _emit("  Not an official statistic: an interpretation of institutional commentary.")
     _emit(f"  {SCOPE}")
     if ss.is_redacted(row["output_json"]):

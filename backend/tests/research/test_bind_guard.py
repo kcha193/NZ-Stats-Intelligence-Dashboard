@@ -65,3 +65,39 @@ def test_serve_starts_on_loopback_or_with_research_off_or_acknowledged(uvicorn_c
     monkeypatch.delenv("NZSTATS_PUBLIC_RESEARCH")
     assert main(["serve", "--no-scheduler", "--host", "0.0.0.0"]) == 0
     assert [c["host"] for c in uvicorn_calls] == ["127.0.0.1", "0.0.0.0", "0.0.0.0"]
+
+
+# --- the private research preview (Phase 4I): loopback only, no override --------------------------------
+@pytest.fixture()
+def served(monkeypatch, tmp_path):
+    import uvicorn
+
+    apps = []
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: apps.append((app, kw)))
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv(ALLOW_NONLOOPBACK_ENV, raising=False)
+    monkeypatch.delenv("NZSTATS_PUBLIC_RESEARCH", raising=False)
+    return apps
+
+
+def _paths(app) -> set[str]:
+    return set(app.openapi()["paths"])
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.20", "nas.local"])
+def test_the_private_preview_refuses_any_non_loopback_bind_even_when_acknowledged(
+    served, monkeypatch, capsys, host
+):
+    monkeypatch.setenv(
+        ALLOW_NONLOOPBACK_ENV, "1"
+    )  # the public-research override does not apply here
+    assert main(["serve", "--no-scheduler", "--private-research", "--host", host]) == 2
+    assert served == [] and "private research preview" in capsys.readouterr().err
+
+
+def test_the_private_preview_is_mounted_only_when_asked_for(served):
+    assert main(["serve", "--no-scheduler", "--host", "127.0.0.1"]) == 0
+    assert main(["serve", "--no-scheduler", "--private-research", "--host", "127.0.0.1"]) == 0
+    (off, _), (on, _) = served
+    assert "/api/private/research/items" not in _paths(off)
+    assert "/api/private/research/items" in _paths(on)

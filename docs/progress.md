@@ -1,6 +1,98 @@
 # Progress and verification record
 
-Last updated 2026-10-31. Phase 4G (on-open refresh) is merged (PR #28) and passed live acceptance with conditions (Phase 4H execution). Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+Last updated 2026-11-01. Phase 4I (research contract v2, verify-3, private-preview foundation) is on branch
+`feat/phase-4i-research-quality`: local-model pilot GO WITH CONDITIONS, pending owner approvals. Phase 4G (on-open refresh) is merged (PR #28) and passed live acceptance with conditions (Phase 4H execution). Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+
+## Phase 4I: economic intelligence quality and private preview readiness, 31 October 2026
+
+Record: [phase-4i-research-quality.md](phase-4i-research-quality.md).
+
+- **Contract and prompt.** Contract version 2 separates facts, interpretation, author and third-party forecasts (every
+  forecast names its issuer), OCR decisions (rate, date, vote), guidance and assumptions. Version 1 summaries still
+  load. The prompt is `outlook-v3`.
+- **verify-3.** Every Phase 4H finding is closed failing-first: issuer attribution, signs split across lines, table
+  columns, chart-axis residue, decisions as forecasts, and unstated definitions. The real documents exposed four
+  regressions: "US$" read as "us", a year then an axis label read as a fiscal year, an annual rate at a named quarter
+  read as quarterly, and a survey of expectations read as a forecast. Each is narrowed with a test.
+- **Real-document check** (counts only, no model): 46/46 anchors valid, swapped issuers caught 8/9 (one warning), the
+  RBNZ decision and its 4–3 vote verified, and the split sign kept. Stats NZ comparisons at the document's vintage
+  give 16 match and 2 not comparable (monthly migration, basis unstated). Treasury's GDP and CPI forecasts, table
+  cells under repeated year columns, are refused as unverifiable.
+- **Gold.** The Phase 4H gold used the unknown unit `people`. The loader now refuses it, and a corrected 4I copy is
+  kept under `data/`.
+- **Private preview.** `--private-research` routes are built: loopback only, a separate `private_display` permission,
+  reviewed summaries only. They are off and empty, because no source is approved.
+- **Model readiness.** A local ~14B model on `llama-server` is recommended for this 24 GB M4.
+
+Replay (prompt `outlook-v3`, verifier `verify-3`, 13 cases, 38 probes): raw precision and recall 0.913, accepted
+precision 0.944 and recall 0.739, numerical fidelity 0.952, citation correctness 0.959, completeness 0.875, verified
+0.786, and issuer accuracy, decision recall and decision fidelity 1.0. Probes: 38/38 as labelled. These are the new
+`RECORDED_BASELINE` floors.
+
+No model call, crawl, download, registry or display change.
+
+### PR #33 systematic verification audit, 1 November 2026
+
+Audit and false-acceptance/false-rejection matrix: [pr-33-verification-audit.md](pr-33-verification-audit.md).
+Replaced year-first fact classification with scoped table evidence identity; retained completed actual outturns,
+fiscal/calendar distinctions and current revised forecasts. Policy action/rate/maker checks share the adopted
+clause; unrelated guidance, dissent, reporting institutions and previous decision dates cannot supply fields.
+Historical comparisons refuse missing baselines and undated bundle-reactivation ambiguity. Both display gates
+bind output to its stored document version. Updated the synthetic browser seeder for v2 issuer requirements.
+
+Added 60 regression cases with failure-first evidence. Full backend run: 3,443 passed; final research rerun:
+1,689 passed, including four cases added after the broad run started. Frontend: 524 passed; types/lint/build,
+unchanged API schema, research browser 18 passed + 3 expected skips, replay 38/38, Ruff and staged Gitleaks pass.
+Two independent local review findings were fixed failing-first. Remote-head CI and fresh review receipts belong
+in the PR conversation; this entry does not claim review closure. Registry, contracts, production data and
+disabled preview settings are unchanged. No model call, live statistical request, merge or deployment.
+
+The first fresh review of the pushed audit head found one P2 in evaluation alignment: otherwise identical author
+and third-party gold figures scored differently when annotations were reordered. Four failures reproduced the
+role, unit and scenario tie gaps; the fix prefers numeric/scenario alignment before annotated issuer role.
+Ten new permutations preserve real mismatch scoring, and one further positive table case keeps completed
+current-year historical observations accepted. Total added cases: 71; the final research suite has 1,700 cases.
+Fresh-head review and CI evidence remain in the PR conversation.
+
+The second review found two further policy field-binding issues: dates and votes could still be taken from
+another decision in the nearby passage. A focused primary-versus-supplement audit reproduced twenty-one failures.
+The cited decision's explicit fields now take precedence, and supplementary context excludes complete
+neighbouring decisions while retaining separate and same-sentence vote/member-count records. Thirty new cases
+cover both context orders, date formats, correct/incorrect fields, later meeting dates in guidance, meeting/vote
+prefixes before the adopted clause, and valid supplements. Total added cases: 101; research suite: 1,730.
+Full backend at `03c938f` passed 3,458; final-source research and
+review receipts remain in the PR.
+
+The remaining P2 (`discussion_r4433397249`) is addressed by value-scoped reference-period support shared
+by facts and forecasts. Explicit local periods take precedence; compatible headings and explicit period
+context can fill missing components, while independent neighbouring figures and contradictory context cannot.
+Fifty-eight regression cases reproduce thirty-two failures against the fetched head and pass with the fix.
+Existing paired forecasts, month names, fiscal/calendar distinctions, chart residue and split-sign coverage
+are retained. Total stabilisation additions: 159. The bounded review sequence and final verification results
+are recorded in the PR conversation.
+
+Final local checks: Python 3.12 full backend 3,546; final research 1,788; frontend 524;
+live browser 174; synthetic research 18 + 3 skips; static/parity 315 + 24 skips. Ruff,
+types/lint/build/schema parity, replay 38/38 and staged/range Gitleaks pass.
+
+CI run `41244466427` has zero steps in all three failed jobs: GitHub account billing/spending limits prevented
+startup; this is an external blocker. Local `npm audit` also fails on `GHSA-g3hv-75wg-m249` in the API type
+generator's development dependency tree. An attempted Redocly major-version override broke type generation
+and was reverted; no audit policy was relaxed. Details and recommended follow-up are in the audit report.
+
+Bounded closure cycle 1 reviewed `35e07cb` and found two P2 false rejections: dated table source
+lines were combined with column periods, and coordinated assertions lost a shared temporal prefix.
+Both have failing-first coverage (10 failures / 20 cases) and scoped fixes; period regressions now
+number 78 (179 stabilisation additions). Follow-up research 1,808, replay 38/38, synthetic research
+browser 18 + 3 skips, and Ruff pass. Current-head CI `41256124195` starts jobs: the historical
+billing error has cleared for this run, while frontend fails specifically at the npm audit gate.
+Final head, CI outcomes and the bounded review receipt are recorded in the PR conversation.
+
+Bounded closure cycle 2 reviewed `4f67cb9` and found one P2: `and` within coordinated reference
+periods was being split as another assertion. Sixteen failing-first cases cover years, months,
+quarters, shortened/full quotes and a following independent value. The narrow conjunction fix retains
+all 94 period regressions (195 stabilisation additions). Research 1,824, Ruff and replay 38/38 pass.
+CI `41256124195` completed: backend/static-site pass, frontend audit fails, Docker skips. Review cycle 3 is the final permitted request.
 
 ## Phase 4H execution, 31 October 2026
 
