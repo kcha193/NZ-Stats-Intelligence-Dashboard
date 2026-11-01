@@ -1,12 +1,56 @@
 # Progress and verification record
 
-Last updated 2026-11-01. Phase 4K prepares hosted inference from main `13cd20e`, including PRs #34–#36.
-The OpenRouter integration is open as draft [PR #37](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/37);
-**NO-GO for real transmission, acceptance or display** until
-source-specific rights, hosted/provider/budget and human-review gates pass. PR #36's local consent is unchanged.
-The source registry remains unchanged. Hosted jobs now start, so the old billing blocker is historical.
-Local operation only; no scheduler, Docker or hosting work is introduced.
+Last updated 2026-11-01. Phase 4L preflight starts from latest main `7922fd7`, after merged
+[PR #37](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/37).
+**NO-GO for real transmission, acceptance or display**: both sources' hosted rights/scope decisions,
+provider/privacy/budget/account evidence and human gold review remain pending. PR #36's local consent,
+the source registry, adapter, verifier and display gates are unchanged. A verified fresh backup and local
+owner-review packet are ready. No institutional crawl, inference, scheduler, publication or deployment occurred.
 Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries below are historical.
+
+## Phase 4L: controlled hosted pilot preflight, 1 November 2026
+
+Record: [phase-4l-controlled-pilot.md](phase-4l-controlled-pilot.md); fresh public route metadata:
+[phase-4l-catalogue.json](../config/phase-4l-catalogue.json). This PR is an approval-hold deliverable;
+Stages 3–5 are not represented as completed.
+
+- PR #37 merged at 20:34 NZDT as `7922fd7`; local/fetched main agree. Its reviewed-head CI
+  [41283475739](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/41283475739) passes all four
+  jobs. Merge-specific CI [41285323041](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/41285323041)
+  is tracked separately.
+- Created and verified `data/backups/pre-4l-20261101T074522Z`, schema 13, all 45 raw hashes. Independent restore
+  into a new ignored directory matches counts/content digests for all 32 live tables. Both original document
+  raw/text hashes and all 22 freshly extracted sections agree. At final comparison, all 31 non-`ops_process`
+  tables remain unchanged; only an existing process's heartbeat timestamp advanced. No migration or task-created
+  runtime/scheduler; research/statistical data and pilot ledgers unchanged.
+- Four public OpenRouter metadata GETs confirm Opus 5.5 / `google-vertex/europe` / `Google`, status 0,
+  US$4.40/M input and US$22/M output, required parameters, ZDR listing and `safety_retention=false`.
+  Current policy requires checking strict zero-retention account settings and both logging/improvement opt-outs;
+  account/key controls and owner acceptance remain unverified, not inferred from public metadata.
+- Exact-document local marker/extraction checks and a restrictive local owner-review HTML packet prepare
+  rights, section and gold decisions without putting report text into hosted agent/reviewer context.
+  Rights review and human gold review remain incomplete. No approval fields or original annotations changed.
+  A network-blocked, read-only refusal probe rejects both versions for missing hosted consent with zero calls,
+  writes, reservations or run ID. All live summary/usage/reservation tables remain empty.
+- Offline baseline reproduces 46/46 anchors/pages, four table-cell refusals, unsupported migration horizon,
+  broad RBNZ decision citation failure, two warning-only swapped-issuer cases and 7/9/2 historical comparison
+  outcomes (match/unavailable/uncomparable). These are reference checks, not real-model metrics.
+- Private API assessment: current source-wide LLM checks cannot expose a version-consented hosted summary
+  while retaining denied institution-wide processing. Durable exact-version processing/display compatibility
+  needs a later reviewed change, separate display consent and actual human-approved output.
+- Fresh focused suite: **241 passed**. Ruff lint/format pass; npm audit zero vulnerabilities; isolated updated
+  Python 3.12 dependency audit has no known vulnerabilities (only unpublished editable `nzstats` skipped).
+  Full Python 3.12 backend: **3,703 passed** in 320.81 seconds, one existing Starlette/httpx warning.
+  Markdown links/fences, catalogue JSON, staged diff checks and Gitleaks pass. Frontend/browser suites were
+  not repeated locally for documentation-only changes; PR CI runs the normal checks. Independent Codex
+  `gpt-6.1-sol` / high review found **no actionable material findings** in this three-file deliverable, excluding
+  source/private-data and account evidence. At the pre-push check, merge CI backend/frontend/static passed;
+  Docker remained in progress. PR CI status is tracked in the PR, separately from these local results.
+
+**GO WITH CONDITIONS for preflight review; NO-GO for inference/display.** Zero real inference attempts,
+US$0 pilot spend, no actual-model metrics, rejected or accepted generated claims. Outstanding decisions are
+source-specific hosted rights/exact sections, exact route/privacy, dedicated non-resetting US$5 key/account
+settings, human gold review and final request freeze. Output/private-display/UI approvals remain separate.
 
 ## Phase 4K: OpenRouter integration and hosted-processing proposal, 1 November 2026
 
