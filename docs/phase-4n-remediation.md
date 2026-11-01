@@ -110,12 +110,17 @@ than at a distinct assertion, so the table above is the more specific evidence f
 
 ## Verification
 
-- Full backend on Python 3.12: **3,848 passed**, with the one existing Starlette/httpx warning, before one later test
-  was added. Final counts and review cycles are recorded on the PR.
-- Ruff lint and format: pass, 326 files.
+- Full backend on Python 3.12 at `17a328f`: **3,877 passed**, with the one existing Starlette/httpx warning.
+- PR CI at `17a328f`: backend, frontend, static site and Docker all pass.
+- Ruff lint and format: pass, 326 files. Staged Gitleaks: no leaks.
 - Offline freezes and a read-only ledger simulation ran locally and printed metadata only. Live ledger counts and spend
   were unchanged afterwards.
-- Frontend, browser and Docker suites were not run locally, because no API model or frontend file changed. PR CI runs them.
+- Independent Codex review used `gpt-6-sol` at high effort on an export with no `data/` directory, because this account
+  no longer accepts the configured `gpt-6.1-sol`. Cycle 1 found 4 issues and cycle 2 found 5. All 9 are closed: 8 by code or
+  test changes, with failing tests first, and 1 by correcting the proposal. Cycle 1's migration suggestion was met without a
+  migration, by counting immutable reservation rows.
+- **Cycle 3 has not completed.** It stopped at the Codex usage limit before reporting, so the cycle 2 fixes have not yet
+  had independent review.
 - Synthetic tests cannot establish model quality.
 
 ## Remaining risks and owner decisions
