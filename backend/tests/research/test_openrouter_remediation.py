@@ -100,9 +100,11 @@ def test_partial_json_after_some_reasoning_is_final_json_truncation():
 @pytest.mark.parametrize(
     ("finish", "native"), [("length", "max_tokens"), ("length", None), ("stop", "max_tokens")]
 )
-def test_a_length_finish_never_passes_even_with_complete_json(finish, native):
+def test_a_length_finish_never_passes_and_complete_json_is_not_called_truncated(finish, native):
     body = billed(content=draft_json(1), finish=finish, native=native, reasoning=100)
-    assert failure(body).error_class == "final_json_truncated"
+    assert failure(body).error_class == "output_truncated"
+    partial = billed(content='{"outlook":', finish=finish, native=native, reasoning=100)
+    assert failure(partial).error_class == "final_json_truncated"
 
 
 # 3. Complete JSON under the revised settings.
@@ -439,6 +441,23 @@ def test_experiment_attempt_and_spend_limits_hold_under_the_unchanged_lifetime_c
     assert ss.lifetime_spent(conn) == pytest.approx(0.382278204 + 0.9)
 
 
+def tagged_hold(conn, version, scope, rid):
+    return ss.reserve(
+        conn,
+        run_id=rid,
+        version_id=version,
+        call_no=1,
+        provider="openrouter",
+        model="m",
+        amount_usd=0.01,
+        period_cap_usd=5,
+        since=NOW - timedelta(days=30),
+        now=NOW,
+        expires_at=NOW + timedelta(hours=1),
+        scope=scope,
+    )
+
+
 def test_retagging_history_cannot_exceed_lifetime_attempts(conn):
     versions = [seed_version(conn, doc=d) for d in "abcde"]
     scope = ss.PilotScope("synthetic-unbounded", 99, 5.0)
@@ -446,23 +465,35 @@ def test_retagging_history_cannot_exceed_lifetime_attempts(conn):
     conn.execute('UPDATE research_llm_run SET limits=\'{"experiment":"synthetic-other"}\'')
     for version in versions[2:4]:
         assert ss.openrouter_refusal(conn, version, 0.01, scope=scope) is None
-        ss.reserve(
-            conn,
-            run_id=rid,
-            version_id=version,
-            call_no=1,
-            provider="openrouter",
-            model="m",
-            amount_usd=0.01,
-            period_cap_usd=5,
-            since=NOW - timedelta(days=30),
-            now=NOW,
-            expires_at=NOW + timedelta(hours=1),
-            scope=scope,
-        )
+        tagged_hold(conn, version, scope, rid)
     assert ss.openrouter_refusal(conn, versions[4], 0.01, scope=scope) == (
         "lifetime_attempts_exhausted"
     )
+
+
+def test_retagging_a_run_cannot_restore_a_consumed_version_slot(conn):
+    treasury, rbnz = seed_version(conn), seed_version(conn, doc="b")
+    first_pilot_rows(conn, (treasury, rbnz))
+    scope = ss.PilotScope(EXPERIMENT, 2, 1.0)
+    second = ss.start_run(
+        conn,
+        provider="openrouter",
+        model="m",
+        hosted=True,
+        prompt_version=PROMPT_VERSION,
+        processing_version="3b-1",
+        limits={"experiment": EXPERIMENT},
+        dry_run=False,
+        now=NOW,
+    )
+    assert tagged_hold(conn, treasury, scope, second) is not None
+    assert ss.openrouter_refusal(conn, treasury, 0.01, scope=scope) == "attempt_consumed"
+    conn.execute("UPDATE research_llm_run SET limits='{}' WHERE id=?", (second,))
+    assert ss.openrouter_refusal(conn, treasury, 0.01, scope=scope) == "attempt_consumed"
+    with pytest.raises(ss.AttemptConsumed):
+        tagged_hold(conn, treasury, scope, second)
+    # The other version's own unused slot in this experiment is unaffected.
+    assert ss.openrouter_refusal(conn, rbnz, 0.01, scope=scope) is None
 
 
 # 9. Expired or mismatched approval.
@@ -484,6 +515,33 @@ def test_expired_or_mismatched_consent_never_transmits(conn, change):
     result = pipeline(conn, p, [grant(conn, p, v, **change)], version_ids=[v])
     assert calls == [] and result.refusals
     assert rows(conn, "research_llm_reservation") == []
+
+
+@pytest.mark.parametrize("error", [{}, "", 0, False, [], {"code": 502}])
+@pytest.mark.parametrize("where", ["top", "choice"])
+def test_a_present_error_field_fails_whatever_its_value(where, error):
+    valid = billed(content="{}", finish="stop", native="end_turn", out=10)
+    if where == "top":
+        valid["error"] = error
+    else:
+        valid["choices"][0]["error"] = error
+    assert failure(valid).error_class == "upstream_error"
+
+
+def test_a_null_error_field_is_not_a_failure():
+    valid = billed(content="{}", finish="stop", native="end_turn", out=10)
+    valid["error"] = None
+    valid["choices"][0]["error"] = None
+    assert adapter(lambda r: httpx.Response(200, json=valid)).summarise(REQUEST).text == "{}"
+
+
+def test_changed_timeout_invalidates_an_existing_request_hash():
+    base = pv.load_llm_settings(ENV_4N)
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+    longer = replace(base, limits=replace(base.limits, timeout_seconds=301))
+    first = pv.build_provider(base, client=client).parameters()
+    assert first["timeout_seconds"] == 300
+    assert pv.build_provider(longer, client=client).parameters()["timeout_seconds"] == 301
 
 
 def test_prompt_effort_or_cap_change_invalidates_an_existing_request_hash(conn):

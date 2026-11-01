@@ -32,8 +32,8 @@ result of the first. Both use the section scopes approved in Phase 4M. A fresh f
 
 | Order | Version / sections | Freeze SHA-256 | Canonical request SHA-256 | Conservative bound |
 |---|---|---|---|---|
-| 1 | Treasury v1 / 0–6 | `2dafbb10d917776bb3cdc834cfddd6c50e4c135ed0898f3500033de3a42c40b8` | `15dab6ba1f3872b7b0045e9eebf06e8a09ed3b85d575314cbe887cdb7d809037` | US$0.4532308 |
-| 2 | RBNZ v2 / 1–14 | `52f4500cce51f04da46b0e5564f2c5442a9d4058d97034054646c5ca00a9702b` | `f857f4873b06b7f0842d242590c226725b08de80d89d316b68b7ab7fd36633a1` | US$0.4115056 |
+| 1 | Treasury v1 / 0–6 | `57554ecff8751aac2261def808955ecc284dd366034186267502c615a4449c95` | `64de36f21bbcba9d2fbefaa4a2ef9793426000f337afbb9ba3adb387ebaf8aa5` | US$0.4532308 |
+| 2 | RBNZ v2 / 1–14 | `417152dfff4afc3ded44eaffd9119d039b94deed04fe0d83bc9a1664f5a472ab` | `17cd795eabc595036ec1d5fc0ae13cc5988c7e26164bf1c624809e8dca32e8ec` | US$0.4115056 |
 
 | Cost view | Treasury | RBNZ | Total |
 |---|---|---|---|

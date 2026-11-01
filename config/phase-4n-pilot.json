@@ -15,7 +15,9 @@
     "safety_retention_required": false
   },
   "request": {
-    "reasoning": { "effort": "low" },
+    "reasoning": {
+      "effort": "low"
+    },
     "max_tokens": 12000,
     "timeout_seconds": 300,
     "response_format": "json_object",
@@ -34,20 +36,43 @@
       "order": 1,
       "version_id": 1,
       "institution": "treasury",
-      "section_ordinals": [0, 1, 2, 3, 4, 5, 6],
-      "freeze_sha256": "2dafbb10d917776bb3cdc834cfddd6c50e4c135ed0898f3500033de3a42c40b8",
-      "request_sha256": "15dab6ba1f3872b7b0045e9eebf06e8a09ed3b85d575314cbe887cdb7d809037",
-      "body_sha256": "74fcbc098cf3487319d5702918b37d2f9844e6cefc102e91dc1105de7df00f64",
+      "section_ordinals": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "freeze_sha256": "57554ecff8751aac2261def808955ecc284dd366034186267502c615a4449c95",
+      "request_sha256": "64de36f21bbcba9d2fbefaa4a2ef9793426000f337afbb9ba3adb387ebaf8aa5",
+      "body_sha256": "e1ade6136ba3b5e3cb30444ff7187ea349ba35edd88231265cfe6c4c13104cb0",
       "conservative_bound_usd": 0.4532308
     },
     {
       "order": 2,
       "version_id": 2,
       "institution": "rbnz",
-      "section_ordinals": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-      "freeze_sha256": "52f4500cce51f04da46b0e5564f2c5442a9d4058d97034054646c5ca00a9702b",
-      "request_sha256": "f857f4873b06b7f0842d242590c226725b08de80d89d316b68b7ab7fd36633a1",
-      "body_sha256": "75242268b91d5a5adc7b5bf33ab5009fb51ab2b13d97d1b2669817d846bf33a7",
+      "section_ordinals": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "freeze_sha256": "417152dfff4afc3ded44eaffd9119d039b94deed04fe0d83bc9a1664f5a472ab",
+      "request_sha256": "17cd795eabc595036ec1d5fc0ae13cc5988c7e26164bf1c624809e8dca32e8ec",
+      "body_sha256": "01088bd387e6c0b103c2ea3f7baf05fde0e054090aa96b2fa876bd3788a42533",
       "conservative_bound_usd": 0.4115056
     }
   ],

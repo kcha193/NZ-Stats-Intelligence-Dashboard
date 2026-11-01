@@ -157,6 +157,14 @@ def _first_choice(data: Any) -> dict[str, Any]:
     return first if isinstance(first, dict) else {}
 
 
+def _is_json(text: str) -> bool:
+    try:
+        json.loads(text)
+    except ValueError:
+        return False
+    return True
+
+
 def _usage_details(data: Any) -> dict[str, Any]:
     usage = data.get("usage") if isinstance(data, dict) else None
     details = usage.get("completion_tokens_details") if isinstance(usage, dict) else None
@@ -209,6 +217,7 @@ class OpenRouterProvider(OpenAICompatibleProvider):
         return {
             **({"experiment": experiment} if experiment else {}),
             "max_tokens": self._settings.limits.max_output_tokens,
+            "timeout_seconds": self._settings.limits.timeout_seconds,
             "provider_only": self.route.provider_id,
             "zdr": True,
             "data_collection": "deny",
@@ -279,9 +288,8 @@ class OpenRouterProvider(OpenAICompatibleProvider):
 
         # OpenRouter can report an upstream failure inside an HTTP 200 body.
         if (
-            isinstance(data, dict)
-            and data.get("error")
-            or choice.get("error")
+            (isinstance(data, dict) and data.get("error") is not None)
+            or choice.get("error") is not None
             or choice.get("finish_reason") == "error"
         ):
             refuse("upstream_error")
@@ -311,7 +319,7 @@ class OpenRouterProvider(OpenAICompatibleProvider):
         ):
             cap = self._settings.limits.max_output_tokens
             if has_content:
-                refuse("final_json_truncated")
+                refuse("output_truncated" if _is_json(content) else "final_json_truncated")
             if reasoning == out_tok and out_tok >= cap:
                 refuse("reasoning_budget_exhausted")
             refuse("output_truncated")

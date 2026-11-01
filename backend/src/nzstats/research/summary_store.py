@@ -95,8 +95,10 @@ class AttemptConsumed(Exception):
 
 FIRST_PILOT = "phase-4m"
 LIFETIME_USD = 5.0  # every OpenRouter experiment shares this; history keeps counting against it
-# Reviewed code must raise this to add an experiment. A retagged run row cannot add attempts.
+# Reviewed code must raise these to add an experiment. Both count immutable reservation facts, so
+# a retagged run row can neither add attempts nor restore a version's consumed slot.
 LIFETIME_ATTEMPTS = 4
+LIFETIME_ATTEMPTS_PER_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -138,12 +140,13 @@ def openrouter_refusal(
     pilot = conn.execute(
         f"SELECT COUNT(*), COALESCE(SUM(CASE WHEN {in_scope} THEN 1 ELSE 0 END), 0),"
         f" COALESCE(SUM(CASE WHEN {in_scope} THEN {cost} ELSE 0 END), 0),"
-        f" COALESCE(MAX({in_scope} AND x.version_id=?), 0)"
+        f" COALESCE(MAX({in_scope} AND x.version_id=?), 0),"
+        " COALESCE(SUM(x.version_id=?), 0)"
         " FROM research_llm_reservation x LEFT JOIN research_llm_run r ON r.id = x.run_id"
         " WHERE x.provider='openrouter'",
-        (scope.experiment, scope.experiment, scope.experiment, version_id),
+        (scope.experiment, scope.experiment, scope.experiment, version_id, version_id),
     ).fetchone()
-    if pilot[3]:
+    if pilot[3] or pilot[4] >= LIFETIME_ATTEMPTS_PER_VERSION:
         return "attempt_consumed"
     if (
         pilot[1] + pending_attempts >= scope.max_attempts

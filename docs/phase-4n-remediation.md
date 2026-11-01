@@ -55,7 +55,7 @@ These have no real-model evidence yet:
 | Prompt `outlook-v4` | Shorter instructions without the duplicated rules. New rules 14–18: cover every decision and stated forecast, omit rather than guess, one sentence per text field, each figure once, shortest quote that contains the number, unit and horizon, compact single-line JSON, omit null fields, stay under 20,000 characters. Rules 1–13 are unchanged |
 | Contract and verifier | Contract 2, `verify-3`, `3b-1` and all thresholds unchanged |
 | Experiment scope | `phase-4n-second-pilot` is a reviewed code constant pinning prompt, effort, cap, timeout, two attempts and US$1. Only the bounded pilot runner sets it; no environment variable can |
-| Freeze and approval | Freeze format 2 binds the experiment, effort, cap, timeout and spend. `Approval` requires the experiment and spend limit. `HostedConsent` binds the experiment. All Phase 4M freezes and approvals are refused |
+| Freeze and approval | Freeze format 2 and the request hash bind the experiment, effort, cap and timeout; the freeze also binds spend. `Approval` requires the experiment and spend limit. `HostedConsent` binds the experiment. All Phase 4M freezes and approvals are refused |
 | Preflight | Refuses if the catalogue no longer lists the effort, the output limit is below the cap, price or parameters change, or key usage does not match the ledger |
 | Diagnostics | Reasoning tokens and finish reasons are stored in summary metadata. The raw response stays in the private capture, with a new content-free `diagnostics.json` beside it |
 
@@ -67,15 +67,15 @@ model text and cannot reach review or display.
 | Class | Meaning |
 |---|---|
 | `reasoning_budget_exhausted` | Length stop, no final text, reasoning equals output, and output reached the cap |
-| `final_json_truncated` | Length stop with final text, even if that text happens to parse |
-| `output_truncated` | Length stop, but metadata cannot establish why |
+| `final_json_truncated` | Length stop with final text that is not complete JSON |
+| `output_truncated` | Length stop where a specific cause is not established, including text that happens to parse. Always rejected |
 | `missing_final_content` | Normal stop with null, empty or blank content |
 | `invalid_json` | Normal stop with content that is not one JSON object |
 | `schema_mismatch` | Valid JSON that fails `SummaryDraft` (stored status `invalid_output`) |
 | `failed_verification` | Parsed output the evidence verifier rejects (a stored status) |
 | `route_unverified` | Returned model or provider differs from the approved route |
 | `usage_unverified`, `usage_exceeded` | Usage is missing or inconsistent, or above the cap or price |
-| `upstream_error`, `refused` | An error reported inside HTTP 200, or a content-filter stop |
+| `upstream_error`, `refused` | A non-null error field inside HTTP 200, or a content-filter stop |
 
 ## Historical pilot evidence
 
@@ -90,8 +90,9 @@ No Phase 4M row changes, and there is **no schema migration**. A run now names i
 | Lifetime spend | US$0.382278204, counted across all experiments toward US$5 |
 | Rows before and after freezing | 1 run, 2 summaries, 2 usage, 2 reservations, unchanged |
 
-Document IDs stay fixed by `PILOT_VERSIONS`. `LIFETIME_ATTEMPTS = 4` caps attempts across all experiments, so editing a
-run's tag cannot add attempts. A further experiment needs another reviewed code change and fresh consent.
+Document IDs stay fixed by `PILOT_VERSIONS`. The limits of four attempts overall and two per version count immutable
+reservation rows, so editing a run's tag can neither add attempts nor restore a consumed slot. A further experiment needs
+another reviewed code change and fresh consent.
 
 ## Synthetic before and after
 
@@ -122,8 +123,9 @@ than at a distinct assertion, so the table above is the more specific evidence f
   cover this; running Treasury first limits exposure.
 - **Low effort may lower recall or attribution quality.** Only the gold evaluation can show this. Thresholds stay fixed.
 - **The size target may omit interpretive statements.** Rule 18 protects decisions and forecasts first. Omissions are reported.
-- **The experiment tag is not tamper-proof.** Anyone with local database write access could edit `limits`. The
-  lifetime attempt and spend limits, and the key's own US$5 limit, are the independent controls.
+- **The experiment tag is not tamper-proof.** Anyone with local database write access could edit `limits` and hide
+  spend from the experiment's US$1 limit. Attempt limits, the US$5 lifetime count and the key's own limit do not depend on
+  the tag. Making the tag immutable would need a migration, which the runner deliberately avoids.
 - **Unchanged limits from earlier phases.** Treasury table cells stay rejected, a provider label does not prove region,
   and rights and account evidence remain owner attestations. The version-specific private-display gap from Phase 4L is
   still open and is outside this phase.
