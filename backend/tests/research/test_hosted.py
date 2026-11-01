@@ -1,6 +1,7 @@
 """SYNTHETIC FIXTURE: exact consent and the shared SQLite spending/attempt gate."""
 
 import json
+import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import timedelta
@@ -16,7 +17,7 @@ from nzstats.research.providers import load_llm_settings
 from nzstats.research.summarise import load_sections, summarise_versions
 from nzstats.store.db import connect, migrate
 
-from .llm_support import NOW, seed_version
+from .llm_support import NOW, draft_json, seed_version
 from .test_openrouter import ENV, envelope, provider
 from .test_summarise import registry, rows
 
@@ -125,7 +126,7 @@ def test_failed_attempt_is_durable_across_runs_models_and_prompt_changes(conn):
     first = run(conn, p, grants)
     second = run(conn, p, grants)
     assert first.items[0].outcome == "provider_error"
-    assert second.items[0].outcome == "budget_exhausted"
+    assert second.items[0].outcome == "attempt_consumed"
     assert len(calls) == 1 and len(rows(conn, "research_llm_reservation")) == 1
 
 
@@ -242,12 +243,20 @@ def test_concurrent_same_version_reservations_allow_one_attempt(tmp_path):
                 now=NOW,
                 expires_at=NOW + timedelta(minutes=1),
             )
+        except ss.AttemptConsumed:
+            return "attempt_consumed"
         finally:
             c.close()
 
     with ThreadPoolExecutor(2) as pool:
         results = list(pool.map(lambda _: reserve(), range(2)))
-    assert sum(r is not None for r in results) == 1
+    assert results.count("attempt_consumed") == 1
+    assert sum(isinstance(r, int) for r in results) == 1
+    check = connect(path)
+    try:
+        assert len(rows(check, "research_llm_reservation")) == 1
+    finally:
+        check.close()
 
 
 @pytest.mark.parametrize(
@@ -393,7 +402,7 @@ def test_dry_run_never_promises_a_second_attempt(conn):
     grants = [consent(conn, p, v)]
     run(conn, p, grants)
     result = run(conn, p, grants, dry_run=True)
-    assert result.items[0].outcome == "budget_exhausted"
+    assert result.items[0].outcome == "attempt_consumed"
 
 
 @pytest.mark.parametrize("status", [200, 400, 500])
@@ -444,3 +453,228 @@ def test_rendered_context_limit_refuses_before_consuming_or_simulating_an_attemp
     assert result.items[0].outcome == "input_too_long"
     assert result.spent_usd == 0 and calls == []
     assert rows(conn, "research_llm_reservation") == []
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+@pytest.mark.parametrize("prior", ["failed", "interrupted", "completed", "model", "prompt", "held"])
+def test_consumed_version_does_not_block_next_eligible_version(conn, dry_run, prior):
+    a = seed_version(conn)
+
+    def first_response(request):
+        if prior == "interrupted":
+            raise KeyboardInterrupt
+        if prior == "completed":
+            return httpx.Response(
+                200,
+                json=envelope(
+                    choices=[
+                        {
+                            "message": {"content": draft_json(a)},
+                            "finish_reason": "stop",
+                        }
+                    ]
+                ),
+            )
+        return httpx.Response(500)
+
+    first = provider(first_response)
+    if prior in {"model", "prompt", "held"}:
+        reserve_pilot(
+            conn,
+            a,
+            model="different-model" if prior == "model" else first.model,
+            prompt="different-prompt" if prior == "prompt" else PROMPT_VERSION,
+        )
+    elif prior == "interrupted":
+        with pytest.raises(KeyboardInterrupt):
+            run(conn, first, [consent(conn, first, a)])
+    else:
+        run(conn, first, [consent(conn, first, a)])
+    if prior == "completed":
+        assert rows(conn, "research_summary")[0]["status"] == "verified"
+    old = dict(rows(conn, "research_llm_reservation")[0])
+    b = seed_version(conn, doc="b")
+    calls = []
+    p = provider(lambda r: calls.append(r) or httpx.Response(200, json=envelope()))
+    grants = [consent(conn, p, v) for v in (a, b)]
+    changes = conn.total_changes
+    result = run(conn, p, grants, dry_run=dry_run, limit=1)
+    assert [(i.version_id, i.outcome) for i in result.items] == [
+        (a, "exists" if prior == "completed" else "attempt_consumed"),
+        (b, "would_summarise" if dry_run else "invalid_output"),
+    ]
+    assert result.outcome == "ok"
+    assert len(calls) == (0 if dry_run else 1)
+    saved = rows(conn, "research_llm_reservation")
+    assert dict(saved[0]) == old
+    assert len(saved) == (1 if dry_run else 2)
+    if prior in {"interrupted", "held"}:
+        assert saved[0]["actual_usd"] is None and saved[0]["reserved_usd"] > 0
+    if dry_run:
+        assert conn.total_changes == changes
+
+
+def reserve_pilot(
+    conn,
+    version,
+    *,
+    amount=0.2,
+    model="synthetic",
+    prompt="synthetic",
+    now=NOW,
+    provider_name="openrouter",
+):
+    rid = ss.start_run(
+        conn,
+        provider=provider_name,
+        model=model,
+        hosted=True,
+        prompt_version=prompt,
+        processing_version="synthetic",
+        limits={},
+        dry_run=False,
+        now=now,
+    )
+    return ss.reserve(
+        conn,
+        run_id=rid,
+        version_id=version,
+        call_no=1,
+        provider=provider_name,
+        model=model,
+        amount_usd=amount,
+        period_cap_usd=5,
+        since=now,
+        now=now,
+        expires_at=now + timedelta(hours=1),
+    )
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+@pytest.mark.parametrize("budget", ["attempts", "lifetime", "run", "rolling"])
+def test_global_exhaustion_still_blocks_all_new_versions(conn, dry_run, budget):
+    old_time = NOW - timedelta(days=60)
+    if budget in {"attempts", "lifetime", "rolling"}:
+        old = seed_version(conn, doc="old")
+        reserve_pilot(
+            conn,
+            old,
+            amount=5 if budget in {"lifetime", "rolling"} else 0.2,
+            now=NOW if budget == "rolling" else old_time,
+            provider_name="fake" if budget == "rolling" else "openrouter",
+        )
+        if budget == "attempts":
+            reserve_pilot(conn, seed_version(conn, doc="old-2"), now=old_time)
+    versions = [seed_version(conn, doc=f"new-{n}") for n in range(2)]
+    calls = []
+    p = provider(lambda r: calls.append(r) or httpx.Response(200, json=envelope()))
+    settings = load_llm_settings(ENV)
+    limits = replace(settings.limits, max_run_usd=0.0001) if budget == "run" else settings.limits
+    before = len(rows(conn, "research_llm_reservation"))
+    changes = conn.total_changes
+    result = summarise_versions(
+        conn,
+        registry(llm="denied"),
+        p,
+        pricing=settings.pricing,
+        limits=limits,
+        hosted_consents=[consent(conn, p, v) for v in versions],
+        version_ids=versions,
+        dry_run=dry_run,
+        now_fn=lambda: NOW,
+    )
+    assert [i.outcome for i in result.items] == ["budget_exhausted", "budget_exhausted"]
+    assert result.outcome == "budget_exhausted" and calls == []
+    assert len(rows(conn, "research_llm_reservation")) == before
+    if dry_run:
+        assert conn.total_changes == changes
+
+
+def test_reservation_race_skips_consumed_version_and_preserves_work_slot(conn, monkeypatch):
+    a, b = seed_version(conn), seed_version(conn, doc="b")
+    calls = []
+    p = provider(lambda r: calls.append(r) or httpx.Response(200, json=envelope()))
+    original = ss.reserve
+
+    def racing_reserve(*args, **kw):
+        if kw["version_id"] == a:
+            original(*args, **kw)
+        return original(*args, **kw)
+
+    monkeypatch.setattr(ss, "reserve", racing_reserve)
+    result = run(conn, p, [consent(conn, p, v) for v in (a, b)], limit=1)
+    assert [(i.version_id, i.outcome) for i in result.items] == [
+        (a, "attempt_consumed"),
+        (b, "invalid_output"),
+    ]
+    assert len(calls) == 1
+    assert [r["version_id"] for r in rows(conn, "research_llm_reservation")] == [a, b]
+
+
+def reserve_in_process(path, rid, version, budget, barrier, results):
+    c = connect(path)
+    try:
+        barrier.wait(timeout=20)
+        results.put(
+            ss.reserve(
+                c,
+                run_id=rid,
+                version_id=version,
+                call_no=1,
+                provider="openrouter",
+                model="synthetic",
+                amount_usd=3 if budget == "lifetime" else 0.2,
+                period_cap_usd=0.3 if budget == "rolling" else 10,
+                since=NOW,
+                now=NOW,
+                expires_at=NOW + timedelta(hours=1),
+            )
+        )
+    finally:
+        c.close()
+
+
+@pytest.mark.parametrize("budget", ["attempts", "lifetime", "rolling"])
+def test_concurrent_distinct_versions_cannot_exceed_global_limits(tmp_path, budget):
+    path = tmp_path / "global.db"
+    conn = connect(path)
+    migrate(conn)
+    versions = [seed_version(conn, doc=f"doc-{n}") for n in range(3)]
+    rid = ss.start_run(
+        conn,
+        provider="openrouter",
+        model="synthetic",
+        hosted=True,
+        prompt_version="synthetic",
+        processing_version="synthetic",
+        limits={},
+        dry_run=False,
+        now=NOW,
+    )
+    ctx = multiprocessing.get_context("spawn")
+    barrier, outcomes = ctx.Barrier(3), ctx.Queue()
+    processes = [
+        ctx.Process(target=reserve_in_process, args=(path, rid, v, budget, barrier, outcomes))
+        for v in versions
+    ]
+    try:
+        for process in processes:
+            process.start()
+        for process in processes:
+            process.join(timeout=30)
+            assert process.exitcode == 0
+        results = [outcomes.get(timeout=5) for _ in processes]
+    finally:
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+        outcomes.close()
+    expected = 2 if budget == "attempts" else 1
+    assert sum(r is not None for r in results) == expected
+    saved = rows(conn, "research_llm_reservation")
+    assert len(saved) == expected
+    assert sum(r["reserved_usd"] for r in saved) == pytest.approx(
+        3 if budget == "lifetime" else expected * 0.2
+    )
+    conn.close()

@@ -284,6 +284,17 @@ def summarise_versions(
                 item.outcome, item.summary_id = "exists", int(existing["id"])
                 result.items.append(item)
                 continue
+            pilot_refusal = (
+                ss.openrouter_refusal(
+                    conn, candidate.version_id, worst,
+                    pending_usd=dry_spent, pending_attempts=dry_attempts,
+                )
+                if provider.name == "openrouter" else None
+            )  # fmt: skip
+            if pilot_refusal == "attempt_consumed":
+                item.outcome = "attempt_consumed"
+                result.items.append(item)
+                continue
             if slots >= cap:
                 break
             slots += 1
@@ -293,16 +304,7 @@ def summarise_versions(
             elif (
                 dry_run
                 and provider.name == "openrouter"
-                and (
-                    dry_spent + worst > limits.max_run_usd
-                    or not ss.openrouter_available(
-                        conn,
-                        candidate.version_id,
-                        worst,
-                        pending_usd=dry_spent,
-                        pending_attempts=dry_attempts,
-                    )
-                )
+                and (dry_spent + worst > limits.max_run_usd or pilot_refusal is not None)
             ):
                 item.outcome = "budget_exhausted"
                 stopped = True
@@ -317,6 +319,8 @@ def summarise_versions(
                                    consent_check=(lambda req=request: consent_refusal(
                                        conn, req, provider, hosted_consents, now_fn()))
                                    if provider.name == "openrouter" else None)  # fmt: skip
+                if item.outcome == "attempt_consumed":
+                    slots -= 1  # another process consumed this version after the read-only check
     except BaseException:
         if result.run_id is not None:
             _record_abort(conn, result, now_fn())
@@ -374,13 +378,17 @@ def _process(
             budget_stop = True
             break
         # Reserve before contacting the provider: under the database write lock, so another process sees it.
-        held = ss.reserve(
-            conn, run_id=result.run_id or 0, version_id=key.version_id, call_no=call_no,
-            provider=provider.name, model=provider.model, amount_usd=worst,
-            period_cap_usd=limits.max_period_usd,
-            since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
-            expires_at=now_fn() + stale_after(limits),
-        )  # fmt: skip
+        try:
+            held = ss.reserve(
+                conn, run_id=result.run_id or 0, version_id=key.version_id, call_no=call_no,
+                provider=provider.name, model=provider.model, amount_usd=worst,
+                period_cap_usd=limits.max_period_usd,
+                since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
+                expires_at=now_fn() + stale_after(limits),
+            )  # fmt: skip
+        except ss.AttemptConsumed:
+            item.outcome = "attempt_consumed"
+            return False
         if held is None:
             budget_stop = True
             break

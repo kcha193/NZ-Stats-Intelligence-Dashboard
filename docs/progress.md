@@ -53,6 +53,44 @@ third-party material and exact input scopes need human review; no source current
 Gold/output approval and private-display/UI permission remain separate. No report text, real key, institutional
 fetch, model execution, summary approval, new private UI, scheduler activation, public/static research or merge.
 
+### PR #37: consumed-attempt remediation, 1 November 2026
+
+The [P2 finding](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/37#discussion_r4434671981)
+was reproduced before editing production code: 13 regression cases failed because a consumed version
+stopped later eligible work. Read-only pilot admission now distinguishes a consumed version, the two-attempt
+lifetime cap and the US$5 lifetime cap. A consumed version reports `attempt_consumed`, preserves the run's
+work slot and allows the next candidate to proceed in both dry-run and live execution. Completed summaries
+still report `exists`. The reservation transaction repeats admission under `BEGIN IMMEDIATE`; a concurrent
+consumed-version refusal rolls back and skips without dispatch. Global budget refusals still stop spending.
+
+Added 24 synthetic cases covering failed, interrupted, completed, changed-model/prompt and held attempts;
+independent run, rolling, lifetime-dollar and lifetime-attempt exhaustion; a reservation race; and competing
+OS processes for each global limit. Dry runs assert zero database changes, and interrupted/held accounting
+remains conservative. Two existing repeated-attempt expectations and the same-version race test now check
+the explicit skip result. No provider, consent, source-registry, model, retry or display gate was relaxed.
+
+Validation in the isolated Python 3.12 environment, from `backend/` with `PYTHONPATH=src`:
+
+- `python -m pytest -o addopts='' -q`: **3,703 passed**.
+- `python -m pytest tests/research -o addopts='' -q`: **1,945 passed** on the final regression variants.
+- `python -m pytest tests/research/test_hosted.py tests/research/test_openrouter.py
+  tests/research/test_budget.py tests/research/test_providers.py -o addopts='' -q`: **170 passed**;
+  the completed-summary cases also pass with an explicit verified-status assertion.
+- `ruff check .` and `ruff format --check .`: pass, **323 files** formatted.
+- `pip-audit --skip-editable`: no known vulnerabilities; only the unpublished editable project is skipped.
+  The separate temporary audit-tool environment initially had vulnerable pip 26.1; upgrading that disposable
+  environment to pip 26.2.2 cleared its audit. The shared runtime environment was not changed.
+- Gitleaks on the diff and `git diff --check`: pass. The existing Starlette/httpx deprecation remains.
+
+Frontend and API models are unaffected, so frontend/browser/schema checks are left to the new head's CI.
+Its CI outcomes, thread resolution and commit identity are recorded in the PR conversation. Real hosted
+inference requests **0**, spend **US$0**; no production data, credential, consent or deployment changes.
+
+The previously recorded three independent deep-review cycles are already consumed. No further independent
+review is requested under that cap, and no clean review of the remediation head is claimed. The existing
+GitHub review covered `5160385`; the subsequent cloud fix request was refused because no repository
+environment is configured. This is a review-readiness blocker, separate from local validation and CI.
+
 ## Phase 4J: annotation review and local-model preflight, 1 November 2026
 
 Record: [phase-4j-local-pilot.md](phase-4j-local-pilot.md). Proposal and independent pending approval records:
