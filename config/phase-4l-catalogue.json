@@ -1,0 +1,87 @@
+{
+  "status": "public_metadata_only_not_processing_authorisation",
+  "checked_on": "2026-11-01",
+  "sources": [
+    {
+      "url": "https://openrouter.ai/api/v1/models",
+      "retrieved_at": "2026-11-01T07:44:09.811068+00:00",
+      "sha256": "715e30d498e1897c9f7d6891f4f5b8488a746ddf825eb0a81fbfe72133b5a09a",
+      "http_status": 200
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models/anthropic/claude-opus-5.5/endpoints",
+      "retrieved_at": "2026-11-01T07:44:09.952752+00:00",
+      "sha256": "b5a52b0a9436b1094cf67ede2983b2f9b0ba6c9332e8ee582c13f5ee612d3d41",
+      "http_status": 200
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/providers",
+      "retrieved_at": "2026-11-01T07:44:10.119828+00:00",
+      "sha256": "5ad29ccd3d40e0b3c324c982143ee97cfe1f487f55a1d3a49d3222734f19412f",
+      "http_status": 200
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+      "retrieved_at": "2026-11-01T07:44:10.835058+00:00",
+      "sha256": "f447339d249a0139077018d14bc13c2eba09e1f5e19ac7e2339939d23197446f",
+      "http_status": 200
+    }
+  ],
+  "model": "anthropic/claude-opus-5.5",
+  "canonical_slug": "anthropic/claude-opus-5.5-20260921",
+  "selected_endpoint": {
+    "name": "Google | anthropic/claude-opus-5.5-20260921",
+    "model_id": "anthropic/claude-opus-5.5",
+    "tag": "google-vertex/europe",
+    "provider_name": "Google",
+    "safety_retention": false,
+    "context_length": 1000000,
+    "max_completion_tokens": 128000,
+    "max_prompt_tokens": null,
+    "supported_parameters": [
+      "reasoning",
+      "include_reasoning",
+      "max_tokens",
+      "response_format",
+      "tool_choice",
+      "tools",
+      "verbosity",
+      "structured_outputs",
+      "stop",
+      "reasoning_effort"
+    ],
+    "pricing": {
+      "prompt": "0.0000044",
+      "completion": "0.000022",
+      "web_search": "0.01",
+      "input_cache_read": "0.00000022",
+      "input_cache_write": "0.0000055",
+      "input_cache_write_1h": "0.0000088",
+      "discount": 0
+    },
+    "status": 0,
+    "supports_implicit_caching": false
+  },
+  "route_catalogue_and_zdr_agree": true,
+  "request_policy": {
+    "only": [
+      "google-vertex/europe"
+    ],
+    "zdr": true,
+    "data_collection": "deny",
+    "allow_fallbacks": false,
+    "require_parameters": true
+  },
+  "account_controls_verified": false,
+  "inference_requests": 0,
+  "note": "Recheck route, price, safety_retention=false and parameters immediately before execution. Dedicated key, account logging/training and strict Zero retention only settings remain unverified. Optional GPT route not invoked.",
+  "provider": {
+    "name": "Google",
+    "slug": "google-vertex",
+    "privacy_policy_url": "https://cloud.google.com/terms/cloud-privacy-notice",
+    "terms_of_service_url": "https://cloud.google.com/terms/",
+    "status_page_url": "https://status.cloud.google.com/products/sdXM79fz1FS6ekNpu37K/history",
+    "headquarters": "US",
+    "datacenters": null
+  }
+}
