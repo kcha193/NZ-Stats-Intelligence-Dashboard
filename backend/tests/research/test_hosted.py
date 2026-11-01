@@ -1,5 +1,6 @@
 """SYNTHETIC FIXTURE: exact consent and the shared SQLite spending/attempt gate."""
 
+import hashlib
 import json
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
@@ -51,7 +52,102 @@ def consent(conn, p, version_id):
         rights_review="Synthetic licence and all third-party rights reviewed for hosted processing",
         provider_review="Synthetic owner accepts this exact provider and privacy/legal exceptions",
         budget_approved_usd=5,
+        approved_section_ordinals=tuple(load_sections(conn, version_id)),
+        sections_sha256=inventory_hash(load_sections(conn, version_id)),
     )
+
+
+def inventory_hash(sections):
+    rows = [[n, s.text, s.page_start, s.page_end, s.heading] for n, s in sorted(sections.items())]
+    return hashlib.sha256(
+        json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def scoped_consent(conn, p, version_id, ordinals):
+    grant = consent(conn, p, version_id)
+    sections = load_sections(conn, version_id)
+    request = build_request(
+        version_id,
+        {n: sections[n] for n in ordinals},
+        prompt_version=PROMPT_VERSION,
+        limits=load_llm_settings(ENV).limits,
+        published_on="2026-08-13",
+        institution="example",
+        author="Example Research",
+    )
+    return replace(
+        grant,
+        approved_section_ordinals=ordinals,
+        request_sha256=input_sha256(
+            request, provider=p.name, model=p.model, parameters=p.parameters()
+        ),
+    )
+
+
+def test_approved_subset_excludes_unlicensed_text_from_the_actual_request(tmp_path):
+    conn = connect(tmp_path / "scope.db")
+    migrate(conn)
+    version = seed_version(
+        conn, sections=("UNLICENSED SYNTHETIC CONTENT", "Permitted synthetic text.")
+    )
+    sent = []
+    p = provider(
+        lambda req: (sent.append(json.loads(req.content)), httpx.Response(200, json=envelope()))[1]
+    )
+    grant = scoped_consent(conn, p, version, (1,))
+    result = run(conn, p, (grant,), version_ids=[version])
+    assert len(sent) == 1
+    user = sent[0]["messages"][1]["content"]
+    assert "Permitted synthetic text." in user
+    assert "UNLICENSED" not in user
+    assert "ordinal=1" in user and "ordinal=0" not in user
+    assert result.items[0].outcome == "invalid_output"
+
+
+@pytest.mark.parametrize(
+    "mutation", ["selected_text", "unselected_text", "heading", "page", "extra", "missing"]
+)
+def test_inventory_drift_refuses_before_network_even_outside_approved_subset(tmp_path, mutation):
+    conn = connect(tmp_path / "drift.db")
+    migrate(conn)
+    version = seed_version(conn)
+    sent = []
+    p = provider(lambda req: (sent.append(req), httpx.Response(200, json=envelope()))[1])
+    grant = scoped_consent(conn, p, version, (1,))
+    if mutation == "extra":
+        conn.execute(
+            "INSERT INTO research_section(version_id,ordinal,text,char_start,char_end) VALUES(?,2,'Extra synthetic text',0,20)",
+            (version,),
+        )
+    elif mutation == "missing":
+        conn.execute("DELETE FROM research_section WHERE version_id=? AND ordinal=0", (version,))
+    else:
+        col, ordinal, value = {
+            "selected_text": ("text", 1, "Changed"),
+            "unselected_text": ("text", 0, "Changed"),
+            "heading": ("heading", 0, "Changed"),
+            "page": ("page_start", 0, 99),
+        }[mutation]
+        conn.execute(
+            f"UPDATE research_section SET {col}=? WHERE version_id=? AND ordinal=?",
+            (value, version, ordinal),
+        )
+    result = run(conn, p, (grant,), version_ids=[version], dry_run=True)
+    assert result.refusals and not result.items
+    assert not sent
+    assert conn.execute("SELECT count(*) FROM research_llm_reservation").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("ordinals", [(), (1, 1), (1, 0), (True,), (99,)])
+def test_invalid_approved_ordinal_lists_fail_closed(tmp_path, ordinals):
+    conn = connect(tmp_path / "invalid-scope.db")
+    migrate(conn)
+    version = seed_version(conn)
+    p = provider(lambda req: pytest.fail("invalid scope reached network"))
+    grant = replace(consent(conn, p, version), approved_section_ordinals=ordinals)
+    result = run(conn, p, (grant,), version_ids=[version], dry_run=True)
+    assert result.refusals and not result.items
 
 
 def run(conn, p, grants=(), **kw):

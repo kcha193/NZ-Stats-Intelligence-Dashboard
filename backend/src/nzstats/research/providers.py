@@ -11,6 +11,7 @@ fixed error class; upstream messages and the API key never reach logs, the datab
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import time
@@ -209,15 +210,30 @@ class _HttpProvider:
     name = "http"
     hosted = True
 
-    def __init__(self, settings: LlmSettings, client: httpx.Client) -> None:
+    def __init__(
+        self,
+        settings: LlmSettings,
+        client: httpx.Client,
+        *,
+        capture: Callable[[str, bytes], None] | None = None,
+    ) -> None:
         self.model = settings.model
         self._settings = settings
         self._client = client
+        self._capture = capture
 
     def parameters(self) -> dict[str, str | int | float | bool]:
         raise NotImplementedError
 
     def _post(self, url: str, headers: Mapping[str, str], body: Mapping[str, Any]) -> Any:
+        request_bytes = json.dumps(dict(body), ensure_ascii=False, separators=(",", ":")).encode()
+        credential = (self._settings.api_key or "").encode()
+        if credential and credential in request_bytes:
+            raise ProviderError("credential_in_request", retryable=False)
+        if self._capture is not None:
+            self._capture("request.json", request_bytes)
+        status, data, received = None, bytearray(), 0
+        failure = None
         try:
             with self._client.stream(
                 "POST", url, headers=dict(headers), json=dict(body),
@@ -225,15 +241,45 @@ class _HttpProvider:
                 follow_redirects=False,
             ) as response:  # fmt: skip
                 status = response.status_code
-                data = bytearray()
                 for chunk in response.iter_bytes():
-                    data += chunk
-                    if len(data) > MAX_RESPONSE_BYTES:
+                    received += len(chunk)
+                    data.extend(chunk[: MAX_RESPONSE_BYTES - len(data)])
+                    if received > MAX_RESPONSE_BYTES:
                         raise ProviderError("response_too_large", retryable=False)
         except httpx.TimeoutException:
-            raise ProviderError("timeout", retryable=True) from None
+            failure = ProviderError("timeout", retryable=True)
         except httpx.TransportError:
-            raise ProviderError("network_error", retryable=True) from None
+            failure = ProviderError("network_error", retryable=True)
+        except ProviderError as exc:
+            failure = exc
+        raw = bytes(data)
+        redacted = bool(credential and credential in raw)
+        retained = raw.replace(credential, b"[REDACTED_API_KEY]") if credential else raw
+        if self._capture is not None:
+            self._capture("response.bin", retained)
+            self._capture(
+                "response-status.json",
+                json.dumps(
+                    {
+                        "http_status": status,
+                        "complete": failure is None,
+                        "truncated": received > MAX_RESPONSE_BYTES,
+                        "received_bytes": received,
+                        "retained_bytes": len(retained),
+                        "received_prefix_sha256": hashlib.sha256(raw).hexdigest(),
+                        "credential_redacted": redacted,
+                        "error_class": "credential_echo"
+                        if redacted
+                        else failure.error_class
+                        if failure
+                        else None,
+                    }
+                ).encode(),
+            )
+        if failure is not None:
+            raise failure
+        if redacted and status == 200:
+            raise ProviderError("credential_echo", retryable=False)
         try:
             parsed = json.loads(bytes(data))
         except ValueError:
@@ -305,8 +351,14 @@ class OpenAICompatibleProvider(_HttpProvider):
 
     name = "openai_compatible"
 
-    def __init__(self, settings: LlmSettings, client: httpx.Client) -> None:
-        super().__init__(settings, client)
+    def __init__(
+        self,
+        settings: LlmSettings,
+        client: httpx.Client,
+        *,
+        capture: Callable[[str, bytes], None] | None = None,
+    ) -> None:
+        super().__init__(settings, client, capture=capture)
         self.hosted = is_hosted(settings)
 
     def parameters(self) -> dict[str, str | int | float | bool]:
