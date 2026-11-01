@@ -16,7 +16,7 @@ from .verify_support import check, codes, forecast, ref, warning_codes
 SIGN = SectionText(
     "SYNTHETIC FIXTURE. The confidence index fell 3 points over the month to -\n7%. The expectations"
     " index rose to -2% in October 2026.",
-    1, 1,
+    1, 1, "October 2026 survey results",
 )  # fmt: skip
 # The shape of the Phase 4H Treasury page: a titled caption, chart-axis labels from another chart in between, the
 # table's own header fragments, one row of years, labelled rows, and the column-group labels detached after the

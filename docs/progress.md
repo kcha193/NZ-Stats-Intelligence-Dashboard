@@ -63,6 +63,23 @@ prefixes before the adopted clause, and valid supplements. Total added cases: 10
 Full backend at `03c938f` passed 3,458; final-source research and
 review receipts remain in the PR.
 
+The remaining P2 (`discussion_r4433397249`) is addressed by value-scoped reference-period support shared
+by facts and forecasts. Explicit local periods take precedence; compatible headings and explicit period
+context can fill missing components, while independent neighbouring figures and contradictory context cannot.
+Fifty-eight regression cases reproduce thirty-two failures against the fetched head and pass with the fix.
+Existing paired forecasts, month names, fiscal/calendar distinctions, chart residue and split-sign coverage
+are retained. Total stabilisation additions: 159. The bounded review sequence and final verification results
+are recorded in the PR conversation.
+
+Final local checks: Python 3.12 full backend 3,546; final research 1,788; frontend 524;
+live browser 174; synthetic research 18 + 3 skips; static/parity 315 + 24 skips. Ruff,
+types/lint/build/schema parity, replay 38/38 and staged/range Gitleaks pass.
+
+CI run `41244466427` has zero steps in all three failed jobs: GitHub account billing/spending limits prevented
+startup; this is an external blocker. Local `npm audit` also fails on `GHSA-g3hv-75wg-m249` in the API type
+generator's development dependency tree. An attempted Redocly major-version override broke type generation
+and was reverted; no audit policy was relaxed. Details and recommended follow-up are in the audit report.
+
 ## Phase 4H execution, 31 October 2026
 
 Report: [phase-4h-execution.md](phase-4h-execution.md) (issue #31). After a new verified read-only backup

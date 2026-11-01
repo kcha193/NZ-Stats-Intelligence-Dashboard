@@ -52,6 +52,7 @@ official-file excerpts in tests. No production database or stored institutional 
 | Period completion | Future/incomplete or ambiguous current-year table actual | Completed June year, quarter and calendar year | `test_table_fact_current_year_requires_completed_historical_period` |
 | Fiscal/calendar | Calendar label on June-year data and reverse | `2025/26` and explicit June 2026 year consistently referring to the completed fiscal period | Fiscal tests in `test_fact_evidence_kinds.py` and `test_verify_records.py` |
 | Prose actual versus forecast | Earlier prediction as reported outturn | Actual alongside previous forecast, including comparison clause | `test_actuals_alongside_previous_forecasts_are_scoped_to_the_figure` |
+| Value-bound reference periods | Neighboring year/month/quarter replacing an explicit local component, in facts or forecasts | Correct local period; a heading supplying a component the local clause omits | `test_reference_period_scope.py` |
 | Policy action | Wrong/negated/ambiguous action; guidance as decision | Increase/decrease wording; adopted action after dissent | `test_decision_evidence_scope.py`, existing record regressions |
 | Resulting policy rate | Previous, dissenting or guidance rate | Adopted rate in transition or basis-point move | `test_forward_guidance_rate_cannot_replace_the_adopted_rate`, `test_dissent_rate_cannot_replace_the_adopted_rate`, existing from/to test |
 | Decision maker/instrument | Reporting institution as maker; overseas policy rate as OCR | Named RBNZ/MPC decision in another publisher's report | `test_reporting_institution_is_not_the_policy_decision_maker`, existing record tests |
@@ -137,6 +138,54 @@ the vote check while excluded from action/rate matching. A focused independent r
 metadata before a semicolon being discarded; six failing-first cases now preserve meeting dates and vote
 prefixes from the selected event. Date/vote checks use that event, while action/rate/maker checks use its narrower
 adopted clause. Total additions: 101 cases; research suite: 1,730 cases.
+
+### Period-scoping closure, 1 November 2026
+
+The latest completed review of `6b97c3d63b191ce64c8a7cfdf6076a6088e27489` left one P2,
+`discussion_r4433397249`: a reported fact could borrow a neighbouring figure's year. The same scoped
+check now serves forecast horizons. It selects the value's own sentence and clause, then its explicit
+period components; missing components may come from a compatible section heading or explicit,
+unambiguous context applying to the figures. An adjacent independent numerical assertion cannot supply
+the period. Conflicting candidate periods and fiscal/calendar evidence fail closed.
+
+The 58-case regression file covers both paths, both neighbour orders, shortened and multi-sentence quotes,
+paired figures, years/months/quarters, fiscal/calendar conflicts, valid inheritance and contradictory context.
+Against the fetched head, 32 cases fail and 26 pass. Against the fix all 58 pass. Existing paired-forecast,
+market-pricing and chart-residue regressions exposed compatibility cases during verification: month matching
+now recognises month names rather than words such as "Markets", and year parsing preserves source lines.
+The split-sign fixture now states its date in its heading rather than borrowing another index's period;
+its sign and truncation assertions are retained. Four final failing-first cases also preserve fiscal-pair
+heading inheritance and require inherited fiscal basis even when the year is already explicit. Total stabilisation additions: 159 cases.
+
+Final local verification: research 1,788 passed; full backend 3,546 passed on Python 3.12;
+Ruff lint/format passed. Frontend 524 tests, types, lint, build and unchanged API schema passed,
+including schema generation against current Python 3.12 dependencies. Browser integration:
+live 174 passed; synthetic research 18 passed / 3 skips; static/parity 315 passed / 24 skips.
+Offline replay retained all metric floors and 38/38 labelled probes. Staged and PR-range Gitleaks
+passed. Existing Starlette/httpx deprecation, Fast Refresh and build-size warnings remain.
+
+#### CI diagnosis and remaining external/tooling blockers
+
+Run [41244466427](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/actions/runs/41244466427)
+for the fetched head failed backend, frontend and static-site before any steps ran. Each annotation states
+that account payments/spending limits prevented starting the job. Docker was skipped. `--log-failed`
+returns "log not found" because no job steps ran. There is no test or workflow failure evidence in that run,
+and retrying it cannot resolve account billing.
+
+Separately, local `npm audit --audit-level=low` fails on
+[GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), through
+`openapi-typescript@7.13.0 -> @redocly/openapi-core@1.34.20 -> minimatch@5.1.9`.
+This is a development-tool dependency, but the workflow requires this audit, so it will block the frontend
+job once billing permits it to start. The published compatible Redocly 1.x updates still depend on the
+flagged version. Testing an override to 2.72.1 removed the advisory but broke API type generation with
+`ERR_PACKAGE_PATH_NOT_EXPORTED` for `lib/ref-utils.js`; that incompatible override was reverted.
+The suggested downgrade to `openapi-typescript@6.7.6` was also tested in a temporary tool environment;
+it produces a 5,345-line generated-schema diff, so it is a separate migration rather than a scoped
+version bump. A supported toolchain update or an explicit owner-approved exception is still required. The audit was
+not weakened. Local Docker validation remains unavailable because no daemon is running.
+
+This task starts a new bounded review sequence: one current-head request, with at most two further
+cycles if actionable findings require fixes. Earlier reviews are historical and are not restarted.
 
 See the PR conversation for the full-backend result, remote head SHA, head-specific CI and completed review
 receipts. Hosted infrastructure failure is a blocker to COMPLETE, even when local checks pass.

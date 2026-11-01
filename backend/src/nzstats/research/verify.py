@@ -191,7 +191,7 @@ _CERTAIN = re.compile(
 _YEAR = re.compile(r"\b((?:19|20)\d{2})(?:\s*[/–-]\s*(\d{2}))?(?:[afp](?=\b))?\b", re.I)
 _MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september",
            "october", "november", "december")  # fmt: skip
-_MONTH = re.compile(r"\b(" + "|".join(m[:3] for m in _MONTHS) + r")[a-z]*\b", re.IGNORECASE)
+_MONTH = re.compile(r"\b(" + "|".join((*_MONTHS, *(m[:3] for m in _MONTHS), "sept")) + r")\b", re.I)
 _QUARTER_LABEL = re.compile(r"\bq([1-4])\b", re.IGNORECASE)
 _WORD = re.compile(r"[a-z]+")
 _STOP = frozenset(
@@ -485,7 +485,7 @@ class _Located:
         return text
 
     def _clause_span(self, offset: int) -> tuple[int, int]:
-        a, b = self.sentences[self.first][0], self.sentences[self.last][1]
+        a, b = next((a, b) for a, b in self.sentences if a <= offset < b)
         start = a
         for sep in _CLAUSE.finditer(self.text[a:b]):
             end = a + sep.start()
@@ -646,6 +646,116 @@ def _unstated_period(period: str, near: str) -> list[str]:
     missing += [m for m in sorted(months) if m not in near_months]
     missing += [f"Q{q}" for q in sorted(quarters) if f"q{q}" not in near.lower()]
     return missing
+
+
+def _period_parts(text: str) -> tuple[set[int], set[str], set[str], set[str]]:
+    return (
+        {year for line in text.splitlines() for year in _horizon_years(_fiscal_text(line))},
+        {m.lower()[:3] for m in _MONTH.findall(text)},
+        set(_QUARTER_LABEL.findall(text)),
+        ({"fiscal"} if _FISCAL.search(_fiscal_text(text)) else set())
+        | ({"calendar"} if _CALENDAR.search(text) else set()),
+    )
+
+
+def _period_missing(
+    period: str, found: list[tuple[EvidenceRef, _Located]], value_at: list[tuple[_Located, int]]
+) -> list[str]:
+    """Bind each reference period to one value; inherit only unambiguous missing components."""
+    wanted = _period_parts(period)
+    if not period.strip():
+        return []
+    failures = []
+    for loc, at in value_at or [(loc, loc.start) for _, loc in found]:
+        place, line = loc.layout.place(at)
+        if place == "cell":
+            table = loc.layout.table(line)
+            column = table.years[loc.layout.cell_index(line, at)] if table.years else ""
+            local = f"{column} {loc.layout.row(line).label} {table.context}"
+        else:
+            a, b = loc._clause_span(at)
+            start, end = a, b
+            # Paired figures may have separate periods without a comma ("... before falling").
+            for separator in re.finditer(r"\b(?:and|before|after|then)\b", loc.text[a:b]):
+                if a + separator.end() <= at:
+                    start = a + separator.end()
+                elif a + separator.start() > at:
+                    end = a + separator.start()
+                    break
+            local = loc.with_lines(start, end)
+        parts = _period_parts(local)
+        support = [local]
+        neighbors = []
+        sentence = next(i for i, (a, b) in enumerate(loc.sentences) if a <= at < b)
+        for i in (sentence - 1, sentence + 1):
+            if not 0 <= i < len(loc.sentences):
+                continue
+            text = loc.with_lines(*loc.sentences[i])
+            remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", text)))
+            # Another numerical assertion has its own period. Only explicit context applying to
+            # the figures can supply an unstated period, never an adjacent independent result.
+            if _numbers(remainder) or not re.search(
+                r"\b(?:all|following|these)\s+(?:figures|results|forecasts)\b"
+                r"|\b(?:figures|results|forecasts)\s+(?:refer|are for)\b",
+                text,
+                re.I,
+            ):
+                continue
+            neighbors.append(text)
+        # The section heading takes precedence over neighboring period-only context.
+        for candidates in ([loc.heading], neighbors):
+            compatible = [
+                text
+                for text in candidates
+                if all(
+                    not a
+                    or not b
+                    or a == b
+                    or (
+                        i == 0
+                        and len(a) == 1
+                        and len(b) == 2
+                        and max(a) == max(b)
+                        and max(b) - min(b) == 1
+                        and _FISCAL.search(_fiscal_text(text))
+                    )
+                    for i, (a, b) in enumerate(zip(parts, _period_parts(text), strict=True))
+                )
+            ]
+            additions = tuple(
+                set().union(*(_period_parts(text)[i] for text in compatible)) for i in range(4)
+            )
+            if any(not a and b for a, b in zip(parts, additions, strict=True)):
+                support.extend(compatible)
+                parts = tuple(a or b for a, b in zip(parts, additions, strict=True))
+        context = " ".join(support)
+        missing = _unstated_period(period, context)
+        # Multiple candidate periods cannot be combined into a single invented reference period.
+        # A fiscal pair may legitimately be named by its end year (2024/25 -> June 2025 year).
+        for i, (claimed, stated) in enumerate(zip(wanted, parts, strict=True)):
+            fiscal_end = (
+                i == 0
+                and len(claimed) == 1
+                and len(stated) == 2
+                and max(claimed) == max(stated)
+                and max(stated) - min(stated) == 1
+                and _FISCAL.search(_fiscal_text(context))
+                and _FISCAL.search(_fiscal_text(period))
+            )
+            if claimed and stated and claimed != stated and not fiscal_end:
+                missing.append("ambiguous or contradictory period")
+        fiscal = bool(_FISCAL.search(_fiscal_text(context)))
+        if (
+            fiscal
+            and not _FISCAL.search(_fiscal_text(period))
+            or _FISCAL.search(_fiscal_text(period))
+            and _CALENDAR.search(context)
+        ):
+            missing.append("year basis")
+        if not missing:
+            return []
+        failures.append(missing)
+    return min(failures, key=len) if failures else _unstated_period(period, "")
 
 
 def _decision_marker(text: str) -> re.Match[str] | None:
@@ -1317,16 +1427,7 @@ class _Checker:
             _horizon_years(horizon) or _MONTH.search(horizon) or _QUARTER_LABEL.search(horizon)
         ):
             self.warn("horizon_without_period", path, f"horizon {horizon!r} names no period")
-        near = " ".join(
-            loc.heading
-            + " "
-            + loc.with_lines(
-                loc.sentences[max(loc.first - 1, 0)][0],
-                loc.sentences[min(loc.last + 1, len(loc.sentences) - 1)][1],
-            )
-            for _, loc in found
-        )
-        missing = _unstated_period(horizon, near)
+        missing = _period_missing(horizon, found, value_at)
         if missing:
             self.error("horizon_not_supported", path,
                        f"horizon {horizon!r} is not stated near the quote ({', '.join(missing)})")  # fmt: skip
@@ -1555,7 +1656,7 @@ class _RecordChecker(_Checker):
             if place == "cell"
         ]
         near = " ".join([loc.near_text() for _, loc in found] + table_clauses)
-        missing = _unstated_period(f.period or "", near)
+        missing = _period_missing(f.period or "", found, value_at)
         if missing:
             self.error("period_not_supported", path,
                        f"period {f.period!r} is not stated near the quote ({', '.join(missing)})")  # fmt: skip
