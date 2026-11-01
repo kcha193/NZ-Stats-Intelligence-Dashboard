@@ -1,7 +1,39 @@
 # Progress and verification record
 
-Last updated 2026-11-01. Phase 4I (research contract v2, verify-3, private-preview foundation) is on branch
-`feat/phase-4i-research-quality`: local-model pilot GO WITH CONDITIONS, pending owner approvals. Phase 4G (on-open refresh) is merged (PR #28) and passed live acceptance with conditions (Phase 4H execution). Phase 4D is merged to `main` as `3ac92addea52908d926a93e4015c217cf6cde125` (PR #23). Phase 4E's explicitly approved seven-release official backfill is complete and reconciled. Production deployment remains **NO-GO**: hosted CI is billing-blocked, Docker has no daemon, and the Netlify site/origin and deployment approvals are pending. OCR and institutional research restrictions remain unchanged. Earlier entries below are historical.
+Last updated 2026-11-01. Phase 4I is merged through PR #33 (main `c09a759`). Phase 4J has an approval-ready local
+pilot proposal, with **NO-GO for acceptance/display** until actual model evidence and human approvals exist.
+The source registry remains unchanged. Separate CI remediation is open as PR #34; hosted jobs now start, so
+the old billing blocker is historical. Local operation only; no scheduler, Docker or hosting work is introduced.
+Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries below are historical.
+
+## Phase 4J: annotation review and local-model preflight, 1 November 2026
+
+Record: [phase-4j-local-pilot.md](phase-4j-local-pilot.md). Proposal and independent pending approval records:
+[phase-4j-pilot.json](../config/phase-4j-pilot.json).
+
+- Read-only re-extraction and all 46 evidence anchors match. Current-main checks supersede the 4I reference results:
+  7 eligible historical comparisons match, 9 lack a captured vintage by the report date, 2 are uncomparable.
+  Four Treasury table gold forecasts remain refused. Migration horizon, mixed fact passages, two warning-only
+  issuer mutations and the broad RBNZ vote citation require review. A narrow RBNZ decision citation verifies.
+- Proposed official Qwen3-14B Q5_K_M weights and llama.cpp v0.8.0 are pinned by repository revision and publisher
+  hash. No weights/runtime were acquired or executed. A synthetic socket probe verifies outbound denial under
+  the proposed macOS profile; actual model memory, binding and offline operation remain untested.
+- Synthetic JSON probes reproduced 11 non-finite-number acceptance failures. The shared research contract now
+  refuses these numbers; all 46 contract tests pass. No verifier or evidence threshold was weakened.
+- Separate [PR #34](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/34) migrates the API generator
+  and clears npm audit without exceptions. Codex High review has no remaining actionable findings; all 101
+  generated component schemas retain their original semantics. Local frontend 524, live browser 174, research
+  browser 18 (3 skips), static/parity 315 (24 skips), types/lint/build, schema generation and audit pass.
+- Full Python 3.12 baseline: 3,582 passed; final run after contract hardening: **3,593 passed**. All 46 contract
+  cases, Ruff lint/format and synthetic replay 38/38 pass. The synthetic research browser rerun passes 18 with
+  3 expected skips. Public OpenAPI is unchanged. Staged Gitleaks, proposal JSON and local documentation links
+  pass. Independent Codex High review has no actionable findings. Existing Starlette/httpx deprecation, three
+  Fast Refresh warnings and the build-size warning remain. No actual-model quality metrics are claimed.
+
+Treasury local processing, RBNZ local processing, selected model/runtime and download/local execution each need
+explicit owner approval. Gold still needs human review. No model call, source document sent to an LLM, registry
+change, summary approval, private UI, public display, merge or deployment occurred. Independent Codex reviews
+cover code and this sanitised preflight only; no source document or annotation text was included.
 
 ## Phase 4I: economic intelligence quality and private preview readiness, 31 October 2026
 

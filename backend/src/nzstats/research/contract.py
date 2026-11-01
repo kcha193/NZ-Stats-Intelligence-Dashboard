@@ -91,7 +91,7 @@ class PolicyAction(StrEnum):
 
 
 class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
 
 MAX_EVIDENCE = 5
