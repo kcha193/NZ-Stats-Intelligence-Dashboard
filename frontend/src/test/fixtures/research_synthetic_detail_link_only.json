@@ -30,7 +30,7 @@
    "evidence_verified": true,
    "human_reviewed_on": "2026-10-26",
    "published_here_on": "2026-10-26",
-   "verifier_version": "verify-3",
+   "verifier_version": "verify-4",
    "warnings": 1,
    "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
   },
@@ -44,7 +44,7 @@
   "hosted": false,
   "prompt_version": "outlook-v2",
   "processing_version": "3b-1",
-  "verifier_version": "verify-3",
+  "verifier_version": "verify-4",
   "created_at": "2026-10-26T14:00:00+13:00"
  },
  "versions": [

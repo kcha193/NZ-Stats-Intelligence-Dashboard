@@ -3,7 +3,7 @@
 import pytest
 
 from nzstats.research.contract import SectionText
-from nzstats.research.issuers import organisation_of
+from nzstats.research.issuers import credited, named, organisation_of
 
 from .test_verify_layout import TABLE
 from .verify_support import check, codes, forecast, ref, warning_codes
@@ -202,3 +202,55 @@ def test_a_third_party_merely_named_nearby_is_only_a_warning():
     claim = forecast(6, "Growth is projected at 3.0% in 2027", 6, value=3.0, unit="percent")
     report = check(sections, outlook_ref=ref(6, "Growth is projected"), forecasts=[claim])
     assert codes(report) == set() and "issuer_unclear" in warning_codes(report)
+
+
+# Phase 4Q: reporting wording that makes a third party the forecaster. A figure in the author's document is not the
+# author's forecast because the author reports it.
+REPORTED = {
+    0: SectionText(
+        "SYNTHETIC FIXTURE. The MPC said it expected inflation to reach 7.4% in the December quarter."
+        " Markets expect the Fed will lift its policy rate 75 basis points by the end of 2029."
+        " The RBNZ expected inflation of 7.1% in June 2029. The RBNZ, expected to cut, may reach 1.25% by June 2029.",
+        1, 1,
+    )
+}  # fmt: skip
+MPC = "The MPC said it expected inflation to reach 7.4% in the December quarter"
+MARKET = "Markets expect the Fed will lift its policy rate 75 basis points by the end of 2029"
+RBNZ_VIEW = "The RBNZ expected inflation of 7.1% in June 2029"
+
+
+def reported(value, quote, issuer, role, unit="percent"):
+    claim = forecast(0, quote, 1, value=value, unit=unit, issuer=issuer, issuer_role=role)
+    return check(REPORTED, outlook_ref=ref(0, MPC), institution="treasury", forecasts=[claim])
+
+
+@pytest.mark.parametrize(
+    ("value", "quote", "unit"),
+    [(7.4, MPC, "percent"), (75, MARKET, "basis_points"), (7.1, RBNZ_VIEW, "percent")],
+)
+def test_a_reported_third_party_forecast_cannot_be_labelled_the_authors(value, quote, unit):
+    assert "issuer_mismatch" in codes(reported(value, quote, "The Treasury", "author", unit))
+
+
+@pytest.mark.parametrize(
+    ("value", "quote", "issuer", "unit"),
+    [(7.4, MPC, "Monetary Policy Committee", "percent"), (75, MARKET, "Markets", "basis_points")],
+)
+def test_the_actual_third_party_is_accepted_as_the_issuer(value, quote, issuer, unit):
+    report = reported(value, quote, issuer, "third_party", unit)
+    assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+def test_being_expected_to_act_still_does_not_make_an_organisation_the_forecaster():
+    quote = "The RBNZ, expected to cut, may reach 1.25% by June 2029"
+    assert "issuer_mismatch" not in codes(reported(1.25, quote, "The Treasury", "author"))
+    assert "rbnz" not in credited("The RBNZ expected to cut")
+    assert "rbnz" not in credited("The RBNZ is expected to cut the OCR")
+
+
+def test_market_is_recognised_only_as_a_whole_issuer_name():
+    assert (
+        organisation_of("Markets") == "market" and organisation_of("financial markets") == "market"
+    )
+    assert organisation_of("Monetary Policy Committee") == "rbnz"
+    assert "market" not in named("Export markets remain strong.")

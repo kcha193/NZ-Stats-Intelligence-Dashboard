@@ -40,7 +40,7 @@ from nzstats.research.contract import (
 )
 from nzstats.research.prompt import INJECTION_PATTERN
 
-VERIFIER_VERSION = "verify-3"
+VERIFIER_VERSION = "verify-4"
 SCOPE = (
     "Deterministic evidence checks only: quotes, numbers, units, horizons, versions and pages were"
     " matched against the stored text. This is not a check of economic accuracy, completeness or"
@@ -114,6 +114,15 @@ _ADJUSTMENT = {
 _FRACTIONS = {"½": 0.5, "¼": 0.25, "¾": 0.75}
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
+# Where a figure's own assertion stops, inside a clause. The base of a comparison has its own period ("3.7% in September,
+# up from 3.1% in June"), and neither figure may take the other's. A range ("from 54% to 47%") is one assertion.
+_PERIOD_BREAK = re.compile(
+    r"\b(?:and|before|after|then)\b"
+    r"|\b(?:up|down|higher|lower)\s+from\b"
+    r"|\bfrom(?=\s+\S*\d\S*\s+(?:in|at|during|for)\b)"
+    r"|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b",
+    re.IGNORECASE,
+)
 _FORWARD = re.compile(
     r"forecast|expect|project|predict|anticipat|outlook|assum|\bwill\b|\bwould\b|\bshould\b"
     r"|\blikely\b|\bsees?\b|\bseen\b|pencil|\bplan|scenario|\bpath\b|\bestimated? to\b"
@@ -682,7 +691,7 @@ def _period_missing(
             a, b = loc._clause_span(at)
             start, end = a, b
             # Paired figures may have separate periods without a comma ("... before falling").
-            separators = list(re.finditer(r"\b(?:and|before|after|then)\b", loc.text[a:b]))
+            separators = list(_PERIOD_BREAK.finditer(loc.text[a:b]))
             for i, separator in enumerate(separators):
                 stop = separators[i + 1].start() if i + 1 < len(separators) else b - a
                 tail = loc.text[a + separator.end() : a + stop]

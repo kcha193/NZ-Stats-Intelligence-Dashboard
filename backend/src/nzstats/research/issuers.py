@@ -2,9 +2,9 @@
 
 The checks are lexical, like the rest of the verifier. An organisation is *named* when its name or one of its
 publications appears ("IMF", "World Economic Outlook"). A figure is *attributed* to it only by wording that makes
-it the forecaster: a publication name, "the IMF expects/forecasts", "the IMF's forecast", "according to the IMF",
-"Source: IMF". Naming an organisation as the subject of a forecast ("the RBNZ is expected to cut") does not
-attribute the forecast to it. "We" and "our" are the document's author.
+it the forecaster: a publication name, "the IMF expects/forecasts", "the MPC said it expected", "the IMF's forecast",
+"according to the IMF", "Source: IMF". Naming an organisation as the subject of a forecast ("the RBNZ is expected to cut")
+does not attribute the forecast to it. "We" and "our" are the document's author.
 """
 
 from __future__ import annotations
@@ -46,9 +46,9 @@ ORGANISATIONS: tuple[Organisation, ...] = (
     Organisation("infometrics", r"Infometrics"),
     Organisation("deloitte", r"Deloitte"),
     # Not an organisation, but a forecast all the same: what market prices imply.
-    Organisation("market", r"(?!x)x",
+    Organisation("market", r"^\s*(?:financial\s+)?markets?\s*$",
                  r"market pricing|markets?\s+(?:are\s+|is\s+)?(?:now\s+|currently\s+)?pric\w*"
-                 r"|market expectations|market[- ]implied"),
+                 r"|markets?\s+expect\b|market expectations|market[- ]implied"),
 )  # fmt: skip
 
 # Case matters: "US$96/b" is the United States, not "us".
@@ -56,7 +56,7 @@ SELF_REFERENCE = re.compile(r"\b(?:[Ww]e|[Oo]urs?|us)\b")
 # Up to two words between the name and the forecasting word, but never a passive or infinitive.
 _FILLER = r"(?:(?!(?:is|are|was|were|be|been|being|to)\b)[\w-]+\s+){0,2}"
 _ACTIVE = (
-    r"(?:forecasts?|projections?|estimates?|outlook|expects|projects|predicts|sees|anticipates"
+    r"(?:forecasts?|projections?|estimates?|outlook|expects|expected(?!\s+to\b)|projects|predicts|sees|anticipates"
     r"|(?:has\s+|have\s+)?(?:forecast|projected|predicted|estimated))\b"
 )
 _BEFORE = (
