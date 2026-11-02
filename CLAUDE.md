@@ -8,7 +8,7 @@ and institutional research publishing remains permission-gated; Phase 4I adds re
 and a disabled, loopback-only private research preview (`docs/phase-4i-research-quality.md`). Phase 4N remediated the
 OpenRouter truncation failures without running inference (`docs/phase-4n-remediation.md`). Phase 4O ran one approved Treasury
 request: complete JSON, rejected by the verifier; RBNZ is not authorised (`docs/phase-4o-treasury-pilot.md`). Phase 4Q imported the
-29 October FEU as its own document, with no pipeline inference, and added offline gold checks (`docs/phase-4q-treasury-feu-refresh.md`). Resume from [docs/progress.md](docs/progress.md);
+29 October FEU as its own document, with no pipeline inference, and added offline gold checks (`docs/phase-4q-treasury-feu-refresh.md`), then prompt `outlook-v5`, verifier `verify-4` and human-gold scoring, also without inference (`docs/phase-4q-evidence-grounding.md`). Resume from [docs/progress.md](docs/progress.md);
 current release gates and evidence are in [docs/phase-4e-release.md](docs/phase-4e-release.md).
 
 ## Stack and layout

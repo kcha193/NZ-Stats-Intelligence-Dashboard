@@ -1,11 +1,23 @@
 # Progress and verification record
 
-Last updated 2026-11-02. **Phase 4Q imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-02. **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4Q: economic accuracy and evidence grounding, 2 November 2026
+
+Full record: [phase-4q-evidence-grounding.md](phase-4q-evidence-grounding.md). Design only: [phase-4q-per-claim-design.md](phase-4q-per-claim-design.md).
+Local evidence: ignored `data/phase-4q/`. **GO WITH CONDITIONS to prepare one experiment. No inference ran. Everything else stays NO-GO.**
+
+- Root cause: 4 of 5 rejected facts carry a year not stated for the figure, and each of the 4 cases that fail only on period passes without it, except fact 2, which has no period in its sentence.
+- New: prompt `outlook-v5`, unused. `verify-4` binds a figure's period past comparisons and credits reported forecasters. Phase 4O's summary recomputes identically.
+- New: `gold-worksheet`, `score-gold`. No human gold exists yet.
+- Next: owner resolves `data/phase-4q/period-review-worksheet.html` and the gold worksheets. Six conditions precede any run.
+
+Verification: see the PR for this phase.
 
 ## Phase 4Q: Treasury FEU refresh, 2 November 2026
 
