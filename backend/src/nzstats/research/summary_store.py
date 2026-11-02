@@ -114,6 +114,17 @@ class PilotScope:
     max_usd: float = LIFETIME_USD
 
 
+def version_attempts(conn: sqlite3.Connection, version_id: int) -> int:
+    """OpenRouter attempts on one version across all experiments, from immutable reservation rows."""
+    return int(
+        conn.execute(
+            "SELECT COUNT(*) FROM research_llm_reservation"
+            " WHERE provider='openrouter' AND version_id=?",
+            (version_id,),
+        ).fetchone()[0]
+    )
+
+
 def lifetime_spent(conn: sqlite3.Connection) -> float:
     """All OpenRouter spend across every experiment: settled cost, otherwise the reserved worst case."""
     return float(

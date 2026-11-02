@@ -86,14 +86,15 @@ No Phase 4M row changes, and there is **no schema migration**. A run now names i
 | Control | Result on the live ledger (read-only) |
 |---|---|
 | Phase 4M scope, either version | `attempt_consumed` |
-| Second experiment, Treasury then RBNZ | Allowed, subject to approval |
+| Second experiment, Treasury then RBNZ | Allowed, subject to approval. Each has exactly its one first-pilot row |
 | Second experiment, a third attempt | `lifetime_attempts_exhausted` |
 | Lifetime spend | US$0.382278204, counted across all experiments toward US$5 |
 | Rows before and after freezing | 1 run, 2 summaries, 2 usage, 2 reservations, unchanged |
 
 Document IDs stay fixed by `PILOT_VERSIONS`. The limits of four attempts overall and two per version count immutable
-reservation rows, so editing a run's tag can neither add attempts nor restore a consumed slot. A further experiment needs
-another reviewed code change and fresh consent.
+reservation rows. The runner also requires each frozen version to have exactly its one first-pilot row before executing.
+Together these keep one second-pilot attempt per version through this runner, even if a run's tag is edited. A further
+experiment needs another reviewed code change and fresh consent.
 
 ## Synthetic before and after
 
@@ -110,17 +111,19 @@ than at a distinct assertion, so the table above is the more specific evidence f
 
 ## Verification
 
-- Full backend on Python 3.12 at `17a328f`: **3,877 passed**, with the one existing Starlette/httpx warning.
-- PR CI at `17a328f`: backend, frontend, static site and Docker all pass.
+- Full backend on Python 3.12 at the final code: **3,879 passed**, with the one existing Starlette/httpx warning.
+- PR CI: backend, frontend, static site and Docker passed at `4779ece`, the last code-reviewed commit. The status of the
+  final commit is on the PR.
 - Ruff lint and format: pass, 326 files. Staged Gitleaks: no leaks.
 - Offline freezes and a read-only ledger simulation ran locally and printed metadata only. Live ledger counts and spend
   were unchanged afterwards.
 - Independent Codex review used `gpt-6-sol` at high effort on an export with no `data/` directory, because this account
-  no longer accepts the configured `gpt-6.1-sol`. Cycle 1 found 4 issues and cycle 2 found 5. All 9 are closed: 8 by code or
+  no longer accepts the configured `gpt-6.1-sol`. Cycle 1 found 4 issues and cycle 2 found 5. Those 9 are closed: 8 by code or
   test changes, with failing tests first, and 1 by correcting the proposal. Cycle 1's migration suggestion was met without a
   migration, by counting immutable reservation rows.
-- **Cycle 3 has not completed.** It stopped at the Codex usage limit before reporting, so the cycle 2 fixes have not yet
-  had independent review.
+- Cycle 3 found 1 issue: the one-attempt guarantee relied on first-pilot rows that nothing verified, and this record
+  overstated it. It is fixed with failing tests first and the claim corrected. **The three-cycle limit is reached, so
+  this last fix has had no independent review.**
 - Synthetic tests cannot establish model quality.
 
 ## Remaining risks and owner decisions

@@ -23,7 +23,7 @@ def run(*args, **kwargs):
     return pilot.execute(*args, backup_check=launcher["verified_backup"], **kwargs)
 
 
-def setup_pilot(tmp_path):
+def setup_pilot(tmp_path, *, history_usd=0.0):
     data = tmp_path / "data"
     conn = connect(data / "nzstats.db")
     migrate(conn)
@@ -35,6 +35,8 @@ def setup_pilot(tmp_path):
     path.parent.mkdir(parents=True)
     path.write_bytes(raw)
     reg = {"treasury": institution("treasury")}
+    if history_usd is not None:  # the second pilot's limits rest on the consumed first-pilot row
+        historical_ledger(conn, version, history_usd)
     frozen = data / "frozen"
     before = conn.total_changes
     pilot.freeze(conn, reg, {version: (1,)}, frozen)
@@ -195,7 +197,7 @@ def test_incomplete_or_changed_approval_refuses_before_any_inference_or_run_writ
             now_fn=lambda: NOW,
         )
     assert not posts
-    assert conn.execute("SELECT count(*) FROM research_llm_run").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM research_llm_run").fetchone()[0] == 1
 
 
 def test_privacy_change_blocks_inference(tmp_path):
@@ -532,7 +534,7 @@ def test_old_or_mismatched_second_pilot_approval_refuses(tmp_path, change):
             client=client,
             now_fn=lambda: NOW,
         )
-    assert not posts and conn.execute("SELECT count(*) FROM research_llm_run").fetchone()[0] == 0
+    assert not posts and conn.execute("SELECT count(*) FROM research_llm_run").fetchone()[0] == 1
 
 
 def test_phase_4m_approval_shape_cannot_be_reused():
@@ -718,8 +720,7 @@ def key_response(usage):
 
 
 def test_key_usage_must_reconcile_with_the_ledger_and_history_stays_unchanged(tmp_path):
-    conn, reg, data, frozen, approval = setup_pilot(tmp_path)
-    historical_ledger(conn, 1, 0.2)
+    conn, reg, data, frozen, approval = setup_pilot(tmp_path, history_usd=0.2)
     before = [dict(r) for r in conn.execute("SELECT * FROM research_llm_reservation")]
     posts = []
 
@@ -762,6 +763,35 @@ def test_key_usage_must_reconcile_with_the_ledger_and_history_stays_unchanged(tm
     assert len(posts) == 1
     after = [dict(r) for r in conn.execute("SELECT * FROM research_llm_reservation")]
     assert after[: len(before)] == before and len(after) == len(before) + 1
+
+
+def test_second_pilot_refuses_a_version_without_its_first_pilot_ledger_row(tmp_path):
+    conn, reg, data, frozen, approval = setup_pilot(tmp_path, history_usd=None)
+    posts = []
+    client = httpx.Client(transport=httpx.MockTransport(lambda req: remote(req, posts)))
+    with pytest.raises(pilot.PilotRefused):
+        run(
+            conn, reg, data, frozen, approval, data / "run", "synthetic-secret",
+            client=client, now_fn=lambda: NOW,
+        )  # fmt: skip
+    assert not posts
+    assert conn.execute("SELECT count(*) FROM research_llm_reservation").fetchone()[0] == 0
+
+
+def test_retagging_runs_cannot_reopen_a_consumed_version_under_a_still_valid_approval(tmp_path):
+    conn, reg, data, frozen, approval, posts, client = execute_fixture(tmp_path)
+    run(
+        conn, reg, data, frozen, approval, data / "run", "synthetic-secret",
+        client=client, now_fn=lambda: NOW,
+    )  # fmt: skip
+    assert len(posts) == 1
+    conn.execute("UPDATE research_llm_run SET limits='{}'")
+    with pytest.raises(pilot.PilotRefused):
+        run(
+            conn, reg, data, frozen, approval, data / "again", "synthetic-secret",
+            client=client, now_fn=lambda: NOW,
+        )  # fmt: skip
+    assert len(posts) == 1
 
 
 def test_transmitted_request_uses_the_frozen_timeout_not_the_client_default(tmp_path):

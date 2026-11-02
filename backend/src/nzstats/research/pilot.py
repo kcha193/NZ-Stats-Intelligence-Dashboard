@@ -38,7 +38,7 @@ from nzstats.research.summarise import (
     load_sections,
     summarise_versions,
 )
-from nzstats.research.summary_store import lifetime_spent
+from nzstats.research.summary_store import lifetime_spent, version_attempts
 from nzstats.research.verify import VERIFIER_VERSION
 
 MODEL = "anthropic/claude-opus-5.5"
@@ -470,6 +470,10 @@ def execute(
             )
             approved_sections(load_sections(conn, version), grant)
             grants.append(grant)
+            # Exactly the consumed first-pilot row. With the per-version lifetime limit, this keeps
+            # one attempt per version true even if a run's editable experiment tag is changed.
+            if version_attempts(conn, version) != 1:
+                raise PilotRefused("frozen version's attempt ledger is not the authorised state")
     except (ValidationError, KeyError, TypeError, OSError, ValueError) as exc:
         raise PilotRefused("incomplete or mismatched execution approval") from exc
     owned = client is None
