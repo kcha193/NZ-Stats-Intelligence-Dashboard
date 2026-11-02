@@ -21,19 +21,19 @@ The brief requires reports and model outputs to stay out of Claude Code's hosted
 
 Stage 1 tested each of the five rejected facts by code. "Year removed" reruns the verifier on a copy with only the year taken out.
 
-| Fact | Year stated within 2 sentences | Baseline period | Extraction | Passes `verify-4` with year removed | Finding |
+| Fact | Year stated within 2 sentences | Baseline period | Extraction | Passes with year removed | Finding |
 |---|---|---|---|---|---|
-| 0 | No | No year | Quote found by a second extractor | Yes | **Model-added year.** `verify-3` also misread a comparison's period as this figure's |
-| 1 | No | Same figure and month, **different year**, by number match only | Found | Yes | **Model-added year.** The year is not stated near the figure, and may also be wrong. Needs a person |
+| 0 | No | No year | Quote found by a second extractor | No: a comparison in the clause | **Model-added year, plus the verifier's comparison limit** |
+| 1 | No | Same figure and month, **different year**, by number match only | Found | Yes | **Model-added year.** It is not stated near the figure and may also be wrong. Needs a person |
 | 2 | No | No year; month agrees | Found | No | **Model-added year, and no period in the cited sentence.** The sentence's only month is a comparison base. Needs a person |
-| 3 | Only in the comparison's own period | Same year and month | Found | Yes | **Year borrowed from the comparison base.** Plausibly true, not stated for this figure. Needs a person |
+| 3 | Only in the comparison's own period | Same year and month | Found | No: a comparison in the clause | **Year borrowed from the comparison base, plus the verifier's comparison limit.** Plausibly true, not stated for this figure. Needs a person |
 | 4 | No | No year | Quote found. Sentence boundary differs between extractors | Yes | **Model-added year** |
 
 | Category in the brief | Result |
 |---|---|
 | Model-invented years | **4 of 5** (facts 0, 1, 2, 4). The year is absent near the figure and equals the publication year. Whether the year is true is a separate question; it is not stated |
 | Incorrectly inferred reference period | **1 of 5**, fact 2: month and year taken from outside the cited sentence |
-| Genuine periods the verifier missed | **2 of 5 had a real verifier weakness**, facts 0 and 3: a comparison's period read as ambiguous. Neither fact passes as written, because each also has the year problem |
+| Genuine periods the verifier missed | **2 of 5 meet a real verifier limit**, facts 0 and 3: a comparison in the clause reads as an ambiguous period. Each also has the year problem, so neither fact is a clean false rejection. The limit is **kept**: see below |
 | Ambiguous source dates | **2 for a person:** fact 2 (period only in the previous sentence) and fact 3 (year only in the comparison) |
 | Wrong period from extraction | **None found.** All 5 quotes are found by a second extractor. Fact 4's sentence boundary is flagged for the reviewer, and its period result does not depend on it |
 
@@ -48,8 +48,8 @@ sentence gave no year, the model supplied one.
 |---|---|---|
 | Model added a year not stated for the figure | Facts 0, 1, 2, 4 | High, by location. A person should confirm against the PDF |
 | Model cited a sentence without the period | Fact 2 | High for the location, not for the reading |
-| Verifier misread comparisons | Facts 0, 3 | Confirmed by synthetic reproduction, fixed. Fact results are unchanged |
-| Verifier accepted a comparison month as the figure's period | No Phase 4O fact relied on this | Confirmed by failing test, fixed: a real false acceptance |
+| Verifier rejects a true period beside a comparison | Facts 0, 3 | Confirmed on synthetic text. **Not fixed**: it fails closed, and the attempted fix failed review twice |
+| Verifier accepted a comparison's period as the figure's | No Phase 4O fact relied on this | Confirmed by failing test, fixed: a real false acceptance |
 | Verifier accepted a third party's forecast labelled as the author's | Found on the 29 October pack | Confirmed by failing test, fixed |
 | Five "IMF" labels on Phase 4O forecasts | Unresolved | Needs the human review. The verifier cannot settle them |
 
@@ -57,11 +57,11 @@ sentence gave no year, the model supplied one.
 
 ### Prompt `outlook-v5`
 
-Rules SHA-256 `0afe7ab091760eab…`, full value in `config/phase-4q-prompt.json`. **No request has used this prompt.**
+Rules SHA-256 in full in `config/phase-4q-prompt.json`. **No request has used this prompt.**
 
 - Dates and periods copied exactly as stated beside the figure. A missing year stays missing. Nothing is added from the publication date, page
   header, another sentence or reasoning. No period in the sentence means a null period.
-- The base of a comparison is that other figure's period.
+- The base of a comparison is that other figure's period. If the clause also gives a comparison's period, `period` stays null rather than choosing, and the quote keeps the document's words.
 - Facts and forecasts are never restated as each other.
 - A reported forecast belongs to whoever made it, including "the MPC expects" and "markets expect". If the document does not say whose it is, it is left out.
 - Coverage: each headline point and main heading gets its main figure or a statement. An unsupported claim is worse than a gap.
@@ -70,32 +70,35 @@ Rules SHA-256 `0afe7ab091760eab…`, full value in `config/phase-4q-prompt.json`
 
 ### Verifier `verify-4`
 
-| Change | Effect | Test |
-|---|---|---|
-| A figure's period stops at a comparison ("up from", "from N in", "compared with", "compared to", "versus", "relative to"), but only when the figure really is part of that comparison | Accepts a figure's true period beside a comparison. Rejects a comparison's period used as the figure's | `test_period_grounding.py` |
-| A comparison holding its own period stops a heading or neighbouring sentence from supplying one | Stricter | `test_period_grounding.py` |
-| "said it expected", "expected" directly after a name, and "markets expect" or "markets expected" credit the forecaster. Comparatives ("higher than the RBNZ expected") credit nobody, and the wording is not inherited from an earlier sentence | Stricter: relabelling as the author is rejected | `test_verify_attribution.py` |
-| Several third parties credited in one clause can no longer cancel out | Stricter: none of them is the author | `test_verify_attribution.py` |
+**`verify-4` only tightens.** The `verify-3` period and issuer logic runs unchanged, and each new check can only add a rejection.
 
-No threshold changed. One failed claim still rejects a summary.
+| New check | Test |
+|---|---|
+| A period the clause states only in a comparison after the figure is not the figure's period | `test_period_grounding.py` |
+| Reported wording ("said it expected", "markets expect") credits a third party, only when `verify-3` wording credits nobody, never the author, and not inside a comparison | `test_verify_attribution.py` |
+| Several third parties credited in one clause are unclear between themselves, but none is the author | `test_verify_attribution.py` |
+| An author credit only inside a comparison ("more than we expected") cannot hide a third party | `test_verify_attribution.py` |
 
-**The first `verify-4` was wrong, and review caught it.** It introduced two false acceptances that `verify-3` rejected: a comparison before a figure could become the figure's period, and
-a second mention could hide a third party's forecast. Both now have failing-first tests and are fixed. This change accepts some claims `verify-3` rejected, so it is **not** purely a tightening. An old-versus-new
-differential on 2,420 invented cases found 152 newly accepted, all giving the figure its true period, and 112 newly rejected, all a comparison month or a heading wrongly supporting a figure. That is a test of the shapes tried, not a proof.
+No threshold changed. One failed claim still rejects a summary. **One deliberate acceptance:** a market-named issuer ("Markets") on market wording, which `verify-3` wrongly rejected.
+
+**How this was reached.** Two earlier versions also accepted true figures beside a comparison. Independent review broke both with concrete false acceptances, so that part was removed rather than patched a third time.
+It had changed no Phase 4O result, and the brief says not to weaken rules to raise acceptance.
+
+**Evidence, on invented sentences only, comparing against the `verify-3` source.** 30,960 period cases: 0 newly pass, 592 newly rejected. 429 issuer cases: 9 newly pass, all a market-named issuer on market wording; 26 newly rejected. That covers the shapes tried, and it is not a proof.
+
+**Known limit.** A true figure beside a comparison in one clause stays rejected, as under `verify-3`. `outlook-v5` asks for a null period in that shape, which a test confirms passes. Accepting a stated period there needs its own reviewed design.
 
 ### Measured effect, offline, no model
 
-| Measure | Before | After |
+| Measure | `verify-3` | `verify-4` |
 |---|---|---|
 | Phase 4O summary, recomputed | 8 errors; 10 clean, 1 warning, 7 failed | **Identical** |
-| Facts passing with only the year removed | 2 of 5 | 4 of 5 |
-| 29 October pack: corruptions caught, of those measurable | 57/59 | **69/69** |
+| Facts passing with only the year removed | 2 of 5 | 2 of 5 |
+| 29 October pack: corruptions caught, of those measurable | 57/59 | **59/59** |
 | 29 October pack: wrong issuer caught | 2/4 | **4/4** |
-| 29 October pack: true claims rejected | 9/26 | 7/26 |
+| 29 October pack: true claims rejected | 9/26 | 9/26 |
 
-The 69/69 covers only the probe's fixed corruptions. It could not detect the two false acceptances above, so it is not evidence that nothing was weakened. The pack is an AI reading of one document, not human gold. The remaining rejected claims: 3 `forecast_as_fact` where an outturn shares a clause with a
-forecast word, 2 `period_not_supported`, 1 second-hand decision and 1 unit the contract lacks. None were changed, because they fail closed and need a
-person's view.
+The 59/59 covers only the probe's fixed corruptions, so it is not evidence that nothing was weakened; the differential above is. The pack is an AI reading of one document, not human gold. The rejected true claims: 5 `period_not_supported`, 3 `forecast_as_fact` (some claims have more than one code), 1 second-hand decision and 1 unit the contract lacks. None were changed, because they fail closed and need a person's view.
 
 The stored Phase 4O row is untouched and still records `verify-3`. Internal drafts rerun the checks, so the draft page now names `verify-4`, with the same counts.
 
@@ -104,7 +107,7 @@ The stored Phase 4O row is untouched and still records `verify-3`. Internal draf
 The Phase 4O gold could not show a good result: all five forecasts were expected rejections, and third-party forecasts were excluded.
 
 `research/gold_extension.py` adds an extension with four separately scored groups: accepted-eligible, expected rejection, ambiguous and third-party forecast.
-It is refused unless a named reviewer is recorded, the name is not an AI tool's, the date is not in the future, and it attests it was written without seeing model output. Those are attestations, which code cannot prove.
+It is refused unless a reviewer is recorded, the name is not an AI tool's, the date is not in the future, and it attests it was written without seeing model output. Those are attestations, which code cannot prove.
 
 `research gold-worksheet VERSION` builds the review sheet from the document alone, and a test denies it read access to the model-output tables. Sheets exist
 locally for versions 1 and 3. **No human gold exists yet, so these are scoring tools, not results.**
@@ -164,27 +167,29 @@ the same gate, not which drafts are visible. The Outlook header's line about app
 
 ## Independent review
 
-Codex was the intended reviewer, but the account's model access failed on both tries and it produced no review. A fresh Claude reviewer did the work instead, in a worktree with no `data/`, using invented text. It is independent of this
-session's reasoning but is **not a second vendor**, and its model family is the same as the author's.
+Codex was the intended reviewer, but the account's model access failed on both tries and it produced no review. Two fresh Claude reviewers did the work, each in a worktree with no `data/`, using invented text. An automated security review also ran on the pushed commits.
+These are independent of this session's reasoning but are **not a second vendor**: their model family is the author's. **The final tighten-only design has its own review recorded in `progress.md`.**
 
 | Finding | Severity | Status |
 |---|---|---|
-| Comparison before a figure became its period | P0 | Fixed, failing-first |
-| A second mention hid a third party's forecast | P0 | Fixed, failing-first |
-| Heading supplied a period once a comparison was cut | P1 | Fixed |
-| False rejections from over-broad "expected" | P1 | Fixed |
-| Market issuer names and table rows | P2 | Fixed |
-| Gold scoring: year-only periods, no-value items, duplicates, expected rejections, blank terms, repeated ids | P2 | Fixed |
-| Review gate accepted a blank reviewer or a future date | P2 | Fixed |
-| Bad stored output could echo text at the terminal | P2 | Fixed |
+| A comparison could become a figure's period (both earlier designs) | P0 | Removed by the tighten-only design |
+| A mention could hide a third party's forecast (both earlier designs) | P0 | Fixed, failing-first |
+| Heading or neighbouring sentence could supply a period once a comparison was cut | P1 | Removed |
+| `Market Economics Ltd`, `Financial Markets Authority` treated as the market | P1 | Fixed: closed list |
+| False rejections from broad "expected", sector markets and "Reserve Bank of New Zealand" | P2 | Fixed |
+| Gold scoring could flatter: years, units, duplicates, broad items, no-value items | P2 | Fixed |
+| Review gate accepted a blank reviewer, an AI's name or a future date | P2 | Fixed |
 | Draft gate ignored a revoked route (from PR #42) | Baseline | Fixed |
-| Malformed stored date, ties, incomplete decision items | P3 | Fixed |
+| Malformed date disabled the draft's historical check | P2 | Fixed: withheld |
+| Bad stored output could echo text at the terminal | P2 | Fixed |
 
 **Accepted, not changed:**
 
 - "Higher than the RBNZ expected" with the RBNZ as third-party issuer still passes. This predates Phase 4Q.
 - `rules_for` gives current rules to an unknown label. Production callers name a known version, and a hosted request's consent binds the hash of what is sent.
-- `RULES_SHA256` is enforced by tests, and only as a membership check at runtime.
+- `RULES_SHA256` is enforced by tests, and is only a membership check at runtime.
+- A draft withheld for instruction-like text still has its title in "Reports held".
+- A future-dated stored report would be marked newest.
 
 ## Bounded proposal for the next experiment
 
@@ -206,7 +211,7 @@ session's reasoning but is **not a second vendor**, and its model family is the 
 - Forecast issuer accuracy: 100%. Numbers among matched claims: 100%.
 - Prose pages cited: 3 of 3. Recall reported with its denominator.
 
-If the verifier rejects the summary, the raw measures still answer the question. It stays rejected and is not retried.
+The recorded comparison limit means a claimed period beside a comparison would still reject the whole summary. If the verifier rejects the summary, the raw measures still answer the question. It stays rejected and is not retried.
 
 **Before any run, in order:**
 
@@ -221,7 +226,7 @@ If the verifier rejects the summary, the raw measures still answer the question.
 
 | Decision | Verdict |
 |---|---|
-| Prompt v5 and `verify-4` | **GO WITH CONDITIONS:** owner review of the PRs, given the false acceptances the first version had. They run nothing |
+| Prompt v5 and `verify-4` | **GO WITH CONDITIONS:** owner review of the PRs. They run nothing |
 | Internal draft mode | **GO**, loopback only, no broader visibility |
 | Preparing the next experiment | **GO WITH CONDITIONS**, the six above |
 | Running OpenRouter now | **NO-GO** |
