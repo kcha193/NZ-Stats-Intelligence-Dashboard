@@ -351,3 +351,50 @@ def test_an_emitted_expected_rejection_counts_against_precision(stored):
     )
     raw = scored(conn, summary([fact(), rejected])).views["raw"]
     assert raw.precision.text == "1/2" and raw.expected_rejections == 1
+
+
+# Found by the second independent review.
+def test_a_period_with_a_year_must_match_that_year(stored):
+    conn, _ = stored
+    item = gold(period="September quarter 2029")
+    raw = scored(conn, summary([fact(period="September quarter 2031")]), items=[item]).views["raw"]
+    assert raw.unmatched == 1 and raw.recall.text == "0/1"
+
+
+def test_an_ambiguous_item_cannot_swallow_a_wrong_number(stored):
+    conn, _ = stored
+    items = [gold("broad", "ambiguous", terms=("output",), value=None, period=None), gold()]
+    raw = scored(conn, summary([fact(value=9.9)]), items=items).views["raw"]
+    assert (
+        raw.precision.text == "0/1" and raw.numerical_accuracy.text == "0/1" and raw.ambiguous == 0
+    )
+
+
+def test_the_wrong_unit_is_not_a_right_number(stored):
+    conn, _ = stored
+    raw = scored(conn, summary([{**fact(), "unit": "nzd_billion"}]), items=[gold()]).views["raw"]
+    assert raw.numerical_accuracy.text == "0/1" and raw.recall.text == "0/1"
+
+
+def test_a_number_on_an_item_with_none_counts_against_numbers(stored):
+    conn, _ = stored
+    items = [gold("view", terms=("output",), value=None)]
+    raw = scored(conn, summary([fact(value=99)]), items=items).views["raw"]
+    assert raw.numerical_accuracy.text == "0/1"
+
+
+def test_a_third_party_forecast_must_name_its_issuer():
+    with pytest.raises(ValueError):
+        GoldExtension.model_validate(
+            extension(
+                items=[
+                    gold("x", "third_party_forecast", "forecast", role="third_party", issuer=None)
+                ]
+            )
+        )
+
+
+def test_the_raw_label_says_what_it_covers(stored):
+    conn, _ = stored
+    label = scored(conn, summary([fact()])).to_json()["views"]["raw"]["label"]
+    assert "facts, forecasts and decisions" in label and "not scored" in label

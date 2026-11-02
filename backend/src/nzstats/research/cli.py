@@ -14,8 +14,6 @@ import os
 from datetime import date
 from pathlib import Path
 
-from pydantic import ValidationError
-
 from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
 from nzstats.research import purge
@@ -612,11 +610,13 @@ def _score_gold(
             )
             for row in rows
         ]  # fmt: skip
-    except ValidationError as exc:
-        _emit(f"refused: a stored summary no longer parses ({type(exc).__name__})")
-        return 2
     except GoldExtensionError as exc:
         _emit(f"refused: {exc}")
+        return 2
+    except (
+        ValueError
+    ) as exc:  # a stored summary or date that no longer parses; its content is not repeated
+        _emit(f"refused: a stored summary or date is not valid ({type(exc).__name__})")
         return 2
     if args.json:
         _emit(json.dumps([r.to_json() for r in reports], indent=1))

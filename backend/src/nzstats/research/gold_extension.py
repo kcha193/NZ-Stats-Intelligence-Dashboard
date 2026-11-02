@@ -9,7 +9,7 @@ an extension is refused unless a named person reviewed it and states it was writ
 statement is an attestation, not something this code can prove.
 
 Three views are scored. "accepted" follows the live rule: one failed claim rejects the whole summary, so the view is empty.
-"raw" is everything emitted. "clean claims" is a labelled hypothetical for the per-claim design: it changes no status and
+"raw" is every fact, forecast and decision emitted; statements and guidance are not scored. "clean claims" is a labelled hypothetical for the per-claim design: it changes no status and
 makes nothing displayable. Precision counts a claim once per gold item, and an emitted expected rejection or a claim outside
 the gold counts against it. An empty denominator is unmeasured, never a pass. Reports hold numbers only, no text.
 """
@@ -43,7 +43,7 @@ _IN_RECALL = {"accepted_eligible", "third_party_forecast"}
 _CANDIDATE = re.compile(r"\d|forecast|expect|project|\bwill\b|\bdecision\b|voted", re.IGNORECASE)
 VIEW_LABELS = {
     "accepted": "Accepted: follows the live rule, so one failed claim empties it",
-    "raw": "Raw: everything emitted, passed or not",
+    "raw": "Raw: all facts, forecasts and decisions emitted, passed or not. Statements and guidance are not scored",
     "clean_claims_hypothetical": "Clean claims, hypothetical: changes no status and makes nothing displayable",
 }
 
@@ -79,6 +79,8 @@ class ExtensionItem(_Strict):
             raise ValueError("an expected rejection must say why")
         if not all(term.strip() for term in self.terms):
             raise ValueError("a term may not be blank")
+        if self.category == "third_party_forecast" and not (self.issuer and self.issuer.strip()):
+            raise ValueError("a third-party forecast must name its issuer")
         return self
 
 
@@ -169,6 +171,7 @@ class _Emitted:
     kind: str
     text: str
     value: float | None
+    unit: str | None
     period: str | None
     issuer: str | None
     role: IssuerRole | None
@@ -192,36 +195,36 @@ def _emitted(summary: OutlookSummary, failed_paths: set[str]) -> list[_Emitted]:
     for i, f in enumerate(summary.facts):
         out.append(
             _Emitted(
-                "fact", f.text, f.value, f.period, f.source, None, f"facts[{i}]" in failed_paths
+                "fact",
+                f.text,
+                f.value,
+                f.unit,
+                f.period,
+                f.source,
+                None,
+                f"facts[{i}]" in failed_paths,
             )
         )
     for i, c in enumerate(summary.forecasts):
         text = f"{c.indicator_label} {c.indicator.value} {c.qualification or ''}"
-        out.append(
-            _Emitted(
-                "forecast",
-                text,
-                c.value,
-                c.horizon,
-                c.issuer,
-                c.issuer_role,
-                f"forecasts[{i}]" in failed_paths,
-            )
-        )
+        out.append(_Emitted("forecast", text, c.value, c.unit, c.horizon, c.issuer, c.issuer_role,
+                            f"forecasts[{i}]" in failed_paths))  # fmt: skip
     for i, d in enumerate(summary.decisions):
-        out.append(_Emitted("decision", f"{d.decision_maker} {d.instrument} {d.action.value}", d.rate, None,
+        out.append(_Emitted("decision", f"{d.decision_maker} {d.instrument} {d.action.value}", d.rate, None, None,
                             d.decision_maker, None, f"decisions[{i}]" in failed_paths))  # fmt: skip
     return out
 
 
+def _years(period: str | None) -> set[str]:
+    return {m.group() for m in _YEAR.finditer(period or "")}
+
+
 def _same_period(claim: str | None, item: str | None) -> bool:
-    """The same period, leaving aside a year the gold omits. A gold period that is only a year must match that year."""
-    wanted = _without_year(item)
-    if wanted:
-        return _without_year(claim) == wanted
-    return {m.group() for m in _YEAR.finditer(claim or "")} == {
-        m.group() for m in _YEAR.finditer(item or "")
-    }
+    """The same period. A year the gold omits does not matter here (period exactness reports it); one it states must match."""
+    wanted = _years(item)
+    if wanted and _years(claim) != wanted:
+        return False
+    return _without_year(claim) == _without_year(item)
 
 
 def _is_about(claim: _Emitted, item: ExtensionItem) -> bool:
@@ -232,15 +235,20 @@ def _is_about(claim: _Emitted, item: ExtensionItem) -> bool:
 
 
 def _match(claim: _Emitted, items: tuple[ExtensionItem, ...]) -> ExtensionItem | None:
+    """Prefer an item this number is right for, then an item in the recall denominator: a broad item must not hide an error."""
     about = [item for item in items if _is_about(claim, item)]
-    return next(
-        (i for i in about if _same_value(claim.value, i.value)), about[0] if about else None
+    return min(
+        about,
+        key=lambda i: (not _value_right(claim, i) or i.value is None, i.category not in _IN_RECALL),
+        default=None,
     )
 
 
 def _value_right(claim: _Emitted, item: ExtensionItem) -> bool:
     if item.value is None:
         return claim.value is None
+    if item.unit is not None and claim.unit is not None and item.unit != claim.unit:
+        return False
     return _same_value(claim.value, item.value)
 
 
@@ -274,7 +282,7 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
             elif good:
                 right += 1
                 found.add(item.id)
-            if item.value is not None:
+            if item.value is not None or claim.value is not None:
                 numbers += 1
                 numbers_right += good
             if item.period_as_stated is not None:
