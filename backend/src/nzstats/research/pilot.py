@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError
 from nzstats.clock import utc_now
 from nzstats.research.contract import LlmLimits, SummaryRequest, build_request
 from nzstats.research.hosted import HostedConsent, approved_sections, section_inventory_sha256
-from nzstats.research.openrouter import OpenRouterProvider, input_token_bound
+from nzstats.research.openrouter import SECOND_PILOT, OpenRouterProvider, input_token_bound
 from nzstats.research.prompt import PROMPT_VERSION, input_sha256, render
 from nzstats.research.providers import OPENROUTER_URL, LlmSettings, Pricing
 from nzstats.research.registry import Institution
@@ -38,12 +38,15 @@ from nzstats.research.summarise import (
     load_sections,
     summarise_versions,
 )
+from nzstats.research.summary_store import lifetime_spent, version_attempts
 from nzstats.research.verify import VERIFIER_VERSION
 
 MODEL = "anthropic/claude-opus-5.5"
 CANONICAL_MODEL = "anthropic/claude-opus-5.5-20260921"
 ROUTE = "google-vertex/europe"
 PILOT_VERSIONS = {1: "treasury", 2: "rbnz"}
+EXPERIMENT_ID = "phase-4n-second-pilot"
+FREEZE_FORMAT = 2  # format 1 and its approvals belong to the consumed Phase 4M attempts
 
 
 class PilotRefused(ValueError):
@@ -68,6 +71,8 @@ class DocumentRights(_Strict):
 
 class Approval(_Strict):
     state: Literal["approved"]
+    experiment: Literal["phase-4n-second-pilot"]
+    experiment_spend_limit_usd: float
     approved_by: str = Field(min_length=1)
     approved_at: datetime
     expires_at: datetime
@@ -114,13 +119,16 @@ def _settings(key: str) -> LlmSettings:
         Pricing(4.4, 22),
         LlmLimits(
             max_input_chars=45000,
-            max_output_tokens=6000,
+            max_output_tokens=SECOND_PILOT.max_output_tokens,
             max_documents_per_run=2,
+            timeout_seconds=SECOND_PILOT.timeout_seconds,
             max_retries=0,
-            max_run_usd=5,
+            max_run_usd=SECOND_PILOT.scope.max_usd,
             max_period_usd=5,
         ),
         ROUTE,
+        SECOND_PILOT.reasoning_effort,
+        EXPERIMENT_ID,
     )
 
 
@@ -201,12 +209,19 @@ def freeze(
                         parameters=provider.parameters(),
                     ),
                     "body_sha256": hashlib.sha256(body).hexdigest(),
-                    "worst_case_usd": settings.pricing.cost(input_token_bound(request), 6000),
+                    "worst_case_usd": settings.pricing.cost(
+                        input_token_bound(request), settings.limits.max_output_tokens
+                    ),
                 }
             )
             _write(output / f"v{c.version_id}-request.json", body)
     result = {
-        "format": 1,
+        "format": FREEZE_FORMAT,
+        "experiment": EXPERIMENT_ID,
+        "experiment_spend_limit_usd": SECOND_PILOT.scope.max_usd,
+        "reasoning_effort": SECOND_PILOT.reasoning_effort,
+        "max_output_tokens": SECOND_PILOT.max_output_tokens,
+        "timeout_seconds": SECOND_PILOT.timeout_seconds,
         "status": "proposal_only_requires_separate_approval",
         "model": MODEL,
         "canonical_model": CANONICAL_MODEL,
@@ -261,7 +276,7 @@ def _get(client: httpx.Client, path: str, *, key: str | None = None) -> dict:
         raise PilotRefused("OpenRouter read-only preflight failed") from exc
 
 
-def _remote_checks(client: httpx.Client, key: str, bound: float) -> dict:
+def _remote_checks(client: httpx.Client, key: str, bound: float, ledger_usd: float) -> dict:
     metadata = _get(client, "/key", key=key).get("data", {})
     if not isinstance(metadata, dict):
         raise PilotRefused("dedicated key metadata invalid")
@@ -275,6 +290,8 @@ def _remote_checks(client: httpx.Client, key: str, bound: float) -> dict:
         numbers_valid
         and metadata.get("byok_usage") == 0
         and abs(metadata["limit_remaining"] + metadata["usage"] - 5) <= 0.000001
+        # Spend the ledger never recorded means another consumer of this dedicated key.
+        and abs(metadata["usage"] - ledger_usd) <= 0.000001
         and metadata.get("limit") == 5
         and "limit_reset" in metadata
         and metadata["limit_reset"] is None
@@ -289,6 +306,10 @@ def _remote_checks(client: httpx.Client, key: str, bound: float) -> dict:
     matches = [m for m in models if m.get("id") == MODEL]
     if len(matches) != 1 or matches[0].get("canonical_slug") != CANONICAL_MODEL:
         raise PilotRefused("approved model alias identity changed")
+    reasoning = matches[0].get("reasoning")
+    efforts = reasoning.get("supported_efforts") if isinstance(reasoning, dict) else None
+    if not isinstance(efforts, list) or SECOND_PILOT.reasoning_effort not in efforts:
+        raise PilotRefused("approved reasoning effort is no longer supported")
     endpoints = _get(client, f"/models/{MODEL}/endpoints").get("data", {})
     zdr = _get(client, "/endpoints/zdr").get("data", [])
     if not isinstance(endpoints, dict) or not isinstance(zdr, list):
@@ -315,7 +336,7 @@ def _remote_checks(client: httpx.Client, key: str, bound: float) -> dict:
                 )
                 and e.get("supports_implicit_caching") is False
                 and e.get("context_length", 0) >= 272000
-                and e.get("max_completion_tokens", 0) >= 6000
+                and e.get("max_completion_tokens", 0) >= SECOND_PILOT.max_output_tokens
                 and {"max_tokens", "response_format", "reasoning", "reasoning_effort"}.issubset(
                     e.get("supported_parameters", [])
                 )
@@ -334,6 +355,9 @@ def _remote_checks(client: httpx.Client, key: str, bound: float) -> dict:
         "limit_usd": 5,
         "limit_reset": None,
         "remaining_usd": metadata["limit_remaining"],
+        "ledger_usd": ledger_usd,
+        "reasoning_effort": SECOND_PILOT.reasoning_effort,
+        "max_output_tokens": SECOND_PILOT.max_output_tokens,
         "catalogue_and_zdr": selected,
     }
 
@@ -360,13 +384,19 @@ def execute(
             or approval.expires_at.tzinfo is None
             or not approval.approved_at <= now < approval.expires_at
             or approval.expires_at - approval.approved_at > timedelta(days=1)
+            or approval.experiment_spend_limit_usd != SECOND_PILOT.scope.max_usd
             or file_sha256(frozen / "freeze.json") != approval.frozen_sha256
             or file_sha256(approval.gold_path) != approval.gold_sha256
         ):
             raise PilotRefused("approval time, frozen scope or reviewed gold mismatched")
         manifest = json.loads((frozen / "freeze.json").read_bytes())
         expected = (
-            1,
+            FREEZE_FORMAT,
+            EXPERIMENT_ID,
+            SECOND_PILOT.scope.max_usd,
+            SECOND_PILOT.reasoning_effort,
+            SECOND_PILOT.max_output_tokens,
+            SECOND_PILOT.timeout_seconds,
             MODEL,
             CANONICAL_MODEL,
             ROUTE,
@@ -379,6 +409,11 @@ def execute(
             manifest[k]
             for k in (
                 "format",
+                "experiment",
+                "experiment_spend_limit_usd",
+                "reasoning_effort",
+                "max_output_tokens",
+                "timeout_seconds",
                 "model",
                 "canonical_model",
                 "provider_id",
@@ -431,9 +466,14 @@ def execute(
                 5,
                 ordinals,
                 frame["sections_sha256"],
+                EXPERIMENT_ID,
             )
             approved_sections(load_sections(conn, version), grant)
             grants.append(grant)
+            # Exactly the consumed first-pilot row. With the per-version lifetime limit, this keeps
+            # one attempt per version true even if a run's editable experiment tag is changed.
+            if version_attempts(conn, version) != 1:
+                raise PilotRefused("frozen version's attempt ledger is not the authorised state")
     except (ValidationError, KeyError, TypeError, OSError, ValueError) as exc:
         raise PilotRefused("incomplete or mismatched execution approval") from exc
     owned = client is None
@@ -476,7 +516,9 @@ def execute(
                 author=registry[c[0].institution].name,
             )
             provider.request_body(request)
-        remote = _remote_checks(http, api_key, sum(i.estimated_usd for i in dry.items))
+        remote = _remote_checks(
+            http, api_key, sum(i.estimated_usd for i in dry.items), lifetime_spent(conn)
+        )
         output.mkdir(mode=0o700, parents=True, exist_ok=False)
         _write(output / "preflight.json", _bytes(remote))
         _write(output / "approval.json", approval.model_dump_json().encode())

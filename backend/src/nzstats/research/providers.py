@@ -67,6 +67,9 @@ class LlmSettings:
     pricing: Pricing = Pricing()
     limits: LlmLimits = LlmLimits()
     openrouter_provider: str | None = None
+    openrouter_reasoning_effort: str | None = None
+    # A separately authorised ledger scope. The bounded pilot runner sets it; no environment does.
+    openrouter_experiment: str | None = None
 
     def __str__(self) -> str:
         return repr(self)
@@ -178,7 +181,14 @@ def load_llm_settings(env: Mapping[str, str]) -> LlmSettings:
         max_period_usd=_number(env, "NZSTATS_LLM_MAX_PERIOD_USD", defaults.max_period_usd, 0.0001, 10_000),
     )  # fmt: skip
     settings = LlmSettings(
-        provider, model, key, base, pricing, limits, env.get("NZSTATS_OPENROUTER_PROVIDER")
+        provider,
+        model,
+        key,
+        base,
+        pricing,
+        limits,
+        env.get("NZSTATS_OPENROUTER_PROVIDER"),
+        env.get("NZSTATS_OPENROUTER_REASONING_EFFORT"),
     )
     if provider == "openrouter":
         from nzstats.research.openrouter import validate_settings

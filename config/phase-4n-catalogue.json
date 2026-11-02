@@ -1,0 +1,69 @@
+{
+  "status": "public_metadata_only_not_processing_authorisation",
+  "checked_on": "2026-11-02",
+  "retrieved_at": "2026-11-01T21:05:29Z",
+  "credential_used": false,
+  "inference_requests": 0,
+  "sources": [
+    {
+      "url": "https://openrouter.ai/api/v1/models",
+      "http_status": 200,
+      "sha256": "6707f2cd2b1a0e502d84eb2f759b80dc21d64d208af04b4c0d93244c2a993872"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models/anthropic/claude-opus-5.5/endpoints",
+      "http_status": 200,
+      "sha256": "a150afdc678b5aa149e6896594385423a3181e826441ee0242b4dc8f2f9dd340"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+      "http_status": 200,
+      "sha256": "8cbe5e09802619b49c61473ff0309b09b407bcef7ca43818c6c00fb7b91397a7"
+    }
+  ],
+  "model": "anthropic/claude-opus-5.5",
+  "canonical_slug": "anthropic/claude-opus-5.5-20260921",
+  "model_reasoning": {
+    "mandatory": true,
+    "supported_efforts": ["max", "xhigh", "high", "medium", "low"],
+    "default_effort": "high"
+  },
+  "selected_endpoint": {
+    "name": "Google | anthropic/claude-opus-5.5-20260921",
+    "tag": "google-vertex/europe",
+    "provider_name": "Google",
+    "status": 0,
+    "ordinary_catalogue_safety_retention": null,
+    "zdr_list_safety_retention": false,
+    "supports_implicit_caching": false,
+    "context_length": 1000000,
+    "max_completion_tokens": 128000,
+    "supported_parameters": [
+      "reasoning",
+      "include_reasoning",
+      "max_tokens",
+      "response_format",
+      "tool_choice",
+      "tools",
+      "verbosity",
+      "structured_outputs",
+      "stop",
+      "reasoning_effort"
+    ],
+    "pricing": {
+      "prompt": "0.0000044",
+      "completion": "0.000022"
+    }
+  },
+  "documentation_checked": [
+    {
+      "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens",
+      "finding": "Reasoning tokens are output tokens. Effort or reasoning.max_tokens, not both. Effort-only models use a max_tokens value to choose an effort level."
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/build-with-claude/effort",
+      "finding": "Opus 5.5 thinking cannot be turned off; effort is the primary control; max_tokens is a hard limit on thinking plus response."
+    }
+  ],
+  "note": "Recheck immediately before any transmission; execute() refuses a changed price, effort list, output limit, parameter, identity or retention attestation."
+}

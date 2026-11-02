@@ -16,6 +16,7 @@ from datetime import datetime
 
 from nzstats.research.contract import Provider, SectionText, SummaryRequest
 from nzstats.research.prompt import input_sha256
+from nzstats.research.summary_store import FIRST_PILOT
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ class HostedConsent:
     budget_approved_usd: float
     approved_section_ordinals: tuple[int, ...]
     sections_sha256: str
+    experiment: str = FIRST_PILOT
 
 
 def section_inventory_sha256(sections: Mapping[int, SectionText]) -> str:
@@ -117,6 +119,7 @@ def consent_refusal(
         grant.institution != request.institution
         or grant.model != provider.model
         or grant.provider_id != provider.parameters().get("provider_only")
+        or grant.experiment != provider.parameters().get("experiment", FIRST_PILOT)
         or grant.content_sha256 != row["content_sha256"]
         or grant.text_sha256 != row["text_sha256"]
         or grant.request_sha256 != expected

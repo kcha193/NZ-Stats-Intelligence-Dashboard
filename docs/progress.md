@@ -1,11 +1,25 @@
 # Progress and verification record
 
-Last updated 2026-11-02. Phase 4M started from fetched main `9e85e5b`, after merged
-[PR #38](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/38).
-**Actual pilot completed: two requests, two rejected/truncated responses. NO-GO for economic intelligence/display.**
-All processing approvals were explicitly recorded before execution. Both attempt slots are consumed; no retry,
-fall back, prompt/cap/threshold adjustment, output approval, crawl, ingestion activation, publication, merge or deployment.
-Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+Last updated 2026-11-02. Phase 4N started from fetched main `3c0efbf`, after merged
+[PR #39](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/39).
+**Code remediation complete, with no real inference. GO WITH CONDITIONS for a second controlled trial, after separate owner
+approval; NO-GO for economic intelligence or display.** The Phase 4M attempts and costs are preserved. Phase 4G live
+new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4N: OpenRouter truncation remediation, 2 November 2026
+
+Full record: [phase-4n-remediation.md](phase-4n-remediation.md). Proposal:
+[phase-4n-second-pilot-proposal.md](phase-4n-second-pilot-proposal.md). Local evidence: ignored `data/phase-4n/`.
+
+- Confirmed causes: Treasury spent all 6,000 output tokens on reasoning at hardcoded `high`; RBNZ spent 1,457 on reasoning
+  and ran out while writing verbose JSON. The verifier never ran, and routing, privacy and billing did not fail.
+- Effort is now explicit (`low` or `medium`), with a 12,000-token cap and a timeout that scales with it. Opus 5.5 has no hard
+  reasoning budget. Prompt `outlook-v4` targets compact complete JSON; contract 2, `verify-3` and thresholds are unchanged.
+- Failure classes now separate reasoning exhaustion, truncated JSON, missing content, invalid JSON, schema, verifier, route
+  and upstream errors. Reasoning tokens are recorded.
+- `phase-4n-second-pilot` is an append-only ledger scope with two attempts and US$1, inside the unchanged US$5 lifetime cap.
+  No row or schema changed. Live ledger still 1 run, 2 summaries, 2 usage, 2 reservations; US$0.382278204 spent.
+- Conservative bound for both requests: **US$0.8647364**. No inference, crawl, scheduler, deployment, approval or merge.
 
 ## Phase 4M: owner approval and first actual pilot, 1–2 November 2026
 

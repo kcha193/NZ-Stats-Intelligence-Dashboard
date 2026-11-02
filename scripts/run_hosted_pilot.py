@@ -1,4 +1,4 @@
-"""Local Phase 4M launcher. No runtime/scheduler construction or migrations."""
+"""Local bounded hosted-pilot launcher. No runtime/scheduler construction or migrations."""
 
 from __future__ import annotations
 
