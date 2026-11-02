@@ -20,6 +20,12 @@ from nzstats.research import purge
 from nzstats.research import summary_store as ss
 from nzstats.research.contract import Provider
 from nzstats.research.cpi_reconcile import reconcile
+from nzstats.research.drafts import (
+    ALLOWLIST_FILE,
+    DraftAllowlistError,
+    load_allowlist,
+    why_not_draft,
+)
 from nzstats.research.fetch import (
     DEFAULT_MAX_BYTES,
     ResearchFetcher,
@@ -369,6 +375,14 @@ def _show(args: argparse.Namespace, settings: Settings, registry: dict[str, Inst
     private = why_not_private(conn, registry, row["id"])
     _emit("  private preview: yes with `nzstats serve --private-research`" if private is None
           else f"  private preview: no ({_safe(private)})")  # fmt: skip
+    try:
+        allowlist = load_allowlist(settings.db_path.parent / ALLOWLIST_FILE)
+    except DraftAllowlistError as exc:
+        draft_reason: str | None = str(exc)
+    else:
+        draft_reason = why_not_draft(conn, registry, allowlist, row["id"])
+    _emit("  internal draft: yes with `nzstats serve --internal-drafts`" if draft_reason is None
+          else f"  internal draft: no ({_safe(draft_reason)})")  # fmt: skip
     _emit("  Not an official statistic: an interpretation of institutional commentary.")
     _emit(f"  {SCOPE}")
     if ss.is_redacted(row["output_json"]):

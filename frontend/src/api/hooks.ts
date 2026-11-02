@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { ApiError, getJson } from "./client";
+import type { DraftFeed, DraftItem } from "./drafts";
 import { isStaticMode, pollEvery } from "./mode";
 import type {
   CalendarOut, CountriesOut, Health, Overview, ReleaseDetail, ReleaseSummary, RevisionsOut,
@@ -107,6 +108,41 @@ async function orUnpublished<T>(request: Promise<T>): Promise<T | null> {
     if (e instanceof ApiError && e.status === 404) return null;
     throw e;
   }
+}
+
+/**
+ * Internal drafts, only when the server says its switch is on. Off, unknown or the static site: no request, no draft.
+ * These routes are outside the published API, so their types are in `drafts.ts`.
+ */
+async function draftsAreOn(client: QueryClient): Promise<boolean> {
+  if (isStaticMode()) return false;
+  try {
+    const caps = await client.ensureQueryData({ queryKey: ["capabilities"], queryFn: ({ signal }) => getJson<Capabilities>("/api/capabilities", signal) });
+    return caps.internal_drafts === true;
+  } catch {
+    return false;
+  }
+}
+
+const DASHBOARD_CLIENT = { "X-NZStats-Client": "dashboard" };
+
+export function useInternalDrafts() {
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: ["internal-drafts"],
+    queryFn: async ({ signal }) =>
+      (await draftsAreOn(client)) ? orUnpublished(getJson<DraftFeed>("/api/internal/drafts", signal, DASHBOARD_CLIENT)) : null,
+  });
+}
+
+export function useInternalDraft(id: number) {
+  const client = useQueryClient();
+  return useQuery({
+    queryKey: ["internal-draft", id],
+    enabled: Number.isFinite(id),
+    queryFn: async ({ signal }) =>
+      (await draftsAreOn(client)) ? orUnpublished(getJson<DraftItem>(`/api/internal/drafts/${id}`, signal, DASHBOARD_CLIENT)) : null,
+  });
 }
 
 export type FeedParams = {

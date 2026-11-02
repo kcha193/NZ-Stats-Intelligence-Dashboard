@@ -309,6 +309,9 @@ def test_publish_needs_approval_then_shows_why_and_withdraw_works(llm_env, tmp_p
     assert (
         "private preview: no (the registry shows nothing privately" in shown
     )  # a separate decision
+    assert (
+        "internal draft: no (not on the internal draft list)" in shown
+    )  # never implied by the others
     assert main(["research", "withdraw", str(sid), "--approver", "Kevin", "--note", "query"]) == 0
     assert main(["research", "summary", str(sid)]) == 0
     assert "public: no (not publication-approved (withdrawn))" in capsys.readouterr().out

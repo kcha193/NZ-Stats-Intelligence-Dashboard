@@ -653,6 +653,10 @@ forward guidance, assumption, figure as reported by the institution), and every 
 statistic". `research summary ID` shows `private preview: yes`, or why not. Every shipped source has
 `private_display = "none"`. The browser page is a later change.
 
+Internal drafts are separate: `nzstats serve --host 127.0.0.1 --internal-drafts` shows summaries the owner named, including
+ones that failed checks, with each claim marked. They grant no public or private display and change no source permission. See
+[phase-4p-internal-drafts.md](../phase-4p-internal-drafts.md).
+
 ## Rollback
 
 Phase 3F: `sqlite3 data/nzstats.db < scripts/rollback/010_research_purge_down.sql` (purge records and the redaction

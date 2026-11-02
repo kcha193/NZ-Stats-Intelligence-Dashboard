@@ -4,9 +4,9 @@ import { staticGetJson } from "./static";
 
 export { ApiError };
 
-export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function getJson<T>(path: string, signal?: AbortSignal, headers?: Record<string, string>): Promise<T> {
   if (isStaticMode()) return staticGetJson<T>(path, signal);
-  const res = await fetch(path, { signal, headers: { Accept: "application/json" } });
+  const res = await fetch(path, { signal, headers: { Accept: "application/json", ...headers } });
   if (!res.ok) {
     let detail = res.statusText;
     try {
