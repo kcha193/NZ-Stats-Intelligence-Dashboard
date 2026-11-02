@@ -254,3 +254,115 @@ def test_market_is_recognised_only_as_a_whole_issuer_name():
     )
     assert organisation_of("Monetary Policy Committee") == "rbnz"
     assert "market" not in named("Export markets remain strong.")
+
+
+# Found by independent review of the first verify-4: a second credit used to hide the first, so these passed as the author's.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The IMF forecasts growth of 3% in 2029, more than the Treasury expected.",
+        "The IMF forecasts growth of 3% in 2029, as the Treasury expected.",
+        "The IMF forecasts growth of 3% in 2029, above what the RBNZ expected.",
+        "The IMF forecasts growth of 3% in 2029, more than markets expect.",
+        "The IMF forecasts growth of 3% in 2029 and markets expect the same.",
+    ],
+)
+def test_a_second_mention_cannot_hide_a_third_partys_forecast(sentence):
+    quote = sentence.rstrip(".")
+    claim = forecast(
+        0,
+        quote,
+        1,
+        value=3,
+        unit="percent",
+        horizon="2029",
+        issuer="The Treasury",
+        issuer_role="author",
+    )
+    report = check(
+        {0: SectionText(sentence, 1, 1)},
+        outlook_ref=ref(0, quote),
+        institution="treasury",
+        forecasts=[claim],
+    )
+    assert "issuer_mismatch" in codes(report)
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Inflation will be 3% in 2029, higher than the RBNZ expected.",
+        "The RBNZ rate cut expected in 2029 would take the OCR to 3%.",
+        "The Fed cuts expected in 2029 would take its rate to 3%.",
+        "Unlike what markets expect, the OCR will be 3% in 2029.",
+    ],
+)
+def test_naming_another_organisations_expectation_does_not_credit_it(sentence):
+    quote = sentence.rstrip(".")
+    claim = forecast(
+        0,
+        quote,
+        1,
+        value=3,
+        unit="percent",
+        horizon="2029",
+        issuer="The Treasury",
+        issuer_role="author",
+    )
+    report = check(
+        {0: SectionText(sentence, 1, 1)},
+        outlook_ref=ref(0, quote),
+        institution="treasury",
+        forecasts=[claim],
+    )
+    assert "issuer_mismatch" not in codes(report)
+
+
+def test_an_earlier_sentences_expectation_is_not_inherited_by_a_new_forecast():
+    text = "The RBNZ expected higher inflation last year. Growth will be 3% in 2029."
+    claim = forecast(
+        0,
+        "Growth will be 3% in 2029",
+        1,
+        value=3,
+        unit="percent",
+        horizon="2029",
+        issuer="The Treasury",
+        issuer_role="author",
+    )
+    report = check(
+        {0: SectionText(text, 1, 1)},
+        outlook_ref=ref(0, "Growth will be 3% in 2029"),
+        institution="treasury",
+        forecasts=[claim],
+    )
+    assert "issuer_mismatch" not in codes(report)
+
+
+def test_past_tense_market_expectations_are_the_markets():
+    quote = "Markets expected 3% in 2029"
+    for issuer, role, bad in (("Markets", "third_party", False), ("The Treasury", "author", True)):
+        claim = forecast(
+            0, quote, 1, value=3, unit="percent", horizon="2029", issuer=issuer, issuer_role=role
+        )
+        report = check(
+            {0: SectionText(f"{quote}.", 1, 1)},
+            outlook_ref=ref(0, quote),
+            institution="treasury",
+            forecasts=[claim],
+        )
+        assert ("issuer_mismatch" in codes(report)) is bad
+        assert "issuer_not_in_evidence" not in codes(report)
+
+
+@pytest.mark.parametrize(
+    "issuer", ["the market", "financial market participants", "market pricing"]
+)
+def test_every_market_issuer_name_is_recognised(issuer):
+    assert organisation_of(issuer) == "market"
+
+
+def test_a_market_table_row_or_line_is_not_a_credit():
+    assert "market" not in credited("Market") and "market" not in named(
+        "line one\nmarkets\nline three"
+    )

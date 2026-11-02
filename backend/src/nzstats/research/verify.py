@@ -116,13 +116,15 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
 # Where a figure's own assertion stops, inside a clause. The base of a comparison has its own period ("3.7% in September,
 # up from 3.1% in June"), and neither figure may take the other's. A range ("from 54% to 47%") is one assertion.
+_CONNECTIVES = ("and", "before", "after", "then")
 _PERIOD_BREAK = re.compile(
-    r"\b(?:and|before|after|then)\b"
+    rf"\b(?:{'|'.join(_CONNECTIVES)})\b"
     r"|\b(?:up|down|higher|lower)\s+from\b"
     r"|\bfrom(?=\s+\S*\d\S*\s+(?:in|at|during|for)\b)"
     r"|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b",
     re.IGNORECASE,
 )
+_LENGTH_OF_TIME = re.compile(r"\b\d+\s+(?:months?|years?|quarters?|weeks?)\b", re.IGNORECASE)
 _FORWARD = re.compile(
     r"forecast|expect|project|predict|anticipat|outlook|assum|\bwill\b|\bwould\b|\bshould\b"
     r"|\blikely\b|\bsees?\b|\bseen\b|pencil|\bplan|scenario|\bpath\b|\bestimated? to\b"
@@ -671,6 +673,18 @@ def _period_parts(text: str) -> tuple[set[int], set[str], set[str], set[str]]:
     )
 
 
+def _is_comparison_base(before: str, between: str) -> bool:
+    """Is the value right after a comparison word the base of it, with the compared figure earlier in the clause?"""
+    earlier = _LENGTH_OF_TIME.sub("", before)
+    has_figure = bool(_numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", earlier)))))
+    return (
+        has_figure
+        and not _numbers(between)
+        and not any(_period_parts(between)[:3])
+        and len(between.split()) <= 3
+    )
+
+
 def _period_missing(
     period: str, found: list[tuple[EvidenceRef, _Located]], value_at: list[tuple[_Located, int]]
 ) -> list[str]:
@@ -682,6 +696,7 @@ def _period_missing(
     for loc, at in value_at or [(loc, loc.start) for _, loc in found]:
         place, line = loc.layout.place(at)
         table_context = ""
+        comparison_cut = False  # the figure's clause ended at a comparison holding its own period
         if place == "cell":
             table = loc.layout.table(line, include_sources=False)
             column = table.years[loc.layout.cell_index(line, at)] if table.years else ""
@@ -708,10 +723,17 @@ def _period_missing(
                     and not re.search(r"\w", remainder)
                 ):
                     continue  # coordinated dates qualify the same figure, not another assertion
+                comparison = separator.group().lower() not in _CONNECTIVES
                 if a + separator.end() <= at:
-                    start = a + separator.end()
+                    # A value after a comparison word is its base only when another figure is being compared and
+                    # nothing else comes first. "June 2026 compared with June 2025 rose 3%" compares two periods.
+                    if not comparison or _is_comparison_base(
+                        loc.text[start : a + separator.start()], loc.text[a + separator.end() : at]
+                    ):
+                        start = a + separator.end()
                 elif a + separator.start() > at:
                     end = a + separator.start()
+                    comparison_cut = comparison and any(_period_parts(loc.text[end:b])[:3])
                     break
             local = loc.with_lines(start, end)
         parts = _period_parts(local)
@@ -742,7 +764,11 @@ def _period_missing(
                 continue
             neighbors.append(text)
         # The section heading takes precedence over neighboring period-only context.
-        for candidates in ([shared_prefix], [table_context], [loc.heading], neighbors):
+        # A period the comparison states for itself is not free for a heading or neighbour to replace.
+        inherited = (
+            () if comparison_cut else ([shared_prefix], [table_context], [loc.heading], neighbors)
+        )
+        for candidates in inherited:
             compatible = [
                 text
                 for text in candidates
@@ -1329,34 +1355,39 @@ class _Checker:
         return out
 
     # -- who made a forecast --------------------------------------------------------------------
-    def _credited(self, loc: _Located, at: int) -> str | None:
+    def _credited(self, loc: _Located, at: int) -> set[str]:
         """Who the evidence credits with the figure at `at`: "author", an organisation key, or None."""
         author = self.ctx.institution
 
-        def one(keys: set[str], self_reference: bool = False) -> str | None:
-            keys = {"author" if k == author else k for k in keys} | (
+        def keys_of(keys: set[str], self_reference: bool = False) -> set[str]:
+            return {"author" if k == author else k for k in keys} | (
                 {"author"} if self_reference else set()
             )
-            return next(iter(keys)) if len(keys) == 1 else None  # none, or several: unclear
+
+        def one(keys: set[str], self_reference: bool = False) -> set[str]:
+            found = keys_of(keys, self_reference)
+            return found if len(found) == 1 else set()  # none, or several: unclear
 
         place, line = loc.layout.place(at)
         if place == "cell":
             label = loc.layout.row(line).label
             who = one(issuers.named(label), bool(issuers.SELF_REFERENCE.search(label)))
-            if who is None:
+            if not who:
                 who = one(issuers.named(loc.layout.table(line).caption))
-            if who is not None:
+            if who:
                 return who
         for text in (loc.clause_at(at), loc.sentence_text()):
             credited, own = issuers.credited(text), bool(issuers.SELF_REFERENCE.search(text))
             if credited or own:
-                return one(credited, own)
+                keys = keys_of(credited, own)
+                # Several third parties are unclear between themselves, but none of them is the author.
+                return keys if len(keys) == 1 or "author" not in keys else set()
         # A sentence that names nobody continues the one before it: "…in the IMF's World Economic Outlook (WEO).
         # The outlook for growth in 2026 has been revised to 3.1%" is the IMF's figure.
         previous = loc.previous_sentence()
         if not issuers.named(loc.sentence_text()) and not issuers.SELF_REFERENCE.search(previous):
-            return one({k for k in issuers.credited(previous) if k != author})
-        return None
+            return one({k for k in issuers.credited(previous, reported=False) if k != author})
+        return set()
 
     def issuer(
         self,
@@ -1386,7 +1417,7 @@ class _Checker:
             return
         claimed = "author" if role is IssuerRole.AUTHOR else key
         spots = value_at or [(loc, loc.start) for _, loc in found]
-        credited = {self._credited(loc, at) for loc, at in spots} - {None}
+        credited = set().union(*(self._credited(loc, at) for loc, at in spots))
         if claimed is not None and claimed in credited:
             return
         if credited:

@@ -10,7 +10,7 @@ import pytest
 
 from nzstats.research.contract import ReportedFact, SectionText
 
-from .verify_support import check, codes, ref
+from .verify_support import check, codes, forecast, ref
 
 
 def errors(
@@ -126,3 +126,56 @@ def test_one_unsupported_period_still_rejects_the_whole_summary():
                      period="June quarter 2029", evidence=[ref(0, bad)]),
     ]  # fmt: skip
     assert check(section, outlook_ref=ref(0, good), facts=claims).passed is False
+
+
+# Found by independent review of the first verify-4: each pair below passed the wrong period. The fix must hold in both
+# directions, for facts and forecasts alike.
+@pytest.mark.parametrize(
+    ("sentence", "value", "period"),
+    [
+        ("Wages in June 2029 compared with June 2028 rose 3%.", 3, "June 2028"),
+        ("Growth in 2029 versus 2028 was 3%.", 3, "2028"),
+        ("Growth in 2029 relative to 2028 was 3%.", 3, "2028"),
+        ("Prices in September rose from 5% in June to 3%.", 3, "June"),
+    ],
+)
+def test_a_comparison_before_the_figure_cannot_supply_its_period(sentence, value, period):
+    assert "period_not_supported" in errors(sentence, value, period)
+
+
+def test_a_comparison_before_a_forecast_cannot_supply_its_horizon():
+    sentence = "Growth in 2030 versus 2029 will be 2%."
+    claim = forecast(
+        0,
+        sentence.rstrip("."),
+        None,
+        value=2,
+        unit="percent",
+        horizon="2029",
+        issuer="The Treasury",
+        issuer_role="author",
+    )
+    assert "horizon_not_supported" in codes(
+        check(
+            {0: SectionText(sentence)}, outlook_ref=ref(0, sentence.rstrip(".")), forecasts=[claim]
+        )
+    )
+
+
+def test_a_heading_cannot_stand_in_once_a_comparison_with_its_own_period_is_cut():
+    sentence = "Growth was 2.5% compared with 1.5% in 2029."
+    section = {0: SectionText(sentence, heading="Results for 2030")}
+    claim = ReportedFact(text="Growth.", source="Synthetic Statistics", value=2.5, unit="percent", period="2030",
+                         evidence=[ref(0, sentence.rstrip("."))])  # fmt: skip
+    assert "period_not_supported" in codes(
+        check(section, outlook_ref=ref(0, sentence.rstrip(".")), facts=[claim])
+    )
+
+
+@pytest.mark.parametrize("word", ["versus", "relative to", "compared to", "compared with"])
+def test_each_comparison_word_binds_the_figure_before_it(word):
+    sentence = f"Output was 6.3% in the September quarter {word} 5.9% in the June quarter."
+    assert "period_not_supported" not in errors(sentence, 6.3, "September quarter")
+    assert "period_not_supported" in errors(sentence, 6.3, "June quarter")
+    assert "period_not_supported" not in errors(sentence, 5.9, "June quarter")
+    assert "period_not_supported" in errors(sentence, 5.9, "September quarter")
