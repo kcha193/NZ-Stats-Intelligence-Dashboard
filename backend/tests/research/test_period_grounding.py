@@ -145,3 +145,9 @@ def test_one_unsupported_period_still_rejects_the_whole_summary():
                      period="June quarter 2029", evidence=[ref(0, bad)]),
     ]  # fmt: skip
     assert check(section, outlook_ref=ref(0, good), facts=claims).passed is False
+
+
+def test_a_true_figure_beside_a_comparison_passes_with_no_period_claimed():
+    # What outlook-v5 asks for in this case: state nothing rather than choose. The quote still shows the document's words.
+    assert "period_not_supported" not in errors(UP_FROM, 6.3, None)
+    assert "period_not_supported" not in errors(BARE_FROM, 6.3, None)

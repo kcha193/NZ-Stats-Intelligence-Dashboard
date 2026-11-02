@@ -40,7 +40,8 @@ Rules:
    omit the year: write "September quarter", not "September quarter 2026". Never add a year, month or
    quarter from the publication date, the page header, another sentence or your own reasoning. If the
    sentence holding a figure states no period, leave "period" null. The base of a comparison ("up from
-   3.1% in June") is that other figure's period, not this figure's. Keep the period basis as written:
+   3.1% in June") is that other figure's period, not this figure's. If the clause holding a figure also
+   gives a comparison's period, leave "period" null rather than choosing. Keep the period basis as written:
    quarterly versus annual change, annual average versus year-end, fiscal year (for example "year to
    June 2027" or "2026/27") versus calendar year.
 7. Put conditions and caveats the document attaches to a forecast in "qualification".
@@ -134,7 +135,7 @@ Return only one JSON object matching this schema, with no other text:
 _RULES = {"outlook-v4": _RULES_V4, PROMPT_VERSION: RULES}
 RULES_SHA256 = {
     "outlook-v4": "b77701837d1ad6a9d8bf0e06ce7789dc16710bc467d88e6d47c0c88ecfa1c821",
-    PROMPT_VERSION: "0afe7ab091760eab2eb7fbfe9f9dd713552de02a9635f182d050988e04b6cdd9",
+    PROMPT_VERSION: "f976a085024457ed28489fa269927736600397f694d747306ea0a8a6bda91ae0",
 }
 
 
