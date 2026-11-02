@@ -369,8 +369,14 @@ def test_a_malformed_publication_date_cannot_break_the_list(conn):
     ]
 
 
-def test_a_malformed_publication_date_cannot_break_a_draft(conn):
+def test_a_malformed_publication_date_withholds_a_draft(conn):
+    # The date feeds the verifier's historical check, so a draft cannot be checked without it.
     sid = failing(conn)
+    listed = allow(conn, sid)
     with transaction(conn):
         conn.execute("UPDATE research_publication SET published_on = 'not a date'")
-    assert ids(conn, registry(institution()), allow(conn, sid)) == [sid]
+    assert ids(conn, registry(institution()), listed) == []
+    assert (
+        why_not_draft(conn, registry(institution()), listed, sid)
+        == "the stored publication date is not valid"
+    )

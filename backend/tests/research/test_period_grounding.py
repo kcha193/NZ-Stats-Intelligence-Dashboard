@@ -1,9 +1,8 @@
-"""Each figure is bound to its own reference period (Phase 4Q). SYNTHETIC FIXTURE: invented sentences and figures.
+"""A figure cannot take a comparison's period (Phase 4Q). SYNTHETIC FIXTURE: invented sentences and figures.
 
-Phase 4O's rejected facts showed two things, by code alone: a year the document does not state beside the figure, and a
-comparison's period being read as the figure's own. The first must stay rejected. The second must be bound correctly, in
-both directions, and that makes the check stricter as well as fairer: the base of a comparison can no longer serve as the
-figure's period.
+`verify-4` only tightens. The `verify-3` period check is unchanged and a further check can add a rejection, so nothing it
+rejected can pass. Two reviews broke an earlier design that also accepted more. The cost, kept visible in the tests below:
+a true figure beside a comparison in the same clause stays rejected until a separately reviewed change.
 """
 
 import pytest
@@ -38,14 +37,16 @@ COMPARED = "Freight volumes fell 0.8% on a seasonally adjusted basis compared wi
 @pytest.mark.parametrize(
     ("sentence", "value", "period"),
     [
-        (UP_FROM, 6.3, "September quarter"),
-        (UP_FROM, 5.9, "June quarter"),
-        (BARE_FROM, 6.3, "September quarter"),
-        (BARE_FROM, 5.9, "June"),
+        (COMPARED, 0.8, "August"),
+        ("Freight fell 0.8% versus July.", 0.8, "July"),
+        ("Freight fell 0.8% relative to 2029.", 0.8, "2029"),
+        ("Freight fell 0.8% compared to the March quarter.", 0.8, "March quarter"),
+        ("Freight rose 3% versus 2% in 2029.", 3, "2029"),
     ],
 )
-def test_a_figure_keeps_its_own_period_beside_a_comparison(sentence, value, period):
-    assert "period_not_supported" not in errors(sentence, value, period)
+def test_the_base_of_a_comparison_is_not_the_figures_period(sentence, value, period):
+    # verify-3 accepted these: the one thing the new check adds.
+    assert "period_not_supported" in errors(sentence, value, period)
 
 
 @pytest.mark.parametrize(
@@ -55,25 +56,53 @@ def test_a_figure_keeps_its_own_period_beside_a_comparison(sentence, value, peri
         (UP_FROM, 5.9, "September quarter"),
         (BARE_FROM, 6.3, "June"),
         (BARE_FROM, 5.9, "September quarter"),
+        ("Wages in June 2029 compared with June 2028 rose 3%.", 3, "June 2028"),
+        ("Growth in 2029 versus 2028 was 3%.", 3, "2028"),
+        ("Growth in 2029 relative to 2028 was 3%.", 3, "2028"),
+        ("Prices in September rose from 5% in June to 3%.", 3, "June"),
+        ("Output rose 6.3% in 2029 versus 5.9%.", 5.9, "2031"),
+        (
+            "Imports rose 4% in June with exports at 6.3% compared with 5.9% in September.",
+            6.3,
+            "June",
+        ),
+        (ROLLING, 41200, "12 months to August 2029"),
     ],
 )
-def test_a_figure_cannot_take_the_other_figures_period(sentence, value, period):
-    assert "period_not_supported" in errors(sentence, value, period)
+def test_a_figure_cannot_take_another_period(sentence, value, period):
+    unit = "persons" if value == 41200 else "percent"
+    assert "period_not_supported" in errors(sentence, value, period, unit=unit)
 
 
-def test_the_base_of_a_comparison_is_not_the_figures_period():
-    assert "period_not_supported" in errors(COMPARED, 0.8, "August")
+@pytest.mark.parametrize(
+    ("sentence", "value", "period"),
+    [
+        (UP_FROM, 6.3, "September quarter"),
+        (UP_FROM, 5.9, "June quarter"),
+        (BARE_FROM, 6.3, "September quarter"),
+        (ROLLING, 41200, "12 months to August"),
+    ],
+)
+def test_known_limit_a_true_period_beside_a_comparison_stays_rejected(sentence, value, period):
+    # Fails closed, as verify-3 did. Accepting these needs its own reviewed design: see docs/phase-4q-evidence-grounding.md.
+    unit = "persons" if value == 41200 else "percent"
+    assert "period_not_supported" in errors(sentence, value, period, unit=unit)
 
 
-def test_a_comparison_base_cannot_lend_its_year_to_the_figure():
-    assert "period_not_supported" in errors(
-        ROLLING, 41200, "12 months to August 2029", unit="persons"
+def test_a_comparison_cannot_supply_a_horizon_or_lend_it_to_a_heading():
+    sentence = "Growth in 2030 versus 2029 will be 2%."
+    claim = forecast(0, sentence.rstrip("."), None, value=2, unit="percent", horizon="2029",
+                     issuer="The Treasury", issuer_role="author")  # fmt: skip
+    report = check(
+        {0: SectionText(sentence)}, outlook_ref=ref(0, sentence.rstrip(".")), forecasts=[claim]
     )
-
-
-def test_a_rolling_period_copied_as_written_passes():
-    assert "period_not_supported" not in errors(
-        ROLLING, 41200, "12 months to August", unit="persons"
+    assert "horizon_not_supported" in codes(report)
+    sentence = "Growth was 2.5% compared with 1.5% in 2029."
+    fact = ReportedFact(text="Growth.", source="Synthetic Statistics", value=2.5, unit="percent", period="2030",
+                        evidence=[ref(0, sentence.rstrip("."))])  # fmt: skip
+    section = {0: SectionText(sentence, heading="Results for 2030")}
+    assert "period_not_supported" in codes(
+        check(section, outlook_ref=ref(0, sentence.rstrip(".")), facts=[fact])
     )
 
 
@@ -83,27 +112,17 @@ def test_a_year_the_sentence_omits_stays_rejected():
     )
 
 
-def test_the_same_period_copied_as_written_passes():
-    assert "period_not_supported" not in errors(
-        "Output rose 6.3% in the September quarter.", 6.3, "September quarter"
-    )
-
-
-def test_a_period_from_a_later_clause_still_supports_a_range_in_one_period():
-    sentence = "In the September quarter, the net share fell from 71% to 66%."
-    assert "period_not_supported" not in errors(sentence, 66, "September quarter")
-
-
-def test_a_from_to_range_is_not_split_into_two_periods():
-    sentence = "The net share fell from 71% to 66% in the September quarter."
-    assert "period_not_supported" not in errors(sentence, 66, "September quarter")
-
-
-@pytest.mark.parametrize("word", ["up", "down", "higher", "lower"])
-def test_each_comparison_wording_binds_the_same_way(word):
-    sentence = f"Output was 6.3% in the September quarter, {word} from 5.9% in the June quarter."
-    assert "period_not_supported" not in errors(sentence, 6.3, "September quarter")
-    assert "period_not_supported" in errors(sentence, 6.3, "June quarter")
+@pytest.mark.parametrize(
+    ("sentence", "value", "period"),
+    [
+        ("Output rose 6.3% in the September quarter.", 6.3, "September quarter"),
+        ("In the September quarter, the net share fell from 71% to 66%.", 66, "September quarter"),
+        ("The net share fell from 71% to 66% in the September quarter.", 66, "September quarter"),
+        ("Output rose 6.3% in September compared with a weak base.", 6.3, "September"),
+    ],
+)
+def test_a_figure_with_its_own_period_passes(sentence, value, period):
+    assert "period_not_supported" not in errors(sentence, value, period)
 
 
 def test_a_period_is_not_invented_from_the_neighbouring_sentence():
@@ -126,56 +145,3 @@ def test_one_unsupported_period_still_rejects_the_whole_summary():
                      period="June quarter 2029", evidence=[ref(0, bad)]),
     ]  # fmt: skip
     assert check(section, outlook_ref=ref(0, good), facts=claims).passed is False
-
-
-# Found by independent review of the first verify-4: each pair below passed the wrong period. The fix must hold in both
-# directions, for facts and forecasts alike.
-@pytest.mark.parametrize(
-    ("sentence", "value", "period"),
-    [
-        ("Wages in June 2029 compared with June 2028 rose 3%.", 3, "June 2028"),
-        ("Growth in 2029 versus 2028 was 3%.", 3, "2028"),
-        ("Growth in 2029 relative to 2028 was 3%.", 3, "2028"),
-        ("Prices in September rose from 5% in June to 3%.", 3, "June"),
-    ],
-)
-def test_a_comparison_before_the_figure_cannot_supply_its_period(sentence, value, period):
-    assert "period_not_supported" in errors(sentence, value, period)
-
-
-def test_a_comparison_before_a_forecast_cannot_supply_its_horizon():
-    sentence = "Growth in 2030 versus 2029 will be 2%."
-    claim = forecast(
-        0,
-        sentence.rstrip("."),
-        None,
-        value=2,
-        unit="percent",
-        horizon="2029",
-        issuer="The Treasury",
-        issuer_role="author",
-    )
-    assert "horizon_not_supported" in codes(
-        check(
-            {0: SectionText(sentence)}, outlook_ref=ref(0, sentence.rstrip(".")), forecasts=[claim]
-        )
-    )
-
-
-def test_a_heading_cannot_stand_in_once_a_comparison_with_its_own_period_is_cut():
-    sentence = "Growth was 2.5% compared with 1.5% in 2029."
-    section = {0: SectionText(sentence, heading="Results for 2030")}
-    claim = ReportedFact(text="Growth.", source="Synthetic Statistics", value=2.5, unit="percent", period="2030",
-                         evidence=[ref(0, sentence.rstrip("."))])  # fmt: skip
-    assert "period_not_supported" in codes(
-        check(section, outlook_ref=ref(0, sentence.rstrip(".")), facts=[claim])
-    )
-
-
-@pytest.mark.parametrize("word", ["versus", "relative to", "compared to", "compared with"])
-def test_each_comparison_word_binds_the_figure_before_it(word):
-    sentence = f"Output was 6.3% in the September quarter {word} 5.9% in the June quarter."
-    assert "period_not_supported" not in errors(sentence, 6.3, "September quarter")
-    assert "period_not_supported" in errors(sentence, 6.3, "June quarter")
-    assert "period_not_supported" not in errors(sentence, 5.9, "June quarter")
-    assert "period_not_supported" in errors(sentence, 5.9, "September quarter")

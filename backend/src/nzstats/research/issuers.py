@@ -2,9 +2,13 @@
 
 The checks are lexical, like the rest of the verifier. An organisation is *named* when its name or one of its
 publications appears ("IMF", "World Economic Outlook"). A figure is *attributed* to it only by wording that makes
-it the forecaster: a publication name, "the IMF expects/forecasts", "the MPC said it expected", "the IMF's forecast",
-"according to the IMF", "Source: IMF". Naming an organisation as the subject of a forecast ("the RBNZ is expected to cut")
-does not attribute the forecast to it. "We" and "our" are the document's author.
+it the forecaster: a publication name, "the IMF expects/forecasts", "the IMF's forecast", "according to the IMF",
+"Source: IMF". Naming an organisation as the subject of a forecast ("the RBNZ is expected to cut") does not
+attribute the forecast to it. "We" and "our" are the document's author.
+
+`reported` adds wording that names a forecaster in the past tense ("the MPC said it expected") or the market's view ("markets
+expect"). It is narrow and separate: the verifier reads it only when `credited` finds nobody, so it can add a rejection and
+cannot remove one.
 """
 
 from __future__ import annotations
@@ -65,15 +69,28 @@ _BEFORE = (
 )
 
 
-# The issuer named simply as the market: "Markets", "the market", "financial market participants".
+# The issuer named as the market itself. A closed list: "Market Economics Ltd" and the "Financial Markets Authority" are not it.
 _MARKET_ISSUER = re.compile(
-    r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+\w+)*\s*$", re.IGNORECASE
+    r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+(?:participants|pricing))?\s*$", re.IGNORECASE
 )
-# A forecaster reported in the past tense, or the market's own view. Narrow on purpose: "the RBNZ rate cut expected in 2029"
-# and "the RBNZ expected to cut" name a subject, and a comparison ("higher than the RBNZ expected") credits nobody.
-_REPORTED = r"(?:['’]s)?\s+(?:(?:said|says)\s+(?:it|they)\s+)?expected(?!\s+to\b)\b"
-_MARKET_EXPECTS = re.compile(r"\bmarkets?\s+expect(?:s|ed)?\b", re.IGNORECASE)
-_COMPARED_WITH = re.compile(r"\b(?:than|as|what|unlike|like)\s+(?:\w+\s+){0,2}$", re.IGNORECASE)
+_REPORTED = r"\s+(?:(?:said|says)\s+(?:it|they)\s+)?expected(?!\s+to\b)\b"
+_MARKET_EXPECTS = re.compile(
+    r"\b(?:markets?|market\s+participants)\s+expect(?:s\b|ed(?!\s+to\b)\b|\b)", re.IGNORECASE
+)
+# Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
+_BEFORE_MARKET = {
+    "the",
+    "financial",
+    "and",
+    "but",
+    "while",
+    "that",
+    "though",
+    "although",
+    "because",
+    "since",
+}
+_COMPARED_WITH = re.compile(r"\b(?:than|as|what|unlike|like)\s+(?:\S+\s+){0,5}$", re.IGNORECASE)
 
 
 def _compiled() -> dict[str, tuple[re.Pattern[str], re.Pattern[str]]]:
@@ -94,7 +111,6 @@ _PATTERNS = _compiled()
 _REPORTED_PATTERNS = {
     o.key: re.compile(rf"(?:{o.names}){_REPORTED}", re.IGNORECASE) for o in ORGANISATIONS
 }
-_REPORTED_PATTERNS["market"] = _MARKET_EXPECTS
 
 
 def organisation_of(name: str) -> str | None:
@@ -112,19 +128,33 @@ def named(text: str) -> set[str]:
     return {key for key, (name, _) in _PATTERNS.items() if name.search(text)}
 
 
-def credited(text: str, *, reported: bool = True) -> set[str]:
-    """Organisations that `text` credits with a figure (see the module docstring).
+def credited(text: str) -> set[str]:
+    """Organisations that `text` credits with a figure (see the module docstring)."""
+    return {key for key, (_, credit) in _PATTERNS.items() if credit.search(text)}
 
-    `reported=False` leaves out the reported wording, for a sentence that a later figure would only inherit from.
-    """
-    keys = {key for key, (_, credit) in _PATTERNS.items() if credit.search(text)}
-    if reported:
-        keys |= {
-            key
-            for key, pattern in _REPORTED_PATTERNS.items()
-            if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
-        }
+
+def reported(text: str) -> set[str]:
+    """Organisations named as forecasters by reported wording. A comparison ("higher than the RBNZ expected") credits nobody."""
+    text = re.sub(r"Reserve Bank of New Zealand", "Reserve Bank", text, flags=re.IGNORECASE)
+    keys = {
+        key
+        for key, pattern in _REPORTED_PATTERNS.items()
+        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
+    }
+    for m in _MARKET_EXPECTS.finditer(text):
+        before = text[: m.start()]
+        words = before.split()
+        if not _COMPARED_WITH.search(before) and (not words or words[-1].lower() in _BEFORE_MARKET):
+            keys.add("market")
     return keys
+
+
+def author_only_compared(text: str, author: str | None) -> bool:
+    """Is every credit to the document's author inside a comparison, as in "more than we expected"?"""
+    spans = [m.start() for m in SELF_REFERENCE.finditer(text)]
+    if author in _PATTERNS:
+        spans += [m.start() for m in _PATTERNS[author][1].finditer(text)]
+    return bool(spans) and all(_COMPARED_WITH.search(text[:at]) for at in spans)
 
 
 _DISPLAY = {"imf": "the IMF", "oecd": "the OECD", "world_bank": "the World Bank", "rba": "the RBA",
