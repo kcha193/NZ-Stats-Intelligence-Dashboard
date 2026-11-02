@@ -7,7 +7,7 @@ registry or a malformed list shows nothing. Responses are not cached or indexed.
 The models are an allowlist: raw model output, hashes, parameters, usage, cost and the owner's note have no field.
 Each item states that it may have failed the checks and has no approval, so it can never read as a verified summary.
 The feed also lists the reports held (`drafts.stored_reports`), by title, date and address only, and an item says when
-its institution has published a newer one, so a draft of an earlier report cannot read as the latest view.
+a newer report from its institution is held. A newer report that is undated or withheld gives no notice.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from nzstats.research.drafts import (
     DraftAllowlistError,
     DraftSummary,
     StoredReport,
+    _civil_date,
     claim_paths,
     draft_summaries,
     load_allowlist,
@@ -143,9 +144,9 @@ def _claims(d: DraftSummary) -> list[DraftClaimOut]:
 
 def _newer_report(d: DraftSummary, reports: list[StoredReport]) -> NewerReportOut | None:
     """The institution's newest report when it was published after the one this draft covers."""
-    if not d.row["published_on"]:
+    published = _civil_date(d.row["published_on"])
+    if published is None:
         return None
-    published = date.fromisoformat(d.row["published_on"])
     for report in reports:
         if (
             report.newest

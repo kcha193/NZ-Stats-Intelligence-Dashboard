@@ -149,6 +149,8 @@ def _assess(
         return "the institution is not in the research registry", None
     if inst.content_policy is not ContentPolicy.FULL_TEXT:
         return "the source's content policy does not allow quoting", None
+    if not inst.holds(row["acquisition"]):
+        return "the approval that let this document in was revoked", None
     if not allowed_document_url(row["canonical_url"], inst):
         return "the document address is not https on one of the institution's allowed hosts", None
     try:
@@ -160,7 +162,7 @@ def _assess(
     sections = load_sections(conn, row["version_id"])
     if injection_findings(sections):
         return "a section reads like instructions to a model", None
-    published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
+    published = _civil_date(row["published_on"])
     report = verify(summary, sections, VerificationContext(
         published_on=published, institution=row["institution"]))  # fmt: skip
     draft = DraftSummary(
@@ -200,7 +202,16 @@ class StoredReport:
     url: str
     series: str | None
     published_on: date | None
-    newest: bool  # the institution's latest publication date among the reports listed
+    newest: bool  # published on the institution's latest date among the reports listed; a tie marks each
+
+
+def _civil_date(text: str | None) -> date | None:
+    """A stored publication date, or None when it is absent or malformed: never a guess."""
+    try:
+        return date.fromisoformat(text) if text else None
+    except ValueError:
+        log.warning("a stored publication date is not a valid date")
+        return None
 
 
 def stored_reports(
@@ -212,10 +223,8 @@ def stored_reports(
         " FROM research_publication p JOIN research_institution i ON i.id = p.institution_id"
         " JOIN research_document_version v ON v.id = p.current_version_id"
         " WHERE p.duplicate_of_id IS NULL AND v.purged_at IS NULL AND v.superseded_at IS NULL"
-        " ORDER BY p.published_on IS NULL, p.published_on DESC, p.id DESC"
     ).fetchall()
-    seen: set[str] = set()
-    out = []
+    held = []
     for row in rows:
         inst = registry.get(row["key"])
         if (
@@ -225,12 +234,17 @@ def stored_reports(
             or not allowed_document_url(row["canonical_url"], inst)
         ):
             continue
-        published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
-        newest = published is not None and inst.key not in seen
-        if newest:
-            seen.add(inst.key)
-        out.append(StoredReport(int(row["id"]), inst, row["title"], row["canonical_url"], row["series"],
-                                published, newest))  # fmt: skip
+        held.append((row, inst, _civil_date(row["published_on"])))
+    latest: dict[str, date] = {}
+    for _, inst, published in held:
+        if published is not None:
+            latest[inst.key] = max(published, latest.get(inst.key, published))
+    held.sort(key=lambda h: (h[2] is None, -(h[2].toordinal() if h[2] else 0), -int(h[0]["id"])))
+    out = [
+        StoredReport(int(row["id"]), inst, row["title"], row["canonical_url"], row["series"], published,
+                     published is not None and published == latest[inst.key])
+        for row, inst, published in held
+    ]  # fmt: skip
     return out
 
 

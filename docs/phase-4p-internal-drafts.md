@@ -30,6 +30,7 @@ hold, rechecked on every request:
 | No reviewer has rejected it | A rejection withdraws it |
 | The document is current, not purged and not a duplicate | Same as the other gates |
 | The institution is in the registry with `content_policy = "full_text"` and an allowed document address | Quotes are shown |
+| The approval that let the document in is still in force (added in Phase 4Q) | Each approval covers only what it let in |
 | No section reads like instructions to a model | The text may be manipulated |
 
 The checks are rerun on each request, so the stored status is not trusted. `research summary ID` prints
