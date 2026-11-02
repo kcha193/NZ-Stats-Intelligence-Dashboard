@@ -114,17 +114,11 @@ _ADJUSTMENT = {
 _FRACTIONS = {"½": 0.5, "¼": 0.25, "¾": 0.75}
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
-# Where a figure's own assertion stops, inside a clause. The base of a comparison has its own period ("3.7% in September,
-# up from 3.1% in June"), and neither figure may take the other's. A range ("from 54% to 47%") is one assertion.
-_CONNECTIVES = ("and", "before", "after", "then")
-_PERIOD_BREAK = re.compile(
-    rf"\b(?:{'|'.join(_CONNECTIVES)})\b"
-    r"|\b(?:up|down|higher|lower)\s+from\b"
-    r"|\bfrom(?=\s+\S*\d\S*\s+(?:in|at|during|for)\b)"
-    r"|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b",
+# The start of a comparison after a figure. Only ever used to add a rejection: see `_period_only_in_comparison`.
+_COMPARISON = re.compile(
+    r"\b(?:up|down|higher|lower)\s+from\b|\bfrom\b|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b",
     re.IGNORECASE,
 )
-_LENGTH_OF_TIME = re.compile(r"\b\d+\s+(?:months?|years?|quarters?|weeks?)\b", re.IGNORECASE)
 _FORWARD = re.compile(
     r"forecast|expect|project|predict|anticipat|outlook|assum|\bwill\b|\bwould\b|\bshould\b"
     r"|\blikely\b|\bsees?\b|\bseen\b|pencil|\bplan|scenario|\bpath\b|\bestimated? to\b"
@@ -673,16 +667,13 @@ def _period_parts(text: str) -> tuple[set[int], set[str], set[str], set[str]]:
     )
 
 
-def _is_comparison_base(before: str, between: str) -> bool:
-    """Is the value right after a comparison word the base of it, with the compared figure earlier in the clause?"""
-    earlier = _LENGTH_OF_TIME.sub("", before)
-    has_figure = bool(_numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", earlier)))))
-    return (
-        has_figure
-        and not _numbers(between)
-        and not any(_period_parts(between)[:3])
-        and len(between.split()) <= 3
-    )
+def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
+    """Does the clause state `period` only in a comparison after the figure? Then it is the base's period, not the figure's."""
+    a, b = loc._clause_span(at)
+    comparison = next((m for m in _COMPARISON.finditer(loc.text, at, b)), None)
+    if comparison is None or not any(_period_parts(loc.text[comparison.start() : b])[:3]):
+        return False
+    return bool(_unstated_period(period, loc.text[a : comparison.start()]))
 
 
 def _period_missing(
@@ -696,7 +687,6 @@ def _period_missing(
     for loc, at in value_at or [(loc, loc.start) for _, loc in found]:
         place, line = loc.layout.place(at)
         table_context = ""
-        comparison_cut = False  # the figure's clause ended at a comparison holding its own period
         if place == "cell":
             table = loc.layout.table(line, include_sources=False)
             column = table.years[loc.layout.cell_index(line, at)] if table.years else ""
@@ -706,7 +696,7 @@ def _period_missing(
             a, b = loc._clause_span(at)
             start, end = a, b
             # Paired figures may have separate periods without a comma ("... before falling").
-            separators = list(_PERIOD_BREAK.finditer(loc.text[a:b]))
+            separators = list(re.finditer(r"\b(?:and|before|after|then)\b", loc.text[a:b]))
             for i, separator in enumerate(separators):
                 stop = separators[i + 1].start() if i + 1 < len(separators) else b - a
                 tail = loc.text[a + separator.end() : a + stop]
@@ -723,17 +713,10 @@ def _period_missing(
                     and not re.search(r"\w", remainder)
                 ):
                     continue  # coordinated dates qualify the same figure, not another assertion
-                comparison = separator.group().lower() not in _CONNECTIVES
                 if a + separator.end() <= at:
-                    # A value after a comparison word is its base only when another figure is being compared and
-                    # nothing else comes first. "June 2026 compared with June 2025 rose 3%" compares two periods.
-                    if not comparison or _is_comparison_base(
-                        loc.text[start : a + separator.start()], loc.text[a + separator.end() : at]
-                    ):
-                        start = a + separator.end()
+                    start = a + separator.end()
                 elif a + separator.start() > at:
                     end = a + separator.start()
-                    comparison_cut = comparison and any(_period_parts(loc.text[end:b])[:3])
                     break
             local = loc.with_lines(start, end)
         parts = _period_parts(local)
@@ -764,11 +747,7 @@ def _period_missing(
                 continue
             neighbors.append(text)
         # The section heading takes precedence over neighboring period-only context.
-        # A period the comparison states for itself is not free for a heading or neighbour to replace.
-        inherited = (
-            () if comparison_cut else ([shared_prefix], [table_context], [loc.heading], neighbors)
-        )
-        for candidates in inherited:
+        for candidates in ([shared_prefix], [table_context], [loc.heading], neighbors):
             compatible = [
                 text
                 for text in candidates
@@ -817,6 +796,8 @@ def _period_missing(
             and _CALENDAR.search(context)
         ):
             missing.append("year basis")
+        if place == "text" and _period_only_in_comparison(period, loc, at):
+            missing.append("the period of a comparison")
         if not missing:
             return []
         failures.append(missing)
@@ -1380,13 +1361,22 @@ class _Checker:
             credited, own = issuers.credited(text), bool(issuers.SELF_REFERENCE.search(text))
             if credited or own:
                 keys = keys_of(credited, own)
+                # "The IMF forecasts 3%, more than we expected": the author is only the comparison.
+                if len(keys) > 1 and issuers.author_only_compared(text, author):
+                    keys.discard("author")
                 # Several third parties are unclear between themselves, but none of them is the author.
                 return keys if len(keys) == 1 or "author" not in keys else set()
+        # Reported wording is read only when nothing above credited anyone, and never credits the author, so it can only
+        # add a rejection.
+        for text in (loc.clause_at(at), loc.sentence_text()):
+            reported = issuers.reported(text) - {author}
+            if reported:
+                return reported
         # A sentence that names nobody continues the one before it: "…in the IMF's World Economic Outlook (WEO).
         # The outlook for growth in 2026 has been revised to 3.1%" is the IMF's figure.
         previous = loc.previous_sentence()
         if not issuers.named(loc.sentence_text()) and not issuers.SELF_REFERENCE.search(previous):
-            return one({k for k in issuers.credited(previous, reported=False) if k != author})
+            return one({k for k in issuers.credited(previous) if k != author})
         return set()
 
     def issuer(

@@ -4,6 +4,7 @@ import pytest
 
 from nzstats.research.contract import SectionText
 from nzstats.research.issuers import credited, named, organisation_of
+from nzstats.research.issuers import reported as reported_keys
 
 from .test_verify_layout import TABLE
 from .verify_support import check, codes, forecast, ref, warning_codes
@@ -204,8 +205,8 @@ def test_a_third_party_merely_named_nearby_is_only_a_warning():
     assert codes(report) == set() and "issuer_unclear" in warning_codes(report)
 
 
-# Phase 4Q: reporting wording that makes a third party the forecaster. A figure in the author's document is not the
-# author's forecast because the author reports it.
+# Phase 4Q: reporting wording that makes a third party the forecaster. New wording only ever adds a rejection: it is read
+# when verify-3's wording credits nobody, and it never credits the author.
 REPORTED = {
     0: SectionText(
         "SYNTHETIC FIXTURE. The MPC said it expected inflation to reach 7.4% in the December quarter."
@@ -222,6 +223,19 @@ RBNZ_VIEW = "The RBNZ expected inflation of 7.1% in June 2029"
 def reported(value, quote, issuer, role, unit="percent"):
     claim = forecast(0, quote, 1, value=value, unit=unit, issuer=issuer, issuer_role=role)
     return check(REPORTED, outlook_ref=ref(0, MPC), institution="treasury", forecasts=[claim])
+
+
+def authors(sentence, role="author", issuer="The Treasury", value=3, horizon="2029"):
+    quote = sentence.rstrip(".")
+    claim = forecast(
+        0, quote, 1, value=value, unit="percent", horizon=horizon, issuer=issuer, issuer_role=role
+    )
+    return check(
+        {0: SectionText(sentence, 1, 1)},
+        outlook_ref=ref(0, quote),
+        institution="treasury",
+        forecasts=[claim],
+    )
 
 
 @pytest.mark.parametrize(
@@ -241,22 +255,6 @@ def test_the_actual_third_party_is_accepted_as_the_issuer(value, quote, issuer, 
     assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
 
 
-def test_being_expected_to_act_still_does_not_make_an_organisation_the_forecaster():
-    quote = "The RBNZ, expected to cut, may reach 1.25% by June 2029"
-    assert "issuer_mismatch" not in codes(reported(1.25, quote, "The Treasury", "author"))
-    assert "rbnz" not in credited("The RBNZ expected to cut")
-    assert "rbnz" not in credited("The RBNZ is expected to cut the OCR")
-
-
-def test_market_is_recognised_only_as_a_whole_issuer_name():
-    assert (
-        organisation_of("Markets") == "market" and organisation_of("financial markets") == "market"
-    )
-    assert organisation_of("Monetary Policy Committee") == "rbnz"
-    assert "market" not in named("Export markets remain strong.")
-
-
-# Found by independent review of the first verify-4: a second credit used to hide the first, so these passed as the author's.
 @pytest.mark.parametrize(
     "sentence",
     [
@@ -265,27 +263,16 @@ def test_market_is_recognised_only_as_a_whole_issuer_name():
         "The IMF forecasts growth of 3% in 2029, above what the RBNZ expected.",
         "The IMF forecasts growth of 3% in 2029, more than markets expect.",
         "The IMF forecasts growth of 3% in 2029 and markets expect the same.",
+        "The IMF forecasts growth of 3% in 2029 while the Treasury expected a slowdown.",
+        "The Treasury expected a pickup, with 3% growth in 2029 forecast by the IMF.",
+        "The Treasury expected growth of 3% in 2029 in the World Economic Outlook.",
+        "The IMF forecasts growth of 3% in 2029, more than the Treasury expects.",
+        "The IMF forecasts growth of 3% in 2029, more than the Treasury forecast.",
+        "The IMF forecasts growth of 3% in 2029, more than we expected.",
     ],
 )
-def test_a_second_mention_cannot_hide_a_third_partys_forecast(sentence):
-    quote = sentence.rstrip(".")
-    claim = forecast(
-        0,
-        quote,
-        1,
-        value=3,
-        unit="percent",
-        horizon="2029",
-        issuer="The Treasury",
-        issuer_role="author",
-    )
-    report = check(
-        {0: SectionText(sentence, 1, 1)},
-        outlook_ref=ref(0, quote),
-        institution="treasury",
-        forecasts=[claim],
-    )
-    assert "issuer_mismatch" in codes(report)
+def test_no_mention_can_hide_a_third_partys_forecast(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
 
 
 @pytest.mark.parametrize(
@@ -295,10 +282,32 @@ def test_a_second_mention_cannot_hide_a_third_partys_forecast(sentence):
         "The RBNZ rate cut expected in 2029 would take the OCR to 3%.",
         "The Fed cuts expected in 2029 would take its rate to 3%.",
         "Unlike what markets expect, the OCR will be 3% in 2029.",
+        "With the labour market expected to weaken, growth will reach 3% in 2029.",
+        "With markets expected to fall, growth will reach 3% in 2029.",
+        "The housing market expects little, and growth will reach 3% in 2029.",
+        "Growth of 3% in 2029 follows the RBNZ's expected easing.",
+        "Growth will be 3% in 2029, as both the RBNZ and the IMF expected.",
     ],
 )
 def test_naming_another_organisations_expectation_does_not_credit_it(sentence):
-    quote = sentence.rstrip(".")
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+def test_the_reserve_bank_of_new_zealand_is_not_the_bank_of_new_zealand():
+    assert reported_keys("The Reserve Bank of New Zealand expected growth of 3%.") == {"rbnz"}
+
+
+def test_the_author_is_never_credited_by_the_new_wording():
+    assert reported_keys("The Treasury expected growth of 3%.") == {"treasury"}
+    report = authors(
+        "The Treasury expected growth of 3% in 2029.", role="third_party", issuer="IMF"
+    )
+    assert "issuer_not_in_evidence" in codes(report)
+
+
+def test_an_earlier_sentences_expectation_is_not_inherited_by_a_new_forecast():
+    text = "The RBNZ expected higher inflation last year. Growth will be 3% in 2029."
+    quote = "Growth will be 3% in 2029"
     claim = forecast(
         0,
         quote,
@@ -310,7 +319,7 @@ def test_naming_another_organisations_expectation_does_not_credit_it(sentence):
         issuer_role="author",
     )
     report = check(
-        {0: SectionText(sentence, 1, 1)},
+        {0: SectionText(text, 1, 1)},
         outlook_ref=ref(0, quote),
         institution="treasury",
         forecasts=[claim],
@@ -318,51 +327,59 @@ def test_naming_another_organisations_expectation_does_not_credit_it(sentence):
     assert "issuer_mismatch" not in codes(report)
 
 
-def test_an_earlier_sentences_expectation_is_not_inherited_by_a_new_forecast():
-    text = "The RBNZ expected higher inflation last year. Growth will be 3% in 2029."
-    claim = forecast(
-        0,
-        "Growth will be 3% in 2029",
-        1,
-        value=3,
-        unit="percent",
-        horizon="2029",
-        issuer="The Treasury",
-        issuer_role="author",
+def test_being_expected_to_act_does_not_make_an_organisation_the_forecaster():
+    assert "issuer_mismatch" not in codes(
+        authors("The RBNZ, expected to cut, may reach 3% by 2029.")
     )
-    report = check(
-        {0: SectionText(text, 1, 1)},
-        outlook_ref=ref(0, "Growth will be 3% in 2029"),
-        institution="treasury",
-        forecasts=[claim],
+    assert not reported_keys("The RBNZ expected to cut") and not reported_keys(
+        "The RBNZ is expected to cut the OCR"
     )
-    assert "issuer_mismatch" not in codes(report)
 
 
 def test_past_tense_market_expectations_are_the_markets():
-    quote = "Markets expected 3% in 2029"
-    for issuer, role, bad in (("Markets", "third_party", False), ("The Treasury", "author", True)):
-        claim = forecast(
-            0, quote, 1, value=3, unit="percent", horizon="2029", issuer=issuer, issuer_role=role
-        )
-        report = check(
-            {0: SectionText(f"{quote}.", 1, 1)},
-            outlook_ref=ref(0, quote),
-            institution="treasury",
-            forecasts=[claim],
-        )
-        assert ("issuer_mismatch" in codes(report)) is bad
-        assert "issuer_not_in_evidence" not in codes(report)
+    sentence = "Markets expected 3% in 2029."
+    assert "issuer_mismatch" in codes(authors(sentence))
+    report = authors(sentence, role="third_party", issuer="Markets")
+    assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
 
 
 @pytest.mark.parametrize(
-    "issuer", ["the market", "financial market participants", "market pricing"]
+    "issuer",
+    [
+        "Markets",
+        "the market",
+        "financial markets",
+        "market pricing",
+        "market participants",
+        "financial market participants",
+    ],
 )
-def test_every_market_issuer_name_is_recognised(issuer):
+def test_each_market_issuer_name_is_recognised(issuer):
     assert organisation_of(issuer) == "market"
 
 
-def test_a_market_table_row_or_line_is_not_a_credit():
+@pytest.mark.parametrize(
+    "issuer",
+    ["Market Economics Ltd", "Market Economics", "Financial Markets Authority", "Markets Insight"],
+)
+def test_a_real_organisation_with_market_in_its_name_is_not_the_market(issuer):
+    assert organisation_of(issuer) != "market"
+    report = authors(
+        "Market pricing shows growth will reach 3% in 2029.", role="third_party", issuer=issuer
+    )
+    assert "issuer_mismatch" in codes(report)
+
+
+def test_a_named_market_participant_issuer_is_in_evidence():
+    report = authors(
+        "Financial market participants expect 3% in 2029.",
+        role="third_party",
+        issuer="financial market participants",
+    )
+    assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+def test_a_line_or_table_row_saying_market_is_not_a_credit():
     assert "market" not in credited("Market") and "market" not in named(
         "line one\nmarkets\nline three"
     )
