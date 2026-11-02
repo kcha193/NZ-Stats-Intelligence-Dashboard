@@ -1,6 +1,6 @@
 {
-  "state": "proposal_pending_owner_decisions",
-  "note": "Inert record. Nothing loads this file and it grants nothing. Execution requires a separate, signed, expiring pilot.Approval bound to a fresh freeze.",
+  "state": "treasury_attempt_consumed_failed_verification_rbnz_not_authorised",
+  "note": "Inert record. Nothing loads this file and it grants nothing. Execution requires a separate, signed, expiring pilot.Approval bound to a fresh freeze. Limits below are as proposed; the Treasury result is in docs/phase-4o-treasury-pilot.md.",
   "experiment": "phase-4n-second-pilot",
   "supersedes_nothing": "Phase 4M rows, attempts, costs and rejections stay in the append-only ledger and keep counting toward the US$5 lifetime cap.",
   "route": {
@@ -87,14 +87,17 @@
     "ledger_lifetime_attempts": 4
   },
   "decisions_pending": [
-    "experiment_and_spend_limit",
-    "reasoning_effort_and_output_cap",
-    "treasury_v1_fresh_rights_and_scope_consent",
     "rbnz_v2_fresh_rights_and_scope_consent",
-    "route_privacy_and_account_controls_recheck",
-    "dedicated_key_recheck",
-    "reviewed_gold_binding",
-    "exact_request_freeze_and_expiring_approval"
+    "rbnz_exact_request_freeze_and_expiring_approval"
   ],
-  "granted": []
+  "granted": [
+    "treasury_v1_one_attempt_used_2026-11-02"
+  ],
+  "treasury_outcome": {
+    "summary_status": "failed_verification",
+    "review_status": "unreviewed",
+    "output_tokens": 2455,
+    "cost_usd": 0.126184608,
+    "lifetime_spent_usd": 0.508462812
+  }
 }

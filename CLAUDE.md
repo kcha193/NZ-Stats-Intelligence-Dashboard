@@ -6,8 +6,8 @@ seven-release official backfill; production deployment remains gated. Phase 4G r
 a bounded on-open refresh (`docs/phase-4g-on-open-refresh.md`); `--offline` never contacts Stats NZ. OCR remains synthetic-only
 and institutional research publishing remains permission-gated; Phase 4I adds research contract v2, verifier `verify-3`
 and a disabled, loopback-only private research preview (`docs/phase-4i-research-quality.md`). Phase 4N remediated the
-OpenRouter truncation failures without running inference; a second pilot awaits separate owner approval
-(`docs/phase-4n-remediation.md`, `docs/phase-4n-second-pilot-proposal.md`). Resume from [docs/progress.md](docs/progress.md);
+OpenRouter truncation failures without running inference (`docs/phase-4n-remediation.md`). Phase 4O ran one approved Treasury
+request: complete JSON, rejected by the verifier; RBNZ is not authorised (`docs/phase-4o-treasury-pilot.md`). Resume from [docs/progress.md](docs/progress.md);
 current release gates and evidence are in [docs/phase-4e-release.md](docs/phase-4e-release.md).
 
 ## Stack and layout

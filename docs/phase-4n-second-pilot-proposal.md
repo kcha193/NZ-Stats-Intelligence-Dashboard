@@ -1,5 +1,8 @@
 # Phase 4N: second controlled pilot proposal
 
+**Update, 2 November 2026:** Treasury ran once under its own approval and failed verification. RBNZ has not run and is not
+authorised. See [phase-4o-treasury-pilot.md](phase-4o-treasury-pilot.md). The rest of this document is the original proposal.
+
 **Proposal only. No approval exists, and no inference has run.** Nothing in this document, its
 [metadata record](../config/phase-4n-pilot.json) or a merge of this work grants processing authority. Remediation
 evidence is in [phase-4n-remediation.md](phase-4n-remediation.md).

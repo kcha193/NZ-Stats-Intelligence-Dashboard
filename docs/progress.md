@@ -1,10 +1,22 @@
 # Progress and verification record
 
-Last updated 2026-11-02. Phase 4N started from fetched main `3c0efbf`, after merged
-[PR #39](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/39).
-**Code remediation complete, with no real inference. GO WITH CONDITIONS for a second controlled trial, after separate owner
-approval; NO-GO for economic intelligence or display.** The Phase 4M attempts and costs are preserved. Phase 4G live
-new-release acceptance still awaits the next supported release. Earlier entries are historical.
+Last updated 2026-11-02. Phase 4O started from main `26612a4`, after merged
+[PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
+**One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
+intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
+preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4O: second controlled pilot, Treasury, 2 November 2026
+
+Full record: [phase-4o-treasury-pilot.md](phase-4o-treasury-pilot.md). Local evidence: ignored `data/phase-4n/`.
+
+- Result: HTTP 200, `finish_reason=stop`, 2,455 output tokens of the 12,000 cap, 0 reasoning tokens reported, 18.8 s,
+  US$0.126184608. Stored as `failed_verification`, unreviewed.
+- Verifier: 8 errors and 6 warnings. 7 of 18 items have an error, including `period_not_supported` on all 5 facts. Evidence
+  location checks passed 19/19. Accepted fidelity, issuer and citation measures are 0/0, so unmeasured, not passing.
+- Limits found: the bound gold has no third-party forecasts, and all five of its forecasts are documented expected rejections.
+- Spend: lifetime US$0.508462812 of US$5, experiment US$0.126184608 of US$1. Post-run key reading outstanding.
+- Treasury's attempts are consumed. Next: owner reviews the local packet before any new proposal. No code changed.
 
 ## Phase 4N: OpenRouter truncation remediation, 2 November 2026
 
