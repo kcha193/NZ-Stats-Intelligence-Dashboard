@@ -46,9 +46,9 @@ ORGANISATIONS: tuple[Organisation, ...] = (
     Organisation("infometrics", r"Infometrics"),
     Organisation("deloitte", r"Deloitte"),
     # Not an organisation, but a forecast all the same: what market prices imply.
-    Organisation("market", r"^\s*(?:financial\s+)?markets?\s*$",
+    Organisation("market", r"(?!x)x",
                  r"market pricing|markets?\s+(?:are\s+|is\s+)?(?:now\s+|currently\s+)?pric\w*"
-                 r"|markets?\s+expect\b|market expectations|market[- ]implied"),
+                 r"|market expectations|market[- ]implied"),
 )  # fmt: skip
 
 # Case matters: "US$96/b" is the United States, not "us".
@@ -56,13 +56,24 @@ SELF_REFERENCE = re.compile(r"\b(?:[Ww]e|[Oo]urs?|us)\b")
 # Up to two words between the name and the forecasting word, but never a passive or infinitive.
 _FILLER = r"(?:(?!(?:is|are|was|were|be|been|being|to)\b)[\w-]+\s+){0,2}"
 _ACTIVE = (
-    r"(?:forecasts?|projections?|estimates?|outlook|expects|expected(?!\s+to\b)|projects|predicts|sees|anticipates"
+    r"(?:forecasts?|projections?|estimates?|outlook|expects|projects|predicts|sees|anticipates"
     r"|(?:has\s+|have\s+)?(?:forecast|projected|predicted|estimated))\b"
 )
 _BEFORE = (
     r"(?:according\s+to|forecasts?\s+(?:by|from|of)|projections?\s+(?:by|from|of)|projected\s+by"
     r"|estimated\s+by|estimates?\s+(?:by|from)|sources?\s*:)\s+(?:the\s+)?"
 )
+
+
+# The issuer named simply as the market: "Markets", "the market", "financial market participants".
+_MARKET_ISSUER = re.compile(
+    r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+\w+)*\s*$", re.IGNORECASE
+)
+# A forecaster reported in the past tense, or the market's own view. Narrow on purpose: "the RBNZ rate cut expected in 2029"
+# and "the RBNZ expected to cut" name a subject, and a comparison ("higher than the RBNZ expected") credits nobody.
+_REPORTED = r"(?:['’]s)?\s+(?:(?:said|says)\s+(?:it|they)\s+)?expected(?!\s+to\b)\b"
+_MARKET_EXPECTS = re.compile(r"\bmarkets?\s+expect(?:s|ed)?\b", re.IGNORECASE)
+_COMPARED_WITH = re.compile(r"\b(?:than|as|what|unlike|like)\s+(?:\w+\s+){0,2}$", re.IGNORECASE)
 
 
 def _compiled() -> dict[str, tuple[re.Pattern[str], re.Pattern[str]]]:
@@ -80,10 +91,16 @@ def _compiled() -> dict[str, tuple[re.Pattern[str], re.Pattern[str]]]:
 
 
 _PATTERNS = _compiled()
+_REPORTED_PATTERNS = {
+    o.key: re.compile(rf"(?:{o.names}){_REPORTED}", re.IGNORECASE) for o in ORGANISATIONS
+}
+_REPORTED_PATTERNS["market"] = _MARKET_EXPECTS
 
 
 def organisation_of(name: str) -> str | None:
     """The known organisation an issuer name refers to, or None (an organisation this module does not know)."""
+    if _MARKET_ISSUER.match(name):
+        return "market"
     for o in ORGANISATIONS:
         if _PATTERNS[o.key][0].search(name):
             return o.key
@@ -95,9 +112,19 @@ def named(text: str) -> set[str]:
     return {key for key, (name, _) in _PATTERNS.items() if name.search(text)}
 
 
-def credited(text: str) -> set[str]:
-    """Organisations that `text` credits with a figure (see the module docstring)."""
-    return {key for key, (_, credit) in _PATTERNS.items() if credit.search(text)}
+def credited(text: str, *, reported: bool = True) -> set[str]:
+    """Organisations that `text` credits with a figure (see the module docstring).
+
+    `reported=False` leaves out the reported wording, for a sentence that a later figure would only inherit from.
+    """
+    keys = {key for key, (_, credit) in _PATTERNS.items() if credit.search(text)}
+    if reported:
+        keys |= {
+            key
+            for key, pattern in _REPORTED_PATTERNS.items()
+            if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
+        }
+    return keys
 
 
 _DISPLAY = {"imf": "the IMF", "oecd": "the OECD", "world_bank": "the World Bank", "rba": "the RBA",

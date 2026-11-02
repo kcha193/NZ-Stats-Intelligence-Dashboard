@@ -334,3 +334,43 @@ def test_a_withheld_report_cannot_be_the_newest(conn):
     assert reports(conn, registry(institution())) == [
         ("Synthetic outlook older", date(2026, 10, 19), True)
     ]
+
+
+def test_a_draft_whose_route_was_revoked_is_withheld(conn):
+    sid = failing(conn)
+    listed = allow(conn, sid)
+    revoked = institution(review_status="needs_review", approved_by=None, approved_on=None,
+                          approval_note=None)  # fmt: skip
+    reg = registry(revoked)
+    assert ids(conn, reg, listed) == []
+    assert (
+        why_not_draft(conn, reg, listed, sid)
+        == "the approval that let this document in was revoked"
+    )
+
+
+def test_reports_published_on_the_same_day_are_all_the_newest(conn):
+    seed_version(conn, doc="a", published_on="2026-11-02")
+    seed_version(conn, doc="b", published_on="2026-11-02")
+    seed_version(conn, doc="c", published_on="2026-10-19")
+    assert [r.newest for r in stored_reports(conn, registry(institution()))] == [True, True, False]
+
+
+def test_a_malformed_publication_date_cannot_break_the_list(conn):
+    seed_version(conn, doc="bad", published_on="2026-11-02")
+    seed_version(conn, doc="good", published_on="2026-10-19")
+    with transaction(conn):
+        conn.execute(
+            "UPDATE research_publication SET published_on = 'not a date' WHERE title LIKE '%bad'"
+        )
+    assert reports(conn, registry(institution())) == [
+        ("Synthetic outlook good", date(2026, 10, 19), True),
+        ("Synthetic outlook bad", None, False),
+    ]
+
+
+def test_a_malformed_publication_date_cannot_break_a_draft(conn):
+    sid = failing(conn)
+    with transaction(conn):
+        conn.execute("UPDATE research_publication SET published_on = 'not a date'")
+    assert ids(conn, registry(institution()), allow(conn, sid)) == [sid]
