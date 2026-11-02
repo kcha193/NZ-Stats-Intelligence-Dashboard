@@ -163,6 +163,8 @@ def _assess(
     if injection_findings(sections):
         return "a section reads like instructions to a model", None
     published = _civil_date(row["published_on"])
+    if row["published_on"] and published is None:
+        return "the stored publication date is not valid", None
     report = verify(summary, sections, VerificationContext(
         published_on=published, institution=row["institution"]))  # fmt: skip
     draft = DraftSummary(
