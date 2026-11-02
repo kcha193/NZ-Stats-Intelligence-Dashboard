@@ -652,6 +652,7 @@ def test_gold_worksheet_and_score_gold_call_no_model_and_print_no_text(
 ):
     import hashlib
 
+    from nzstats.research.contract import OutlookSummary
     from nzstats.store.db import connect, migrate
 
     from .llm_support import SECTIONS, draft, seed_version
@@ -681,6 +682,14 @@ def test_gold_worksheet_and_score_gold_call_no_model_and_print_no_text(
     assert "raw" in out and "1/1" in out and "Economic growth" not in out and SECTIONS[0] not in out
     assert main(["research", "score-gold", "--extension", str(path), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)[0]["views"]["raw"]["recall"]["text"] == "1/1"
+
+    def corrupt(_):
+        return OutlookSummary.model_validate_json('{"outlook": "SECRET STORED TEXT"}')
+
+    monkeypatch.setattr("nzstats.research.cli._stored_summary", corrupt)
+    path.write_text(json.dumps(extension))
+    assert main(["research", "score-gold", "--extension", str(path)]) == 2
+    assert "SECRET" not in capsys.readouterr().out
 
     path.write_text("{}")
     assert main(["research", "score-gold", "--extension", str(path)]) == 2

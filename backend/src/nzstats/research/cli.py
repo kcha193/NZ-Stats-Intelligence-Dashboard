@@ -14,6 +14,8 @@ import os
 from datetime import date
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
 from nzstats.research import purge
@@ -582,6 +584,10 @@ def _gold_worksheet(
     return 0
 
 
+def _stored_summary(output_json: str) -> OutlookSummary:
+    return OutlookSummary.model_validate_json(output_json)
+
+
 def _score_gold(
     args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
 ) -> int:
@@ -598,7 +604,7 @@ def _score_gold(
         ).fetchall()
         reports = [
             score_extension(
-                conn, OutlookSummary.model_validate_json(row["output_json"]), extension,
+                conn, _stored_summary(row["output_json"]), extension,
                 VerificationContext(
                     published_on=date.fromisoformat(row["published_on"]) if row["published_on"] else None,
                     institution=row["institution"],
@@ -606,6 +612,9 @@ def _score_gold(
             )
             for row in rows
         ]  # fmt: skip
+    except ValidationError as exc:
+        _emit(f"refused: a stored summary no longer parses ({type(exc).__name__})")
+        return 2
     except GoldExtensionError as exc:
         _emit(f"refused: {exc}")
         return 2
@@ -621,7 +630,8 @@ def _score_gold(
         for name, view in report.views.items():
             _emit(f"  {name}: claims {view.claims}, precision {view.precision.text}, recall {view.recall.text},"
                   f" numbers {view.numerical_accuracy.text}, periods {view.period_exact.text},"
-                  f" issuers {view.issuer_accuracy.text}, unmatched {view.unmatched}")  # fmt: skip
+                  f" issuers {view.issuer_accuracy.text}, unmatched {view.unmatched}, repeated {view.duplicates},"
+                  f" expected rejections emitted {view.expected_rejections}, ambiguous {view.ambiguous}")  # fmt: skip
     return 0
 
 

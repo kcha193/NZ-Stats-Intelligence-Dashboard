@@ -21,7 +21,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from nzstats.research.contract import (
     Direction,
@@ -77,6 +77,14 @@ class GoldItem(_Strict):
     vote_for: int | None = None
     vote_against: int | None = None
     decision_maker: str | None = None
+
+    @model_validator(mode="after")
+    def _a_decision_is_complete(self) -> GoldItem:
+        if self.kind == "decision" and (
+            self.action is None or self.value is None or self.decided_on is None
+        ):
+            raise ValueError("a decision needs its action, rate and date")
+        return self
 
 
 class GoldRelativeDate(_Strict):

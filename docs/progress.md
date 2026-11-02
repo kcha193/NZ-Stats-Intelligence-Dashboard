@@ -12,7 +12,8 @@ preserved. Phase 4G live new-release acceptance still awaits the next supported 
 Full record: [phase-4q-evidence-grounding.md](phase-4q-evidence-grounding.md). Design only: [phase-4q-per-claim-design.md](phase-4q-per-claim-design.md).
 Local evidence: ignored `data/phase-4q/`. **GO WITH CONDITIONS to prepare one experiment. No inference ran. Everything else stays NO-GO.**
 
-- Root cause: 4 of 5 rejected facts carry a year not stated for the figure, and each of the 4 cases that fail only on period passes without it, except fact 2, which has no period in its sentence.
+- Root cause: 4 of 5 rejected facts carry a year not stated for the figure. Under `verify-4`, 4 of 5 pass with only the year removed. Fact 2 has no period in its cited sentence.
+- Independent review found two false acceptances in the first `verify-4`, and a draft gate gap from PR #42. All are fixed, test-first.
 - New: prompt `outlook-v5`, unused. `verify-4` binds a figure's period past comparisons and credits reported forecasters. Phase 4O's summary recomputes identically.
 - New: `gold-worksheet`, `score-gold`. No human gold exists yet.
 - Next: owner resolves `data/phase-4q/period-review-worksheet.html` and the gold worksheets. Six conditions precede any run.

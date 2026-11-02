@@ -266,9 +266,88 @@ def test_the_worksheet_refuses_an_unknown_version(conn, tmp_path):
         write_worksheet(conn, 99, tmp_path / "x.html")
 
 
-def test_the_worksheet_refuses_a_purged_version(stored, tmp_path):
+def test_the_worksheet_refuses_a_superseded_version(stored, tmp_path):
     conn, version = stored
     with transaction(conn):
         conn.execute("UPDATE research_document_version SET superseded_at = '2026-11-02T00:00:00Z'")
     with pytest.raises(GoldExtensionError):
         write_worksheet(conn, version, tmp_path / "x.html")
+
+
+def test_the_worksheet_refuses_a_purged_version(stored, tmp_path):
+    conn, version = stored
+    with transaction(conn):
+        purge_id = conn.execute(
+            "INSERT INTO research_purge(institution_id, reason, scope, purged_by, note, versions, sections,"
+            " summaries, claims, withdrawn, artifacts, purged_at)"
+            " SELECT id, 'other', '{}', 'x', 'x', 1, 0, 0, 0, 0, 0, '2026-11-02T00:00:00Z' FROM research_institution"
+        ).lastrowid
+        conn.execute(
+            "UPDATE research_document_version SET purged_at = '2026-11-02T00:00:00Z', purge_id = ?",
+            (purge_id,),
+        )
+    with pytest.raises(GoldExtensionError):
+        write_worksheet(conn, version, tmp_path / "x.html")
+
+
+def test_the_worksheet_is_private_from_the_moment_it_exists(stored, tmp_path):
+    conn, version = stored
+    out = tmp_path / "sheet.html"
+    write_worksheet(conn, version, out)
+    assert out.stat().st_mode & 0o777 == 0o600
+    out.chmod(0o644)
+    write_worksheet(conn, version, out)
+    assert out.stat().st_mode & 0o777 == 0o600
+
+
+# Found by independent review.
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"reviewed_by": "   "},
+        {"annotator": "   "},
+        {"reviewed_on": "2099-01-01"},
+        {"reviewed_by": "Claude Code"},
+        {"reviewed_by": "codex"},
+        {"reviewed_by": "GPT reviewer"},
+    ],
+)
+def test_review_must_be_by_a_named_person_and_already_done(change):
+    with pytest.raises(ValueError):
+        GoldExtension.model_validate(extension(**change))
+
+
+def test_blank_terms_and_repeated_ids_are_refused():
+    with pytest.raises(ValueError):
+        GoldExtension.model_validate(extension(items=[gold(terms=("",))]))
+    with pytest.raises(ValueError):
+        GoldExtension.model_validate(extension(items=[gold(), gold()]))
+
+
+def test_a_year_only_period_must_match_its_year(stored):
+    conn, _ = stored
+    wrong = {**IMF, "horizon": "2031"}
+    raw = scored(conn, summary([], [wrong])).views["raw"]
+    assert raw.recall.text == "0/3" and raw.unmatched == 1
+
+
+def test_a_gold_item_with_no_number_does_not_bless_a_claim_with_one(stored):
+    conn, _ = stored
+    items = [gold("view", kind="fact", terms=("output",), value=None, period="September quarter")]
+    raw = scored(conn, summary([fact(value=99)]), items=items).views["raw"]
+    assert raw.precision.text == "0/1" and raw.recall.text == "0/1"
+
+
+def test_repeating_a_claim_does_not_inflate_precision(stored):
+    conn, _ = stored
+    raw = scored(conn, summary([fact(), fact(), fact()])).views["raw"]
+    assert raw.precision.text == "1/3" and raw.duplicates == 2 and raw.recall.text == "1/3"
+
+
+def test_an_emitted_expected_rejection_counts_against_precision(stored):
+    conn, _ = stored
+    rejected = fact(
+        value=40, text="The trend.", period=None, quote="The trend was 40 at some point"
+    )
+    raw = scored(conn, summary([fact(), rejected])).views["raw"]
+    assert raw.precision.text == "1/2" and raw.expected_rejections == 1

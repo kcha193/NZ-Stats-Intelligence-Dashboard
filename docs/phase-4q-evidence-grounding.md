@@ -70,12 +70,18 @@ Rules SHA-256 `0afe7ab091760eab…`, full value in `config/phase-4q-prompt.json`
 
 ### Verifier `verify-4`
 
-| Change | Direction | Test |
+| Change | Effect | Test |
 |---|---|---|
-| A figure's period stops at a comparison ("up from", "from N in", "compared with") | Fairer in one case, **stricter** in another: a comparison's period can no longer serve as the figure's | `test_period_grounding.py` |
-| "said it expected", "expected" (not "expected to") and "markets expect" now credit the forecaster | **Stricter**: relabelling as the author is rejected | `test_verify_attribution.py` |
+| A figure's period stops at a comparison ("up from", "from N in", "compared with", "compared to", "versus", "relative to"), but only when the figure really is part of that comparison | Accepts a figure's true period beside a comparison. Rejects a comparison's period used as the figure's | `test_period_grounding.py` |
+| A comparison holding its own period stops a heading or neighbouring sentence from supplying one | Stricter | `test_period_grounding.py` |
+| "said it expected", "expected" directly after a name, and "markets expect" or "markets expected" credit the forecaster. Comparatives ("higher than the RBNZ expected") credit nobody, and the wording is not inherited from an earlier sentence | Stricter: relabelling as the author is rejected | `test_verify_attribution.py` |
+| Several third parties credited in one clause can no longer cancel out | Stricter: none of them is the author | `test_verify_attribution.py` |
 
 No threshold changed. One failed claim still rejects a summary.
+
+**The first `verify-4` was wrong, and review caught it.** It introduced two false acceptances that `verify-3` rejected: a comparison before a figure could become the figure's period, and
+a second mention could hide a third party's forecast. Both now have failing-first tests and are fixed. This change accepts some claims `verify-3` rejected, so it is **not** purely a tightening. An old-versus-new
+differential on 2,420 invented cases found 152 newly accepted, all giving the figure its true period, and 112 newly rejected, all a comparison month or a heading wrongly supporting a figure. That is a test of the shapes tried, not a proof.
 
 ### Measured effect, offline, no model
 
@@ -87,7 +93,7 @@ No threshold changed. One failed claim still rejects a summary.
 | 29 October pack: wrong issuer caught | 2/4 | **4/4** |
 | 29 October pack: true claims rejected | 9/26 | 7/26 |
 
-The pack is an AI reading of one document, not human gold. The remaining rejected claims: 3 `forecast_as_fact` where an outturn shares a clause with a
+The 69/69 covers only the probe's fixed corruptions. It could not detect the two false acceptances above, so it is not evidence that nothing was weakened. The pack is an AI reading of one document, not human gold. The remaining rejected claims: 3 `forecast_as_fact` where an outturn shares a clause with a
 forecast word, 2 `period_not_supported`, 1 second-hand decision and 1 unit the contract lacks. None were changed, because they fail closed and need a
 person's view.
 
@@ -98,7 +104,7 @@ The stored Phase 4O row is untouched and still records `verify-3`. Internal draf
 The Phase 4O gold could not show a good result: all five forecasts were expected rejections, and third-party forecasts were excluded.
 
 `research/gold_extension.py` adds an extension with four separately scored groups: accepted-eligible, expected rejection, ambiguous and third-party forecast.
-It is refused unless a named person reviewed it and attests it was written without seeing model output. That is an attestation, which code cannot prove.
+It is refused unless a named reviewer is recorded, the name is not an AI tool's, the date is not in the future, and it attests it was written without seeing model output. Those are attestations, which code cannot prove.
 
 `research gold-worksheet VERSION` builds the review sheet from the document alone, and a test denies it read access to the model-output tables. Sheets exist
 locally for versions 1 and 3. **No human gold exists yet, so these are scoring tools, not results.**
@@ -114,6 +120,8 @@ locally for versions 1 and 3. **No human gold exists yet, so these are scoring t
 
 `research score-gold` reports precision, recall, numbers, period exactness and issuer accuracy for three views: accepted, raw and a labelled hypothetical of clean
 claims. A zero denominator prints as unmeasured.
+
+Precision counts a claim once per gold item, and a claim outside the gold or an emitted expected rejection counts against it. It is therefore only as meaningful as the gold is complete.
 
 ## Claim coverage
 
@@ -144,6 +152,7 @@ Checked by test and on real data with loopback requests. The output was codes an
 | Off by default | Capability false; feed and detail 404, the same as an unknown path | **Pass** |
 | Loopback only | Binds to `0.0.0.0` and a LAN address exit 2. Other `Host`, cross-origin and cross-site requests get 403, and so does a missing client header | **Pass** |
 | Read only | POST and DELETE 405. `no-store`, `noindex`. `research_summary` unchanged after reads | **Pass** |
+| Revoked route withheld | **Failed at PR #42.** The gate never checked that the approval which let a document in was still in force, so a revoked route's draft stayed visible. Fixed in PR #43, test-first. The real Treasury draft is unaffected: its route is approved | **Fixed** |
 | Failed claims prominent | 8 of 18 claims carry their problems. Headline "failed checks, not approved"; tested in the page | **Pass** |
 | Never labelled verified | `approved_for_publication`, `official_statistic` and `human_reviewed` false. The page never shows the checked, reviewed or published labels | **Pass** |
 | No static or public exposure | Exporter isolation, `netlify.test.ts` and `scripts/e2e_static.sh` (see `progress.md`) | **Pass** |
@@ -152,6 +161,30 @@ Checked by test and on real data with loopback requests. The output was codes an
 
 **Disclosures.** PR #43 added a "Reports held" list to this mode: title, date and link for each report, with no document text. It widens what the mode lists, under
 the same gate, not which drafts are visible. The Outlook header's line about approved research still describes published research, as Phase 4P recorded.
+
+## Independent review
+
+Codex was the intended reviewer, but the account's model access failed on both tries and it produced no review. A fresh Claude reviewer did the work instead, in a worktree with no `data/`, using invented text. It is independent of this
+session's reasoning but is **not a second vendor**, and its model family is the same as the author's.
+
+| Finding | Severity | Status |
+|---|---|---|
+| Comparison before a figure became its period | P0 | Fixed, failing-first |
+| A second mention hid a third party's forecast | P0 | Fixed, failing-first |
+| Heading supplied a period once a comparison was cut | P1 | Fixed |
+| False rejections from over-broad "expected" | P1 | Fixed |
+| Market issuer names and table rows | P2 | Fixed |
+| Gold scoring: year-only periods, no-value items, duplicates, expected rejections, blank terms, repeated ids | P2 | Fixed |
+| Review gate accepted a blank reviewer or a future date | P2 | Fixed |
+| Bad stored output could echo text at the terminal | P2 | Fixed |
+| Draft gate ignored a revoked route (from PR #42) | Baseline | Fixed |
+| Malformed stored date, ties, incomplete decision items | P3 | Fixed |
+
+**Accepted, not changed:**
+
+- "Higher than the RBNZ expected" with the RBNZ as third-party issuer still passes. This predates Phase 4Q.
+- `rules_for` gives current rules to an unknown label. Production callers name a known version, and a hosted request's consent binds the hash of what is sent.
+- `RULES_SHA256` is enforced by tests, and only as a membership check at runtime.
 
 ## Bounded proposal for the next experiment
 
@@ -188,7 +221,7 @@ If the verifier rejects the summary, the raw measures still answer the question.
 
 | Decision | Verdict |
 |---|---|
-| Prompt v5 and `verify-4` | **GO** to review and merge. They run nothing |
+| Prompt v5 and `verify-4` | **GO WITH CONDITIONS:** owner review of the PRs, given the false acceptances the first version had. They run nothing |
 | Internal draft mode | **GO**, loopback only, no broader visibility |
 | Preparing the next experiment | **GO WITH CONDITIONS**, the six above |
 | Running OpenRouter now | **NO-GO** |
