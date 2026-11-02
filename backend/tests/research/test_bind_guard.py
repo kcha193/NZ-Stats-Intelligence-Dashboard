@@ -101,3 +101,24 @@ def test_the_private_preview_is_mounted_only_when_asked_for(served):
     (off, _), (on, _) = served
     assert "/api/private/research/items" not in _paths(off)
     assert "/api/private/research/items" in _paths(on)
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.20", "nas.local"])
+def test_internal_drafts_refuse_any_non_loopback_bind_even_when_acknowledged(
+    served, monkeypatch, capsys, host
+):
+    monkeypatch.setenv(
+        ALLOW_NONLOOPBACK_ENV, "1"
+    )  # the public-research override does not apply here
+    assert main(["serve", "--no-scheduler", "--internal-drafts", "--host", host]) == 2
+    assert served == [] and "internal drafts" in capsys.readouterr().err
+
+
+def test_internal_drafts_are_mounted_and_advertised_only_when_asked_for(served):
+    assert main(["serve", "--no-scheduler", "--host", "127.0.0.1"]) == 0
+    assert main(["serve", "--no-scheduler", "--internal-drafts", "--host", "127.0.0.1"]) == 0
+    (off, _), (on, _) = served
+    assert "/api/internal/drafts" not in _paths(off) and "/api/internal/drafts" in _paths(on)
+    assert off.state.capabilities.get("internal_drafts") is False
+    assert on.state.capabilities.get("internal_drafts") is True
+    assert "/api/private/research/items" not in _paths(on)  # it grants nothing else

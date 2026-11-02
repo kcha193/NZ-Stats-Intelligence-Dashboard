@@ -245,6 +245,11 @@ export interface components {
     CapabilitiesOut: {
       /** Research Public */
       research_public: boolean;
+      /**
+       * Internal Drafts
+       * @default false
+       */
+      internal_drafts: boolean;
     };
     /** ChangeOut */
     ChangeOut: {

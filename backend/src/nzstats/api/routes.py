@@ -99,8 +99,10 @@ def ops_status(request: Request, now: Now) -> OpsStatus:
 
 @router.get("/capabilities", response_model=CapabilitiesOut)
 def capabilities(request: Request) -> CapabilitiesOut:
+    enabled = request.app.state.capabilities
     return CapabilitiesOut(
-        research_public=bool(request.app.state.capabilities.get("research_public"))
+        research_public=bool(enabled.get("research_public")),
+        internal_drafts=bool(enabled.get("internal_drafts")),
     )
 
 

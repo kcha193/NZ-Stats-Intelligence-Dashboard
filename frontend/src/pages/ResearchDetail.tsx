@@ -9,12 +9,12 @@ import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { formatAklDate, formatCivilDate } from "@/lib/format";
 import { useDocumentTitle } from "@/seo/useDocumentTitle";
 
-const UNIT_LABELS: Record<string, string> = {
+export const UNIT_LABELS: Record<string, string> = {
   percent: "%", percentage_points: "percentage points", basis_points: "basis points", percent_of_gdp: "% of GDP",
   nzd: "NZ$", nzd_million: "NZ$ million", nzd_billion: "NZ$ billion", index: "index", persons: "people", ratio: "ratio",
 };
 
-function Evidence({ refs }: { refs: ResearchEvidence[] }) {
+export function Evidence({ refs }: { refs: ResearchEvidence[] }) {
   return (
     <ul aria-label="Evidence" className="mt-2 space-y-2">
       {refs.map((e, i) => (

@@ -59,10 +59,19 @@ def settings(tmp_path):
 
 def test_capabilities_are_off_unless_the_server_turns_them_on(settings) -> None:
     assert TestClient(create_app(settings)).get("/api/capabilities").json() == {
-        "research_public": False
+        "research_public": False,
+        "internal_drafts": False,
     }
     on = create_app(settings, capabilities={"research_public": True})
-    assert TestClient(on).get("/api/capabilities").json() == {"research_public": True}
+    assert TestClient(on).get("/api/capabilities").json() == {
+        "research_public": True,
+        "internal_drafts": False,
+    }
+    drafts = create_app(settings, capabilities={"internal_drafts": True})
+    assert TestClient(drafts).get("/api/capabilities").json() == {
+        "research_public": False,
+        "internal_drafts": True,
+    }
 
 
 def test_ops_status_endpoint_serves_the_report_read_only(settings, clock) -> None:

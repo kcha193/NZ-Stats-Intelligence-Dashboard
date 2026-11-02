@@ -134,4 +134,4 @@ def test_a_research_file_slipped_into_a_snapshot_is_an_error_not_a_crash(snapsho
 def test_the_exporters_app_has_no_private_research_routes(tmp_path):
     """Phase 4I: the private preview is mounted only by `nzstats serve --private-research`, never for a snapshot."""
     app = create_app(load_settings({"NZSTATS_DATA_DIR": str(tmp_path / "data")}))
-    assert not [path for path in app.openapi()["paths"] if "research" in path]
+    assert not [path for path in app.openapi()["paths"] if "research" in path or "drafts" in path]

@@ -184,6 +184,7 @@ class CapabilitiesOut(BaseModel):
     """Feature switches the UI reads so it does not request routes the server has not turned on."""
 
     research_public: bool
+    internal_drafts: bool = False
 
 
 class RefreshRequest(BaseModel):

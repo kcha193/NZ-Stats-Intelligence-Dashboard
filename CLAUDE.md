@@ -34,6 +34,7 @@ pytest && ruff check . && ruff format --check .
 nzstats serve --no-scheduler        # API + built UI (set NZSTATS_STATIC_DIR=../frontend/dist)
 nzstats status [--json] [--deep]    # read-only operational health; exit 0 OK / 1 ATTENTION / 2 CRITICAL / 3 failed to run
 nzstats alert-check                 # local alerts only (log + data/ops/alerts.jsonl); never a network channel
+nzstats serve --no-scheduler --internal-drafts   # also show summaries named in data/internal-drafts.json; loopback only
 nzstats backup --bundle DEST        # database + raw files + checksum manifest; verify-backup DIR; restore-backup SRC NEWDIR
 cd frontend
 npm test && npm run typecheck && npm run build
@@ -63,6 +64,10 @@ nzstats export-snapshot ./snapshot && nzstats validate-snapshot ./snapshot --for
   what live mode does (the parity spec). See `docs/netlify-deployment.md`.
 - Research is shown privately only through `research/private.py` (one gate, `serve --private-research`, loopback only, its
   own `private_display` permission). Never mount it anywhere else or relax its bind and request checks.
+- Internal drafts are shown only through `research/drafts.py` (one gate, `serve --internal-drafts`, loopback only, each summary
+  named by the owner in ignored `data/internal-drafts.json` with its output hash). Each claim must show its check result, and a draft
+  must never carry a checked, reviewed or published label or reach the public or private gates, a snapshot or anyone else's
+  machine. Never relax its bind and request checks. See `docs/phase-4p-internal-drafts.md`.
 - Research is shown publicly only through `research/public.py` (one gate). Never change a source's access, LLM or
   `public_display` settings without a documented, authorised review, and never add research to a snapshot.
 - Operational monitoring (`nzstats/ops/`) is read-only and offline: `status` opens the database `mode=ro`, never builds a

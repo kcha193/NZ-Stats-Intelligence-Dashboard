@@ -52,7 +52,10 @@ def test_serve_accepts_no_scheduler_flag(tmp_path, monkeypatch) -> None:
     captured = _capture_serve(tmp_path, monkeypatch)
     assert main(["serve", "--no-scheduler", "--port", "9"]) == 0
     assert captured["collection_mode"] == "off"
-    assert captured["record_ops"] is True and captured["capabilities"] == {"research_public": False}
+    assert captured["record_ops"] is True and captured["capabilities"] == {
+        "research_public": False,
+        "internal_drafts": False,
+    }
     # The research routes are always mounted by serve (off unless NZSTATS_PUBLIC_RESEARCH=1).
     assert [r.routes[0].path for r in captured["r"]] == ["/research/feed"]
 

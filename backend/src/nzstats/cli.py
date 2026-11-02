@@ -262,6 +262,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="also serve the private research preview (loopback binds only; needs private_display approvals)",
     )
+    p_serve.add_argument(
+        "--internal-drafts",
+        action="store_true",
+        help="also show the summaries named in data/internal-drafts.json, including ones that failed checks"
+        " (loopback binds only)",
+    )
     sub.add_parser("health", help="print source health as JSON")
     p_status = sub.add_parser(
         "status",
@@ -428,11 +434,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         loopback = args.host in ("127.0.0.1", "::1", "localhost")
         mode = "off" if args.offline else args.refresh.replace("-", "_")
+        from nzstats.research.drafts_api import draft_bind_refusal, internal_drafts_router
         from nzstats.research.private_api import private_bind_refusal, private_research_router
 
         refusal = bind_refusal(args.host)
         if refusal is None and args.private_research:
             refusal = private_bind_refusal(args.host)
+        if refusal is None and args.internal_drafts:
+            refusal = draft_bind_refusal(args.host)
         if refusal is None and mode == "on_open" and not loopback:
             refusal = (
                 f"refusing to serve on {args.host}: on-open refresh lets the page start downloads, so it is for"
@@ -446,11 +455,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 settings,
                 collection_mode=mode,
                 routers=[research_router()]
-                + ([private_research_router(enabled=True)] if args.private_research else []),
+                + ([private_research_router(enabled=True)] if args.private_research else [])
+                + ([internal_drafts_router(enabled=True)] if args.internal_drafts else []),
                 record_ops=True,
                 # Unauthenticated, and it names the process, backups and errors: loopback binds only, unless opted in.
                 ops_status_enabled=loopback or os.environ.get("NZSTATS_OPS_STATUS") == "1",
-                capabilities={"research_public": public_research_enabled()},
+                capabilities={
+                    "research_public": public_research_enabled(),
+                    "internal_drafts": args.internal_drafts,
+                },
             ),
             host=args.host,
             port=args.port,

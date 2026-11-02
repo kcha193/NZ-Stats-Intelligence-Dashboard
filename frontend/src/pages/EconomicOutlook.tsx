@@ -2,6 +2,7 @@ import { useOverview } from "@/api/hooks";
 import { useState } from "react";
 import { ForecastComparison } from "@/components/outlook/ForecastComparison";
 import { ForecastTrack } from "@/components/outlook/ForecastTrack";
+import { InternalDrafts } from "@/components/outlook/InternalDrafts";
 import { Pulse } from "@/components/outlook/Pulse";
 import { ResearchFeed } from "@/components/outlook/ResearchFeed";
 import { QueryBoundary } from "@/components/QueryBoundary";
@@ -43,6 +44,7 @@ export default function EconomicOutlook() {
         </dl>
       </header>
       <QueryBoundary query={overview}>{(d) => <Pulse overview={d} />}</QueryBoundary>
+      <InternalDrafts />
       <ResearchFeed />
       <ForecastComparison cpi={cpi} indicator={indicator} onIndicatorChange={setIndicator} />
       <ForecastTrack indicator={indicator} />
