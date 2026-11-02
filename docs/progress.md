@@ -1,10 +1,26 @@
 # Progress and verification record
 
-Last updated 2026-11-02. Phase 4O started from main `26612a4`, after merged
+Last updated 2026-11-02. **Phase 4Q imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4Q: Treasury FEU refresh, 2 November 2026
+
+Full record: [phase-4q-treasury-feu-refresh.md](phase-4q-treasury-feu-refresh.md). Local evidence: ignored `data/phase-4q/`,
+`data/annotations/phase-4q-*`.
+
+- Imported the browser-saved PDF after a verified backup: publication 3, version 3. Versions 1 and 2 and all LLM rows unchanged.
+- `serve --internal-drafts` lists reports held by publication date; a draft of an earlier report says a newer one exists.
+- New `research check-gold`: on version 3, 0 gold problems, 57/59 measurable corruptions caught, 9/26 true claims rejected. The
+  2 misses relabel a third party's forecast as Treasury's. No threshold, rule or prompt changed.
+- Next: owner checks the publication page, and reviews the gold pack and the Phase 4O packet. Hosted processing needs its own approval.
+
+Verification: full backend suite passed (3983 tests), Ruff lint and format clean; frontend 545 tests, typecheck and build pass;
+research browser specs 18 passed, 3 skipped. Real data checked on loopback at desktop and phone widths: local requests only, no console
+errors. `freeze` on version 3 refused, on a copy. Not run: `scripts/e2e_static.sh` and the default Playwright config.
 
 ## Phase 4O: second controlled pilot, Treasury, 2 November 2026
 

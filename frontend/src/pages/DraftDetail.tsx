@@ -3,7 +3,7 @@ import type { DraftClaim, DraftItem } from "@/api/drafts";
 import { useInternalDraft } from "@/api/hooks";
 import { formatForecastValue } from "@/charts/forecasts";
 import { ExternalLink } from "@/components/outlook/ExternalLink";
-import { ClaimStatus, draftCounts, draftHeadline } from "@/components/outlook/InternalDrafts";
+import { ClaimStatus, draftCounts, draftHeadline, NewerReportNote } from "@/components/outlook/InternalDrafts";
 import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { formatAklDate, formatCivilDate } from "@/lib/format";
 import { useDocumentTitle } from "@/seo/useDocumentTitle";
@@ -98,6 +98,7 @@ function View({ d }: { d: DraftItem }) {
           No person has approved this AI summary, so treat every line as unconfirmed. Only on this machine. It is not published research and not an official statistic.
         </p>
         <p className="mt-2 text-sm">{plural(d.claims.length, "claim")}: {draftCounts(d)}.</p>
+        <NewerReportNote draft={d} />
       </div>
 
       <header className="border-b-2 border-rule-strong pb-6">

@@ -7,6 +7,9 @@ exact output hash, it holds a parsed output, no reviewer has rejected it, its do
 duplicate, its institution allows quoting, and no section reads like instructions to a model. The checks are rerun
 on each call and every claim carries its own result, so a draft can never be mistaken for a verified summary.
 
+`stored_reports` lists what is held, by title, date and address only, so a report with no summary yet is not hidden
+and the newest one is known from the institution's own publication date, never from the order of import.
+
 The list lives beside the database under `data/` (`internal-drafts.json`, never in Git). A missing file means no
 drafts; a malformed one is refused and shows nothing.
 """
@@ -186,6 +189,48 @@ def draft_summaries(
             out.append(draft)
         else:
             log.info("internal draft %s withheld: %s", row["id"], reason)
+    return out
+
+
+@dataclass(frozen=True)
+class StoredReport:
+    publication_id: int
+    institution: Institution
+    title: str
+    url: str
+    series: str | None
+    published_on: date | None
+    newest: bool  # the institution's latest publication date among the reports listed
+
+
+def stored_reports(
+    conn: sqlite3.Connection, registry: Mapping[str, Institution]
+) -> list[StoredReport]:
+    """Current, held, non-duplicate reports, latest publication date first; undated ones last and never newest."""
+    rows = conn.execute(
+        "SELECT p.id, i.key, p.title, p.canonical_url, p.series, p.published_on, v.acquisition"
+        " FROM research_publication p JOIN research_institution i ON i.id = p.institution_id"
+        " JOIN research_document_version v ON v.id = p.current_version_id"
+        " WHERE p.duplicate_of_id IS NULL AND v.purged_at IS NULL AND v.superseded_at IS NULL"
+        " ORDER BY p.published_on IS NULL, p.published_on DESC, p.id DESC"
+    ).fetchall()
+    seen: set[str] = set()
+    out = []
+    for row in rows:
+        inst = registry.get(row["key"])
+        if (
+            inst is None
+            or inst.content_policy is not ContentPolicy.FULL_TEXT
+            or not inst.holds(row["acquisition"])
+            or not allowed_document_url(row["canonical_url"], inst)
+        ):
+            continue
+        published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
+        newest = published is not None and inst.key not in seen
+        if newest:
+            seen.add(inst.key)
+        out.append(StoredReport(int(row["id"]), inst, row["title"], row["canonical_url"], row["series"],
+                                published, newest))  # fmt: skip
     return out
 
 

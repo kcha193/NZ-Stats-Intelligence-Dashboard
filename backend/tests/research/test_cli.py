@@ -601,3 +601,47 @@ def test_orphans_lists_old_unreferenced_files_and_removes_only_on_request(env, t
     assert "ab/" in capsys.readouterr().out and stray.exists()
     assert main(["research", "orphans", "--remove"]) == 0
     assert not stray.exists()
+
+
+def test_check_gold_reports_a_pack_and_its_probes_without_calling_a_model(
+    env, capsys, tmp_path, monkeypatch
+):
+    from nzstats.store.db import connect, migrate, transaction
+
+    from .llm_support import seed_version
+
+    monkeypatch.setattr("nzstats.research.cli.build_llm_provider", pytest.fail)
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    version = seed_version(conn, published_on="2026-11-02")
+    with transaction(conn):
+        conn.execute("UPDATE research_publication SET title = 'Synthetic Update - 29 October 2026'")
+    digest = conn.execute(
+        "SELECT text_sha256 FROM research_document_version WHERE id = ?", (version,)
+    ).fetchone()[0]
+    conn.close()
+    item = {"id": "growth", "kind": "fact", "issuer": "Example", "issuer_role": "author",
+            "named_as": "The economy", "page": 1,
+            "quote": "The economy is expected to grow 2.5% in the year to March 2027",
+            "text": "Growth", "value": 2.5, "unit": "percent"}  # fmt: skip
+    pack = {"annotator": "Test", "annotated_on": "2026-11-02", "version_id": version, "text_sha256": digest,
+            "content_sha256": digest, "document_date": "2026-10-29", "published_on": "2026-11-02",
+            "foreign_quote": "A sentence from another synthetic report.", "items": [item]}  # fmt: skip
+    path = tmp_path / "pack.json"
+    path.write_text(json.dumps(pack))
+    assert main(["research", "check-gold", "--pack", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "1 items" in out and "no problems" in out and "probes" in out
+    assert main(["research", "check-gold", "--pack", str(path), "--json"]) == 0
+    body = json.loads(capsys.readouterr().out)
+    assert body["check"]["ok"] is True and body["probes"]["results"]
+
+    pack["items"] = [{**item, "value": 9.9}]
+    path.write_text(json.dumps(pack))
+    assert main(["research", "check-gold", "--pack", str(path)]) == 1
+    assert "value_not_in_quote" in capsys.readouterr().out
+
+    pack["text_sha256"] = "a" * 64
+    path.write_text(json.dumps(pack))
+    assert main(["research", "check-gold", "--pack", str(path)]) == 2
+    assert "refused" in capsys.readouterr().out

@@ -32,6 +32,7 @@ from nzstats.research.fetch import (
     build_research_client,
     research_pacer,
 )
+from nzstats.research.gold_check import GoldPackError, check_pack, load_pack, probe_pack
 from nzstats.research.health import research_health
 from nzstats.research.ingest import RunResult, refusal_for, run_institution
 from nzstats.research.manual_import import ImportRefused, import_document
@@ -128,6 +129,12 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         "--annotations", required=True, help="JSON annotation file (keep it under data/)"
     )
     p_eval.add_argument("--model", help="only summaries from this model")
+    p_gold = rsub.add_parser(
+        "check-gold",
+        help="test a version-bound gold pack against the stored text and probe the verifier (4Q; calls no model)",
+    )
+    p_gold.add_argument("--pack", required=True, help="JSON gold pack (keep it under data/)")
+    p_gold.add_argument("--json", action="store_true", help="the full report as JSON")
     p_qual = rsub.add_parser(
         "quality", help="extraction quality of stored document versions (Phase 3D-A)"
     )
@@ -513,6 +520,34 @@ def _evaluate(
     return 0
 
 
+def _check_gold(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    conn = _open(settings)
+    try:
+        pack = load_pack(Path(args.pack))
+        report = check_pack(conn, pack)
+        probes = probe_pack(conn, pack)
+    except GoldPackError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    if args.json:
+        _emit(json.dumps({"check": report.to_json(), "probes": probes.to_json()}, indent=1))
+    else:
+        _emit(f"version {report.version_id}: {report.items} items, {report.relative_dates} relative dates:"
+              f" {'no problems' if not report.problems else f'{len(report.problems)} problems'}")  # fmt: skip
+        for problem in report.problems:
+            _emit(f"  {problem.item}: {problem.code}")
+        _emit(f"probes: {probes.caught} corruptions caught, {probes.missed} missed, {probes.not_measured} not measured,"
+              f" {probes.false_rejections} true claims rejected. Measures the checks, not any model.")  # fmt: skip
+        for r in probes.results:
+            if r.expected == "accepted" and r.caught:
+                _emit(f"  {r.item} true claim rejected: {','.join(r.codes)}")
+            elif r.expected == "rejected" and r.measured and not r.caught:
+                _emit(f"  {r.item} {r.mutation}: corruption accepted")
+    return 0 if not report.problems else 1
+
+
 def _quality(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
     conn = _open(settings)
     ids = list(args.version) or [
@@ -729,4 +764,4 @@ def _cpi_reconcile(
 _SUMMARY_COMMANDS = {"cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
-                     "quality": _quality, "evaluate": _evaluate}  # fmt: skip
+                     "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold}  # fmt: skip

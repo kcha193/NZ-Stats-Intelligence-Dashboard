@@ -125,6 +125,56 @@ def test_a_malformed_list_shows_nothing_and_a_missing_list_shows_nothing(drafts)
     assert r.status_code == 200 and r.json()["items"] == []
 
 
+def test_the_feed_lists_stored_reports_with_only_their_public_details(drafts, make):
+    client, _, path = drafts
+    path.unlink()  # a report with no AI summary is still listed
+    _, conn = make
+    seed_version(conn, doc="newer", published_on="2026-11-02")
+    r = client().get(FEED, headers=LOCAL)
+    assert r.status_code == 200 and r.json()["items"] == []
+    newest, earlier = r.json()["reports"]
+    assert set(newest) == {"institution", "institution_name", "title", "url", "series", "published_on",
+                           "newest", "draft_id"}  # fmt: skip
+    assert (newest["title"], newest["published_on"], newest["newest"], newest["draft_id"]) == (
+        "Synthetic outlook newer", "2026-11-02", True, None)  # fmt: skip
+    assert (earlier["published_on"], earlier["newest"]) == ("2026-08-13", False)
+
+
+def test_a_report_links_to_its_draft_and_a_draft_says_when_a_newer_report_exists(drafts, make):
+    client, sid, _ = drafts
+    _, conn = make
+    c = client()
+    assert c.get(f"{FEED}/{sid}", headers=LOCAL).json()["newer_report"] is None
+    seed_version(conn, doc="newer", published_on="2026-11-02")
+    body = c.get(FEED, headers=LOCAL).json()
+    assert body["reports"][1]["draft_id"] == sid and body["reports"][0]["draft_id"] is None
+    newer = {"title": "Synthetic outlook newer", "published_on": "2026-11-02"}
+    assert body["items"][0]["newer_report"] == newer
+    assert c.get(f"{FEED}/{sid}", headers=LOCAL).json()["newer_report"] == newer
+
+
+def test_a_draft_of_a_report_published_on_the_same_day_is_not_told_a_newer_one_exists(drafts, make):
+    client, sid, _ = drafts
+    _, conn = make
+    seed_version(conn, doc="same-day", published_on="2026-08-13")
+    assert client().get(f"{FEED}/{sid}", headers=LOCAL).json()["newer_report"] is None
+
+
+def test_an_unreadable_registry_lists_no_reports(drafts):
+    client, _, _ = drafts
+
+    def broken():
+        raise OSError("registry file missing")
+
+    assert client(registry=broken).get(FEED, headers=LOCAL).json()["reports"] == []
+
+
+def test_a_malformed_list_lists_no_reports(drafts):
+    client, _, path = drafts
+    path.write_text("not json")
+    assert client().get(FEED, headers=LOCAL).json()["reports"] == []
+
+
 def test_the_routes_never_accept_other_methods(drafts):
     client, _, _ = drafts
     for method in ("post", "put", "delete"):

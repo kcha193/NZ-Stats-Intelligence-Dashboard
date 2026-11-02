@@ -6,6 +6,8 @@ registry or a malformed list shows nothing. Responses are not cached or indexed.
 
 The models are an allowlist: raw model output, hashes, parameters, usage, cost and the owner's note have no field.
 Each item states that it may have failed the checks and has no approval, so it can never read as a verified summary.
+The feed also lists the reports held (`drafts.stored_reports`), by title, date and address only, and an item says when
+its institution has published a newer one, so a draft of an earlier report cannot read as the latest view.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from collections.abc import Callable, Mapping
+from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
@@ -24,9 +27,11 @@ from nzstats.research.drafts import (
     ClaimStatus,
     DraftAllowlistError,
     DraftSummary,
+    StoredReport,
     claim_paths,
     draft_summaries,
     load_allowlist,
+    stored_reports,
 )
 from nzstats.research.private import PrivateSummary
 from nzstats.research.private_api import (
@@ -78,6 +83,11 @@ class DraftProvenanceOut(_Out):
     checks_scope: str = SCOPE
 
 
+class NewerReportOut(_Out):
+    title: str
+    published_on: date
+
+
 class DraftItemOut(_Out):
     id: int
     label: str = DRAFT_LABEL
@@ -95,10 +105,23 @@ class DraftItemOut(_Out):
     licence_url: str | None
     provenance: DraftProvenanceOut
     claims: list[DraftClaimOut]
+    newer_report: NewerReportOut | None
+
+
+class StoredReportOut(_Out):
+    institution: str
+    institution_name: str
+    title: str
+    url: str
+    series: str | None
+    published_on: date | None
+    newest: bool
+    draft_id: int | None
 
 
 class DraftFeedOut(_Out):
     items: list[DraftItemOut]
+    reports: list[StoredReportOut]
     notice: str = DRAFT_LABEL
 
 
@@ -118,7 +141,23 @@ def _claims(d: DraftSummary) -> list[DraftClaimOut]:
     ]
 
 
-def _item(d: DraftSummary) -> DraftItemOut:
+def _newer_report(d: DraftSummary, reports: list[StoredReport]) -> NewerReportOut | None:
+    """The institution's newest report when it was published after the one this draft covers."""
+    if not d.row["published_on"]:
+        return None
+    published = date.fromisoformat(d.row["published_on"])
+    for report in reports:
+        if (
+            report.newest
+            and report.institution.key == d.institution.key
+            and report.published_on is not None
+            and report.published_on > published
+        ):
+            return NewerReportOut(title=report.title, published_on=report.published_on)
+    return None
+
+
+def _item(d: DraftSummary, reports: list[StoredReport]) -> DraftItemOut:
     r, inst = d.row, d.institution
     errors = sum(p.severity == "error" for c in d.claims for p in c.problems)
     return DraftItemOut(
@@ -131,7 +170,18 @@ def _item(d: DraftSummary) -> DraftItemOut:
         provenance=DraftProvenanceOut(provider=r["provider"], model=r["model"], hosted=bool(r["hosted"]),
                                       prompt_version=r["prompt_version"], processing_version=r["processing_version"],
                                       verifier_version=VERIFIER_VERSION, written_at=to_akl_iso(r["created_at"])),
-        claims=_claims(d),
+        claims=_claims(d), newer_report=_newer_report(d, reports),
+    )  # fmt: skip
+
+
+def _report(report: StoredReport, drafts: list[DraftSummary]) -> StoredReportOut:
+    draft_id = next(
+        (d.id for d in drafts if d.row["publication_id"] == report.publication_id), None
+    )
+    return StoredReportOut(
+        institution=report.institution.key, institution_name=report.institution.name, title=report.title,
+        url=report.url, series=report.series, published_on=report.published_on, newest=report.newest,
+        draft_id=draft_id,
     )  # fmt: skip
 
 
@@ -157,22 +207,25 @@ def internal_drafts_router(
             raise HTTPException(404, "not found")
         _refuse_unless_local_dashboard(request)
 
-    def items(request: Request, c: sqlite3.Connection) -> list[DraftItemOut]:
+    def read(request: Request, c: sqlite3.Connection) -> DraftFeedOut:
         path = request.app.state.settings.db_path.parent / ALLOWLIST_FILE
         try:
             reg = load()
             allowlist = load_allowlist(path)
         except (RegistryError, DraftAllowlistError, OSError) as exc:
             log.warning("internal drafts show nothing: %s", exc)
-            return []
-        return [_item(d) for d in draft_summaries(c, reg, allowlist)]
+            return DraftFeedOut(items=[], reports=[])
+        drafts = draft_summaries(c, reg, allowlist)
+        reports = stored_reports(c, reg)
+        return DraftFeedOut(items=[_item(d, reports) for d in drafts],
+                            reports=[_report(r, drafts) for r in reports])  # fmt: skip
 
     deps = [Depends(gate)]
 
     @router.get("/internal/drafts", response_model=DraftFeedOut, dependencies=deps)
     def feed(request: Request, c: Conn, response: Response) -> DraftFeedOut:
         response.headers.update(_HEADERS)
-        return DraftFeedOut(items=items(request, c))
+        return read(request, c)
 
     @router.get("/internal/drafts/{summary_id}", response_model=DraftItemOut, dependencies=deps)
     def detail(
@@ -181,7 +234,7 @@ def internal_drafts_router(
         response: Response,
         summary_id: Annotated[int, Path(ge=1, le=2**63 - 1)],
     ) -> DraftItemOut:
-        found = next((i for i in items(request, c) if i.id == summary_id), None)
+        found = next((i for i in read(request, c).items if i.id == summary_id), None)
         if found is None:
             raise HTTPException(404, "not found")
         response.headers.update(_HEADERS)

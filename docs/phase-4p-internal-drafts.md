@@ -14,6 +14,10 @@ draft page at `/economic-outlook/draft/{id}`. Each claim is marked "Failed check
 with the verifier's reason. A banner says the summary is unapproved and may have failed checks. The "Evidence checked",
 "Human reviewed" and "Published here" badges never appear.
 
+Phase 4Q adds a "Reports held" list in the same mode: each current report's title, institution, publication date and link, newest
+first, whether or not a summary exists. A draft says when its institution has published a newer report. The list carries no
+document text. See `phase-4q-treasury-feu-refresh.md`.
+
 ## The gate
 
 `research/drafts.py` is the one gate, and `research/drafts_api.py` the only routes. A summary is shown only when all of these
