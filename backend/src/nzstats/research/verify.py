@@ -118,8 +118,14 @@ _CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
 # "against a backdrop of weak demand" is context, but "against a backdrop of 2% growth" compares: only a phrase with no figure of
 # its own (before the clause ends) is exempt.
 _NO_FIGURE = r"(?![^,;]*\d[\d.,]*\s*(?:%|percent|per\s?cent|bps|basis))"
+# A bare "from" compares only when it leads straight to a figure, a month or a relative period ("from 5.9%", "from July", "from last
+# year"). "from stronger exports" gives a reason, not a base.
+_FROM_BASE = (
+    r"(?=\s+(?:the\s+|a\s+)?(?:\d|\$|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b"
+    r"|q[1-4]\b|(?:last|previous|prior|same|a\s+year|a\s+quarter)\b))"
+)
 _COMPARISON = re.compile(
-    r"\b(?:up|down|higher|lower)\s+from\b|\bfrom\b|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b"
+    rf"\b(?:up|down|higher|lower)\s+from\b|\bfrom\b{_FROM_BASE}|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b"
     rf"|\bvs\b|\bagainst\b(?!\s+(?:an?|the)\s+(?:back(?:drop|ground)|context)\b{_NO_FIGURE})|\babove\b|\bbelow\b",
     re.IGNORECASE,
 )
