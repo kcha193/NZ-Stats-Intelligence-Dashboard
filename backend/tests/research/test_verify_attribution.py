@@ -445,3 +445,60 @@ def test_the_authors_own_figure_before_a_reported_view_stays_the_authors():
 )
 def test_the_comparison_guard_stops_at_punctuation_and_clause_starts_count(sentence):
     assert "issuer_mismatch" in codes(authors(sentence))
+
+
+# Found by the fourth review, on sentences that passed under verify-3 too: a third party's figure labelled as the author's.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We note the IMF expects growth of 3% in 2029.",
+        "We disagree with the IMF, which expects 3% in 2029.",
+        "We note growth of 3% in 2029, which the MPC said it expected.",
+        "The IMF forecasts 3% in 2029, above our forecast of 2%.",
+        "The MPC said that it expected growth of 3% in 2029.",
+        "IMF staff expect growth of 3% in 2029.",
+        "Markets now expect growth of 3% in 2029.",
+    ],
+)
+def test_a_third_partys_figure_cannot_pass_as_the_authors(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, while the IMF expects 2%.",
+        "The IMF expects 2%, while we expect 3% in 2029.",
+        "Unlike the IMF, we forecast 3% in 2029.",
+    ],
+)
+def test_the_authors_own_figure_beside_a_third_party_stays_the_authors(sentence):
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+def test_the_market_exemption_never_helps_an_author_label():
+    claim = authors("Markets expect growth of 3% in 2029.", issuer="Markets")
+    assert "issuer_mismatch" in codes(claim)
+
+
+def test_a_third_party_named_before_the_figure_keeps_its_own_claim():
+    claim = authors(
+        "We note the IMF expects growth of 3% in 2029.", role="third_party", issuer="IMF"
+    )
+    assert "issuer_mismatch" not in codes(claim)
+
+
+def test_a_reported_forecaster_in_the_clause_outranks_a_credit_earlier_in_the_sentence():
+    sentence = "The IMF expects growth of 2% in 2028, and the MPC said it expected 3% in 2029."
+    assert "issuer_mismatch" in codes(authors(sentence, role="third_party", issuer="IMF"))
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ("The MPC said it expected 3% in 2029.", "The IMF expects 3% in 2029."),
+        ("The IMF expects 3% in 2029.", "The MPC said it expected 3% in 2029."),
+    ],
+)
+def test_a_block_at_either_spot_rejects_a_credit_at_the_other(first, second):
+    assert "issuer_mismatch" in spots(first, second, "IMF")

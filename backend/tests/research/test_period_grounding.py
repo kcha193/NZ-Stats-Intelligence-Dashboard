@@ -164,3 +164,22 @@ def test_a_true_figure_beside_a_comparison_passes_with_no_period_claimed():
 )
 def test_the_base_of_a_comparison_cannot_take_the_compared_figures_period(sentence, value, period):
     assert "period_not_supported" in errors(sentence, value, period)
+
+
+# Found by the fourth review, on sentences that passed under verify-3 too.
+@pytest.mark.parametrize(
+    ("sentence", "value", "period"),
+    [
+        ("Compared with June, freight rose 0.8%.", 0.8, "June"),
+        ("Freight rose 3% vs 2% in 2029.", 3, "2029"),
+        ("Freight rose 3% against 2% in 2029.", 3, "2029"),
+        ("Freight rose 3% above 2% in 2029.", 3, "2029"),
+        ("Freight rose from 2% in 2029 to 3%.", 3, "2029"),
+    ],
+)
+def test_a_figure_cannot_take_the_period_of_these_comparisons(sentence, value, period):
+    assert "period_not_supported" in errors(sentence, value, period)
+
+
+def test_a_period_stated_for_the_figure_itself_is_not_affected():
+    assert "period_not_supported" not in errors("Freight rose from 2% to 3% in 2029.", 3, "2029")
