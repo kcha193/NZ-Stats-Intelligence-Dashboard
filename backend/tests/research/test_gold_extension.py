@@ -675,3 +675,36 @@ def test_a_report_says_which_stored_summary_it_scores(stored):
     report = score_extension(conn, summary([fact()]), ext, ctx, summary_id=42)
     assert report.summary_id == 42 and report.to_json()["summary_id"] == 42
     assert score_extension(conn, summary([fact()]), ext, ctx).to_json()["summary_id"] is None
+
+
+def test_issuer_identity_is_resolved_before_expected_rejection_precedence(stored):
+    conn, _ = stored
+    items = [
+        gold("eligible", "accepted_eligible", "forecast", ("growth",), 2.9, "2027", "author", "The Treasury"),
+        gold("trap", "expected_rejection", "forecast", ("growth",), 2.9, "2027", "third_party", "IMF", "no_period"),
+    ]  # fmt: skip
+    for claims in ([OWN_GROWTH], [IMF_GROWTH], [OWN_GROWTH, IMF_GROWTH], [IMF_GROWTH, OWN_GROWTH]):
+        raw = scored(conn, summary([], claims), items=items).views["raw"]
+        own = OWN_GROWTH in claims
+        trap = IMF_GROWTH in claims
+        assert raw.recall.text == ("1/1" if own else "0/1")
+        assert raw.expected_rejections == (1 if trap else 0)
+
+
+def test_a_misattributed_claim_still_meets_its_gold_item_and_counts_an_issuer_miss(stored):
+    conn, _ = stored
+    wrong = {**IMF_GROWTH, "issuer": "The Treasury", "issuer_role": "author"}
+    items = [
+        gold(
+            "only",
+            "third_party_forecast",
+            "forecast",
+            ("growth",),
+            2.9,
+            "2027",
+            "third_party",
+            "IMF",
+        )
+    ]
+    raw = scored(conn, summary([], [wrong]), items=items).views["raw"]
+    assert raw.issuer_accuracy.text == "0/1" and raw.recall.text == "0/1" and raw.unmatched == 0

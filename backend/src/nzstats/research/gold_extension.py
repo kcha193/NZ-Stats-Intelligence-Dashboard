@@ -293,19 +293,19 @@ def _match(
 ) -> ExtensionItem | None:
     """The least favourable item this claim fits, whatever the gold's order. A broad ambiguous item must not hide an error.
 
-    Among items equally right about the number, the one the claim's issuer fits comes first, then one not yet covered, so
-    two issuers' equal forecasts each find their own item. The id only breaks what is left, so order never decides.
+    An item the claim's issuer fits comes before one it does not (so Treasury's forecast is never taken for the IMF's expected
+    rejection), then the worst fit by category, then one not yet covered. The id only breaks what is left, so order never decides.
     """
 
-    def rank(item: ExtensionItem) -> tuple[int, bool, bool, str]:
+    def rank(item: ExtensionItem) -> tuple[bool, int, bool, str]:
         right = _value_right(claim, item)
         wrong_issuer = item.issuer_role is not None and not _issuer_right(claim, item)
         covered = item.id in found
         if item.category == "expected_rejection":
-            return (0 if right else 3, wrong_issuer, covered, item.id)
+            return (wrong_issuer, 0 if right else 3, covered, item.id)
         if item.category in _IN_RECALL:
-            return (1 if right else 2, wrong_issuer, covered, item.id)
-        return (4, wrong_issuer, covered, item.id)
+            return (wrong_issuer, 1 if right else 2, covered, item.id)
+        return (wrong_issuer, 4, covered, item.id)
 
     about = [
         item
