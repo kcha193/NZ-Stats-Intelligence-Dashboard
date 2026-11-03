@@ -38,7 +38,7 @@ from nzstats.research.contract import (
     SectionText,
     Statement,
 )
-from nzstats.research.issuers import organisation_of
+from nzstats.research.issuers import SELF_REFERENCE, organisation_of
 from nzstats.research.summarise import load_sections
 from nzstats.research.verify import VerificationContext, verify
 
@@ -294,7 +294,30 @@ def _decision_codes(item: GoldItem, quote: str, nearby: str, published_on: date)
     return codes
 
 
-def _check_item(sections: dict[int, SectionText], item: GoldItem, published_on: date) -> list[str]:
+def _organisation(name: str) -> str | None:
+    return "market" if re.search(r"\bmarkets?\b", name, re.I) else organisation_of(name)
+
+
+def _names_the_issuer(item: GoldItem, institution: str) -> bool:
+    """Do the words that name the issuer say who the item's issuer and role claim? An unknown organisation is not judged."""
+    named, issuer = _organisation(item.named_as), _organisation(item.issuer)
+    own_voice = bool(SELF_REFERENCE.search(item.named_as))
+    if item.issuer_role is IssuerRole.AUTHOR:
+        if issuer not in (None, institution):
+            return False  # another organisation is not the document's author
+        return (
+            own_voice
+            or (named is not None and named == issuer)
+            or (named is None and issuer is None)
+        )
+    if own_voice:
+        return False  # "We forecast" is the document's author, whatever the item says
+    return named == issuer if (named or issuer) else True
+
+
+def _check_item(
+    sections: dict[int, SectionText], item: GoldItem, published_on: date, institution: str
+) -> list[str]:
     found = _find(sections, item.page, item.quote)
     if found is None:
         return ["quote_not_found"]
@@ -310,6 +333,8 @@ def _check_item(sections: dict[int, SectionText], item: GoldItem, published_on: 
         codes.append("period_resolved_mismatch")
     if _flat(item.named_as).lower() not in found[1].lower():
         codes.append("issuer_not_near_quote")
+    if item.kind in {"forecast", "view"} and not _names_the_issuer(item, institution):
+        codes.append("issuer_not_identified")
     if item.kind == "decision":
         codes += _decision_codes(item, _flat(item.quote), found[1], published_on)
     return codes
@@ -405,7 +430,8 @@ def check_pack(conn: sqlite3.Connection, pack: AccuracyPack) -> PackReport:
         problems.append(PackProblem("document", "foreign_quote_present"))
     for item in pack.items:
         problems += [
-            PackProblem(item.id, code) for code in _check_item(sections, item, pack.published_on)
+            PackProblem(item.id, code)
+            for code in _check_item(sections, item, pack.published_on, row["institution"])
         ]
     for relative in pack.relative_dates:
         problems += [
