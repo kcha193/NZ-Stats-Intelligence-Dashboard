@@ -28,7 +28,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from nzstats.research import issuers
-from nzstats.research.contract import IssuerRole, OutlookSummary
+from nzstats.research.contract import Direction, IssuerRole, OutlookSummary
 from nzstats.research.summarise import load_sections
 from nzstats.research.verify import _YEAR, VerificationContext, verify
 
@@ -71,10 +71,24 @@ class ExtensionItem(_Strict):
     period_as_stated: str | None = None
     issuer_role: IssuerRole | None = None
     issuer: str | None = None
+    direction: Direction | None = None  # a forecast without a number is told apart by its direction
     expected_reason: str | None = None
 
     @model_validator(mode="after")
     def _well_formed(self) -> ExtensionItem:
+        if (
+            self.kind == "decision"
+            and self.period_as_stated is not None
+            and _as_date(self.period_as_stated) is None
+        ):
+            raise ValueError("a decision's date must be written as a day, such as 2026-11-03")
+        if (
+            self.kind == "forecast"
+            and self.value is None
+            and self.category != "ambiguous"
+            and self.direction is None
+        ):
+            raise ValueError("a forecast without a number must state its direction")
         if self.category == "expected_rejection" and not self.expected_reason:
             raise ValueError("an expected rejection must say why")
         if not all(term.strip() for term in self.terms):
@@ -183,6 +197,7 @@ class _Emitted:
     issuer: str | None
     role: IssuerRole | None
     failed: bool
+    direction: str | None = None
 
 
 def _flat(text: str | None) -> str:
@@ -215,15 +230,36 @@ def _emitted(summary: OutlookSummary, failed_paths: set[str]) -> list[_Emitted]:
     for i, c in enumerate(summary.forecasts):
         text = f"{c.indicator_label} {c.indicator.value} {c.qualification or ''}"
         out.append(_Emitted("forecast", text, c.value, c.unit, c.horizon, c.issuer, c.issuer_role,
-                            f"forecasts[{i}]" in failed_paths))  # fmt: skip
+                            f"forecasts[{i}]" in failed_paths, c.direction.value))  # fmt: skip
     for i, d in enumerate(summary.decisions):
-        out.append(_Emitted("decision", f"{d.decision_maker} {d.instrument} {d.action.value}", d.rate, None, None,
-                            d.decision_maker, None, f"decisions[{i}]" in failed_paths))  # fmt: skip
+        out.append(_Emitted("decision", f"{d.decision_maker} {d.instrument} {d.action.value}", d.rate, None,
+                            d.decided_on.isoformat(), d.decision_maker, None, f"decisions[{i}]" in failed_paths))  # fmt: skip
     return out
 
 
 def _years(period: str | None) -> set[str]:
     return {m.group() for m in _YEAR.finditer(period or "")}
+
+
+_DAY_FORMATS = ("%Y-%m-%d", "%d %B %Y", "%d %b %Y", "%B %d, %Y", "%b %d, %Y")
+
+
+def _as_date(text: str | None) -> date | None:
+    """A written day as a date, or None: a decision is compared on its day, not on how the gold spells it."""
+    for form in _DAY_FORMATS:
+        try:
+            return datetime.strptime(" ".join((text or "").split()), form).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _period_exact(claim: _Emitted, item: ExtensionItem) -> bool:
+    if item.kind == "decision":
+        return _as_date(claim.period) is not None and _as_date(claim.period) == _as_date(
+            item.period_as_stated
+        )
+    return _flat(claim.period) == _flat(item.period_as_stated)
 
 
 def _same_period(claim: str | None, item: str | None) -> bool:
@@ -238,17 +274,31 @@ def _is_about(claim: _Emitted, item: ExtensionItem) -> bool:
     """The same subject and period, whatever number it states."""
     if claim.kind != item.kind or not all(_flat(t) in _flat(claim.text) for t in item.terms):
         return False
-    return item.period_as_stated is None or _same_period(claim.period, item.period_as_stated)
+    if item.period_as_stated is None:
+        return True
+    if item.kind == "decision":
+        return _period_exact(claim, item)
+    return _same_period(claim.period, item.period_as_stated)
 
 
-def _match(claim: _Emitted, items: tuple[ExtensionItem, ...]) -> ExtensionItem | None:
-    """The least favourable item this claim fits, whatever the gold's order. A broad ambiguous item must not hide an error."""
+def _match(
+    claim: _Emitted, items: tuple[ExtensionItem, ...], found: frozenset[str] = frozenset()
+) -> ExtensionItem | None:
+    """The least favourable item this claim fits, whatever the gold's order. A broad ambiguous item must not hide an error.
 
-    def rank(item: ExtensionItem) -> tuple[int, str]:
+    Among items equally right about the number, the one the claim's issuer fits comes first, then one not yet covered, so
+    two issuers' equal forecasts each find their own item. The id only breaks what is left, so order never decides.
+    """
+
+    def rank(item: ExtensionItem) -> tuple[int, bool, bool, str]:
         right = _value_right(claim, item)
+        wrong_issuer = item.issuer_role is not None and not _issuer_right(claim, item)
+        covered = item.id in found
         if item.category == "expected_rejection":
-            return (0 if right else 3, item.id)
-        return (1 if right else 2, item.id) if item.category in _IN_RECALL else (4, item.id)
+            return (0 if right else 3, wrong_issuer, covered, item.id)
+        if item.category in _IN_RECALL:
+            return (1 if right else 2, wrong_issuer, covered, item.id)
+        return (4, wrong_issuer, covered, item.id)
 
     about = [
         item
@@ -260,6 +310,13 @@ def _match(claim: _Emitted, items: tuple[ExtensionItem, ...]) -> ExtensionItem |
 
 def _value_right(claim: _Emitted, item: ExtensionItem) -> bool:
     if item.value is None:
+        # Without a number, the direction is what the claim says. Unrelated claims differ in their terms.
+        if (
+            item.kind == "forecast"
+            and item.direction is not None
+            and claim.direction != item.direction.value
+        ):
+            return False
         return claim.value is None
     # A decision has a rate but no unit field, so its unit cannot be compared.
     if item.unit is not None and claim.kind != "decision" and item.unit != claim.unit:
@@ -283,7 +340,7 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
     right = matched = unmatched = ambiguous = rejected = numbers = numbers_right = duplicates = 0
     periods = periods_right = issued = issued_right = 0
     for claim in claims:
-        item = _match(claim, items)
+        item = _match(claim, items, frozenset(found))
         if item is None:
             unmatched += 1
         elif item.category == "ambiguous":
@@ -309,7 +366,7 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
                 valued.add(item.id)
             if item.period_as_stated is not None:
                 periods += 1
-                periods_right += _flat(claim.period) == _flat(item.period_as_stated)
+                periods_right += _period_exact(claim, item)
             if issuer_checked:
                 issued += 1
                 issued_right += _issuer_right(claim, item)

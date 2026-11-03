@@ -497,3 +497,111 @@ def test_a_third_party_forecast_must_be_a_forecast():
         ExtensionItem.model_validate(
             gold("x", "third_party_forecast", "fact", role="third_party", issuer="IMF")
         )
+
+
+# Phase 4Q review round: issuer-aware matching, the decision date and qualitative direction.
+TREASURY_PAGE = "We forecast growth of 2.9% in 2027. The IMF expects growth of 2.9% in 2027."
+TWO_ISSUERS = [
+    gold("a-imf", "third_party_forecast", "forecast", ("growth",), 2.9, "2027", "third_party", "IMF"),
+    gold("b-own", "accepted_eligible", "forecast", ("growth",), 2.9, "2027", "author", "The Treasury"),
+]  # fmt: skip
+OWN_GROWTH = fc(
+    2.9, "2027", "The Treasury", "author", "growth", "We forecast growth of 2.9% in 2027"
+)
+IMF_GROWTH = fc(
+    2.9, "2027", "IMF", "third_party", "growth", "The IMF expects growth of 2.9% in 2027"
+)
+
+
+@pytest.mark.parametrize("flip", [False, True])
+@pytest.mark.parametrize("claims", [(OWN_GROWTH, IMF_GROWTH), (IMF_GROWTH, OWN_GROWTH)])
+def test_equal_forecasts_by_different_issuers_each_match_their_own_gold_in_any_order(
+    stored, claims, flip
+):
+    conn, _ = stored
+    items = TWO_ISSUERS[::-1] if flip else TWO_ISSUERS
+    raw = scored(conn, summary([], claims), items=items).views["raw"]
+    assert raw.precision.text == "2/2" and raw.recall.text == "2/2"
+    assert raw.issuer_accuracy.text == "2/2" and raw.duplicates == 0
+
+
+def test_a_repeated_forecast_cannot_cover_the_other_issuers_gold(stored):
+    conn, _ = stored
+    raw = scored(conn, summary([], [OWN_GROWTH, OWN_GROWTH]), items=TWO_ISSUERS).views["raw"]
+    assert raw.recall.text == "1/2" and raw.duplicates == 1 and raw.precision.text == "1/2"
+
+
+def test_a_forecast_with_the_wrong_issuer_for_every_gold_item_earns_no_credit(stored):
+    conn, _ = stored
+    wrong = {**IMF_GROWTH, "issuer": "OECD"}
+    raw = scored(conn, summary([], [wrong]), items=TWO_ISSUERS).views["raw"]
+    assert raw.recall.text == "0/2" and raw.issuer_accuracy.text == "0/1"
+
+
+def hold(decided_on="2026-11-03", action="hold", rate=2.75):
+    return {"instrument": "ocr", "action": action, "rate": rate, "decided_on": decided_on,
+            "decision_maker": "Monetary Policy Committee",
+            "evidence": [{"version_id": 1, "section_ordinal": 0, "page": 1, "quote": "Output rose 6.3% in the September"}]}  # fmt: skip
+
+
+def decision_gold(period="2026-11-03"):
+    return gold("hold", kind="decision", terms=("hold",), value=2.75, period=period)
+
+
+def with_decisions(*decisions):
+    s = summary()
+    return OutlookSummary.model_validate(
+        {**s.model_dump(mode="json"), "decisions": list(decisions)}
+    )
+
+
+@pytest.mark.parametrize("period", ["2026-11-03", "3 November 2026", "3 Nov 2026"])
+def test_a_decision_with_the_gold_date_earns_credit_however_the_gold_writes_it(stored, period):
+    conn, _ = stored
+    raw = scored(conn, with_decisions(hold()), items=[decision_gold(period)]).views["raw"]
+    assert (
+        raw.precision.text == "1/1" and raw.recall.text == "1/1" and raw.period_exact.text == "1/1"
+    )
+
+
+def test_a_decision_with_another_date_is_not_the_gold_decision(stored):
+    conn, _ = stored
+    raw = scored(conn, with_decisions(hold("2026-10-28")), items=[decision_gold()]).views["raw"]
+    assert raw.recall.text == "0/1" and raw.unmatched == 1
+
+
+def test_a_decision_gold_must_state_a_date_it_can_be_compared_on():
+    with pytest.raises(ValueError):
+        GoldExtension.model_validate(extension(items=[decision_gold("October")]))
+
+
+def qualitative(direction, label="growth"):
+    return {**fc(None, "2027", "The Treasury", "author", label, "We forecast growth of 2.9% in 2027"),
+            "direction": direction, "unit": None}  # fmt: skip
+
+
+def qualitative_gold(direction="up"):
+    return {**gold("dir", "accepted_eligible", "forecast", ("growth",), None, "2027", "author", "The Treasury"),
+            "unit": None, "direction": direction}  # fmt: skip
+
+
+def test_a_reversed_qualitative_forecast_earns_no_credit(stored):
+    conn, _ = stored
+    raw = scored(conn, summary([], [qualitative("down")]), items=[qualitative_gold("up")]).views[
+        "raw"
+    ]
+    assert raw.recall.text == "0/1" and raw.precision.text == "0/1"
+
+
+@pytest.mark.parametrize("direction", ["up", "down", "flat", "unclear"])
+def test_only_the_gold_direction_earns_credit(stored, direction):
+    conn, _ = stored
+    raw = scored(conn, summary([], [qualitative("up")]), items=[qualitative_gold(direction)]).views[
+        "raw"
+    ]
+    assert raw.recall.text == ("1/1" if direction == "up" else "0/1")
+
+
+def test_a_qualitative_forecast_gold_must_state_its_direction():
+    with pytest.raises(ValueError):
+        GoldExtension.model_validate(extension(items=[{**qualitative_gold(), "direction": None}]))
