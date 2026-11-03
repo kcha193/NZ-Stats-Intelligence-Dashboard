@@ -65,6 +65,10 @@ text. The public site, static snapshot, public gate and private gate are unchang
   A decision's action, vote and date must also appear in its quote (a date the quote omits may come from nearby text or the publication date).
   That last check found the pack's `ocr-decision` date (28 October) is not stated anywhere in the stored FEU text, so the owner must confirm it
   or correct the pack; an earlier "0 problems" for the pack did not test decisions this way.
+  **Status of that item: blocked, not fixed.** The FEU says only "October Monetary Policy Review". Another stored document, the owner-imported
+  RBNZ release (version 2, published 28 October), gives the meeting day as Wednesday 28 October and the same 4:3 hold at 2.75%. So the date
+  looks right, but it is corroborated by a different document, and this pack is bound to version 3. The pack, the check and its threshold are
+  unchanged; no quote was added. The owner can accept the date on that evidence, or move the item to a pack bound to version 2.
 - **Verifier probes.** True claims, then corrupted copies, through the real verifier. A corruption counts only when its true claim
   passed. These measure the checks, not any model.
 
