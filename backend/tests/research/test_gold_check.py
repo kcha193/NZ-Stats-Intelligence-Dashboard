@@ -642,3 +642,11 @@ def test_a_third_party_forecast_named_by_its_own_name_is_identified(stored):
     item = forecast(id="c", quote="The committee expects inflation of 3.4% in the December quarter", page=1,
                     issuer="The committee", issuer_role="third_party", named_as="The committee", value=3.4)  # fmt: skip
     assert "issuer_not_identified" not in codes(check_pack(conn, built(items=[item])))
+
+
+# Review round: a year written beside the decision's day must agree with the pack's year.
+@pytest.mark.parametrize("decided_on", ["2025-10-28", "2027-10-28", "2026-10-28"])
+def test_a_decision_date_with_the_wrong_year_is_not_supported_by_the_quote(stored, decided_on):
+    conn, _ = stored
+    report = check_pack(conn, built(items=[decision(decided_on=decided_on)]))
+    assert ("decided_on_not_supported" in codes(report)) == (decided_on != "2026-10-28")
