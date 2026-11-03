@@ -91,14 +91,6 @@ class GoldItem(_Strict):
     decision_maker: str | None = None
 
     @model_validator(mode="after")
-    def _a_decision_is_complete(self) -> GoldItem:
-        if self.kind == "decision" and (
-            self.action is None or self.value is None or self.decided_on is None
-        ):
-            raise ValueError("a decision needs its action, rate and date")
-        return self
-
-    @model_validator(mode="after")
     def _whole_vote(self) -> GoldItem:
         if (self.vote_for is None) != (self.vote_against is None):
             raise ValueError("a vote is recorded as both counts or neither")
