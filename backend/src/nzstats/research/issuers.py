@@ -294,8 +294,16 @@ _CREDIT_IN_CLAUSE = re.compile(
     rf"(?:the\s+)?(?:{_NAMES_ANY})(?:['’]s)?\s+{_FILLER}{_ASSERTING_WORD}(?P<rest>(?:[^,;:]|(?<=\d),(?=\d{{3}}\b))*)",
     re.IGNORECASE,
 )
+# A complement that only comments: on the horizon ("to be a challenging year") or on the forecast ("to be too optimistic"). A closed
+# list on purpose. "To remain unchanged" or "to stay at that level" forecast the figure itself, and an unknown predicate may too.
+_COMMENT_ON_YEAR = r"(?:an?|the)\s+(?:[\w-]+\s+){0,2}(?:year|period|quarter|time|test)"
+_COMMENT_ON_FORECAST = (
+    r"(?:optimistic|pessimistic|ambitious|conservative|cautious|generous|modest|challenging|difficult|tough|uncertain"
+    r"|volatile|risky|demanding|testing|turbulent)"
+)
 _COMPLEMENT = re.compile(
-    r"\s*(?:to\s+(?:be|remain|prove|become|stay)|(?:will|would|should|could|might|may)\s+\w+)\b",
+    r"\s*(?:to|will|would|should|could|might|may)\s+(?:be|prove)\s+"
+    rf"(?:(?:too|very|rather|quite|fairly|somewhat|overly|extremely)\s+)?(?:{_COMMENT_ON_YEAR}|{_COMMENT_ON_FORECAST})\b",
     re.IGNORECASE,
 )
 _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")

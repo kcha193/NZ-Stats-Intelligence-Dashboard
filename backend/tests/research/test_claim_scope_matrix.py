@@ -138,6 +138,7 @@ ISSUER_VALID = [
     ("We expect growth of 3% in 2029, which is above the IMF\'s forecast of 2%.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 2, "IMF", "third_party"),
+    ("We note growth of 3% in 2029, which the IMF expects to remain unchanged.", 3, "IMF", "third_party"),
     ("We expect growth of 3% in 2029, which the IMF expects to be 2 percentage points.", 3, "The Treasury", "author"),
     ("We expect inflation of 1,500% in 2029, which the IMF expects to be 2,500%.", 1500, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects to be a challenging year.", 3, "The Treasury", "author"),
@@ -197,6 +198,11 @@ ISSUER_INVALID = [
     ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expected to be 3%.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expected 3%.", 3, "The Treasury", "author"),
+    # A complement that keeps the figure is the forecaster's view of the figure, not a comment on the year.
+    ("We note growth of 3% in 2029, which the IMF expects to remain unchanged.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to stay at that level.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be unchanged.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected would be maintained.", 3, "The Treasury", "author"),
     # A figure the check cannot read is still a figure: other units, spelled out, thousands separators.
     ("We expect growth of 3% in 2029, which the IMF expects to be 3 percentage points.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expects to be three per cent.", 3, "The Treasury", "author"),

@@ -16,6 +16,10 @@ BLOCKS = [
     ("We expect growth of ", "3% in 2029, which the IMF expects to be 3 percentage points."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be three per cent."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be 3."),
+    ("We note growth of ", "3% in 2029, which the IMF expects to remain unchanged."),
+    ("We expect growth of ", "3% in 2029, which the IMF expects to stay at that level."),
+    ("We expect growth of ", "3% in 2029, which the IMF expects to be unchanged."),
+    ("We expect growth of ", "3% in 2029, which the IMF expected would be maintained."),
 ]
 PASSES = [
     ("We expect growth of ", "3% in 2029, which the IMF expects to be 2 percentage points."),
