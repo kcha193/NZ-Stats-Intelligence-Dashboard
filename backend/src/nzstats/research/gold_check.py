@@ -53,6 +53,15 @@ WRONG_PERIOD_YEARS = range(
 UNSUPPORTED_YEARS = range(
     2025, 1999, -1
 )  # an added year is the latest of these the document never states
+ACTION_WORDS = {  # what a quote says of each decision, as the verifier reads it
+    PolicyAction.HOLD: re.compile(
+        r"\b(?:hold|holds|held|unchanged|kept|keep|left|leave|maintain\w*|steady)\b", re.I
+    ),
+    PolicyAction.INCREASE: re.compile(r"\b(?:rais\w*|increas\w*|hik\w*|tighten\w*)", re.I),
+    PolicyAction.DECREASE: re.compile(r"\b(?:cut|cuts|cutting|lower\w*|reduc\w*|decreas\w*)", re.I),
+}
+VOTE_SEPARATOR = r"\s*(?:-|\u2013|\u2212|:|to)\s*"
+MONTH_ENDINGS = ("uary", "ruary", "ch", "il", "e", "y", "ust", "tember", "t", "ober", "ember")
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 MINUS = "-\u2212"  # hyphen-minus and the typographic minus
 WRONG_ISSUERS = (
@@ -264,7 +273,28 @@ def _period_conflict(stated: str | None, resolved: str | None) -> bool:
     return QUARTERS[named.group(1)] != quarter or bool(years and year not in years)
 
 
-def _check_item(sections: dict[int, SectionText], item: GoldItem) -> list[str]:
+def _decision_codes(item: GoldItem, quote: str, nearby: str, published_on: date) -> list[str]:
+    """A decision's action, vote and date against its quote. A date the quote omits may come from nearby text or the publication date."""
+    codes = []
+    if item.action is not None and not ACTION_WORDS[item.action].search(quote):
+        codes.append("action_not_in_quote")
+    if item.vote_for is not None and not re.search(
+        rf"(?<![\d.]){item.vote_for}{VOTE_SEPARATOR}{item.vote_against}(?![\d.])", quote
+    ):
+        codes.append("vote_not_in_quote")
+    if item.decided_on is not None:
+        day = (item.decided_on.month, item.decided_on.day)
+        stated = _calendar_dates(quote)
+        if stated:
+            supported = day in stated
+        else:
+            supported = day in _calendar_dates(nearby) or item.decided_on == published_on
+        if not supported:
+            codes.append("decided_on_not_supported")
+    return codes
+
+
+def _check_item(sections: dict[int, SectionText], item: GoldItem, published_on: date) -> list[str]:
     found = _find(sections, item.page, item.quote)
     if found is None:
         return ["quote_not_found"]
@@ -280,6 +310,8 @@ def _check_item(sections: dict[int, SectionText], item: GoldItem) -> list[str]:
         codes.append("period_resolved_mismatch")
     if _flat(item.named_as).lower() not in found[1].lower():
         codes.append("issuer_not_near_quote")
+    if item.kind == "decision":
+        codes += _decision_codes(item, _flat(item.quote), found[1], published_on)
     return codes
 
 
@@ -302,7 +334,8 @@ def _relative_candidates(phrase: str, document: date) -> set[date] | None:
 
 def _calendar_dates(line: str) -> set[tuple[int, int]]:
     """The (month, day) pairs a calendar line states, as "4 Nov", "4 November" or "Nov 4". The line carries no year."""
-    month = rf"(?P<m>{'|'.join(MONTHS)})[a-z]*\.?"
+    # a month's full name or its three-letter form, so that "5 market participants" and "2 mar" are not dates
+    month = rf"(?P<m>{'|'.join(MONTHS)})(?:{'|'.join(MONTH_ENDINGS)})?\.?"
     found = [
         (m["m"], m["d"]) for m in re.finditer(rf"\b(?P<d>\d{{1,2}})\s+{month}\b", line.lower())
     ]
@@ -371,7 +404,9 @@ def check_pack(conn: sqlite3.Connection, pack: AccuracyPack) -> PackReport:
     if _flat(pack.foreign_quote) in " ".join(_flat(s.text) for s in sections.values()):
         problems.append(PackProblem("document", "foreign_quote_present"))
     for item in pack.items:
-        problems += [PackProblem(item.id, code) for code in _check_item(sections, item)]
+        problems += [
+            PackProblem(item.id, code) for code in _check_item(sections, item, pack.published_on)
+        ]
     for relative in pack.relative_dates:
         problems += [
             PackProblem(relative.id, code) for code in _check_relative(sections, pack, relative)
