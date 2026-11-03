@@ -209,6 +209,8 @@ _MONTHS = ("january", "february", "march", "april", "may", "june", "july", "augu
            "october", "november", "december")  # fmt: skip
 _MONTH = re.compile(r"\b(" + "|".join((*_MONTHS, *(m[:3] for m in _MONTHS), "sept")) + r")\b", re.I)
 _QUARTER_LABEL = re.compile(r"\bq([1-4])\b", re.IGNORECASE)
+# "the 12 months to June 2029": a length of time, not a figure of its own.
+_DURATION = re.compile(r"\b\d+\s+(?:weeks?|months?|quarters?|years?)\b", re.IGNORECASE)
 _WORD = re.compile(r"[a-z]+")
 _STOP = frozenset(
     "this that with from have will been were their there which would could should into over than"
@@ -699,7 +701,9 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
     if after is not None and any(_period_parts(loc.text[after.start() : b])[:3]):
         head, tail = loc.text[a : after.start()], loc.text[after.end() : b]
         word = after.group().lower()
-        second_figure = _numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail))))
+        second_figure = _numbers(
+            _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", _DURATION.sub("", tail))))
+        )
         # "to remain at 2% from 2029" starts a level, and "3% above trend in 2029" is a gap, not another figure's period.
         starts_level = word == "from" and _LEVEL.search(loc.text[a:at]) is not None
         no_comparison = not second_figure and (starts_level or word in {"above", "below"})
@@ -1418,7 +1422,7 @@ class _Checker:
                     blocks = third_parties
                 if who is not None:
                     # "We note the MPC said it expected", or a credit earlier in the sentence than this clause.
-                    lead = issuers.since_author(loc.lead_to(at), author)
+                    lead = issuers.since_credit(loc.lead_to(at), who, author)
                     blocks = others(issuers.reported(lead)) - {who}
                 return who, blocks
         blocks: set[str] = set()

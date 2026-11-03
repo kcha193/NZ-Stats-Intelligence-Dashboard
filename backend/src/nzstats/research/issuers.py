@@ -74,8 +74,12 @@ _MARKET_ISSUER = re.compile(
     r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\s*$", re.IGNORECASE
 )
 _REPORTED = r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+to\b)\b"
+# "Markets forecast growth" is the market's view; "market forecasts of 3%" and "markets expected to rise" are not.
 _MARKET_EXPECTS = re.compile(
-    r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?expect(?:s\b|ed(?!\s+to\b)\b|\b)",
+    r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?"
+    r"(?:expect(?:s\b|ed(?!\s+to\b)\b|\b)"
+    r"|(?:forecasts?|forecasted|anticipates?|anticipated|predicts?|predicted|projects?|projected)"
+    r"(?!\s+(?:of|for|from|that|to|is|are|was|were|by)\b)\b)",
     re.IGNORECASE,
 )
 # Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
@@ -213,12 +217,43 @@ def since_author(before: str, author: str | None) -> str:
     return before[max(last, default=0) :]
 
 
+def since_credit(before: str, who: str | None, author: str | None) -> str:
+    """What `before` says after the last words of `who`, the one the figure is credited to.
+
+    An earlier forecaster's separate figure ("The RBNZ expected 2% but the IMF forecasts 3%") is not the credited
+    forecaster's concern. For the author this is `since_author`.
+    """
+    if who in (None, "author"):
+        return since_author(before, author)
+    last = [m.end() for m in _PATTERNS[who][0].finditer(before)] if who in _PATTERNS else []
+    return before[max(last, default=0) :]
+
+
 def _credited_outside_comparison(text: str) -> set[str]:
     return {
         key
         for key, (_, credit) in _PATTERNS.items()
         if any(not _COMPARED_WITH.search(text[: m.start()]) for m in credit.finditer(text))
     }
+
+
+# A figure with units. A bare year or count is not another assertion's figure.
+_FIGURE = re.compile(
+    r"\d[\d,.]*\s*(?:%|per\s?cent\b|percent\b|basis\s+points?\b|bps\b|b\b|bn\b|billion\b|million\b)|\$\s*\d",
+    re.IGNORECASE,
+)
+_NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|and|then)\b", re.IGNORECASE)
+
+
+def own_assertion(after: str) -> str:
+    """What follows a figure, up to the next assertion that has a figure of its own.
+
+    "…3% in 2029, while inflation will be 2%, which the IMF expects": the IMF belongs to the 2%.
+    """
+    for m in _NEXT_ASSERTION.finditer(after):
+        if _FIGURE.search(after, m.end()):
+            return after[: m.start()]
+    return after
 
 
 def third_parties_around(before: str, after: str, author: str | None) -> set[str]:
@@ -228,6 +263,7 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     its own clause after it. A name alone does not count, so
     "the RBNZ is expected to cut" stays beside the author's own forecast.
     """
+    after = own_assertion(after)
     texts = [since_author(before, author)]
     which = _WHICH.search(after)
     if which is not None:
