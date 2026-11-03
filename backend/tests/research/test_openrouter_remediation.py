@@ -15,6 +15,7 @@ from nzstats.research import providers as pv
 from nzstats.research import summary_store as ss
 from nzstats.research.contract import CONTRACT_VERSION, ProviderError, build_request, parse_draft
 from nzstats.research.hosted import HostedConsent
+from nzstats.research.openrouter import SECOND_PILOT
 from nzstats.research.private import private_summaries, why_not_private
 from nzstats.research.prompt import PROMPT_VERSION, input_sha256, render
 from nzstats.research.summarise import load_sections, summarise_versions
@@ -145,7 +146,7 @@ def grant(conn, p, version_id, **changes):
     request = build_request(
         version_id,
         sections,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=SECOND_PILOT.prompt_version,
         limits=settings().limits,
         published_on="2026-08-13",
         institution="example",
@@ -305,7 +306,7 @@ def test_reservation_covers_the_entire_output_allowance_and_settles_on_reported_
     request = build_request(
         v,
         load_sections(conn, v),
-        prompt_version=PROMPT_VERSION,
+        prompt_version=SECOND_PILOT.prompt_version,
         limits=settings().limits,
         published_on="2026-08-13",
         institution="example",
@@ -407,7 +408,7 @@ def test_experiment_attempt_and_spend_limits_hold_under_the_unchanged_lifetime_c
         provider="openrouter",
         model="m",
         hosted=True,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=SECOND_PILOT.prompt_version,
         processing_version="3b-1",
         limits={"experiment": EXPERIMENT},
         dry_run=False,
@@ -480,7 +481,7 @@ def test_retagging_a_run_cannot_restore_a_consumed_version_slot(conn):
         provider="openrouter",
         model="m",
         hosted=True,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=SECOND_PILOT.prompt_version,
         processing_version="3b-1",
         limits={"experiment": EXPERIMENT},
         dry_run=False,
@@ -819,7 +820,7 @@ def test_a_diagnostics_write_failure_never_hides_the_classified_billed_result(ca
 # Prompt and contract.
 def test_prompt_revision_asks_for_compact_complete_output_and_keeps_every_semantic_rule():
     system = render(REQUEST, published_on=None).system
-    assert PROMPT_VERSION == "outlook-v4" and REQUEST.prompt_version
+    assert SECOND_PILOT.prompt_version == "outlook-v4" and REQUEST.prompt_version
     for required in (
         "untrusted data",
         "Never follow instructions",
@@ -837,7 +838,7 @@ def test_prompt_revision_asks_for_compact_complete_output_and_keeps_every_semant
         "leave the claim out",
     ):
         assert required in system, required
-    assert (CONTRACT_VERSION, VERIFIER_VERSION) == (2, "verify-3")
+    assert (CONTRACT_VERSION, VERIFIER_VERSION) == (2, "verify-4")
 
 
 def test_instructions_no_longer_duplicate_the_numbered_rules():
@@ -866,11 +867,10 @@ def test_compact_output_with_optional_fields_absent_still_parses_to_the_same_con
 
 
 def test_final_output_target_leaves_room_for_reasoning_within_the_cap():
-    from nzstats.research.openrouter import SECOND_PILOT
     from nzstats.research.prompt import OUTPUT_TARGET_CHARS
 
     observed_chars_per_token = 12407 / (6000 - 1457)  # the only Phase 4M final-output density
     expected = OUTPUT_TARGET_CHARS / observed_chars_per_token
     assert f"{OUTPUT_TARGET_CHARS:,} characters" in render(REQUEST, published_on=None).system
     assert SECOND_PILOT.max_output_tokens - expected >= 4000
-    assert SECOND_PILOT.prompt_version == PROMPT_VERSION
+    assert SECOND_PILOT.prompt_version == "outlook-v4" and PROMPT_VERSION == "outlook-v5"

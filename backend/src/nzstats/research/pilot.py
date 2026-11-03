@@ -28,7 +28,7 @@ from nzstats.clock import utc_now
 from nzstats.research.contract import LlmLimits, SummaryRequest, build_request
 from nzstats.research.hosted import HostedConsent, approved_sections, section_inventory_sha256
 from nzstats.research.openrouter import SECOND_PILOT, OpenRouterProvider, input_token_bound
-from nzstats.research.prompt import PROMPT_VERSION, input_sha256, render
+from nzstats.research.prompt import input_sha256, render
 from nzstats.research.providers import OPENROUTER_URL, LlmSettings, Pricing
 from nzstats.research.registry import Institution
 from nzstats.research.summarise import (
@@ -179,7 +179,7 @@ def freeze(
             request = build_request(
                 c.version_id,
                 {n: sections[n] for n in ordinals},
-                prompt_version=PROMPT_VERSION,
+                prompt_version=SECOND_PILOT.prompt_version,
                 limits=settings.limits,
                 published_on=c.published_on,
                 institution=c.institution,
@@ -226,7 +226,7 @@ def freeze(
         "model": MODEL,
         "canonical_model": CANONICAL_MODEL,
         "provider_id": ROUTE,
-        "prompt_version": PROMPT_VERSION,
+        "prompt_version": SECOND_PILOT.prompt_version,
         "processing_version": PROCESSING_VERSION,
         "verifier_version": VERIFIER_VERSION,
         "contract_version": 2,
@@ -400,7 +400,7 @@ def execute(
             MODEL,
             CANONICAL_MODEL,
             ROUTE,
-            PROMPT_VERSION,
+            SECOND_PILOT.prompt_version,
             PROCESSING_VERSION,
             VERIFIER_VERSION,
             2,
@@ -509,7 +509,7 @@ def execute(
                 approved_sections(
                     load_sections(conn, version), next(g for g in grants if g.version_id == version)
                 ),
-                prompt_version=PROMPT_VERSION,
+                prompt_version=SECOND_PILOT.prompt_version,
                 limits=settings.limits,
                 published_on=c[0].published_on,
                 institution=c[0].institution,

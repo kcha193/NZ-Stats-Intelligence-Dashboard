@@ -1,0 +1,247 @@
+"""Claim-local grounding matrix (Phase 4Q review round). SYNTHETIC FIXTURE: invented sentences and figures.
+
+One table for the review findings that kept coming back one example at a time. Each valid claim is paired with a near-twin
+that must still be rejected, so a fix cannot pass by loosening the check. A claim is judged on the words around its own
+figure: the horizon it states, and the forecaster its own clause credits.
+"""
+
+import pytest
+
+from nzstats.research.contract import ReportedFact, SectionText
+
+from .verify_support import check, codes, forecast, ref
+
+HORIZON_CODES = {"horizon_not_supported", "period_not_supported"}
+ISSUER_CODES = {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+def forecast_codes(
+    sentence, value, *, horizon="2029", issuer="The Treasury", role="author", indicator="gdp"
+):
+    quote = sentence.rstrip(".")
+    claim = forecast(
+        0, quote, 1, value=value, unit="percent", horizon=horizon, issuer=issuer, issuer_role=role,
+        indicator=indicator,
+    )  # fmt: skip
+    report = check(
+        {0: SectionText(sentence, 1, 1)},
+        outlook_ref=ref(0, quote),
+        institution="treasury",
+        forecasts=[claim],
+    )
+    return codes(report)
+
+
+def fact_codes(sentence, value, period):
+    quote = sentence.rstrip(".")
+    fact = ReportedFact(text="Synthetic figure.", source="Synthetic Statistics", value=value, unit="percent",
+                        period=period, evidence=[ref(0, quote)])  # fmt: skip
+    return codes(check({0: SectionText(sentence)}, outlook_ref=ref(0, quote), facts=[fact]))
+
+
+# --- the horizon a figure states ------------------------------------------------------------------------------
+HORIZON_VALID = [
+    ("We expect inflation to remain at 2% from 2027 in our central forecast.", 2, "2027"),
+    ("We expect output to be 3% above trend in 2029.", 3, "2029"),
+    ("We expect output to be 3% below trend by 2029.", 3, "2029"),
+    ("We expect inflation of 3% or below by 2029.", 3, "2029"),
+    ("We expect inflation of 3% or above in 2029.", 3, "2029"),
+    (
+        "We expect output to be 3% above trend over the 12 months to June 2029.",
+        3,
+        "12 months to June 2029",
+    ),
+    ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "June 2029"),
+    ("We expect output to be 3% above trend in the 4 quarters to June 2029.", 3, "June 2029"),
+    ("We expect growth of 3% against a backdrop of weak demand in 2029.", 3, "2029"),
+    ("We expect growth of 3% from stronger exports in 2029.", 3, "2029"),
+    (
+        "We expect growth of 3% from higher investment in the year to June 2029.",
+        3,
+        "year to June 2029",
+    ),
+    ("We expect growth of 3% against the background of weak demand in 2029.", 3, "2029"),
+]
+
+
+@pytest.mark.parametrize(("sentence", "value", "horizon"), HORIZON_VALID)
+def test_a_stated_horizon_survives_starts_bounds_and_durations(sentence, value, horizon):
+    assert not forecast_codes(sentence, value, horizon=horizon) & HORIZON_CODES
+
+
+HORIZON_INVALID = [
+    ("We expect inflation to remain at 2% from 2027 in our central forecast.", 2, "2028"),
+    ("We expect output to be 3% above trend in 2029.", 3, "2030"),
+    ("We expect inflation of 3% or below by 2029.", 3, "2030"),
+    (
+        "We expect output to be 3% above trend over the 12 months to June 2029.",
+        3,
+        "12 months to June 2030",
+    ),
+    ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "June 2030"),
+    ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "March 2029"),
+    ("We expect growth of 3% against a backdrop of weak demand in 2029.", 3, "2030"),
+    ("We expect growth of 3% against 2% in 2029.", 3, "2029"),
+    ("We expect growth of 3% from July 2028 in 2029.", 3, "2029"),
+    ("We expect growth of 3% from 2% in 2029.", 3, "2029"),
+    ("We expect growth of 3% against a backdrop of 2% growth in 2029.", 3, "2029"),
+    ("Against a backdrop of weak demand in 2029, we expect growth of 3%.", 3, "2029"),
+]
+
+
+@pytest.mark.parametrize(("sentence", "value", "horizon"), HORIZON_INVALID)
+def test_an_unstated_horizon_is_still_rejected(sentence, value, horizon):
+    assert forecast_codes(sentence, value, horizon=horizon) & HORIZON_CODES
+
+
+def test_a_duration_is_not_a_second_figure_but_a_second_figure_still_is():
+    sentence = "Output was 3% above trend over the 12 months to June 2029."
+    assert "period_not_supported" not in fact_codes(sentence, 3, "June 2029")
+    assert "period_not_supported" in fact_codes(sentence, 3, "June 2028")
+    # A real second figure keeps the gap exemption off: "3% above 2%" compares, and 2029 is not the 3%'s period.
+    assert "period_not_supported" in fact_codes("Freight rose 3% above 2% in 2029.", 3, "2029")
+
+
+def test_a_sentence_opening_year_still_reaches_a_coordinated_fact():
+    sentence = "In 2030, output rose 2% and inflation rose 3%, up from 1% in June."
+    assert "period_not_supported" not in fact_codes(sentence, 3, "2030")
+    assert "period_not_supported" in fact_codes(sentence, 3, "June")
+
+
+# --- who the figure's own clause credits ----------------------------------------------------------------------
+# (sentence, value, issuer, role): a correctly labelled claim.
+ISSUER_VALID = [
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury forecasts at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury\'s forecast of 3% in 2029.", 3, "The Treasury", "author"),
+    ("Markets forecast growth of 3% in 2029.", 3, "Markets", "third_party"),
+    ("With the RBNZ expected not to cut the OCR below 3% in 2029, we expect financing costs to remain elevated.", 3, "The Treasury", "author"),
+    ("With the RBNZ never expected to cut the OCR below 3% in 2029, we expect financing costs to stay high.", 3, "The Treasury", "author"),
+    ("With the RBNZ expected by Capital Economics to cut the OCR to 3% in 2029, financing costs will ease.", 3, "Capital Economics", "third_party"),
+    ("Growth of 3% is expected by Market Economics Ltd in 2029.", 3, "Market Economics Ltd", "third_party"),
+    ("Growth of 3% is expected by the Financial Markets Authority in 2029.", 3, "Financial Markets Authority", "third_party"),
+    ("Markets anticipate growth of 3% in 2029.", 3, "Markets", "third_party"),
+    ("The market forecasts growth of 3% in 2029.", 3, "The market", "third_party"),
+    ("With the RBNZ expected by the IMF to cut the OCR to 3% in 2029, financing costs will ease.", 3, "IMF", "third_party"),
+    ("The Treasury expected growth of 3% in 2029, while the RBNZ expected inflation of 2% in 2029.", 3, "The Treasury", "author"),
+    ("The Treasury expected growth of 3% in 2029, while the RBNZ expected inflation of 2% in 2029.", 2, "RBNZ", "third_party"),
+    ("We expect growth of 3% in 2029, which exceeds what the IMF forecasts.", 3, "The Treasury", "author"),
+    ("The RBNZ expected growth of 2% but we forecast 3% in 2029.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, while inflation will be 2%, which the IMF expects.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, while inflation will be 2%, which the IMF expects.", 2, "IMF", "third_party"),
+    ("The RBNZ expected growth of 2% but the IMF forecasts 3% in 2029.", 3, "IMF", "third_party"),
+    ("Our growth forecast of 3% in 2029 compares with market forecasts of 2%.", 3, "The Treasury", "author"),
+    # A trailing "which" clause binds to the figure only when it credits the figure itself.
+    ("We expect growth of 3% in 2029, which the IMF expects to be a challenging year.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be too optimistic.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected would be a challenging year.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which is above the IMF\'s forecast of 2%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 2, "IMF", "third_party"),
+    ("We note growth of 3% in 2029, which the IMF expects to remain unchanged.", 3, "IMF", "third_party"),
+    ("We note growth of 3% in 2029, which the IMF expects to remain unchanged for 2 years.", 3, "IMF", "third_party"),
+    ("We expect growth of 3% in 2029, which exceeds the IMF\'s forecast of 2%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which is below the IMF\'s forecast of 4%.", 3, "The Treasury", "author"),
+    ("We expect growth of -3% in 2029, which is below the IMF\'s forecast of -2%.", -3, "The Treasury", "author"),
+    ("We expect growth of -3% in 2029, which the IMF expects to be a challenging year.", -3, "The Treasury", "author"),
+    # "expected by" a date: abbreviated months, half-years, fiscal and relative labels name no forecaster.
+    ("Growth of 3% is expected by Dec 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Dec. 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Sept 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Jun 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by H2 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by FY29.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Mid-2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Early 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Q2 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects to be a challenging year.", 3, "The Treasury", "author"),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize(("sentence", "value", "issuer", "role"), ISSUER_VALID)
+def test_a_correctly_labelled_forecast_is_accepted(sentence, value, issuer, role):
+    assert not forecast_codes(sentence, value, issuer=issuer, role=role) & ISSUER_CODES
+
+
+ISSUER_INVALID = [
+    ("Markets forecast growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("Markets forecast growth of 3% in 2029.", 3, "IMF", "third_party"),
+    ("With the RBNZ expected by the IMF to cut the OCR to 3% in 2029, financing costs will ease.", 3, "RBNZ", "third_party"),
+    ("With the RBNZ expected by the IMF to cut the OCR to 3% in 2029, financing costs will ease.", 3, "The Treasury", "author"),
+    ("The IMF forecasts growth of 3% in 2029, which exceeds what we expect.", 3, "The Treasury", "author"),
+    ("The RBNZ expected growth of 2% but we forecast 3% in 2029.", 3, "RBNZ", "third_party"),
+    ("The RBNZ expected growth of 2% but we forecast 3% in 2029.", 2, "The Treasury", "author"),
+    ("We expect inflation of 2% in 2029, while growth will be 3%, which the IMF expects.", 3, "The Treasury", "author"),
+    ("The RBNZ expected growth of 2% but the IMF forecasts 3% in 2029.", 3, "RBNZ", "third_party"),
+    ("The RBNZ expected growth of 2% but the IMF forecasts 3% in 2029.", 2, "IMF", "third_party"),
+    ("The RBNZ expected growth of 2% but the IMF forecasts 3% in 2029.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects, while inflation will be 2%.", 3, "The Treasury", "author"),
+    ("The IMF forecasts growth of 2%, but the RBNZ expected 3% in 2029.", 3, "IMF", "third_party"),
+    ("We expect growth of 3% in 2029 and inflation of 2%, which the IMF expects.", 3, "The Treasury", "author"),
+    ("The IMF forecasts growth of 2% in 2029, but the IMF is above what the RBNZ expects: the RBNZ expected 3% in 2029.", 3, "IMF", "third_party"),
+    ("The IMF expects growth of 3% in 2029, higher than we expected.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 3%, less than we forecast at 2% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast, and the IMF also forecasts 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029 according to the IMF.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
+    ("The IMF expects, unlike us, growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029.", 3, "IMF", "third_party"),
+    ("The IMF expects, unlike our forecast, growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than our rivals forecast at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we doubt at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury\'s critics forecast at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury does not forecast at 3% in 2029.", 3, "The Treasury", "author"),
+    ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("The RBNZ expected the OCR to stay at 3% in 2029.", 3, "The Treasury", "author"),
+    ("With the RBNZ expected by Capital Economics to cut the OCR to 3% in 2029, financing costs will ease.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Market Participants in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by THE MARKET in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Market Economics Ltd in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by the Financial Markets Authority in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Markets in 2029.", 3, "The Treasury", "author"),
+    ("Markets projected growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be a challenging year.", 3, "IMF", "third_party"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 3.0 per cent.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF forecasts at 2% and 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects in 2029.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be a challenging year, and the IMF forecasts 3%.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected to be 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected 3%.", 3, "The Treasury", "author"),
+    # A complement that keeps the figure is the forecaster's view of the figure, not a comment on the year.
+    ("We note growth of 3% in 2029, which the IMF expects to remain unchanged.", 3, "The Treasury", "author"),
+    ("We note growth of 3% in 2029, which the IMF expects to remain unchanged for 2 years.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which is in line with the IMF\'s forecast of 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of -3% in 2029, which the IMF forecasts at -3%.", -3, "The Treasury", "author"),
+    # A name that merely starts like a date is still a forecaster.
+    ("Growth of 3% is expected by Decker Economics in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Mar Capital in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Junction Research in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Mid Research in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Early Capital in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Dec Capital in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by H2 Capital in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by H2O Research in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by FY2 Partners in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by FY29 Partners in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Q2 Capital in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by March Capital in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Late Capital in 2029.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to stay at that level.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be unchanged.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected would be maintained.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be the same this year.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be a year of unchanged growth.", 3, "The Treasury", "author"),
+    # A figure the check cannot read is still a figure: other units, spelled out, thousands separators.
+    ("We expect growth of 3% in 2029, which the IMF expects to be 3 percentage points.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be three per cent.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 3.", 3, "The Treasury", "author"),
+    ("We expect inflation of 1,500% in 2029, which the IMF expects to be 1,500%.", 1500, "The Treasury", "author"),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize(("sentence", "value", "issuer", "role"), ISSUER_INVALID)
+def test_a_misattributed_forecast_is_still_rejected(sentence, value, issuer, role):
+    assert forecast_codes(sentence, value, issuer=issuer, role=role) & ISSUER_CODES

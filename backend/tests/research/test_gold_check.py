@@ -591,6 +591,14 @@ def test_a_view_is_probed_as_a_statement_not_as_a_reported_figure(stored):
     assert by_name["baseline"].caught is False and by_name["foreign_evidence"].caught is True
 
 
+@pytest.mark.parametrize("missing", ["action", "value", "decided_on"])
+def test_a_decision_item_must_be_complete(missing):
+    item = decision()
+    del item[missing]
+    with pytest.raises(ValueError):
+        built(items=[item])
+
+
 def test_load_pack_refuses_a_malformed_file_with_a_fixed_message(tmp_path):
     path = tmp_path / "pack.json"
     path.write_text('{"annotator": "SECRET TEXT"}')

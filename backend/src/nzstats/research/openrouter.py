@@ -21,7 +21,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from nzstats.research.contract import LlmLimits, ProviderError, ProviderResponse, SummaryRequest
-from nzstats.research.prompt import PROMPT_VERSION, render
+from nzstats.research.prompt import PROMPT_VERSION, RULES_SHA256, render
 from nzstats.research.providers import (
     OPENROUTER_URL,
     LlmConfigError,
@@ -123,14 +123,13 @@ def validate_settings(settings: LlmSettings) -> Route:
         experiment = EXPERIMENTS.get(settings.openrouter_experiment)
         if (
             experiment is None
+            or experiment.prompt_version not in RULES_SHA256
             or (
-                experiment.prompt_version,
                 experiment.reasoning_effort,
                 experiment.max_output_tokens,
                 experiment.timeout_seconds,
             )
             != (
-                PROMPT_VERSION,
                 settings.openrouter_reasoning_effort,
                 limits.max_output_tokens,
                 limits.timeout_seconds,
@@ -203,6 +202,12 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     def pilot_scope(self) -> PilotScope:
         experiment = self._settings.openrouter_experiment
         return EXPERIMENTS[experiment].scope if experiment else PilotScope()
+
+    @property
+    def prompt_version(self) -> str:
+        """An experiment keeps the prompt it was reviewed and consented with."""
+        experiment = self._settings.openrouter_experiment
+        return EXPERIMENTS[experiment].prompt_version if experiment else PROMPT_VERSION
 
     def validate_run(self, pricing: Pricing, limits: LlmLimits) -> None:
         """The reservation must cover exactly the adapter's actual output/timeout caps."""

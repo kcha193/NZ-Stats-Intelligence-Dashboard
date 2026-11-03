@@ -40,7 +40,7 @@ from nzstats.research.contract import (
 )
 from nzstats.research.prompt import INJECTION_PATTERN
 
-VERIFIER_VERSION = "verify-3"
+VERIFIER_VERSION = "verify-4"
 SCOPE = (
     "Deterministic evidence checks only: quotes, numbers, units, horizons, versions and pages were"
     " matched against the stored text. This is not a check of economic accuracy, completeness or"
@@ -114,6 +114,33 @@ _ADJUSTMENT = {
 _FRACTIONS = {"½": 0.5, "¼": 0.25, "¾": 0.75}
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
+# The start of a comparison after a figure. Only ever used to add a rejection: see `_period_only_in_comparison`.
+# "against a backdrop of weak demand" is context, but "against a backdrop of 2% growth" compares: only a phrase with no figure of
+# its own (before the clause ends) is exempt.
+_NO_FIGURE = r"(?![^,;]*\d[\d.,]*\s*(?:%|percent|per\s?cent|bps|basis))"
+# A bare "from" compares only when it leads straight to a figure, a month or a relative period ("from 5.9%", "from July", "from last
+# year"). "from stronger exports" gives a reason, not a base.
+_FROM_BASE = (
+    r"(?=\s+(?:the\s+|a\s+)?(?:\d|\$|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b"
+    r"|q[1-4]\b|(?:last|previous|prior|same|a\s+year|a\s+quarter)\b))"
+)
+_COMPARISON = re.compile(
+    rf"\b(?:up|down|higher|lower)\s+from\b|\bfrom\b{_FROM_BASE}|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b"
+    rf"|\bvs\b|\bagainst\b(?!\s+(?:an?|the)\s+(?:back(?:drop|ground)|context)\b{_NO_FIGURE})|\babove\b|\bbelow\b",
+    re.IGNORECASE,
+)
+# A bare "from" states when a level starts only when one of these leads straight to the figure. Anything else compares.
+_LEVEL = re.compile(
+    r"\b(?:remain|stay|hold)(?:s|ing)?\s+(?:(?:at|around|about|near)\s+)?$"
+    r"|\b(?:remained|stayed|held)\s+(?:(?:at|around|about|near)\s+)?$",
+    re.IGNORECASE,
+)
+# A comparison that opens a sentence: "Compared with June, freight rose 0.8%." An opening "Against a backdrop of … in 2029," names a
+# period that may be the backdrop's rather than the figure's, so it stays a comparison.
+_LEAD_COMPARISON = re.compile(
+    r"\s*(?:compared\s+(?:with|to)|relative\s+to|versus|against)\b[^,;]*[,;]",
+    re.IGNORECASE,
+)
 _FORWARD = re.compile(
     r"forecast|expect|project|predict|anticipat|outlook|assum|\bwill\b|\bwould\b|\bshould\b"
     r"|\blikely\b|\bsees?\b|\bseen\b|pencil|\bplan|scenario|\bpath\b|\bestimated? to\b"
@@ -193,6 +220,8 @@ _MONTHS = ("january", "february", "march", "april", "may", "june", "july", "augu
            "october", "november", "december")  # fmt: skip
 _MONTH = re.compile(r"\b(" + "|".join((*_MONTHS, *(m[:3] for m in _MONTHS), "sept")) + r")\b", re.I)
 _QUARTER_LABEL = re.compile(r"\bq([1-4])\b", re.IGNORECASE)
+# "the 12 months to June 2029": a length of time, not a figure of its own.
+_DURATION = re.compile(r"\b\d+\s+(?:weeks?|months?|quarters?|years?)\b", re.IGNORECASE)
 _WORD = re.compile(r"[a-z]+")
 _STOP = frozenset(
     "this that with from have will been were their there which would could should into over than"
@@ -502,6 +531,11 @@ class _Located:
         """The clause of the quote's sentence that contains `offset` (section coordinates)."""
         return self.text[slice(*self._clause_span(offset))]
 
+    def sentence_around(self, offset: int) -> tuple[str, str]:
+        """The sentence holding `offset`, split there: what it says before the number, and from it on."""
+        a, b = next((a, b) for a, b in self.sentences if a <= offset < b)
+        return self.text[a:offset], self.text[offset:b]
+
     def lead_to(self, offset: int) -> str:
         """The text of `offset`'s clause up to `offset`: what the section says before a number."""
         return self.text[self._clause_span(offset)[0] : offset]
@@ -662,6 +696,45 @@ def _period_parts(text: str) -> tuple[set[int], set[str], set[str], set[str]]:
     )
 
 
+def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
+    """Is `period` stated for the other side of a comparison, not this figure? Only ever adds a rejection.
+
+    Either the clause states it only after a comparison that follows the figure, or the figure is itself the base of a
+    comparison ("6.3% in 2029 versus 5.9%") and the period is not stated after the comparison word.
+    """
+    a, b = loc._clause_span(at)
+    start, end = next(span for span in loc.sentences if span[0] <= at < span[1])
+    opening = _LEAD_COMPARISON.match(loc.text, start, end)
+    if opening is not None and opening.end() <= at:
+        if _unstated_period(period, loc.text[opening.end() : end]):
+            return True
+    after = next((m for m in _COMPARISON.finditer(loc.text, at, b)), None)
+    if after is not None and any(_period_parts(loc.text[after.start() : b])[:3]):
+        head, tail = loc.text[a : after.start()], loc.text[after.end() : b]
+        word = after.group().lower()
+        second_figure = _numbers(
+            _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", _DURATION.sub("", tail))))
+        )
+        # "to remain at 2% from 2029" starts a level, and "3% above trend in 2029" is a gap, not another figure's period.
+        starts_level = word == "from" and _LEVEL.search(loc.text[a:at]) is not None
+        no_comparison = not second_figure and (starts_level or word in {"above", "below"})
+        if not no_comparison and _unstated_period(period, head):
+            return True
+    before = [m for m in _COMPARISON.finditer(loc.text, a, at)]
+    if before:
+        base = before[-1]
+        earlier = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", loc.text[a : base.start()])))
+        between = loc.text[base.end() : at]
+        # "from 2% in 2029 to 3%": the period belongs to the starting figure.
+        if base.group().lower().endswith("from") and re.search(r"\bto\s*$", between):
+            if _numbers(_YEAR.sub("", between)):
+                outside = f"{loc.text[a : base.start()]} {loc.text[at:b]}"
+                return bool(_unstated_period(period, outside))
+        if _numbers(earlier) and not _numbers(between) and len(between.split()) <= 3:
+            return bool(_unstated_period(period, loc.text[base.end() : b]))
+    return False
+
+
 def _period_missing(
     period: str, found: list[tuple[EvidenceRef, _Located]], value_at: list[tuple[_Located, int]]
 ) -> list[str]:
@@ -782,6 +855,8 @@ def _period_missing(
             and _CALENDAR.search(context)
         ):
             missing.append("year basis")
+        if place == "text" and _period_only_in_comparison(period, loc, at):
+            missing.append("the period of a comparison")
         if not missing:
             return []
         failures.append(missing)
@@ -1320,7 +1395,7 @@ class _Checker:
         return out
 
     # -- who made a forecast --------------------------------------------------------------------
-    def _credited(self, loc: _Located, at: int) -> str | None:
+    def _credited(self, loc: _Located, at: int) -> tuple[str | None, set[str]]:
         """Who the evidence credits with the figure at `at`: "author", an organisation key, or None."""
         author = self.ctx.institution
 
@@ -1330,6 +1405,10 @@ class _Checker:
             )
             return next(iter(keys)) if len(keys) == 1 else None  # none, or several: unclear
 
+        def others(keys: set[str]) -> set[str]:
+            return {k for k in keys if k != author}
+
+        # The first value decides whether a claim may pass, by verify-3's rule. The second can only block one.
         place, line = loc.layout.place(at)
         if place == "cell":
             label = loc.layout.row(line).label
@@ -1337,17 +1416,48 @@ class _Checker:
             if who is None:
                 who = one(issuers.named(loc.layout.table(line).caption))
             if who is not None:
-                return who
-        for text in (loc.clause_at(at), loc.sentence_text()):
+                return who, set()
+        # A ", which" clause that is not about this figure ("which the IMF expects to be a challenging year") credits nobody with it.
+        texts = [issuers.without_commentary(t) for t in (loc.clause_at(at), loc.sentence_text())]
+        for text in texts:
             credited, own = issuers.credited(text), bool(issuers.SELF_REFERENCE.search(text))
             if credited or own:
-                return one(credited, own)
+                who = one(credited, own)
+                third_parties = others(credited)
+                author_credited = own or author in credited
+                blocks = set()
+                if (
+                    who is None
+                    and author_credited
+                    and issuers.author_only_compared(text, author)
+                    and issuers.author_governs(*loc.sentence_around(at), author)
+                ):
+                    # "The IMF expects 2%, less than we forecast at 3%": the figure is the author's, comparison or not.
+                    return "author", set()
+                if (
+                    who is None
+                    and third_parties
+                    and (not author_credited or issuers.author_only_compared(text, author))
+                ):
+                    # Several third parties, or the author only in a comparison.
+                    blocks = third_parties
+                if who is not None:
+                    # "We note the MPC said it expected", or a credit earlier in the sentence than this clause.
+                    lead = issuers.since_credit(loc.lead_to(at), who, author)
+                    blocks = others(issuers.reported(lead)) - {who}
+                return who, blocks
+        blocks: set[str] = set()
+        for text in texts:
+            keys = issuers.reported(text)
+            if keys:  # the nearest report decides, even when it is the author's own
+                blocks = others(keys)
+                break
         # A sentence that names nobody continues the one before it: "…in the IMF's World Economic Outlook (WEO).
         # The outlook for growth in 2026 has been revised to 3.1%" is the IMF's figure.
         previous = loc.previous_sentence()
         if not issuers.named(loc.sentence_text()) and not issuers.SELF_REFERENCE.search(previous):
-            return one({k for k in issuers.credited(previous) if k != author})
-        return None
+            return one({k for k in issuers.credited(previous) if k != author}), blocks
+        return None, blocks
 
     def issuer(
         self,
@@ -1377,7 +1487,23 @@ class _Checker:
             return
         claimed = "author" if role is IssuerRole.AUTHOR else key
         spots = value_at or [(loc, loc.start) for _, loc in found]
-        credited = {self._credited(loc, at) for loc, at in spots} - {None}
+        results = [self._credited(loc, at) for loc, at in spots]
+        credited = {who for who, _ in results} - {None}
+        blocks = {k for _, keys in results for k in keys}
+        if role is IssuerRole.AUTHOR:
+            for loc, at in spots:
+                if loc.layout.place(at)[0] == "text":
+                    blocks |= issuers.third_parties_around(*loc.sentence_around(at), author)
+        elif issuers.is_market_name(name):
+            blocks.discard("market")
+        if blocks - {claimed} and (role is IssuerRole.AUTHOR or claimed not in blocks):
+            who = ", ".join(sorted(_who(c) for c in blocks))
+            self.error(
+                "issuer_mismatch",
+                path,
+                f"the evidence credits this forecast to {who}, not {name!r}",
+            )
+            return
         if claimed is not None and claimed in credited:
             return
         if credited:

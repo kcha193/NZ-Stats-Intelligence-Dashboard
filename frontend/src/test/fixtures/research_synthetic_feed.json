@@ -60,7 +60,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 1,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },
@@ -147,7 +147,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 0,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },
@@ -210,7 +210,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 1,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },
@@ -248,7 +248,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 1,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },
@@ -297,7 +297,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 0,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },
@@ -346,7 +346,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 0,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },
@@ -396,7 +396,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 1,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },
@@ -445,7 +445,7 @@
     "evidence_verified": true,
     "human_reviewed_on": "2026-10-26",
     "published_here_on": "2026-10-26",
-    "verifier_version": "verify-3",
+    "verifier_version": "verify-4",
     "warnings": 1,
     "checks_scope": "Automated checks matched every quote, number, unit, horizon and page against the stored document. They do not test economic accuracy; a person reviewed the summary before it was published here."
    },

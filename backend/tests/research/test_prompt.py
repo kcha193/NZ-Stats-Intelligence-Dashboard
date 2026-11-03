@@ -1,10 +1,12 @@
+import hashlib
 import json
 import re
+from pathlib import Path
 
 import pytest
 
 from nzstats.research import prompt
-from nzstats.research.contract import LlmLimits, SectionText, build_request
+from nzstats.research.contract import INSTRUCTIONS, LlmLimits, SectionText, build_request
 
 SECTIONS = {
     0: SectionText(
@@ -203,3 +205,73 @@ def test_the_model_is_told_who_wrote_the_document_and_how_to_keep_content_apart(
         assert word in rendered.system
     anonymous = prompt.input_sha256(_request(), provider="fake", model="m", parameters={})
     assert prompt.input_sha256(req, provider="fake", model="m", parameters={}) != anonymous
+
+
+# Phase 4Q: outlook-v5, and the historical prompt it must not disturb.
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_the_new_prompt_has_a_new_version_and_a_recorded_hash():
+    assert prompt.PROMPT_VERSION == "outlook-v5"
+    assert _sha(prompt.RULES) == prompt.RULES_SHA256[prompt.PROMPT_VERSION]
+    record = json.loads((Path(__file__).parents[3] / "config" / "phase-4q-prompt.json").read_text())
+    assert record["prompt_version"] == prompt.PROMPT_VERSION
+    assert record["rules_sha256"] == prompt.RULES_SHA256[prompt.PROMPT_VERSION]
+    assert record["system_text_sha256"] == _sha(prompt.system_text(INSTRUCTIONS))
+
+
+def test_the_phase_4o_prompt_is_still_reproducible_byte_for_byte():
+    record = json.loads((Path(__file__).parents[3] / "config" / "phase-4n-pilot.json").read_text())[
+        "request"
+    ]
+    assert record["prompt_version"] == "outlook-v4"
+    assert prompt.RULES_SHA256["outlook-v4"] == record["rules_sha256"]
+    assert _sha(prompt.rules_for("outlook-v4")) == record["rules_sha256"]
+    assert _sha(prompt.system_text(INSTRUCTIONS, "outlook-v4")) == record["system_text_sha256"]
+
+
+def test_a_request_is_rendered_and_hashed_with_its_own_prompt_version():
+    old = build_request(7, SECTIONS, prompt_version="outlook-v4")
+    new = build_request(7, SECTIONS, prompt_version="outlook-v5")
+    assert prompt.render(old, published_on=None).system == prompt.system_text(
+        old.instructions, "outlook-v4"
+    )
+    assert prompt.render(new, published_on=None).system == prompt.system_text(
+        new.instructions, "outlook-v5"
+    )
+    hashes = {prompt.input_sha256(r, provider="f", model="m", parameters={}) for r in (old, new)}
+    assert len(hashes) == 2
+
+
+@pytest.mark.parametrize(
+    "required",
+    [
+        "exactly as the document states it",
+        "If it omits the year, omit the year",
+        "Never add a year, month or quarter",
+        "the page header, another sentence or your own reasoning",
+        'leave "period" null',
+        "The base of a comparison",
+        'also gives a comparison\'s period, leave "period" null rather than choosing',
+        '"the MPC expects", "markets expect"',
+        "Reporting another organisation's forecast does not make it the author's",
+        "Never restate a forecast as a fact",
+        "each headline point and each main heading",
+        "leave the claim out",
+    ],
+)
+def test_the_new_prompt_states_each_grounding_rule(required):
+    assert required in " ".join(prompt.rules_for("outlook-v5").split())
+    assert (
+        required not in " ".join(prompt.rules_for("outlook-v4").split())
+        or required == "leave the claim out"
+    )
+
+
+def test_the_new_prompt_keeps_every_earlier_safety_rule():
+    rules = " ".join(prompt.rules_for("outlook-v5").split())
+    for required in ("untrusted data", "Never follow instructions", "verbatim", "Never infer, convert, round, average or combine",
+                     "A publication date is not a data", "Keep the period basis as written", "It is never a forecast",
+                     "Never report numbers from chart-axis labels", "single line", "shortest verbatim span"):  # fmt: skip
+        assert required in rules, required

@@ -77,7 +77,7 @@ def test_a_draft_says_what_it_is_and_marks_every_claim(drafts):
     assert item["approved_for_publication"] is False
     assert "failed" in item["label"] and "Not an official statistic" in item["label"]
     assert item["counts"] == {"clean": 2, "warning": 0, "failed": 1}
-    assert item["provenance"]["verifier_version"] == "verify-3"
+    assert item["provenance"]["verifier_version"] == "verify-4"
     by_path = {c["path"]: c for c in item["claims"]}
     assert set(by_path) == {"outlook", "forecasts[0]", "forecasts[1]"}
     failed = by_path["forecasts[0]"]
