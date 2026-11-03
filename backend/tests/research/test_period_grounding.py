@@ -164,3 +164,38 @@ def test_a_true_figure_beside_a_comparison_passes_with_no_period_claimed():
 )
 def test_the_base_of_a_comparison_cannot_take_the_compared_figures_period(sentence, value, period):
     assert "period_not_supported" in errors(sentence, value, period)
+
+
+# Found by the fourth review, on sentences that passed under verify-3 too.
+@pytest.mark.parametrize(
+    ("sentence", "value", "period"),
+    [
+        ("Compared with June, freight rose 0.8%.", 0.8, "June"),
+        ("Freight rose 3% vs 2% in 2029.", 3, "2029"),
+        ("Freight rose 3% against 2% in 2029.", 3, "2029"),
+        ("Freight rose 3% above 2% in 2029.", 3, "2029"),
+        ("Freight rose from 2% in 2029 to 3%.", 3, "2029"),
+    ],
+)
+def test_a_figure_cannot_take_the_period_of_these_comparisons(sentence, value, period):
+    assert "period_not_supported" in errors(sentence, value, period)
+
+
+def test_a_period_stated_for_the_figure_itself_is_not_affected():
+    assert "period_not_supported" not in errors("Freight rose from 2% to 3% in 2029.", 3, "2029")
+
+
+# Found by the Codex review: true claims verify-3 accepted, so restoring them gives up nothing verify-3 had.
+def test_a_starting_date_on_a_level_is_not_a_comparison():
+    sentence = "We expect inflation to remain at 2% from 2029 in our central forecast."
+    assert "period_not_supported" not in errors(sentence, 2, "2029")
+
+
+def test_a_bare_from_after_a_change_is_still_a_comparison():
+    assert "period_not_supported" in errors("Freight fell 0.8% from July.", 0.8, "July")
+
+
+def test_a_sentence_opening_period_still_supplies_a_figure_beside_a_comparison():
+    sentence = "In 2030, output rose 2% and inflation rose 3%, up from 1% in June."
+    assert "period_not_supported" not in errors(sentence, 3, "2030")
+    assert "period_not_supported" in errors(sentence, 3, "June")

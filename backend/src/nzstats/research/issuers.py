@@ -73,9 +73,10 @@ _BEFORE = (
 _MARKET_ISSUER = re.compile(
     r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\s*$", re.IGNORECASE
 )
-_REPORTED = r"\s+(?:(?:said|says)\s+(?:it|they)\s+)?expected(?!\s+to\b)\b"
+_REPORTED = r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+(?:to|by)\b)\b"
 _MARKET_EXPECTS = re.compile(
-    r"\b(?:markets?|market\s+participants)\s+expect(?:s\b|ed(?!\s+to\b)\b|\b)", re.IGNORECASE
+    r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?expect(?:s\b|ed(?!\s+(?:to|by)\b)\b|\b)",
+    re.IGNORECASE,
 )
 # Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
 _BEFORE_MARKET = {
@@ -91,6 +92,8 @@ _BEFORE_MARKET = {
     "since",
 }
 # A comparison up to this point, within one clause: "more than the RBNZ", "as both the RBNZ and the IMF". "As of June," is not.
+_WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
+_STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)
 _COMPARED_WITH = re.compile(
     r"\b(?:than|as(?!\s+of\b)|what|unlike|like)\s+(?:[^\s,;:]+\s+){0,5}$", re.IGNORECASE
 )
@@ -155,6 +158,25 @@ def reported(text: str) -> set[str]:
         ):
             keys.add("market")
     return keys
+
+
+def third_parties_around(before: str, after: str, author: str | None) -> set[str]:
+    """Third parties credited with a figure the author may be labelled with, given its sentence split at the figure.
+
+    Credited since the author's last words before it, or in a clause after it opening "which". A name alone does not count, so
+    "the RBNZ is expected to cut" stays beside the author's own forecast.
+    """
+    last = [m.end() for m in SELF_REFERENCE.finditer(before)]
+    if author in _PATTERNS:
+        last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
+    texts = [before[max(last, default=0) :]]
+    which = _WHICH.search(after)
+    if which is not None:
+        texts.append(after[which.end() :])
+    keys: set[str] = set()
+    for text in texts:
+        keys |= reported(text) | credited(_WHICH.sub(" ", _STAFF.sub("expects", text)))
+    return keys - {author}
 
 
 def author_only_compared(text: str, author: str | None) -> bool:
