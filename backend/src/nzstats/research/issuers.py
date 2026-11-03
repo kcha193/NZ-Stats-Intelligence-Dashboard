@@ -218,14 +218,23 @@ def since_author(before: str, author: str | None) -> str:
 
 
 def since_credit(before: str, who: str | None, author: str | None) -> str:
-    """What `before` says after the last words of `who`, the one the figure is credited to.
+    """What `before` says after the last credit to `who`, the one the figure is credited to.
 
     An earlier forecaster's separate figure ("The RBNZ expected 2% but the IMF forecasts 3%") is not the credited
     forecaster's concern. For the author this is `since_author`.
     """
     if who in (None, "author"):
         return since_author(before, author)
-    last = [m.end() for m in _PATTERNS[who][0].finditer(before)] if who in _PATTERNS else []
+    # Only wording that credits `who` ends the earlier forecaster's reach; a bare mention or a comparison does not.
+    last = (
+        [
+            m.end()
+            for m in _PATTERNS[who][1].finditer(before)
+            if not _COMPARED_WITH.search(before[: m.start()])
+        ]
+        if who in _PATTERNS
+        else []
+    )
     return before[max(last, default=0) :]
 
 
@@ -242,7 +251,8 @@ _FIGURE = re.compile(
     r"\d[\d,.]*\s*(?:%|per\s?cent\b|percent\b|basis\s+points?\b|bps\b|b\b|bn\b|billion\b|million\b)|\$\s*\d",
     re.IGNORECASE,
 )
-_NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|and|then)\b", re.IGNORECASE)
+# Only a contrast opens a new assertion. A bare "and" may coordinate figures under one credit, so it never ends one.
+_NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|then)\b", re.IGNORECASE)
 
 
 def own_assertion(after: str) -> str:
