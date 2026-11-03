@@ -86,6 +86,8 @@ class ExtensionItem(_Strict):
             and self.issuer_role is not IssuerRole.THIRD_PARTY
         ):
             raise ValueError("a third-party forecast must have the third-party role")
+        if self.category == "third_party_forecast" and self.kind != "forecast":
+            raise ValueError("a third-party forecast must be a forecast")
         return self
 
 
@@ -245,8 +247,8 @@ def _match(claim: _Emitted, items: tuple[ExtensionItem, ...]) -> ExtensionItem |
     def rank(item: ExtensionItem) -> tuple[int, str]:
         right = _value_right(claim, item)
         if item.category == "expected_rejection":
-            return (0 if right else 4, item.id)
-        return (1 if right else 3, item.id) if item.category in _IN_RECALL else (2, item.id)
+            return (0 if right else 3, item.id)
+        return (1 if right else 2, item.id) if item.category in _IN_RECALL else (4, item.id)
 
     about = [
         item
@@ -277,6 +279,7 @@ def _issuer_right(claim: _Emitted, item: ExtensionItem) -> bool:
 def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScore:
     in_recall = [i for i in items if i.category in _IN_RECALL]
     found: set[str] = set()
+    valued: set[str] = set()
     right = matched = unmatched = ambiguous = rejected = numbers = numbers_right = duplicates = 0
     periods = periods_right = issued = issued_right = 0
     for claim in claims:
@@ -290,19 +293,24 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
         else:
             matched += 1
             good = _value_right(claim, item)
-            repeat = good and item.id in found
-            if repeat:
+            issuer_checked = item.kind == "forecast" and item.issuer_role is not None
+            correct = good and (not issuer_checked or _issuer_right(claim, item))
+            if correct and item.id in found:
                 duplicates += 1  # stated again: it is not a further correct claim
-            elif good:
+            elif correct:
                 right += 1
                 found.add(item.id)
-            if not repeat and (item.value is not None or claim.value is not None):
+            if not (good and item.id in valued) and (
+                item.value is not None or claim.value is not None
+            ):
                 numbers += 1
                 numbers_right += good
+            if good:
+                valued.add(item.id)
             if item.period_as_stated is not None:
                 periods += 1
                 periods_right += _flat(claim.period) == _flat(item.period_as_stated)
-            if item.kind == "forecast" and item.issuer_role is not None:
+            if issuer_checked:
                 issued += 1
                 issued_right += _issuer_right(claim, item)
     return ViewScore(

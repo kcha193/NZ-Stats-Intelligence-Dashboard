@@ -460,3 +460,40 @@ def test_repeating_a_right_number_does_not_raise_numerical_accuracy(stored):
     conn, _ = stored
     raw = scored(conn, summary([fact(), fact(), fact(value=9.9)]), items=[gold()]).views["raw"]
     assert raw.numerical_accuracy.text == "1/2" and raw.duplicates == 1
+
+
+# Found by the fourth review.
+def test_being_right_for_an_ambiguous_item_does_not_excuse_a_wrong_number(stored):
+    conn, _ = stored
+    items = [gold("eligible"), gold("unclear", "ambiguous", value=9.9)]
+    raw = scored(conn, summary([fact(value=9.9)]), items=items).views["raw"]
+    assert raw.precision.text == "0/1" and raw.ambiguous == 0
+
+
+def test_the_wrong_issuer_is_not_a_correct_forecast(stored):
+    conn, _ = stored
+    wrong = fc(
+        2.9, "2027", "The Treasury", "author", "growth", "The IMF expects growth of 2.9% in 2027"
+    )
+    raw = scored(conn, summary(forecasts=[wrong]), items=[extension()["items"][1]]).views["raw"]
+    assert raw.precision.text == "0/1" and raw.recall.text == "0/1"
+    assert raw.numerical_accuracy.text == "1/1" and raw.issuer_accuracy.text == "0/1"
+
+
+def test_a_wrong_issuer_then_the_right_one_counts_the_number_once(stored):
+    conn, _ = stored
+    wrong = fc(
+        2.9, "2027", "The Treasury", "author", "growth", "The IMF expects growth of 2.9% in 2027"
+    )
+    raw = scored(conn, summary(forecasts=[wrong, IMF]), items=[extension()["items"][1]]).views[
+        "raw"
+    ]
+    assert raw.precision.text == "1/2" and raw.recall.text == "1/1"
+    assert raw.numerical_accuracy.text == "1/1"
+
+
+def test_a_third_party_forecast_must_be_a_forecast():
+    with pytest.raises(ValueError):
+        ExtensionItem.model_validate(
+            gold("x", "third_party_forecast", "fact", role="third_party", issuer="IMF")
+        )
