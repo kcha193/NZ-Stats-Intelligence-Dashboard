@@ -18,7 +18,9 @@ Local evidence: ignored `data/phase-4q/`. **GO WITH CONDITIONS to prepare one ex
 - New: `gold-worksheet`, `score-gold`. No human gold exists yet.
 - Next: owner resolves `data/phase-4q/period-review-worksheet.html` and the gold worksheets. Six conditions precede any run.
 
-Verification: see the PR for this phase.
+Verification at `302567d`, run in a clean worktree, 3 November 2026: backend 4,235 passed, Ruff clean, frontend 546 passed, typecheck and build clean, browser 174 passed, research browser 18 passed and 3 skipped, static 315 passed and 24 skipped. Differential against `verify-3`, on invented text: 45,117 cases, 0 newly pass, 2,508 newly rejected. Real data, by codes: Phase 4O summary unchanged at 8 errors; 29 October pack 59/59 corruptions caught, wrong issuer 4/4, 9/26 true claims rejected, 45 not measured.
+
+Reviews: four Claude rounds, four automated security reviews, and the Codex GitHub connector. The last security review and the last Codex finding came after the final code and were not patched: `phase-4q-evidence-grounding.md` lists them for the owner. No independent review covers the final commit as a whole.
 
 ## Phase 4Q: Treasury FEU refresh, 2 November 2026
 

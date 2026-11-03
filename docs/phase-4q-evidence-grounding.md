@@ -199,6 +199,18 @@ Fresh Claude reviewers worked over four rounds, each in a worktree with no `data
 
 **The patching stopped here on purpose.** Each pass over the wording has produced new edge cases, in both directions. Any later wording finding goes to the owner as a listed item, not another patch, because the issuer checks cannot settle attribution and a person's reading has to.
 
+**Listed for the owner, not patched:**
+
+| Sentence (invented) | What happens | Under `verify-3` |
+|---|---|---|
+| "The MPC said it expected growth in our economy of 3% in 2029.", labelled the author's | Passes: "our" reads as the author's words | Also passes |
+| "We note what the IMF forecasts is growth of 3% in 2029.", labelled the author's | Passes: "what" reads as a comparison | Also passes |
+| "Output is 3% above its 2029 level.", period 2029 | Passes: no second figure | Also passes |
+| "Output is 3% below June.", period June | Passes: no second figure | Also passes |
+| "We expect growth of 3% in 2029, while inflation will be 2%, which the IMF expects.", labelled the author's | True claim rejected: the "which" clause belongs to the later figure | Passed. Reported by Codex, not run here |
+
+None lets through a claim that `verify-3` rejected. They are why human gold is a condition of any run.
+
 **Accepted, not changed:**
 
 - "Higher than the RBNZ expected" with the RBNZ as third-party issuer still passes. This predates Phase 4Q.
