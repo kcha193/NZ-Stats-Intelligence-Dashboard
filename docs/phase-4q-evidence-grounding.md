@@ -113,7 +113,7 @@ The Phase 4O gold could not show a good result: all five forecasts were expected
 `research/gold_extension.py` adds an extension with four separately scored groups: accepted-eligible, expected rejection, ambiguous and third-party forecast.
 It is refused unless a reviewer is recorded, the name is not an AI tool's, the date is not in the future, and it attests it was written without seeing model output. Those are attestations, which code cannot prove.
 
-Matching is deterministic and does not depend on the order of the gold. A claim goes to the item it fits worst, then, among items equally right about the
+Matching is deterministic and does not depend on the order of the gold or of the claims: claims are taken in content order and assigned to gold items as a maximum one-to-one matching, so overlapping items (one with a period, one without) are never lost to the order of the summary. A claim goes to the item it fits worst, then, among items equally right about the
 number, to the one its issuer fits, then to one not yet covered, so Treasury's and the IMF's equal forecasts each find their own item. A decision is compared on
 its day (`decided_on`, with the gold written as `2026-11-03` or `3 November 2026`), and a forecast without a number is compared on its direction, which that
 gold item must state. A forecast's `scenario` must match too (none means the baseline). A reversed, differently dated or differently conditioned claim earns no credit.

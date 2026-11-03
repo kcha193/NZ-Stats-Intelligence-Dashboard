@@ -20,7 +20,7 @@ import html
 import os
 import re
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import astuple, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -178,13 +178,16 @@ class ExtensionReport:
     passed: bool
     gold_counts: dict[str, int]
     views: dict[str, ViewScore] = field(default_factory=dict)
+    summary_id: int | None = (
+        None  # which stored summary this scores, so a result joins back to its run
+    )
 
     @property
     def expected_rejections_emitted(self) -> int:
         return self.views["raw"].expected_rejections
 
     def to_json(self) -> dict[str, object]:
-        return {"version_id": self.version_id, "passed": self.passed, "gold_counts": self.gold_counts,
+        return {"version_id": self.version_id, "summary_id": self.summary_id, "passed": self.passed, "gold_counts": self.gold_counts,
                 "views": {name: view.to_json(VIEW_LABELS[name]) for name, view in self.views.items()}}  # fmt: skip
 
 
@@ -337,14 +340,67 @@ def _issuer_right(claim: _Emitted, item: ExtensionItem) -> bool:
     return want == got if want or got else _flat(item.issuer) in _flat(claim.issuer)
 
 
+def _canonical(claim: _Emitted) -> tuple[str, ...]:
+    """A claim's content as a sort key, so that nothing depends on the order the model happened to write it in."""
+    return tuple(str(v) for v in astuple(claim))
+
+
+def _assign(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> dict[int, ExtensionItem]:
+    """The most claims that can each be the one correct claim for a different gold item, whatever order they arrive in.
+
+    Only a claim whose worst fit is an item it can score on takes part, so a claim that also fits an expected rejection stays
+    that rejection. Claims are tried in content order and an item's holder moves when another claim needs it, so overlapping
+    items (one with a period, one without) are never lost to the order of the summary.
+    """
+    recall = [i for i in items if i.category in _IN_RECALL]
+    order = sorted(range(len(claims)), key=lambda i: _canonical(claims[i]))
+    edges: dict[int, list[ExtensionItem]] = {}
+    for i in order:
+        claim = claims[i]
+        worst = _match(claim, items)
+        edges[i] = []
+        if worst is not None and worst.category in _IN_RECALL and _value_right(claim, worst):
+            edges[i] = sorted(
+                (
+                    item
+                    for item in recall
+                    if _is_about(claim, item)
+                    and _value_right(claim, item)
+                    and (item.issuer_role is None or _issuer_right(claim, item))
+                ),
+                key=lambda item: item.id,
+            )
+    holder: dict[str, int] = {}
+    by_id = {item.id: item for item in recall}
+
+    def place(i: int, seen: set[str]) -> bool:
+        for item in edges[i]:
+            if item.id in seen:
+                continue
+            seen.add(item.id)
+            if item.id not in holder or place(holder[item.id], seen):
+                holder[item.id] = i
+                return True
+        return False
+
+    for i in order:
+        place(i, set())
+    return {i: by_id[item_id] for item_id, i in holder.items()}
+
+
 def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScore:
     in_recall = [i for i in items if i.category in _IN_RECALL]
+    assigned = _assign(claims, items)
+    covered = frozenset(item.id for item in assigned.values())
     found: set[str] = set()
     valued: set[str] = set()
     right = matched = unmatched = ambiguous = rejected = numbers = numbers_right = duplicates = 0
     periods = periods_right = issued = issued_right = 0
-    for claim in claims:
-        item = _match(claim, items, frozenset(found))
+    # Credited claims first, then the rest, each in content order: the report is the same for any order of the same claims.
+    content_order = sorted(range(len(claims)), key=lambda i: _canonical(claims[i]))
+    for idx in sorted(content_order, key=lambda i: i not in assigned):
+        claim = claims[idx]
+        item = assigned.get(idx) or _match(claim, items, covered)
         if item is None:
             unmatched += 1
         elif item.category == "ambiguous":
@@ -386,6 +442,7 @@ def score_extension(
     summary: OutlookSummary,
     extension: GoldExtension,
     context: VerificationContext,
+    summary_id: int | None = None,
 ) -> ExtensionReport:
     """One summary against one reviewed extension, rerunning the verifier. Reads and changes no stored status."""
     row = conn.execute(
@@ -406,7 +463,7 @@ def score_extension(
         "raw": _score(claims, extension.items),
         "clean_claims_hypothetical": _score([c for c in claims if not c.failed], extension.items),
     }
-    return ExtensionReport(extension.version_id, report.passed, counts, views)
+    return ExtensionReport(extension.version_id, report.passed, counts, views, summary_id)
 
 
 def write_worksheet(conn: sqlite3.Connection, version_id: int, out: Path) -> int:

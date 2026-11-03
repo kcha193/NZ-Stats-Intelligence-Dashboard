@@ -629,3 +629,49 @@ def test_a_conditional_forecast_is_not_the_baseline_gold_and_the_reverse(
     claim = {**OWN_GROWTH, "scenario": claimed}
     raw = scored(conn, summary([], [claim]), items=[scenario_gold(gold_scenario)]).views["raw"]
     assert raw.recall.text == credit and raw.precision.text == credit
+
+
+# Review round: the score depends on the content of the claims, never on their order.
+OVERLAP = [gold("a", period=None), gold("b", period="September quarter")]
+
+
+@pytest.mark.parametrize(
+    "order", [("September quarter", "December quarter"), ("December quarter", "September quarter")]
+)
+def test_overlapping_gold_items_are_assigned_whatever_order_the_claims_come_in(stored, order):
+    conn, _ = stored
+    claims = [fact(period=p) for p in order]
+    raw = scored(conn, summary(claims), items=OVERLAP).views["raw"]
+    assert raw.precision.text == "2/2" and raw.recall.text == "2/2" and raw.duplicates == 0
+
+
+def test_the_whole_report_is_the_same_for_every_order_of_the_same_claims(stored):
+    import itertools
+
+    conn, _ = stored
+    items = [*OVERLAP, gold("c", period="December quarter", value=1.0, terms=("output",))]
+    claims = [fact(period="September quarter"), fact(period="December quarter"), fact(period=None),
+              fact(value=1.0, period="December quarter")]  # fmt: skip
+    reports = {
+        json.dumps(scored(conn, summary(list(p)), items=items).to_json(), sort_keys=True)
+        for p in itertools.permutations(claims)
+    }
+    assert len(reports) == 1
+
+
+def test_a_wrong_valued_claim_cannot_take_a_correct_claims_item(stored):
+    conn, _ = stored
+    claims = [fact(value=9.9, period="September quarter"), fact(period="September quarter")]
+    raw = scored(conn, summary(claims), items=[gold("only", period="September quarter")]).views[
+        "raw"
+    ]
+    assert raw.recall.text == "1/1" and raw.precision.text == "1/2"
+
+
+def test_a_report_says_which_stored_summary_it_scores(stored):
+    conn, _ = stored
+    ext = GoldExtension.model_validate(extension())
+    ctx = VerificationContext(published_on=None, institution="treasury")
+    report = score_extension(conn, summary([fact()]), ext, ctx, summary_id=42)
+    assert report.summary_id == 42 and report.to_json()["summary_id"] == 42
+    assert score_extension(conn, summary([fact()]), ext, ctx).to_json()["summary_id"] is None
