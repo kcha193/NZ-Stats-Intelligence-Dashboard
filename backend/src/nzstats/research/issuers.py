@@ -106,11 +106,18 @@ _MARKET_AGENT = re.compile(
     r"(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\b", re.IGNORECASE
 )
 _CAPITALISED_WORD = re.compile(r"\s+[A-Z][a-z]")
-# An agent that is a proper name, not a date: "expected by Acme Research", never "expected by June".
-_PROPER_AGENT = re.compile(
-    r"(?:the\s+)?(?!(?:January|February|March|April|May|June|July|August|September|October|November|December"
-    r"|Q[1-4]|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b)[A-Z]\w"
+# An agent that is a proper name, not a date: "expected by Acme Research", never "expected by June". A date is a full month,
+# a weekday or a quarter; or an abbreviated month, half-year, fiscal year or "early/mid/late/end" label that is followed by what
+# dates it (a year, or the end of the phrase). A name that only starts like one ("Decker Economics", "Mar Capital") is still a name.
+_MONTH = r"January|February|March|April|May|June|July|August|September|October|November|December"
+_MONTH_ABBREVIATED = r"Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec"
+_DATING = r"(?=\.?(?:[-\s]*\d|\s*(?:[,;:.)]|\Z)))"  # a year follows, or the phrase ends
+_DATE_WORD = (
+    rf"(?:{_MONTH}|Q[1-4]|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b"
+    rf"|(?:{_MONTH_ABBREVIATED}){_DATING}"
+    rf"|(?:H[12]|(?:FY|CY)\s?(?=\d)|(?:Early|Mid|Late|End)(?=[-\s]+(?:of\s+)?(?:\d|{_MONTH}|Q[1-4]))){_DATING}?"
 )
+_PROPER_AGENT = re.compile(rf"(?:the\s+)?(?!{_DATE_WORD})[A-Z]\w")
 _WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
 _STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)
 _COMPARED_WITH = re.compile(
