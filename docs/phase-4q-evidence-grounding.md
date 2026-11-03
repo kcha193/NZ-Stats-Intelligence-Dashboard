@@ -76,8 +76,8 @@ Rules SHA-256 in full in `config/phase-4q-prompt.json`. **No request has used th
 
 | New check | Test |
 |---|---|
-| A period stated only in one of the comparisons listed above is not the figure's period, except a bare "from" starting a level ("to remain at 2% from 2029") | `test_period_grounding.py` |
-| Reported wording ("said it expected", "markets expect") blocks a claim by anyone else, when it comes before the figure in its clause, or when `verify-3` wording credits nobody. Not inside a comparison, and not "expected by" | `test_verify_attribution.py` |
+| A period stated only in one of the comparisons listed above is not the figure's period, except a bare "from" after "remain", "stay" or "hold" ("to remain at 2% from 2029") | `test_period_grounding.py` |
+| Reported wording ("said it expected", "markets expect") blocks a claim by anyone else, when it comes before the figure in its clause, or when `verify-3` wording credits nobody. Not inside a comparison. "Expected by the IMF" counts for the IMF, not the sentence's subject | `test_verify_attribution.py` |
 | An author label fails when a third party is credited after the author's last words before the figure ("We note the IMF expects"), or in a following "which" clause. A name alone does not count, so "the RBNZ is expected to cut" stays beside the author's forecast | `test_verify_attribution.py` |
 | Several third parties credited in one clause block the author label | `test_verify_attribution.py` |
 | An author credit inside a "than", "as", "like" or "unlike" comparison ("more than we expected") cannot hide a third party | `test_verify_attribution.py` |
@@ -88,7 +88,7 @@ No threshold changed. One failed claim still rejects a summary. A market-named i
 **How this was reached.** Two earlier versions also accepted true figures beside a comparison. Independent review broke both with concrete false acceptances, so that part was removed rather than patched a third time. A third review then showed "only tightens" was still false, through credit shared across evidence spots and a market exception. Both are gone. A fourth review confirmed it only tightens, and found sentences that passed under both versions, such as "We note the IMF expects" labelled as the author's. Those now fail.
 The removed part had changed no Phase 4O result, and the brief says not to weaken rules to raise acceptance.
 
-**Evidence, on invented sentences only, comparing against the `verify-3` source.** 30,960 period cases: 0 newly pass, 1,388 newly rejected. 429 issuer cases: 0 newly pass, 17 newly rejected. 13,728 cases with two evidence quotes: 0 newly pass, 1,099 newly rejected. The fourth reviewer's own harness, run before the last fixes, found the same on 56,400 cases. That covers the shapes tried, and it is not a proof. The comparison script is local and not in this repository.
+**Evidence, on invented sentences only, comparing against the `verify-3` source.** 30,960 period cases: 0 newly pass, 1,392 newly rejected. 429 issuer cases: 0 newly pass, 17 newly rejected. 13,728 cases with two evidence quotes: 0 newly pass, 1,099 newly rejected. The fourth reviewer's own harness, run before the last fixes, found the same on 56,400 cases. That covers the shapes tried, and it is not a proof. The comparison script is local and not in this repository.
 
 **Known limits.** A true figure beside a comparison in one clause stays rejected, as under `verify-3`. `outlook-v5` asks for a null period in that shape, which a test confirms passes. Accepting a stated period there needs its own reviewed design. The wordings still open above behave the same under both versions, so they are not regressions. **The issuer checks cannot prove whose figure it is.** Each review has found new wording that gets through, so a person's reading stays the test of attribution, and a pass here is not evidence of it.
 
@@ -187,6 +187,7 @@ Fresh Claude reviewers worked over four rounds, each in a worktree with no `data
 | A credit beating a nearby report, or a block at another spot (fourth round) | P1 | Fixed |
 | Figure taking the period of "vs", "against", "above", an opening comparison, or "from N in 2029 to M" (fourth round) | P1 | Fixed |
 | True claims rejected: a level "from 2029", "expected by the IMF", another clause blocking the author's own report (Codex) | P2 | Fixed |
+| Those fixes went too far: "contracted 0.8% from July" and "expected by 2029" passed (security review) | Medium | Fixed: level verbs only, and only an organisation counts as the agent |
 | Earlier design's shared-prefix and "Markets forecast" rejections (Codex) | P2 | No longer reproduce. Tests kept |
 | Gold scoring could flatter: years, units, duplicates, broad items, no-value items, ties, the gold's order, a right number with the wrong issuer | P2 | Fixed |
 | Review gate accepted a blank reviewer, an AI's name or a future date | P2 | Fixed |
