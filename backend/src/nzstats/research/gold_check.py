@@ -17,11 +17,12 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from nzstats.research.contract import (
     Direction,
@@ -45,7 +46,11 @@ ISSUER_BEFORE_CHARS = 1500
 ISSUER_AFTER_CHARS = 200  # a figure's source line follows the sentence it supports
 QUARTERS = {"march": 1, "june": 2, "september": 3, "december": 4}
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
-EARLIER_YEAR = "2025"
+UNSUPPORTED_YEARS = range(
+    2025, 1999, -1
+)  # an added year is the latest of these the document never states
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+MINUS = "-\u2212"  # hyphen-minus and the typographic minus
 WRONG_ISSUER = "International Monetary Fund"
 
 
@@ -77,6 +82,12 @@ class GoldItem(_Strict):
     vote_for: int | None = None
     vote_against: int | None = None
     decision_maker: str | None = None
+
+    @model_validator(mode="after")
+    def _whole_vote(self) -> GoldItem:
+        if (self.vote_for is None) != (self.vote_against is None):
+            raise ValueError("a vote is recorded as both counts or neither")
+        return self
 
 
 class GoldRelativeDate(_Strict):
@@ -209,15 +220,35 @@ def _find(sections: dict[int, SectionText], page: int, quote: str) -> tuple[int,
 
 
 def _has_number(value: float, quote: str) -> bool:
-    text = f"{value:.10f}".rstrip("0").rstrip(".")
-    pattern = re.escape(text) + (r"0*" if "." in text else r"(?:\.0+)?")
-    return re.search(rf"(?<![\d.]){pattern}(?!\.?\d)", quote.replace(",", "")) is not None
+    """True when `quote` holds `value` as a whole signed number: 2.9 is not found in "-2.9", nor 3.5 as a sign in "3.0-3.5"."""
+    wanted = Decimal(f"{value:.10f}")
+    for found in re.finditer(
+        rf"(?<![\d.])(?P<sign>(?<![\w.])[{MINUS}])?(?P<number>\d+(?:\.\d+)?)(?!\.?\d)",
+        quote.replace(",", ""),
+    ):
+        number = Decimal(found["number"])
+        if (-number if found["sign"] else number) == wanted:
+            return True
+    return False
 
 
 def _period_conflict(stated: str | None, resolved: str | None) -> bool:
-    found = re.search(r"(march|june|september|december) quarter", (stated or "").lower())
-    parsed = re.fullmatch(r"\d{4}Q([1-4])", resolved or "")
-    return bool(found and parsed and QUARTERS[found.group(1)] != int(parsed.group(1)))
+    """A stated quarter, and any stated year, must agree with the resolved quarter. A year the words omit is not invented."""
+    words = (stated or "").lower()
+    parsed = re.fullmatch(r"(\d{4})Q([1-4])", resolved or "")
+    if parsed is None:
+        return False
+    year, quarter = int(parsed.group(1)), int(parsed.group(2))
+    direct = re.search(r"\b(\d{4})\s*q([1-4])\b", words)
+    named = re.search(
+        r"(march|june|september|december)\b(?:\s+(\d{4}))?(?:\s+quarter)?(?:\s+(\d{4}))?", words
+    )
+    if direct:
+        return (int(direct.group(1)), int(direct.group(2))) != (year, quarter)
+    if not (named and "quarter" in words):
+        return False
+    years = {int(y) for y in (named.group(2), named.group(3)) if y}
+    return QUARTERS[named.group(1)] != quarter or bool(years and year not in years)
 
 
 def _check_item(sections: dict[int, SectionText], item: GoldItem) -> list[str]:
@@ -239,6 +270,35 @@ def _check_item(sections: dict[int, SectionText], item: GoldItem) -> list[str]:
     return codes
 
 
+def _relative_candidates(phrase: str, document: date) -> set[date] | None:
+    """The dates a phrase naming a weekday can mean from the document date, or None when it names no weekday.
+
+    The weekday is the first one after the document date, never the document day itself. For "next <weekday>" that first one
+    may fall in the document's own week, and some writers mean the same weekday of the following week, so both are allowed.
+    """
+    words = re.findall(r"[a-z]+", phrase.lower())
+    named = next((day for day in WEEKDAYS if day in words), None)
+    if named is None:
+        return None
+    ahead = (WEEKDAYS.index(named) - document.weekday() - 1) % 7 + 1
+    first = document + timedelta(days=ahead)
+    if "next" in words and first.isocalendar()[:2] == document.isocalendar()[:2]:
+        return {first, first + timedelta(days=7)}
+    return {first}
+
+
+def _calendar_dates(line: str) -> set[tuple[int, int]]:
+    """The (month, day) pairs a calendar line states, as "4 Nov", "4 November" or "Nov 4". The line carries no year."""
+    month = rf"(?P<m>{'|'.join(MONTHS)})[a-z]*\.?"
+    found = [
+        (m["m"], m["d"]) for m in re.finditer(rf"\b(?P<d>\d{{1,2}})\s+{month}\b", line.lower())
+    ]
+    found += [
+        (m["m"], m["d"]) for m in re.finditer(rf"\b{month}\s+(?P<d>\d{{1,2}})\b", line.lower())
+    ]
+    return {(MONTHS.index(m) + 1, int(d)) for m, d in found}
+
+
 def _check_relative(
     sections: dict[int, SectionText], pack: AccuracyPack, item: GoldRelativeDate
 ) -> list[str]:
@@ -251,14 +311,23 @@ def _check_relative(
     named = next((day for day in WEEKDAYS if day in phrase), None)
     if named and item.resolved.strftime("%A").lower() != named:
         codes.append("weekday_mismatch")
+    candidates = _relative_candidates(phrase, pack.document_date)
+    if named and candidates is not None and item.resolved not in candidates:
+        codes.append("relative_date_mismatch")
     gap = (item.resolved - pack.document_date).days
     if gap <= 0:
         codes.append("relative_date_not_after_document")
     elif gap > MAX_RELATIVE_DAYS:
         codes.append("relative_date_too_far")
-    whole = " ".join(_flat(s.text) for s in sections.values())
-    if item.calendar_quote and _flat(item.calendar_quote) not in whole:
-        codes.append("calendar_quote_not_found")
+    if item.calendar_quote:
+        whole = " ".join(_flat(s.text) for s in sections.values())
+        stated = _calendar_dates(item.calendar_quote)
+        if _flat(item.calendar_quote) not in whole:
+            codes.append("calendar_quote_not_found")
+        elif not stated:
+            codes.append("calendar_quote_has_no_date")
+        elif (item.resolved.month, item.resolved.day) not in stated:
+            codes.append("calendar_date_mismatch")
     return codes
 
 
@@ -310,18 +379,32 @@ def _claim(
     return PolicyDecision(**{**fields, **over})
 
 
-def _mutations(item: GoldItem) -> dict[str, dict[str, object]]:
+def _unsupported_year(document_text: str) -> str | None:
+    """The latest year in `UNSUPPORTED_YEARS` that the document never states, or None when it states them all."""
+    stated = set(re.findall(r"\b\d{4}\b", document_text))
+    return next((str(year) for year in UNSUPPORTED_YEARS if str(year) not in stated), None)
+
+
+def _mutations(item: GoldItem, document_text: str) -> dict[str, dict[str, object]]:
     if item.kind == "view":
         return {}
     value = (item.value or 0) + 1.0
     if item.kind == "decision":
-        return {"wrong_rate": {"rate": value}, "wrong_vote": {"vote_for": (item.vote_for or 0) + 1},
-                "wrong_date": {"decided_on": date(2031, 3, 3)}}  # fmt: skip
-    changes: dict[str, dict[str, object]] = {}
+        changes: dict[str, dict[str, object]] = {
+            "wrong_rate": {"rate": value},
+            "wrong_date": {"decided_on": date(2031, 3, 3)},
+        }
+        if item.vote_for is not None and item.vote_against is not None:
+            changes["wrong_vote"] = {"vote_for": item.vote_for + 1}
+        return changes
+    changes = {}
     if item.period_as_stated:
         period = "period" if item.kind == "fact" else "horizon"
         changes["wrong_period"] = {period: "March 2031"}
-        changes["added_year"] = {period: f"{item.period_as_stated} {EARLIER_YEAR}"}
+        year = _unsupported_year(document_text)
+        # Adding a year already stated, by the period or by the document, corrupts nothing: skip rather than score it as a miss
+        if year and not re.search(r"\b\d{4}\b", item.period_as_stated):
+            changes["added_year"] = {period: f"{item.period_as_stated} {year}"}
     if item.value is not None:
         changes["wrong_value"] = {"value": value}
     if item.kind == "forecast":
@@ -357,11 +440,13 @@ def _errors_on(
 
 
 def _probes(
-    pack: AccuracyPack, item: GoldItem, ordinal: int
+    pack: AccuracyPack, item: GoldItem, ordinal: int, document_text: str
 ) -> list[tuple[str, ForecastClaim | ReportedFact | PolicyDecision | Statement]]:
     good = _evidence(pack.version_id, ordinal, item.page, item.quote)
     claims = [("baseline", _claim(item, good))]
-    claims += [(name, _claim(item, good, **over)) for name, over in _mutations(item).items()]
+    claims += [
+        (name, _claim(item, good, **over)) for name, over in _mutations(item, document_text).items()
+    ]
     claims.append(
         ("wrong_page", _claim(item, _evidence(pack.version_id, ordinal, item.page + 1, item.quote)))
     )
@@ -379,12 +464,13 @@ def probe_pack(conn: sqlite3.Connection, pack: AccuracyPack) -> ProbeReport:
     row = _bound(conn, pack)
     sections = load_sections(conn, pack.version_id)
     results = []
+    document_text = " ".join(_flat(s.text) for s in sections.values())
     for item in pack.items:
         found = _find(sections, item.page, item.quote)
         if found is None:
             continue
         clean = True
-        for mutation, claim in _probes(pack, item, found[0]):
+        for mutation, claim in _probes(pack, item, found[0], document_text):
             codes = _errors_on(pack, sections, row["institution"], item, found[0], claim)
             if mutation == "baseline":
                 clean = not codes

@@ -60,6 +60,8 @@ text. The public site, static snapshot, public gate and private gate are unchang
 
 - **Gold check.** Binds to a version's id and both hashes, so gold for one report cannot score another. Tests dates, each quote on
   its page, value and period inside the quote, issuer near the quote, and relative dates resolved from the document date.
+  A value matches as a whole signed number, a stated year must agree with the resolved quarter, and a relative weekday must resolve to
+  the week the phrase means and to the date its calendar line states.
 - **Verifier probes.** True claims, then corrupted copies, through the real verifier. A corruption counts only when its true claim
   passed. These measure the checks, not any model.
 
