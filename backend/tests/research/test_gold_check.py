@@ -650,3 +650,30 @@ def test_a_decision_date_with_the_wrong_year_is_not_supported_by_the_quote(store
     conn, _ = stored
     report = check_pack(conn, built(items=[decision(decided_on=decided_on)]))
     assert ("decided_on_not_supported" in codes(report)) == (decided_on != "2026-10-28")
+
+
+@pytest.mark.parametrize(
+    ("stated", "decided_on", "supported"),
+    [
+        ("on 2026-10-28", "2026-10-28", True),
+        ("on 2026-10-28", "2025-10-28", False),
+        ("on 2026-10-28", "2026-10-29", False),
+        ("on 28 October 2026", "2026-10-28", True),
+        ("on October 28, 2026", "2026-10-28", True),
+        ("on October 28, 2026", "2025-10-28", False),
+        ("on 28 October", "2026-10-28", True),
+        ("on 28 October", "2026-10-27", False),
+    ],
+)
+def test_a_decision_date_is_read_in_every_written_form_and_its_year_must_agree(
+    stated, decided_on, supported
+):
+    from datetime import date
+
+    from nzstats.research.gold_check import GoldItem, _decision_codes
+
+    quote = f"Synthetic Bank's committee voted 5-2 to hold the OCR at 3.25% {stated}"
+    item = GoldItem.model_validate(decision(quote=quote, decided_on=decided_on))
+    # A quote that states a day is judged on that day, never rescued by the publication date.
+    got = _decision_codes(item, quote, quote, date.fromisoformat(decided_on))
+    assert ("decided_on_not_supported" not in got) == supported
