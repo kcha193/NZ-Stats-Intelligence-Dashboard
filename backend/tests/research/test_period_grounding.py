@@ -224,3 +224,15 @@ def test_only_a_level_verb_lets_a_bare_from_state_a_start(sentence):
 )
 def test_the_level_verb_must_be_the_figures_own(sentence):
     assert "period_not_supported" in errors(sentence, 0.8, "July")
+
+
+# Found by the Codex review: "above" and "below" compare only when they carry a second figure.
+@pytest.mark.parametrize(
+    ("sentence", "value"),
+    [
+        ("We expect output to be 3% above trend in 2029.", 3),
+        ("We expect inflation of 3% or below by 2029.", 3),
+    ],
+)
+def test_a_bound_or_a_gap_from_trend_keeps_its_own_period(sentence, value):
+    assert "period_not_supported" not in errors(sentence, value, "2029")
