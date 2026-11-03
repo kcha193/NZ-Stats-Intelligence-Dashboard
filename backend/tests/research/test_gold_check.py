@@ -6,10 +6,12 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
+from nzstats.research.contract import IssuerRole
 from nzstats.research.gold_check import (
     AccuracyPack,
     GoldPackError,
     _has_number,
+    _mutations,
     _period_conflict,
     _relative_candidates,
     _unsupported_year,
@@ -366,6 +368,35 @@ def test_a_corruption_the_verifier_misses_is_reported_as_missed_not_dropped(stor
     assert report.caught + report.missed == sum(r.mutation != "baseline" for r in report.results)
     assert {r.mutation for r in report.results} >= {"baseline", "wrong_value", "wrong_period", "added_year",
                                                     "wrong_page", "foreign_evidence"}  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("key", "name"),
+    [("rbnz", "Reserve Bank of New Zealand"), ("treasury", "The Treasury (New Zealand)")],
+)
+def test_a_third_party_forecast_is_relabelled_as_the_documents_actual_author(key, name):
+    item = AccuracyPack.model_validate(
+        pack(items=[forecast(issuer_role="third_party", issuer="Synthetic Statistics")])
+    ).items[0]
+    wrong = _mutations(item, "", key, name)["wrong_issuer"]
+    assert wrong == {"issuer": name, "issuer_role": IssuerRole.AUTHOR}
+
+
+@pytest.mark.parametrize("key", ["imf", "rba", "treasury"])
+def test_an_author_forecast_is_relabelled_as_a_third_party_that_is_not_the_author(key):
+    from nzstats.research.issuers import organisation_of
+
+    item = AccuracyPack.model_validate(pack(items=[forecast()])).items[0]
+    wrong = _mutations(item, "", key, "Whoever")["wrong_issuer"]
+    assert wrong["issuer_role"] is IssuerRole.THIRD_PARTY
+    assert organisation_of(wrong["issuer"]) not in (None, key)
+
+
+def test_the_issuer_probe_is_skipped_when_the_author_has_no_name_the_verifier_knows():
+    item = AccuracyPack.model_validate(
+        pack(items=[forecast(issuer_role="third_party", issuer="Synthetic Statistics")])
+    ).items[0]
+    assert "wrong_issuer" not in _mutations(item, "", "example", "Example Institute")
 
 
 def test_a_decision_with_no_recorded_vote_is_probed_without_a_vote_mutation(stored):

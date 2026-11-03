@@ -38,6 +38,7 @@ from nzstats.research.contract import (
     SectionText,
     Statement,
 )
+from nzstats.research.issuers import organisation_of
 from nzstats.research.summarise import load_sections
 from nzstats.research.verify import VerificationContext, verify
 
@@ -51,7 +52,10 @@ UNSUPPORTED_YEARS = range(
 )  # an added year is the latest of these the document never states
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 MINUS = "-\u2212"  # hyphen-minus and the typographic minus
-WRONG_ISSUER = "International Monetary Fund"
+WRONG_ISSUERS = (
+    "International Monetary Fund",
+    "Reserve Bank of Australia",
+)  # third parties the verifier knows by name
 
 
 class GoldPackError(ValueError):
@@ -196,7 +200,7 @@ def _flat(text: str) -> str:
 def _bound(conn: sqlite3.Connection, pack: AccuracyPack) -> sqlite3.Row:
     row = conn.execute(
         "SELECT v.text_sha256, v.content_sha256, v.superseded_at, v.purged_at, p.current_version_id, p.title,"
-        " p.published_on, i.key AS institution"
+        " p.published_on, i.key AS institution, i.name AS institution_name"
         " FROM research_document_version v JOIN research_publication p ON p.id = v.publication_id"
         " JOIN research_institution i ON i.id = p.institution_id WHERE v.id = ?",
         (pack.version_id,),
@@ -387,13 +391,31 @@ def _claim(
     return PolicyDecision(**{**fields, **over})
 
 
+def _wrong_issuer(item: GoldItem, institution: str, institution_name: str) -> dict[str, object]:
+    """Swap an author forecast for a third party, or a third-party one for the document's own author, as the verifier knows them.
+
+    Both sides must be organisations the verifier recognises, and not the author when a third party is wanted: otherwise the
+    claim is rejected for being internally impossible and the probe measures nothing about attribution. Empty when no valid swap exists.
+    """
+    if item.issuer_role is IssuerRole.AUTHOR:
+        other = next(
+            (n for n in WRONG_ISSUERS if organisation_of(n) not in (None, institution)), None
+        )
+        return {"issuer": other, "issuer_role": IssuerRole.THIRD_PARTY} if other else {}
+    if organisation_of(institution_name) == institution:
+        return {"issuer": institution_name, "issuer_role": IssuerRole.AUTHOR}
+    return {}
+
+
 def _unsupported_year(document_text: str) -> str | None:
     """The latest year in `UNSUPPORTED_YEARS` that the document never states, or None when it states them all."""
     stated = set(re.findall(r"\b\d{4}\b", document_text))
     return next((str(year) for year in UNSUPPORTED_YEARS if str(year) not in stated), None)
 
 
-def _mutations(item: GoldItem, document_text: str) -> dict[str, dict[str, object]]:
+def _mutations(
+    item: GoldItem, document_text: str, institution: str, institution_name: str
+) -> dict[str, dict[str, object]]:
     if item.kind == "view":
         return {}
     value = (item.value or 0) + 1.0
@@ -415,12 +437,9 @@ def _mutations(item: GoldItem, document_text: str) -> dict[str, dict[str, object
             changes["added_year"] = {period: f"{item.period_as_stated} {year}"}
     if item.value is not None:
         changes["wrong_value"] = {"value": value}
-    if item.kind == "forecast":
-        changes["wrong_issuer"] = (
-            {"issuer": WRONG_ISSUER, "issuer_role": IssuerRole.THIRD_PARTY}
-            if item.issuer_role is IssuerRole.AUTHOR
-            else {"issuer": "The Treasury", "issuer_role": IssuerRole.AUTHOR}
-        )
+    wrong = _wrong_issuer(item, institution, institution_name)
+    if item.kind == "forecast" and wrong:
+        changes["wrong_issuer"] = wrong
     return changes
 
 
@@ -448,12 +467,17 @@ def _errors_on(
 
 
 def _probes(
-    pack: AccuracyPack, item: GoldItem, ordinal: int, document_text: str
+    pack: AccuracyPack,
+    item: GoldItem,
+    ordinal: int,
+    document_text: str,
+    institution: tuple[str, str],
 ) -> list[tuple[str, ForecastClaim | ReportedFact | PolicyDecision | Statement]]:
     good = _evidence(pack.version_id, ordinal, item.page, item.quote)
     claims = [("baseline", _claim(item, good))]
     claims += [
-        (name, _claim(item, good, **over)) for name, over in _mutations(item, document_text).items()
+        (name, _claim(item, good, **over))
+        for name, over in _mutations(item, document_text, *institution).items()
     ]
     claims.append(
         ("wrong_page", _claim(item, _evidence(pack.version_id, ordinal, item.page + 1, item.quote)))
@@ -478,7 +502,9 @@ def probe_pack(conn: sqlite3.Connection, pack: AccuracyPack) -> ProbeReport:
         if found is None:
             continue
         clean = True
-        for mutation, claim in _probes(pack, item, found[0], document_text):
+        for mutation, claim in _probes(
+            pack, item, found[0], document_text, (row["institution"], row["institution_name"])
+        ):
             codes = _errors_on(pack, sections, row["institution"], item, found[0], claim)
             if mutation == "baseline":
                 clean = not codes
