@@ -253,7 +253,7 @@ def test_a_request_is_rendered_and_hashed_with_its_own_prompt_version():
         "the page header, another sentence or your own reasoning",
         'leave "period" null',
         "The base of a comparison",
-        "also gives a comparison's period, leave \"period\" null rather than choosing",
+        'also gives a comparison\'s period, leave "period" null rather than choosing',
         '"the MPC expects", "markets expect"',
         "Reporting another organisation's forecast does not make it the author's",
         "Never restate a forecast as a fact",
