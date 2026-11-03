@@ -20,12 +20,25 @@ BLOCKS = [
     ("We expect growth of ", "3% in 2029, which the IMF expects to stay at that level."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be unchanged."),
     ("We expect growth of ", "3% in 2029, which the IMF expected would be maintained."),
+    # The comment must be all of the clause: a year that is "the same" or "of unchanged growth" keeps the figure.
+    ("We expect growth of ", "3% in 2029, which the IMF expects to be the case this year."),
+    ("We expect growth of ", "3% in 2029, which the IMF expects to be the same this year."),
+    ("We expect growth of ", "3% in 2029, which the IMF expects to be a year of unchanged growth."),
+    (
+        "We expect growth of ",
+        "3% in 2029, which the IMF expects to be a challenging year of unchanged growth.",
+    ),
 ]
 PASSES = [
     ("We expect growth of ", "3% in 2029, which the IMF expects to be 2 percentage points."),
     ("We expect inflation of ", "1,500% in 2029, which the IMF expects to be 2,500%."),
     ("We expect output of ", "$3.5 billion in 2029, which the IMF expects to be $4.5 billion."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be a challenging year."),
+    (
+        "We expect growth of ",
+        "3% in 2029, which the IMF expects to be a very challenging year in 2029.",
+    ),
+    ("We expect growth of ", "3% in 2029, which the IMF expects to be a tough and uncertain year."),
 ]
 
 

@@ -295,15 +295,18 @@ _CREDIT_IN_CLAUSE = re.compile(
     re.IGNORECASE,
 )
 # A complement that only comments: on the horizon ("to be a challenging year") or on the forecast ("to be too optimistic"). A closed
-# list on purpose. "To remain unchanged" or "to stay at that level" forecast the figure itself, and an unknown predicate may too.
-_COMMENT_ON_YEAR = r"(?:an?|the)\s+(?:[\w-]+\s+){0,2}(?:year|period|quarter|time|test)"
-_COMMENT_ON_FORECAST = (
+# list, and all of the clause: "to remain unchanged", "to be the same this year" and "to be a year of unchanged growth" forecast the
+# figure itself, and an unknown word may too. A clause that says more than the comment keeps its credit.
+_ADJECTIVE = (
     r"(?:optimistic|pessimistic|ambitious|conservative|cautious|generous|modest|challenging|difficult|tough|uncertain"
     r"|volatile|risky|demanding|testing|turbulent)"
 )
+_INTENSIFIER = r"(?:(?:too|very|rather|quite|fairly|somewhat|overly|extremely|particularly)\s+)?"
+_COMMENT_ON_YEAR = rf"(?:an?|the)\s+{_INTENSIFIER}{_ADJECTIVE}(?:\s+and\s+{_ADJECTIVE})?\s+(?:year|period|quarter|time|test)"
 _COMPLEMENT = re.compile(
     r"\s*(?:to|will|would|should|could|might|may)\s+(?:be|prove)\s+"
-    rf"(?:(?:too|very|rather|quite|fairly|somewhat|overly|extremely)\s+)?(?:{_COMMENT_ON_YEAR}|{_COMMENT_ON_FORECAST})\b",
+    rf"{_INTENSIFIER}(?:{_COMMENT_ON_YEAR}|{_ADJECTIVE})"
+    r"(?:\s+(?:in\s+(?:19|20)\d\d|ahead|overall))?[.!?)\s]*\Z",
     re.IGNORECASE,
 )
 _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")

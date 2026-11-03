@@ -203,6 +203,8 @@ ISSUER_INVALID = [
     ("We expect growth of 3% in 2029, which the IMF expects to stay at that level.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expects to be unchanged.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expected would be maintained.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be the same this year.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be a year of unchanged growth.", 3, "The Treasury", "author"),
     # A figure the check cannot read is still a figure: other units, spelled out, thousands separators.
     ("We expect growth of 3% in 2029, which the IMF expects to be 3 percentage points.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expects to be three per cent.", 3, "The Treasury", "author"),
