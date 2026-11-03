@@ -1418,11 +1418,7 @@ class _Checker:
             if who is not None:
                 return who, set()
         # A ", which" clause that is not about this figure ("which the IMF expects to be a challenging year") credits nobody with it.
-        figure = issuers.leading_figure(loc.sentence_around(at)[1])
-        texts = [
-            issuers.without_other_assertions(t, figure)
-            for t in (loc.clause_at(at), loc.sentence_text())
-        ]
+        texts = [issuers.without_commentary(t) for t in (loc.clause_at(at), loc.sentence_text())]
         for text in texts:
             credited, own = issuers.credited(text), bool(issuers.SELF_REFERENCE.search(text))
             if credited or own:

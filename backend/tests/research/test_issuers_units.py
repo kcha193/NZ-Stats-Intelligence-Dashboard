@@ -1,7 +1,7 @@
 """Unit checks for the figure a "which" clause is compared with (Phase 4Q review round). SYNTHETIC sentences.
 
-The verifier has other checks that can reject these sentences too, so the issuer function is tested directly: a figure it
-cannot read must still block, whatever the unit, spelling or separator.
+The verifier has other checks that can reject these sentences too, so the issuer function is tested directly. A "which"
+clause loses its credit only by being a closed-list comment or a benchmark; no number in it is read, so none can mislead.
 """
 
 import pytest
@@ -17,6 +17,9 @@ BLOCKS = [
     ("We expect growth of ", "3% in 2029, which the IMF expects to be three per cent."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be 3."),
     ("We note growth of ", "3% in 2029, which the IMF expects to remain unchanged."),
+    ("We note growth of ", "3% in 2029, which the IMF expects to remain unchanged for 2 years."),
+    ("We expect growth of ", "3% in 2029, which the IMF expects to be 2%."),
+    ("We expect growth of ", "3% in 2029, which is in line with the IMF's forecast of 3%."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to stay at that level."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be unchanged."),
     ("We expect growth of ", "3% in 2029, which the IMF expected would be maintained."),
@@ -30,15 +33,15 @@ BLOCKS = [
     ),
 ]
 PASSES = [
-    ("We expect growth of ", "3% in 2029, which the IMF expects to be 2 percentage points."),
-    ("We expect inflation of ", "1,500% in 2029, which the IMF expects to be 2,500%."),
-    ("We expect output of ", "$3.5 billion in 2029, which the IMF expects to be $4.5 billion."),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be a challenging year."),
     (
         "We expect growth of ",
         "3% in 2029, which the IMF expects to be a very challenging year in 2029.",
     ),
     ("We expect growth of ", "3% in 2029, which the IMF expects to be a tough and uncertain year."),
+    ("We expect growth of ", "3% in 2029, which the IMF expects to be too optimistic."),
+    ("We expect growth of ", "3% in 2029, which exceeds the IMF's forecast of 2%."),
+    ("We expect growth of ", "3% in 2029, which is above what the IMF forecasts."),
 ]
 
 
@@ -48,5 +51,5 @@ def test_a_figure_in_any_unit_is_still_the_imfs(before, after):
 
 
 @pytest.mark.parametrize(("before", "after"), PASSES)
-def test_a_different_figure_or_none_is_not(before, after):
+def test_a_comment_or_a_benchmark_is_not(before, after):
     assert issuers.third_parties_around(before, after, "treasury") == set()

@@ -106,22 +106,23 @@ _MARKET_AGENT = re.compile(
     r"(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\b", re.IGNORECASE
 )
 _CAPITALISED_WORD = re.compile(r"\s+[A-Z][a-z]")
-# An agent that is a proper name, not a date: "expected by Acme Research", never "expected by June". A date is a full month,
-# a weekday or a quarter; or an abbreviated month, half-year, fiscal year or "early/mid/late/end" label that is followed by what
-# dates it (a year, or the end of the phrase). A name that only starts like one ("Decker Economics", "Mar Capital") is still a name.
+# An agent that is a proper name, not a date: "expected by Acme Research", never "expected by June". Every date form must end where
+# the date does: not inside a longer word ("Decker", "H2O") and not before a capitalised word that continues a name ("Mar Capital",
+# "H2 Capital", "March Capital"). "Early", "Mid", "Late" and "End" are dates only before the year or month they qualify.
 _MONTH = r"January|February|March|April|May|June|July|August|September|October|November|December"
 _MONTH_ABBREVIATED = r"Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec"
-_DATING = r"(?=\.?(?:[-\s]*\d|\s*(?:[,;:.)]|\Z)))"  # a year follows, or the phrase ends
+_WEEKDAY = r"Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday"
+_ENDS_THE_DATE = r"(?!\w)(?!\.?\s*[A-Z])"
 _DATE_WORD = (
-    rf"(?:{_MONTH}|Q[1-4]|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b"
-    rf"|(?:{_MONTH_ABBREVIATED}){_DATING}"
-    rf"|(?:H[12]|(?:FY|CY)\s?(?=\d)|(?:Early|Mid|Late|End)(?=[-\s]+(?:of\s+)?(?:\d|{_MONTH}|Q[1-4]))){_DATING}?"
+    rf"(?:{_MONTH}|{_MONTH_ABBREVIATED}|{_WEEKDAY}|Q[1-4]|H[12]|(?:FY|CY)\s?\d{{2,4}}){_ENDS_THE_DATE}"
+    rf"|(?:Early|Mid|Late|End)(?=[-\s]+(?:of\s+)?(?:\d|(?:{_MONTH})\b|Q[1-4]))"
 )
 _PROPER_AGENT = re.compile(rf"(?:the\s+)?(?!{_DATE_WORD})[A-Z]\w")
 _WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
 _STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)
 _COMPARED_WITH = re.compile(
-    r"\b(?:than|as(?!\s+of\b)|what|unlike|like)\s+(?:[^\s,;:]+\s+){0,5}$", re.IGNORECASE
+    r"\b(?:than|as(?!\s+of\b)|what|unlike|like|above|below|versus|vs\.?|compared\s+with|relative\s+to|exceeds?|exceeding)\s+(?:[^\s,;:]+\s+){0,5}$",
+    re.IGNORECASE,
 )
 
 
@@ -284,45 +285,36 @@ def _credited_outside_comparison(text: str) -> set[str]:
 
 # A figure with units. A bare year or count is not another assertion's figure.
 _FIGURE = re.compile(
-    r"\d[\d,.]*\s*(?:%|per\s?cent\b|percent\b|basis\s+points?\b|bps\b|b\b|bn\b|billion\b|million\b)|\$\s*\d[\d,]*(?:\.\d+)?",
+    r"\d[\d,.]*\s*(?:%|per\s?cent\b|percent\b|basis\s+points?\b|bps\b|b\b|bn\b|billion\b|million\b)|\$\s*\d",
     re.IGNORECASE,
 )
 # Only a contrast opens a new assertion. A bare "and" may coordinate figures under one credit, so it never ends one.
 _NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|then)\b", re.IGNORECASE)
 
 # A relative clause ("…3% in 2029, which the IMF expects to be a challenging year") says something about its antecedent, and the
-# antecedent need not be the figure: it may be the year, or a comparison benchmark. A credit in it belongs to the figure only when
-# it could be the figure's own assertion. Two things show it is not, and both must be positive evidence, so any doubt still blocks:
-# the clause's verb takes a complement that names no figure ("expects to be too optimistic"), or the clause states other figures
-# and never the claimed one ("the IMF's forecast of 2%", "expects to be 2%").
+# antecedent need not be the figure: it may be the year. A credit in it belongs to the figure unless the clause is positively a
+# comment, and a comment is a closed list: on the horizon ("to be a challenging year") or on the forecast ("to be too optimistic"),
+# and nothing more. Anything else keeps the credit, however it is worded: "to remain unchanged for 2 years", "to be the same this
+# year" and "to be 2%" all forecast something this module cannot tell from the figure. No number is read to decide it. Telling
+# a forecast value from a duration, a year, a count or a spelled-out number is where earlier versions kept leaking, both ways.
 _NAMES_ANY = "|".join(f"(?:{o.names})" for o in ORGANISATIONS if o.key != "market")
 _ASSERTING_WORD = rf"(?:{_ACTIVE}|expected\b)"
 _CREDIT_IN_CLAUSE = re.compile(
-    rf"(?:the\s+)?(?:{_NAMES_ANY})(?:['’]s)?\s+{_FILLER}{_ASSERTING_WORD}(?P<rest>(?:[^,;:]|(?<=\d),(?=\d{{3}}\b))*)",
+    rf"(?:the\s+)?(?:{_NAMES_ANY})(?:['’]s)?\s+{_FILLER}{_ASSERTING_WORD}(?P<rest>[^,;:]*)",
     re.IGNORECASE,
 )
-# A complement that only comments: on the horizon ("to be a challenging year") or on the forecast ("to be too optimistic"). A closed
-# list, and all of the clause: "to remain unchanged", "to be the same this year" and "to be a year of unchanged growth" forecast the
-# figure itself, and an unknown word may too. A clause that says more than the comment keeps its credit.
 _ADJECTIVE = (
     r"(?:optimistic|pessimistic|ambitious|conservative|cautious|generous|modest|challenging|difficult|tough|uncertain"
     r"|volatile|risky|demanding|testing|turbulent)"
 )
 _INTENSIFIER = r"(?:(?:too|very|rather|quite|fairly|somewhat|overly|extremely|particularly)\s+)?"
 _COMMENT_ON_YEAR = rf"(?:an?|the)\s+{_INTENSIFIER}{_ADJECTIVE}(?:\s+and\s+{_ADJECTIVE})?\s+(?:year|period|quarter|time|test)"
-_COMPLEMENT = re.compile(
+_COMMENT = re.compile(
     r"\s*(?:to|will|would|should|could|might|may)\s+(?:be|prove)\s+"
     rf"{_INTENSIFIER}(?:{_COMMENT_ON_YEAR}|{_ADJECTIVE})"
     r"(?:\s+(?:in\s+(?:19|20)\d\d|ahead|overall))?[.!?)\s]*\Z",
     re.IGNORECASE,
 )
-_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
-_NUMBER_WORD = re.compile(
-    r"\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|(?:thir|four|fif|six|seven|eight|nine)teen"
-    r"|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|(?:a|an)\s+(?:hundred|thousand|million|billion))\b",
-    re.IGNORECASE,
-)
-_YEAR = re.compile(r"(?:19|20)\d\d\Z")
 # Straight after "which" the organisation is the one expecting, since "which" is what is expected: "which the IMF expected to be 3%"
 # is the IMF's forecast, though "the RBNZ expected to cut" alone may be a passive.
 _WHICH_EXPECTED = re.compile(
@@ -330,50 +322,14 @@ _WHICH_EXPECTED = re.compile(
 )
 
 
-def _value(figure: str) -> float | None:
-    number = _NUMBER.search(figure)
-    try:
-        return float(number.group().replace(",", "")) if number else None
-    except ValueError:
-        return None
-
-
-def leading_figure(after: str) -> float | None:
-    """The value of the figure `after` starts with (a sentence split at the figure), or None if it cannot be read."""
-    m = _FIGURE.match(after)
-    return _value(m.group()) if m else None
-
-
-def _numbers(text: str) -> list[float | None]:
-    """The numbers in `text` other than a bare year ("in 2029"), which dates a forecast but is no figure."""
-    return [
-        _value(m.group())
-        for m in _NUMBER.finditer(text)
-        if not (_YEAR.match(m.group()) and not _FIGURE.match(text, m.start()))
-    ]
-
-
-def _is_other_assertion(rest: str, figure: float | None) -> bool:
-    """Does what a relative clause's forecaster says leave the claimed figure alone?
-
-    Any number, or a number word, counts as a figure, whatever its unit: a figure that is not recognised must not look like none.
-    """
-    if _NUMBER_WORD.search(rest):
-        return False  # "three per cent" cannot be compared with the claimed figure, so it blocks
-    values = _numbers(rest)
-    if values:
-        return figure is not None and None not in values and figure not in values
-    return _COMPLEMENT.match(rest) is not None
-
-
-def without_other_assertions(text: str, figure: float | None) -> str:
-    """`text` with the credits of a ", which" clause that are not about `figure` taken out (see above)."""
+def without_commentary(text: str) -> str:
+    """`text` with the credits of a ", which" clause that only comment on the year or the forecast taken out (see above)."""
     which = _WHICH.search(text)
     if which is None:
         return text
 
     def drop(m: re.Match[str]) -> str:
-        return " " if _is_other_assertion(m.group("rest"), figure) else m.group()
+        return " " if _COMMENT.match(m.group("rest")) else m.group()
 
     return text[: which.end()] + _CREDIT_IN_CLAUSE.sub(drop, text[which.end() :])
 
@@ -396,7 +352,7 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     its own clause after it. A name alone does not count, so
     "the RBNZ is expected to cut" stays beside the author's own forecast.
     """
-    after = without_other_assertions(own_assertion(after), leading_figure(after))
+    after = without_commentary(own_assertion(after))
     texts = [since_author(before, author)]
     which = _WHICH.search(after)
     if which is not None:
@@ -458,7 +414,7 @@ def author_governs(before: str, after: str, author: str | None) -> bool:
     """
     if not _author_speaks_just_before(before, author):
         return False
-    own = without_other_assertions(own_assertion(after), leading_figure(after))
+    own = without_commentary(own_assertion(after))
     trailing = _credited_outside_comparison(_WHICH.sub(" ", own)) | reported(own)
     return not trailing - {author}
 
