@@ -540,3 +540,28 @@ def test_expected_by_an_organisation_blocks_any_other_label():
     )
     assert "issuer_mismatch" in codes(authors(sentence))
     assert "issuer_mismatch" in codes(authors(sentence, role="third_party", issuer="RBNZ"))
+
+
+@pytest.mark.parametrize(
+    "agent",
+    ["the Fed", "the IMF", "the OECD", "markets", "financial markets", "market participants"],
+)
+def test_expected_by_recognises_each_agent(agent):
+    sentence = f"With the RBNZ expected by {agent} to cut the OCR to 3% in 2029, costs will ease."
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We note growth of 3% in 2029 is expected by the IMF.",
+        "We note growth of 3% in 2029 which is expected by the IMF.",
+    ],
+)
+def test_an_agent_after_the_figure_blocks_an_author_label(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+def test_an_agent_in_another_clause_after_the_figure_does_not_block_the_author():
+    sentence = "We expect growth of 3% in 2029, while 2% is expected by the IMF."
+    assert "issuer_mismatch" not in codes(authors(sentence))

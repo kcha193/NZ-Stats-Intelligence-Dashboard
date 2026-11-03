@@ -1,13 +1,18 @@
 """Version-bound gold packs and offline verifier probes (SYNTHETIC FIXTURE: invented text, invented issuers)."""
 
 import hashlib
+from datetime import date
 
 import pytest
+from pydantic import ValidationError
 
 from nzstats.research.gold_check import (
     AccuracyPack,
     GoldPackError,
     _has_number,
+    _period_conflict,
+    _relative_candidates,
+    _unsupported_year,
     check_pack,
     load_pack,
     probe_pack,
@@ -162,10 +167,74 @@ def test_each_gold_fact_must_be_supported_by_the_stored_text(stored, over, code)
         (2.5, "rose 2.50 percent", True),
         (6.0, "over $6 billion", True),
         (6175.2, "a deficit of 6,175.2", True),
+        (
+            2.9,
+            "Annual growth was -2.9%",
+            False,
+        ),  # a positive gold value must not match the unsigned tail of a negative
+        (-2.9, "Annual growth was -2.9%", True),
+        (-2.9, "Annual growth was 2.9%", False),
+        (-2.9, "Annual growth was \u22122.9%", True),  # a typographic minus is still a minus
+        (2.9, "Annual growth was \u22122.9%", False),
+        (-2.9, "Annual growth was (2.9)%", False),
+        (3.5, "growth of 3.0-3.5% a year", True),  # a range hyphen is not a sign
+        (3.0, "growth of 3.0-3.5% a year", True),
+        (-3.5, "growth of 3.0-3.5% a year", False),
+        (0.0, "unchanged at 0.0%", True),
+        (0.0, "unchanged at 0%", True),
+        (0.0, "unchanged at 10.0%", False),
+        (0.0, "unchanged at -0.5%", False),
+        (-0.5, "unchanged at -0.5%", True),
+        (0.5, "unchanged at -0.5%", False),
+        (-3.0, "fell -3% on the year", True),
     ],
 )
 def test_a_value_matches_however_the_document_writes_it(value, quote, found):
     assert _has_number(value, quote) is found
+
+
+@pytest.mark.parametrize(
+    ("stated", "resolved", "conflict"),
+    [
+        ("September quarter 2025", "2024Q3", True),  # the year is stated and differs
+        ("September quarter 2025", "2025Q3", False),
+        ("September quarter 2025", "2025Q4", True),  # the quarter differs
+        ("September quarter", "2024Q3", False),  # no year stated: none is invented
+        ("September quarter", "2026Q3", False),
+        ("the September 2025 quarter", "2026Q3", True),
+        ("2025Q3", "2024Q3", True),
+        ("2025Q3", "2025Q3", False),
+        ("December quarter 2026", "2026Q4", False),
+        (
+            "year to September 2025",
+            "2024Q3",
+            False,
+        ),  # not a quarter name, so not this check's business
+    ],
+)
+def test_a_stated_year_must_agree_with_the_resolved_period(stated, resolved, conflict):
+    assert _period_conflict(stated, resolved) is conflict
+
+
+def seed_dated(conn, page_1):
+    seed_version(conn, (page_1, PAGE_2, PAGE_3), published_on="2026-11-02")
+    with transaction(conn):
+        conn.execute("UPDATE research_publication SET title = 'Synthetic Update - 29 October 2026'")
+    digest = hashlib.sha256("\n".join((page_1, PAGE_2, PAGE_3)).encode()).hexdigest()
+    return {"text_sha256": digest, "content_sha256": digest}
+
+
+def test_a_stated_year_that_contradicts_the_resolved_quarter_is_reported(conn):
+    page = "Annual inflation was 2.9% in the September quarter 2025, Synthetic Statistics reported."
+    hashes = seed_dated(conn, page)
+    quote = "Annual inflation was 2.9% in the September quarter 2025, Synthetic Statistics reported"
+    stated = "September quarter 2025"
+    wrong = fact(quote=quote, period_as_stated=stated, period_resolved="2024Q3")
+    right = fact(quote=quote, period_as_stated=stated, period_resolved="2025Q3")
+    assert "period_resolved_mismatch" in codes(
+        check_pack(conn, built(**hashes, items=[wrong], relative_dates=[]))
+    )
+    assert codes(check_pack(conn, built(**hashes, items=[right], relative_dates=[]))) == []
 
 
 def test_an_issuer_may_be_named_just_after_the_quote_as_a_source_line(stored):
@@ -208,6 +277,66 @@ def test_relative_dates_resolve_from_the_document_date_not_the_publication_date(
     assert code in codes(check_pack(conn, built(relative_dates=[relative(**over)])))
 
 
+@pytest.mark.parametrize(
+    ("phrase", "document", "expected"),
+    [
+        (
+            "next Wednesday",
+            date(2026, 10, 29),
+            {date(2026, 11, 4)},
+        ),  # Thursday: the coming Wednesday is next week's
+        ("on Friday", date(2026, 10, 29), {date(2026, 10, 30)}),
+        ("this Friday", date(2026, 10, 29), {date(2026, 10, 30)}),
+        (
+            "Thursday",
+            date(2026, 10, 29),
+            {date(2026, 11, 5)},
+        ),  # the same weekday is a week on, never the document day
+        (
+            "next Wednesday",
+            date(2026, 10, 26),
+            {date(2026, 10, 28), date(2026, 11, 4)},
+        ),  # Monday: both usages exist
+        ("next Monday", date(2026, 11, 1), {date(2026, 11, 2)}),  # Sunday
+        ("next week", date(2026, 10, 29), None),  # no weekday named, so nothing to resolve
+        ("early next month", date(2026, 10, 29), None),
+    ],
+)
+def test_a_relative_weekday_resolves_from_the_document_date(phrase, document, expected):
+    assert _relative_candidates(phrase, document) == expected
+
+
+def test_the_right_weekday_a_week_late_is_not_certified_by_the_window(stored):
+    conn, _ = stored
+    late = relative(
+        resolved="2026-11-11"
+    )  # a Wednesday within 14 days, but not the one 'next Wednesday' means
+    assert "relative_date_mismatch" in codes(check_pack(conn, built(relative_dates=[late])))
+
+
+def test_the_calendar_line_must_name_the_resolved_date(stored):
+    conn, _ = stored
+    wrong_line = relative(resolved="2026-11-11", calendar_quote="4 Nov Labour data")
+    assert "calendar_date_mismatch" in codes(check_pack(conn, built(relative_dates=[wrong_line])))
+    assert "calendar_date_mismatch" not in codes(
+        check_pack(conn, built(relative_dates=[relative()]))
+    )
+
+
+def test_a_calendar_line_with_no_date_cannot_corroborate(conn):
+    page_3 = "Coming up: Labour data. 30 Oct Survey."
+    seed_version(conn, (PAGE_1, PAGE_2, page_3), published_on="2026-11-02")
+    with transaction(conn):
+        conn.execute("UPDATE research_publication SET title = 'Synthetic Update - 29 October 2026'")
+    digest = hashlib.sha256("\n".join((PAGE_1, PAGE_2, page_3)).encode()).hexdigest()
+    item = relative(calendar_quote="Labour data")
+    report = check_pack(
+        conn,
+        built(text_sha256=digest, content_sha256=digest, items=[fact()], relative_dates=[item]),
+    )
+    assert "calendar_quote_has_no_date" in codes(report)
+
+
 def test_friday_before_publication_is_valid_because_the_anchor_is_the_document_date(stored):
     conn, _ = stored
     item = relative(id="survey", quote="the survey follows on Friday", phrase="on Friday", resolved="2026-10-30",
@@ -237,6 +366,44 @@ def test_a_corruption_the_verifier_misses_is_reported_as_missed_not_dropped(stor
     assert report.caught + report.missed == sum(r.mutation != "baseline" for r in report.results)
     assert {r.mutation for r in report.results} >= {"baseline", "wrong_value", "wrong_period", "added_year",
                                                     "wrong_page", "foreign_evidence"}  # fmt: skip
+
+
+def test_a_decision_with_no_recorded_vote_is_probed_without_a_vote_mutation(stored):
+    conn, _ = stored
+    item = decision(vote_for=None, vote_against=None)
+    report = probe_pack(conn, built(items=[item], relative_dates=[]))  # must not raise
+    mutations = {r.mutation for r in report.results}
+    assert "wrong_vote" not in mutations and {"wrong_rate", "wrong_date"} <= mutations
+
+
+def test_a_pack_cannot_record_only_half_a_vote():
+    with pytest.raises(ValidationError):
+        built(items=[decision(vote_against=None)])
+
+
+def test_a_year_already_stated_is_not_probed_by_adding_it_again(conn):
+    page = "Annual inflation was 2.9% in the September quarter 2025, Synthetic Statistics reported."
+    hashes = seed_dated(conn, page)
+    item = fact(
+        quote=page.rstrip("."), period_as_stated="September quarter 2025", period_resolved="2025Q3"
+    )
+    report = probe_pack(conn, built(**hashes, items=[item], relative_dates=[]))
+    assert "added_year" not in {r.mutation for r in report.results}
+    assert report.false_rejections == 0 and {"wrong_period", "wrong_value"} <= {
+        r.mutation for r in report.results
+    }
+
+
+def test_the_year_an_unstated_period_gains_is_one_the_document_never_states(conn):
+    page = "Annual inflation was 2.9% in the September quarter, Synthetic Statistics reported. Prices in 2025 and 2024 differed."
+    hashes = seed_dated(conn, page)
+    item = fact(
+        quote="Annual inflation was 2.9% in the September quarter, Synthetic Statistics reported"
+    )
+    report = probe_pack(conn, built(**hashes, items=[item], relative_dates=[]))
+    (added,) = [r for r in report.results if r.mutation == "added_year"]
+    assert added.measured and added.expected == "rejected"
+    assert _unsupported_year(page + PAGE_2 + PAGE_3) not in {"2025", "2024", "2026"}
 
 
 def test_a_decision_probe_catches_a_changed_rate_and_vote(stored):

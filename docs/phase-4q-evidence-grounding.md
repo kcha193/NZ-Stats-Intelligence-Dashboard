@@ -76,9 +76,9 @@ Rules SHA-256 in full in `config/phase-4q-prompt.json`. **No request has used th
 
 | New check | Test |
 |---|---|
-| A period stated only in one of the comparisons listed above is not the figure's period, except a bare "from" after "remain", "stay" or "hold" ("to remain at 2% from 2029") | `test_period_grounding.py` |
+| A period stated only in one of the comparisons listed above is not the figure's period, except a bare "from" where "remain", "stay" or "hold" leads straight to the figure ("to remain at 2% from 2029") | `test_period_grounding.py` |
 | Reported wording ("said it expected", "markets expect") blocks a claim by anyone else, when it comes before the figure in its clause, or when `verify-3` wording credits nobody. Not inside a comparison. "Expected by the IMF" counts for the IMF, not the sentence's subject | `test_verify_attribution.py` |
-| An author label fails when a third party is credited after the author's last words before the figure ("We note the IMF expects"), or in a following "which" clause. A name alone does not count, so "the RBNZ is expected to cut" stays beside the author's forecast | `test_verify_attribution.py` |
+| An author label fails when a third party is credited after the author's last words before the figure ("We note the IMF expects"), in a following "which" clause, or as the agent of "expected by" later in the figure's clause. A name alone does not count, so "the RBNZ is expected to cut" stays beside the author's forecast | `test_verify_attribution.py` |
 | Several third parties credited in one clause block the author label | `test_verify_attribution.py` |
 | An author credit inside a "than", "as", "like" or "unlike" comparison ("more than we expected") cannot hide a third party | `test_verify_attribution.py` |
 | A block at any evidence spot rejects the claim, whatever another spot credits, unless the block names the claimed issuer itself | `test_verify_attribution.py` |
@@ -187,7 +187,8 @@ Fresh Claude reviewers worked over four rounds, each in a worktree with no `data
 | A credit beating a nearby report, or a block at another spot (fourth round) | P1 | Fixed |
 | Figure taking the period of "vs", "against", "above", an opening comparison, or "from N in 2029 to M" (fourth round) | P1 | Fixed |
 | True claims rejected: a level "from 2029", "expected by the IMF", another clause blocking the author's own report (Codex) | P2 | Fixed |
-| Those fixes went too far: "contracted 0.8% from July" and "expected by 2029" passed (security review) | Medium | Fixed: level verbs only, and only an organisation counts as the agent |
+| Those fixes went too far: "contracted 0.8% from July" and "expected by 2029" passed (security review) | Medium | Fixed: the level verb must lead to the figure, and only an organisation or market counts as the agent |
+| "Expected by the Fed" or "markets" unrecognised, and an agent after the figure not blocking an author label (security review) | Medium | Fixed. "Expected by economists" still credits the sentence's subject, which fails closed for other labels |
 | Earlier design's shared-prefix and "Markets forecast" rejections (Codex) | P2 | No longer reproduce. Tests kept |
 | Gold scoring could flatter: years, units, duplicates, broad items, no-value items, ties, the gold's order, a right number with the wrong issuer | P2 | Fixed |
 | Review gate accepted a blank reviewer, an AI's name or a future date | P2 | Fixed |

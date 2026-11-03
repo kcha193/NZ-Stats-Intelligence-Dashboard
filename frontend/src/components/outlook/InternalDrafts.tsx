@@ -51,7 +51,7 @@ function ReportsHeld({ reports }: { reports: DraftReport[] }) {
             <p className="mt-1 text-sm text-muted-foreground">{r.institution_name}, {r.published_on ? `published ${formatCivilDate(r.published_on)}` : "publication date not stated"}</p>
             <p className="mt-1 text-sm">
               {r.draft_id === null
-                ? "No AI summary"
+                ? "No internal draft available"
                 : <Link className="underline underline-offset-4" to={`/economic-outlook/draft/${r.draft_id}`}>Read the unapproved AI draft</Link>}
             </p>
           </li>

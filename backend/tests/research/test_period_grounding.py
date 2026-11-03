@@ -213,3 +213,14 @@ def test_a_sentence_opening_period_still_supplies_a_figure_beside_a_comparison()
 )
 def test_only_a_level_verb_lets_a_bare_from_state_a_start(sentence):
     assert "period_not_supported" in errors(sentence, 0.8, "July")
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Output remained weak but fell 0.8% from July.",
+        "Inflation held at 2% and freight fell 0.8% from July.",
+    ],
+)
+def test_the_level_verb_must_be_the_figures_own(sentence):
+    assert "period_not_supported" in errors(sentence, 0.8, "July")

@@ -92,7 +92,12 @@ _BEFORE_MARKET = {
     "since",
 }
 # A comparison up to this point, within one clause: "more than the RBNZ", "as both the RBNZ and the IMF". "As of June," is not.
-_EXPECTED_BY = re.compile(r"\bexpected\s+by\s+(?:the\s+)?", re.IGNORECASE)
+_EXPECTED_BY = re.compile(r"\bexpected\s+by\s+", re.IGNORECASE)
+_CLAUSE_END = re.compile(r"[,;:]")
+_THE = re.compile(r"the\s+", re.IGNORECASE)
+_MARKET_AGENT = re.compile(
+    r"(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\b", re.IGNORECASE
+)
 _WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
 _STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)
 _COMPARED_WITH = re.compile(
@@ -143,8 +148,30 @@ def is_market_name(name: str) -> bool:
 
 
 def _agent_at(text: str, at: int) -> str | None:
-    """The organisation whose name starts at `at`, if any."""
-    return next((key for key, (name, _) in _PATTERNS.items() if name.match(text, at)), None)
+    """The organisation whose name starts at `at`, with or without "the", if any."""
+    if _MARKET_AGENT.match(text, at):
+        return "market"
+    the = _THE.match(text, at)
+    starts = (at, the.end()) if the else (at,)
+    return next(
+        (
+            key
+            for start in starts
+            for key, (name, _) in _PATTERNS.items()
+            if name.match(text, start)
+        ),
+        None,
+    )
+
+
+def _expected_by(text: str) -> set[str]:
+    """Organisations named as the agent of "expected by", outside a comparison."""
+    agents = {
+        _agent_at(text, m.end())
+        for m in _EXPECTED_BY.finditer(text)
+        if not _COMPARED_WITH.search(text[: m.start()])
+    }
+    return agents - {None}
 
 
 def reported(text: str) -> set[str]:
@@ -164,10 +191,7 @@ def reported(text: str) -> set[str]:
             for m in pattern.finditer(text)
         )
     }
-    for m in _EXPECTED_BY.finditer(text):
-        agent = _agent_at(text, m.end())
-        if agent is not None and not _COMPARED_WITH.search(text[: m.start()]):
-            keys.add(agent)
+    keys |= _expected_by(text)
     for m in _MARKET_EXPECTS.finditer(text):
         before = text[: m.start()]
         words = before.split()
@@ -184,7 +208,8 @@ def reported(text: str) -> set[str]:
 def third_parties_around(before: str, after: str, author: str | None) -> set[str]:
     """Third parties credited with a figure the author may be labelled with, given its sentence split at the figure.
 
-    Credited since the author's last words before it, or in a clause after it opening "which". A name alone does not count, so
+    Credited since the author's last words before it, in a clause after it opening "which", or as the agent of "expected by" in
+    its own clause after it. A name alone does not count, so
     "the RBNZ is expected to cut" stays beside the author's own forecast.
     """
     last = [m.end() for m in SELF_REFERENCE.finditer(before)]
@@ -197,6 +222,7 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     keys: set[str] = set()
     for text in texts:
         keys |= reported(text) | credited(_WHICH.sub(" ", _STAFF.sub("expects", text)))
+    keys |= _expected_by(_CLAUSE_END.split(after, maxsplit=1)[0])
     return keys - {author}
 
 
