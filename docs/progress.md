@@ -13,8 +13,8 @@ Full record: [phase-4q-evidence-grounding.md](phase-4q-evidence-grounding.md). D
 Local evidence: ignored `data/phase-4q/`. **GO WITH CONDITIONS to prepare one experiment. No inference ran. Everything else stays NO-GO.**
 
 - Root cause: 4 of 5 rejected facts carry a year not stated for the figure. Fact 3's year is only in its comparison's period, and fact 2 has no period in its cited sentence. Removing the year alone clears 2 of 5.
-- New: prompt `outlook-v5`, unused. `verify-4` only tightens: 0 of 30,960 invented period cases newly pass. Phase 4O's summary recomputes identically.
-- Independent reviews broke two earlier designs and found a draft gate gap from PR #42. All fixed. A true figure beside a comparison stays rejected, as a recorded limit.
+- New: prompt `outlook-v5`, unused. `verify-4` only tightens: 0 of 45,117 invented period, issuer and two-evidence cases newly pass. Phase 4O's summary recomputes identically.
+- Independent reviews broke three earlier designs and found a draft gate gap from PR #42. All fixed. A true figure beside a comparison stays rejected, as a recorded limit.
 - New: `gold-worksheet`, `score-gold`. No human gold exists yet.
 - Next: owner resolves `data/phase-4q/period-review-worksheet.html` and the gold worksheets. Six conditions precede any run.
 
