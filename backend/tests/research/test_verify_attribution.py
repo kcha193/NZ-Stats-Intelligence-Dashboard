@@ -502,3 +502,21 @@ def test_a_reported_forecaster_in_the_clause_outranks_a_credit_earlier_in_the_se
 )
 def test_a_block_at_either_spot_rejects_a_credit_at_the_other(first, second):
     assert "issuer_mismatch" in spots(first, second, "IMF")
+
+
+# Found by the Codex review: true claims verify-3 accepted, so restoring them gives up nothing verify-3 had.
+def test_a_named_market_forecast_keeps_its_issuer():
+    claim = authors("Markets forecast growth of 3% in 2029.", role="third_party", issuer="Markets")
+    assert not {"issuer_mismatch", "issuer_not_in_evidence"} & codes(claim)
+
+
+def test_expected_by_credits_the_forecaster_not_the_subject():
+    sentence = (
+        "With the RBNZ expected by the IMF to cut the OCR to 3% in 2029, financing costs will ease."
+    )
+    assert "issuer_mismatch" not in codes(authors(sentence, role="third_party", issuer="IMF"))
+
+
+def test_an_authors_report_in_the_clause_stops_another_clause_blocking_it():
+    sentence = "The Treasury expected growth of 3% in 2029, while the RBNZ expected inflation of 2% in 2029."
+    assert "issuer_mismatch" not in codes(authors(sentence))

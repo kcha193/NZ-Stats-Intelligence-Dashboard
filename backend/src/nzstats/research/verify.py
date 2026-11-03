@@ -120,6 +120,11 @@ _COMPARISON = re.compile(
     r"|\bvs\b|\bagainst\b|\babove\b|\bbelow\b",
     re.IGNORECASE,
 )
+_CHANGE = re.compile(
+    r"\b(?:rose|rise[sn]?|rising|fell|falls?|fallen|falling|grew|grow(?:s|n|ing)?|increas\w*|decreas\w*|declin\w*"
+    r"|drop\w*|climb\w*|up|down|higher|lower)\b",
+    re.IGNORECASE,
+)
 # A comparison that opens a sentence: "Compared with June, freight rose 0.8%."
 _LEAD_COMPARISON = re.compile(
     r"\s*(?:compared\s+(?:with|to)|relative\s+to|versus|against)\b[^,;]*[,;]", re.IGNORECASE
@@ -691,7 +696,14 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
             return True
     after = next((m for m in _COMPARISON.finditer(loc.text, at, b)), None)
     if after is not None and any(_period_parts(loc.text[after.start() : b])[:3]):
-        if _unstated_period(period, loc.text[a : after.start()]):
+        head, tail = loc.text[a : after.start()], loc.text[after.end() : b]
+        # "to remain at 2% from 2029" starts a level. Only a change or a second figure compares.
+        starts_level = (
+            after.group().lower() == "from"
+            and not _CHANGE.search(head)
+            and not _numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail))))
+        )
+        if not starts_level and _unstated_period(period, head):
             return True
     before = [m for m in _COMPARISON.finditer(loc.text, a, at)]
     if before:
@@ -1410,8 +1422,9 @@ class _Checker:
                 return who, blocks
         blocks: set[str] = set()
         for text in (loc.clause_at(at), loc.sentence_text()):
-            blocks = others(issuers.reported(text))
-            if blocks:
+            keys = issuers.reported(text)
+            if keys:  # the nearest report decides, even when it is the author's own
+                blocks = others(keys)
                 break
         # A sentence that names nobody continues the one before it: "…in the IMF's World Economic Outlook (WEO).
         # The outlook for growth in 2026 has been revised to 3.1%" is the IMF's figure.

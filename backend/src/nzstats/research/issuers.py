@@ -73,9 +73,9 @@ _BEFORE = (
 _MARKET_ISSUER = re.compile(
     r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\s*$", re.IGNORECASE
 )
-_REPORTED = r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+to\b)\b"
+_REPORTED = r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+(?:to|by)\b)\b"
 _MARKET_EXPECTS = re.compile(
-    r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?expect(?:s\b|ed(?!\s+to\b)\b|\b)",
+    r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?expect(?:s\b|ed(?!\s+(?:to|by)\b)\b|\b)",
     re.IGNORECASE,
 )
 # Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
