@@ -565,3 +565,15 @@ def test_an_agent_after_the_figure_blocks_an_author_label(sentence):
 def test_an_agent_in_another_clause_after_the_figure_does_not_block_the_author():
     sentence = "We expect growth of 3% in 2029, while 2% is expected by the IMF."
     assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+# Found by the Codex review: true author labels that verify-3 accepted.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, which exceeds what the IMF forecasts.",
+        "The RBNZ expected growth of 2% but we forecast 3% in 2029.",
+    ],
+)
+def test_a_benchmark_or_an_earlier_view_does_not_block_the_authors_figure(sentence):
+    assert "issuer_mismatch" not in codes(authors(sentence))

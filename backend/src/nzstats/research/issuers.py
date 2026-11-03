@@ -205,6 +205,22 @@ def reported(text: str) -> set[str]:
     return keys
 
 
+def since_author(before: str, author: str | None) -> str:
+    """What `before` says after the author's last words, or all of it if the author says nothing."""
+    last = [m.end() for m in SELF_REFERENCE.finditer(before)]
+    if author in _PATTERNS:
+        last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
+    return before[max(last, default=0) :]
+
+
+def _credited_outside_comparison(text: str) -> set[str]:
+    return {
+        key
+        for key, (_, credit) in _PATTERNS.items()
+        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in credit.finditer(text))
+    }
+
+
 def third_parties_around(before: str, after: str, author: str | None) -> set[str]:
     """Third parties credited with a figure the author may be labelled with, given its sentence split at the figure.
 
@@ -212,16 +228,15 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     its own clause after it. A name alone does not count, so
     "the RBNZ is expected to cut" stays beside the author's own forecast.
     """
-    last = [m.end() for m in SELF_REFERENCE.finditer(before)]
-    if author in _PATTERNS:
-        last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
-    texts = [before[max(last, default=0) :]]
+    texts = [since_author(before, author)]
     which = _WHICH.search(after)
     if which is not None:
         texts.append(after[which.end() :])
     keys: set[str] = set()
     for text in texts:
-        keys |= reported(text) | credited(_WHICH.sub(" ", _STAFF.sub("expects", text)))
+        keys |= reported(text) | _credited_outside_comparison(
+            _WHICH.sub(" ", _STAFF.sub("expects", text))
+        )
     keys |= _expected_by(_CLAUSE_END.split(after, maxsplit=1)[0])
     return keys - {author}
 

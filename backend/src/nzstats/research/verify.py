@@ -698,13 +698,12 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
     after = next((m for m in _COMPARISON.finditer(loc.text, at, b)), None)
     if after is not None and any(_period_parts(loc.text[after.start() : b])[:3]):
         head, tail = loc.text[a : after.start()], loc.text[after.end() : b]
-        # "to remain at 2% from 2029" starts a level, unless a second figure makes it a comparison.
-        starts_level = (
-            after.group().lower() == "from"
-            and _LEVEL.search(loc.text[a:at]) is not None
-            and not _numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail))))
-        )
-        if not starts_level and _unstated_period(period, head):
+        word = after.group().lower()
+        second_figure = _numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail))))
+        # "to remain at 2% from 2029" starts a level, and "3% above trend in 2029" is a gap, not another figure's period.
+        starts_level = word == "from" and _LEVEL.search(loc.text[a:at]) is not None
+        no_comparison = not second_figure and (starts_level or word in {"above", "below"})
+        if not no_comparison and _unstated_period(period, head):
             return True
     before = [m for m in _COMPARISON.finditer(loc.text, a, at)]
     if before:
@@ -1419,7 +1418,8 @@ class _Checker:
                     blocks = third_parties
                 if who is not None:
                     # "We note the MPC said it expected", or a credit earlier in the sentence than this clause.
-                    blocks = others(issuers.reported(loc.lead_to(at))) - {who}
+                    lead = issuers.since_author(loc.lead_to(at), author)
+                    blocks = others(issuers.reported(lead)) - {who}
                 return who, blocks
         blocks: set[str] = set()
         for text in (loc.clause_at(at), loc.sentence_text()):
