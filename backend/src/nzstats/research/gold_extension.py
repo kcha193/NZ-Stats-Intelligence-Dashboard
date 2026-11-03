@@ -81,6 +81,11 @@ class ExtensionItem(_Strict):
             raise ValueError("a term may not be blank")
         if self.category == "third_party_forecast" and not (self.issuer and self.issuer.strip()):
             raise ValueError("a third-party forecast must name its issuer")
+        if (
+            self.category == "third_party_forecast"
+            and self.issuer_role is not IssuerRole.THIRD_PARTY
+        ):
+            raise ValueError("a third-party forecast must have the third-party role")
         return self
 
 
@@ -235,19 +240,27 @@ def _is_about(claim: _Emitted, item: ExtensionItem) -> bool:
 
 
 def _match(claim: _Emitted, items: tuple[ExtensionItem, ...]) -> ExtensionItem | None:
-    """Prefer an item this number is right for, then an item in the recall denominator: a broad item must not hide an error."""
-    about = [item for item in items if _is_about(claim, item)]
-    return min(
-        about,
-        key=lambda i: (not _value_right(claim, i) or i.value is None, i.category not in _IN_RECALL),
-        default=None,
-    )
+    """The least favourable item this claim fits, whatever the gold's order. A broad ambiguous item must not hide an error."""
+
+    def rank(item: ExtensionItem) -> tuple[int, str]:
+        right = _value_right(claim, item)
+        if item.category == "expected_rejection":
+            return (0 if right else 4, item.id)
+        return (1 if right else 3, item.id) if item.category in _IN_RECALL else (2, item.id)
+
+    about = [
+        item
+        for item in items
+        if _is_about(claim, item) and (item.category != "ambiguous" or _value_right(claim, item))
+    ]
+    return min(about, key=rank, default=None)
 
 
 def _value_right(claim: _Emitted, item: ExtensionItem) -> bool:
     if item.value is None:
         return claim.value is None
-    if item.unit is not None and claim.unit is not None and item.unit != claim.unit:
+    # A decision has a rate but no unit field, so its unit cannot be compared.
+    if item.unit is not None and claim.kind != "decision" and item.unit != claim.unit:
         return False
     return _same_value(claim.value, item.value)
 
@@ -277,12 +290,13 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
         else:
             matched += 1
             good = _value_right(claim, item)
-            if good and item.id in found:
+            repeat = good and item.id in found
+            if repeat:
                 duplicates += 1  # stated again: it is not a further correct claim
             elif good:
                 right += 1
                 found.add(item.id)
-            if item.value is not None or claim.value is not None:
+            if not repeat and (item.value is not None or claim.value is not None):
                 numbers += 1
                 numbers_right += good
             if item.period_as_stated is not None:

@@ -8,8 +8,11 @@ import pytest
 
 from nzstats.research.contract import OutlookSummary
 from nzstats.research.gold_extension import (
+    ExtensionItem,
     GoldExtension,
     GoldExtensionError,
+    _Emitted,
+    _score,
     load_extension,
     score_extension,
     write_worksheet,
@@ -398,3 +401,62 @@ def test_the_raw_label_says_what_it_covers(stored):
     conn, _ = stored
     label = scored(conn, summary([fact()])).to_json()["views"]["raw"]["label"]
     assert "facts, forecasts and decisions" in label and "not scored" in label
+
+
+# Found by the third independent review.
+def test_a_tie_with_an_expected_rejection_counts_as_the_rejection(stored):
+    conn, _ = stored
+    items = [gold("eligible"), gold("rejected", "expected_rejection", reason="no_period")]
+    for order in (items, items[::-1]):
+        raw = scored(conn, summary([fact()]), items=order).views["raw"]
+        assert raw.expected_rejections == 1 and raw.precision.text == "0/1"
+        assert raw.recall.text == "0/1"
+
+
+def test_the_order_of_the_gold_does_not_change_the_score(stored):
+    conn, _ = stored
+    items = [gold("a"), gold("b", period=None)]
+    first = scored(conn, summary([fact()]), items=items).to_json()
+    assert first == scored(conn, summary([fact()]), items=items[::-1]).to_json()
+
+
+def test_a_broad_ambiguous_item_cannot_absorb_a_wrong_number_alone(stored):
+    conn, _ = stored
+    items = [gold("broad", "ambiguous", value=None, period=None)]
+    raw = scored(conn, summary([fact(value=9.9)]), items=items).views["raw"]
+    assert raw.ambiguous == 0 and raw.unmatched == 1 and raw.precision.text == "0/1"
+
+
+def test_an_ambiguous_item_still_takes_a_claim_it_is_right_for(stored):
+    conn, _ = stored
+    items = [gold("unclear", "ambiguous", period=None)]
+    raw = scored(conn, summary([fact()]), items=items).views["raw"]
+    assert raw.ambiguous == 1 and raw.precision.text == "unmeasured (0/0)"
+
+
+def test_a_claim_with_no_unit_is_not_right_for_gold_with_one(stored):
+    conn, _ = stored
+    raw = scored(conn, summary([{**fact(), "unit": None}]), items=[gold()]).views["raw"]
+    assert raw.numerical_accuracy.text == "0/1" and raw.recall.text == "0/1"
+
+
+def test_a_decision_has_no_unit_field_so_its_rate_alone_decides():
+    item = ExtensionItem.model_validate(
+        gold("ocr", kind="decision", terms=("hold",), value=9.5, period=None)
+    )
+    decision = _Emitted("decision", "hold", 9.5, None, None, "Bank", None, False)
+    assert _score([decision], (item,)).numerical_accuracy.text == "1/1"
+
+
+@pytest.mark.parametrize("role", ["author", None])
+def test_a_third_party_forecast_must_have_the_third_party_role(role):
+    with pytest.raises(ValueError):
+        ExtensionItem.model_validate(
+            gold("x", "third_party_forecast", "forecast", role=role, issuer="IMF")
+        )
+
+
+def test_repeating_a_right_number_does_not_raise_numerical_accuracy(stored):
+    conn, _ = stored
+    raw = scored(conn, summary([fact(), fact(), fact(value=9.9)]), items=[gold()]).views["raw"]
+    assert raw.numerical_accuracy.text == "1/2" and raw.duplicates == 1
