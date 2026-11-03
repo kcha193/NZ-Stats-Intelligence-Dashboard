@@ -612,3 +612,41 @@ def test_a_pack_with_an_unknown_field_is_refused(tmp_path):
     path.write_text('{"unexpected": 1}')
     with pytest.raises(GoldPackError):
         load_pack(path)
+
+
+# Review round: the words that name the issuer must identify the annotated issuer and role, not only appear in the quote.
+@pytest.mark.parametrize(
+    "over",
+    [
+        {
+            "issuer": "International Monetary Fund",
+            "issuer_role": "third_party",
+        },  # "We forecast" is the author
+        {"issuer": "International Monetary Fund", "issuer_role": "author"},
+        {"issuer": "The Author", "issuer_role": "third_party"},
+        {
+            "issuer": "Reserve Bank of Australia",
+            "issuer_role": "third_party",
+            "named_as": "We forecast",
+        },
+    ],
+)
+def test_a_forecast_whose_naming_words_are_another_speaker_is_not_a_true_baseline(stored, over):
+    conn, _ = stored
+    assert "issuer_not_identified" in codes(check_pack(conn, built(items=[forecast(**over)])))
+
+
+def test_an_author_forecast_named_by_self_reference_or_its_own_name_is_identified(stored):
+    conn, _ = stored
+    assert "issuer_not_identified" not in codes(check_pack(conn, built(items=[forecast()])))
+    own = forecast(
+        issuer="The Synthetic Bank", named_as="The committee"
+    )  # an unknown organisation: not judged
+    assert "issuer_not_identified" not in codes(check_pack(conn, built(items=[own])))
+
+
+def test_a_third_party_forecast_named_by_its_own_name_is_identified(stored):
+    conn, _ = stored
+    item = forecast(id="c", quote="The committee expects inflation of 3.4% in the December quarter", page=1,
+                    issuer="The committee", issuer_role="third_party", named_as="The committee", value=3.4)  # fmt: skip
+    assert "issuer_not_identified" not in codes(check_pack(conn, built(items=[item])))

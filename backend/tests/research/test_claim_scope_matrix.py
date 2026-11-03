@@ -97,6 +97,7 @@ def test_a_sentence_opening_year_still_reaches_a_coordinated_fact():
 # --- who the figure's own clause credits ----------------------------------------------------------------------
 # (sentence, value, issuer, role): a correctly labelled claim.
 ISSUER_VALID = [
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets forecast growth of 3% in 2029.", 3, "Markets", "third_party"),
     ("Markets anticipate growth of 3% in 2029.", 3, "Markets", "third_party"),
     ("The market forecasts growth of 3% in 2029.", 3, "The market", "third_party"),
@@ -133,6 +134,9 @@ ISSUER_INVALID = [
     ("The IMF forecasts growth of 2%, but the RBNZ expected 3% in 2029.", 3, "IMF", "third_party"),
     ("We expect growth of 3% in 2029 and inflation of 2%, which the IMF expects.", 3, "The Treasury", "author"),
     ("The IMF forecasts growth of 2% in 2029, but the IMF is above what the RBNZ expects: the RBNZ expected 3% in 2029.", 3, "IMF", "third_party"),
+    ("The IMF expects growth of 3% in 2029, higher than we expected.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 3%, less than we forecast at 2% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast, and the IMF also forecasts 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets projected growth of 3% in 2029.", 3, "The Treasury", "author"),
 ]  # fmt: skip
