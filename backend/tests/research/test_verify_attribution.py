@@ -520,3 +520,23 @@ def test_expected_by_credits_the_forecaster_not_the_subject():
 def test_an_authors_report_in_the_clause_stops_another_clause_blocking_it():
     sentence = "The Treasury expected growth of 3% in 2029, while the RBNZ expected inflation of 2% in 2029."
     assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+# Found by the automated security review: "by" can name a date, and an agent must not go uncredited.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The RBNZ expected by 2029 growth of 3%.",
+        "Markets expected by year-end growth of 3% in 2029.",
+    ],
+)
+def test_expected_by_a_date_still_names_the_forecaster(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+def test_expected_by_an_organisation_blocks_any_other_label():
+    sentence = (
+        "With the RBNZ expected by the IMF to cut the OCR to 3% in 2029, financing costs will ease."
+    )
+    assert "issuer_mismatch" in codes(authors(sentence))
+    assert "issuer_mismatch" in codes(authors(sentence, role="third_party", issuer="RBNZ"))

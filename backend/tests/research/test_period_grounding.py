@@ -199,3 +199,17 @@ def test_a_sentence_opening_period_still_supplies_a_figure_beside_a_comparison()
     sentence = "In 2030, output rose 2% and inflation rose 3%, up from 1% in June."
     assert "period_not_supported" not in errors(sentence, 3, "2030")
     assert "period_not_supported" in errors(sentence, 3, "June")
+
+
+# Found by the automated security review: a list of change words fails open on any verb it lacks.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Freight contracted 0.8% from July.",
+        "Growth slowed to 0.8% from July.",
+        "Freight eased 0.8% from July.",
+        "Freight was 0.8% from July.",
+    ],
+)
+def test_only_a_level_verb_lets_a_bare_from_state_a_start(sentence):
+    assert "period_not_supported" in errors(sentence, 0.8, "July")

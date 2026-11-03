@@ -120,10 +120,9 @@ _COMPARISON = re.compile(
     r"|\bvs\b|\bagainst\b|\babove\b|\bbelow\b",
     re.IGNORECASE,
 )
-_CHANGE = re.compile(
-    r"\b(?:rose|rise[sn]?|rising|fell|falls?|fallen|falling|grew|grow(?:s|n|ing)?|increas\w*|decreas\w*|declin\w*"
-    r"|drop\w*|climb\w*|up|down|higher|lower)\b",
-    re.IGNORECASE,
+# A bare "from" states when a level starts only after one of these. Anything else counts as a comparison.
+_LEVEL = re.compile(
+    r"\b(?:remain|stay|hold)(?:s|ing)?\b|\b(?:remained|stayed|held)\b", re.IGNORECASE
 )
 # A comparison that opens a sentence: "Compared with June, freight rose 0.8%."
 _LEAD_COMPARISON = re.compile(
@@ -697,10 +696,10 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
     after = next((m for m in _COMPARISON.finditer(loc.text, at, b)), None)
     if after is not None and any(_period_parts(loc.text[after.start() : b])[:3]):
         head, tail = loc.text[a : after.start()], loc.text[after.end() : b]
-        # "to remain at 2% from 2029" starts a level. Only a change or a second figure compares.
+        # "to remain at 2% from 2029" starts a level, unless a second figure makes it a comparison.
         starts_level = (
             after.group().lower() == "from"
-            and not _CHANGE.search(head)
+            and _LEVEL.search(head) is not None
             and not _numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail))))
         )
         if not starts_level and _unstated_period(period, head):
