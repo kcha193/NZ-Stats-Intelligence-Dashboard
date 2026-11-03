@@ -120,9 +120,11 @@ _COMPARISON = re.compile(
     r"|\bvs\b|\bagainst\b|\babove\b|\bbelow\b",
     re.IGNORECASE,
 )
-# A bare "from" states when a level starts only after one of these. Anything else counts as a comparison.
+# A bare "from" states when a level starts only when one of these leads straight to the figure. Anything else compares.
 _LEVEL = re.compile(
-    r"\b(?:remain|stay|hold)(?:s|ing)?\b|\b(?:remained|stayed|held)\b", re.IGNORECASE
+    r"\b(?:remain|stay|hold)(?:s|ing)?\s+(?:(?:at|around|about|near)\s+)?$"
+    r"|\b(?:remained|stayed|held)\s+(?:(?:at|around|about|near)\s+)?$",
+    re.IGNORECASE,
 )
 # A comparison that opens a sentence: "Compared with June, freight rose 0.8%."
 _LEAD_COMPARISON = re.compile(
@@ -699,7 +701,7 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
         # "to remain at 2% from 2029" starts a level, unless a second figure makes it a comparison.
         starts_level = (
             after.group().lower() == "from"
-            and _LEVEL.search(head) is not None
+            and _LEVEL.search(loc.text[a:at]) is not None
             and not _numbers(_QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail))))
         )
         if not starts_level and _unstated_period(period, head):
