@@ -51,7 +51,7 @@ sentence gave no year, the model supplied one.
 | Model added a year not stated for the figure | Facts 0, 1, 2, 4 | High, by location. A person should confirm against the PDF |
 | Model cited a sentence without the period | Fact 2 | High for the location, not for the reading |
 | Verifier rejects a true period beside a comparison | Facts 0, 3 | Confirmed on synthetic text. **Not fixed**: it fails closed, and the attempted fix failed review twice |
-| Verifier accepted a comparison's period as the figure's | No Phase 4O fact relied on this | Confirmed by failing test, a real false acceptance. Closed for "from", "compared with", "relative to" and "versus". Open under both versions for "above", "against", "vs", "since" and a leading "From N in" |
+| Verifier accepted a comparison's period as the figure's | No Phase 4O fact relied on this | Confirmed by failing test, a real false acceptance. Now rejected for "from", "compared with", "relative to", "versus", "vs", "against", "above", "below", a comparison opening the sentence, and "from 2% in 2029 to 3%". Still open under both versions for "since" and a leading "From N in" |
 | Verifier accepted a third party's forecast labelled as the author's | Found on the 29 October pack | Confirmed by failing test, fixed |
 | Five "IMF" labels on Phase 4O forecasts | Unresolved | Needs the human review. The verifier cannot settle them |
 
@@ -72,24 +72,25 @@ Rules SHA-256 in full in `config/phase-4q-prompt.json`. **No request has used th
 
 ### Verifier `verify-4`
 
-**`verify-4` only tightens.** `verify-3`'s rule alone decides who a figure is credited to, and `organisation_of` is unchanged. Each new check can only add a rejection, and there is no exception that lets a claim pass.
+**`verify-4` only tightens.** `verify-3`'s rule alone decides who a figure is credited to, and `organisation_of` is unchanged. Each new check can only add a rejection, and there is no exception that lets a claim pass. These are wording checks, so each row covers the wording it names and not every way of saying it.
 
 | New check | Test |
 |---|---|
-| A period the clause states only in a comparison is not the figure's period | `test_period_grounding.py` |
-| Reported wording ("said it expected", "markets expect") blocks a claim by anyone else, only when `verify-3` wording credits nobody, and not inside a comparison | `test_verify_attribution.py` |
+| A period stated only in one of the comparisons listed above is not the figure's period, except a bare "from" starting a level ("to remain at 2% from 2029") | `test_period_grounding.py` |
+| Reported wording ("said it expected", "markets expect") blocks a claim by anyone else, when it comes before the figure in its clause, or when `verify-3` wording credits nobody. Not inside a comparison, and not "expected by" | `test_verify_attribution.py` |
+| An author label fails when a third party is credited after the author's last words before the figure ("We note the IMF expects"), or in a following "which" clause. A name alone does not count, so "the RBNZ is expected to cut" stays beside the author's forecast | `test_verify_attribution.py` |
 | Several third parties credited in one clause block the author label | `test_verify_attribution.py` |
-| An author credit only inside a comparison ("more than we expected") cannot hide a third party | `test_verify_attribution.py` |
-| A block at any evidence spot rejects the claim, whatever another spot credits | `test_verify_attribution.py` |
+| An author credit inside a "than", "as", "like" or "unlike" comparison ("more than we expected") cannot hide a third party | `test_verify_attribution.py` |
+| A block at any evidence spot rejects the claim, whatever another spot credits, unless the block names the claimed issuer itself | `test_verify_attribution.py` |
 
-No threshold changed. One failed claim still rejects a summary. A market-named issuer is exempt from the market block only, which leaves it where `verify-3` put it. "Markets" on "Market pricing" therefore stays a `verify-3` false rejection, recorded here and not fixed.
+No threshold changed. One failed claim still rejects a summary. A market-named issuer with the third-party role is exempt from the market block only, which leaves it where `verify-3` put it. An author label gets no exemption. "Markets" on "Market pricing" therefore stays a `verify-3` false rejection, recorded here and not fixed.
 
-**How this was reached.** Two earlier versions also accepted true figures beside a comparison. Independent review broke both with concrete false acceptances, so that part was removed rather than patched a third time. A third review then showed "only tightens" was still false, through credit shared across evidence spots and a market exception. Both are gone.
+**How this was reached.** Two earlier versions also accepted true figures beside a comparison. Independent review broke both with concrete false acceptances, so that part was removed rather than patched a third time. A third review then showed "only tightens" was still false, through credit shared across evidence spots and a market exception. Both are gone. A fourth review confirmed it only tightens, and found sentences that passed under both versions, such as "We note the IMF expects" labelled as the author's. Those now fail.
 The removed part had changed no Phase 4O result, and the brief says not to weaken rules to raise acceptance.
 
-**Evidence, on invented sentences only, comparing against the `verify-3` source.** 30,960 period cases: 0 newly pass, 1,264 newly rejected. 429 issuer cases: 0 newly pass, 17 newly rejected. 13,728 cases with two evidence quotes: 0 newly pass, 919 newly rejected. That covers the shapes tried, and it is not a proof. The comparison script is local and not in this repository.
+**Evidence, on invented sentences only, comparing against the `verify-3` source.** 30,960 period cases: 0 newly pass, 1,388 newly rejected. 429 issuer cases: 0 newly pass, 17 newly rejected. 13,728 cases with two evidence quotes: 0 newly pass, 1,099 newly rejected. The fourth reviewer's own harness, run before the last fixes, found the same on 56,400 cases. That covers the shapes tried, and it is not a proof. The comparison script is local and not in this repository.
 
-**Known limits.** A true figure beside a comparison in one clause stays rejected, as under `verify-3`. `outlook-v5` asks for a null period in that shape, which a test confirms passes. Accepting a stated period there needs its own reviewed design. The wordings left open in the table above behave the same under both versions, so they are not regressions.
+**Known limits.** A true figure beside a comparison in one clause stays rejected, as under `verify-3`. `outlook-v5` asks for a null period in that shape, which a test confirms passes. Accepting a stated period there needs its own reviewed design. The wordings still open above behave the same under both versions, so they are not regressions. **The issuer checks cannot prove whose figure it is.** Each review has found new wording that gets through, so a person's reading stays the test of attribution, and a pass here is not evidence of it.
 
 ### Measured effect, offline, no model
 
@@ -170,8 +171,8 @@ the same gate, not which drafts are visible. The Outlook header's line about app
 
 ## Independent review
 
-Codex was the intended reviewer, but the account's model access failed on both tries and it produced no review. Fresh Claude reviewers did the work over three rounds, each in a worktree with no `data/`, using invented text. An automated security review also ran on the pushed commits, twice.
-These are independent of this session's reasoning but are **not a second vendor**: their model family is the author's. **The final design's review is recorded in `progress.md`.**
+Fresh Claude reviewers worked over four rounds, each in a worktree with no `data/`, using invented text. An automated security review also ran on the pushed commits, twice. These are independent of this session's reasoning, but their model family is the author's.
+**The Codex GitHub connector also reviewed the pushed commits of PRs #43 and #44, which is a different vendor's model.** The agent's own attempts to run Codex locally failed on model access, and it did not read the connector's comments until the fourth round. Commits after the fourth round were checked by tests, the differential and the connector, not by another Claude round. See `progress.md`.
 
 | Finding | Severity | Status |
 |---|---|---|
@@ -182,7 +183,12 @@ These are independent of this session's reasoning but are **not a second vendor*
 | False rejections from broad "expected", sector markets and "Reserve Bank of New Zealand" | P2 | Fixed |
 | "Only tightens" was false: credit shared across evidence spots, and a market exception (third round) | Not graded here | Fixed: credit and blocks are now separate, and the exception is gone |
 | A comparison's base could take the compared figure's period, a reported third party could lose to the author's voice, and the comparison guard crossed punctuation (security review) | Not graded here | Fixed, failing-first |
-| Gold scoring could flatter: years, units, duplicates, broad items, no-value items, ties, the gold's order | P2 | Fixed |
+| Third party's figure labelled as the author's, passing under both versions (fourth round) | P0 | Fixed for the wordings tested. See the limit above |
+| A credit beating a nearby report, or a block at another spot (fourth round) | P1 | Fixed |
+| Figure taking the period of "vs", "against", "above", an opening comparison, or "from N in 2029 to M" (fourth round) | P1 | Fixed |
+| True claims rejected: a level "from 2029", "expected by the IMF", another clause blocking the author's own report (Codex) | P2 | Fixed |
+| Earlier design's shared-prefix and "Markets forecast" rejections (Codex) | P2 | No longer reproduce. Tests kept |
+| Gold scoring could flatter: years, units, duplicates, broad items, no-value items, ties, the gold's order, a right number with the wrong issuer | P2 | Fixed |
 | Review gate accepted a blank reviewer, an AI's name or a future date | P2 | Fixed |
 | Draft gate ignored a revoked route (from PR #42) | Baseline | Fixed |
 | Malformed date disabled the draft's historical check | P2 | Fixed: withheld |
@@ -196,6 +202,8 @@ These are independent of this session's reasoning but are **not a second vendor*
 - A draft withheld for instruction-like text still has its title in "Reports held".
 - A future-dated stored report would be marked newest.
 - Repeated claims no longer raise numerical accuracy, but they still count toward period exactness and issuer accuracy.
+- Gold that omits a period or unit accepts any. A one-letter term is allowed, and wrong figures that miss a term leave numerical accuracy but still lower precision. A person writes the gold, so these depend on that review.
+- The reviewer's name is an attestation: a block list cannot catch "GPT4" or "Sonnet".
 
 ## Bounded proposal for the next experiment
 
