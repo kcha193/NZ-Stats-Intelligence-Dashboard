@@ -104,6 +104,8 @@ def test_a_sentence_opening_year_still_reaches_a_coordinated_fact():
 # (sentence, value, issuer, role): a correctly labelled claim.
 ISSUER_VALID = [
     ("The IMF expects growth of 2%, less than we forecast at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury forecasts at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury\'s forecast of 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets forecast growth of 3% in 2029.", 3, "Markets", "third_party"),
     ("Growth of 3% is expected by Market Economics Ltd in 2029.", 3, "Market Economics Ltd", "third_party"),
     ("Growth of 3% is expected by the Financial Markets Authority in 2029.", 3, "Financial Markets Authority", "third_party"),
@@ -152,6 +154,8 @@ ISSUER_INVALID = [
     ("The IMF expects, unlike our forecast, growth of 3% in 2029.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than our rivals forecast at 3% in 2029.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than we doubt at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury\'s critics forecast at 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than the Treasury does not forecast at 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by Market Participants in 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by THE MARKET in 2029.", 3, "The Treasury", "author"),
