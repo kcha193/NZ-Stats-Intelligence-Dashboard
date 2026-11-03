@@ -116,7 +116,7 @@ It is refused unless a reviewer is recorded, the name is not an AI tool's, the d
 Matching is deterministic and does not depend on the order of the gold. A claim goes to the item it fits worst, then, among items equally right about the
 number, to the one its issuer fits, then to one not yet covered, so Treasury's and the IMF's equal forecasts each find their own item. A decision is compared on
 its day (`decided_on`, with the gold written as `2026-11-03` or `3 November 2026`), and a forecast without a number is compared on its direction, which that
-gold item must state. A reversed or differently dated claim earns no credit.
+gold item must state. A forecast's `scenario` must match too (none means the baseline). A reversed, differently dated or differently conditioned claim earns no credit.
 
 `research gold-worksheet VERSION` builds the review sheet from the document alone, and a test denies it read access to the model-output tables. Sheets exist
 locally for versions 1 and 3. **No human gold exists yet, so these are scoring tools, not results.**

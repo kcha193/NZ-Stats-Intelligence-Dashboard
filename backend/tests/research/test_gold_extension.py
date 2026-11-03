@@ -605,3 +605,27 @@ def test_only_the_gold_direction_earns_credit(stored, direction):
 def test_a_qualitative_forecast_gold_must_state_its_direction():
     with pytest.raises(ValueError):
         GoldExtension.model_validate(extension(items=[{**qualitative_gold(), "direction": None}]))
+
+
+def scenario_gold(scenario=None):
+    return {**gold("g", "accepted_eligible", "forecast", ("growth",), 2.9, "2027", "author", "The Treasury"),
+            "scenario": scenario}  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("claimed", "gold_scenario", "credit"),
+    [
+        (None, None, "1/1"),
+        ("severe recession", None, "0/1"),
+        (None, "severe recession", "0/1"),
+        ("Severe  Recession", "severe recession", "1/1"),
+        ("upside", "downside", "0/1"),
+    ],
+)
+def test_a_conditional_forecast_is_not_the_baseline_gold_and_the_reverse(
+    stored, claimed, gold_scenario, credit
+):
+    conn, _ = stored
+    claim = {**OWN_GROWTH, "scenario": claimed}
+    raw = scored(conn, summary([], [claim]), items=[scenario_gold(gold_scenario)]).views["raw"]
+    assert raw.recall.text == credit and raw.precision.text == credit

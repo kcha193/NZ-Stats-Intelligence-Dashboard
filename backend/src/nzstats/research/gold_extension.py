@@ -71,6 +71,7 @@ class ExtensionItem(_Strict):
     period_as_stated: str | None = None
     issuer_role: IssuerRole | None = None
     issuer: str | None = None
+    scenario: str | None = None  # None: the baseline. A conditional forecast is a different item
     direction: Direction | None = None  # a forecast without a number is told apart by its direction
     expected_reason: str | None = None
 
@@ -198,6 +199,7 @@ class _Emitted:
     role: IssuerRole | None
     failed: bool
     direction: str | None = None
+    scenario: str | None = None
 
 
 def _flat(text: str | None) -> str:
@@ -230,7 +232,7 @@ def _emitted(summary: OutlookSummary, failed_paths: set[str]) -> list[_Emitted]:
     for i, c in enumerate(summary.forecasts):
         text = f"{c.indicator_label} {c.indicator.value} {c.qualification or ''}"
         out.append(_Emitted("forecast", text, c.value, c.unit, c.horizon, c.issuer, c.issuer_role,
-                            f"forecasts[{i}]" in failed_paths, c.direction.value))  # fmt: skip
+                            f"forecasts[{i}]" in failed_paths, c.direction.value, c.scenario))  # fmt: skip
     for i, d in enumerate(summary.decisions):
         out.append(_Emitted("decision", f"{d.decision_maker} {d.instrument} {d.action.value}", d.rate, None,
                             d.decided_on.isoformat(), d.decision_maker, None, f"decisions[{i}]" in failed_paths))  # fmt: skip
@@ -274,6 +276,8 @@ def _is_about(claim: _Emitted, item: ExtensionItem) -> bool:
     """The same subject and period, whatever number it states."""
     if claim.kind != item.kind or not all(_flat(t) in _flat(claim.text) for t in item.terms):
         return False
+    if item.kind == "forecast" and _flat(claim.scenario) != _flat(item.scenario):
+        return False  # a baseline forecast and a scenario's are different claims
     if item.period_as_stated is None:
         return True
     if item.kind == "decision":
