@@ -73,11 +73,13 @@ _BEFORE = (
 _MARKET_ISSUER = re.compile(
     r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\s*$", re.IGNORECASE
 )
-_REPORTED = r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+to\b)\b"
+_REPORTED = (
+    r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+(?:not\s+|never\s+)?to\b)\b"
+)
 # "Markets forecast growth" is the market's view; "market forecasts of 3%" and "markets expected to rise" are not.
 _MARKET_EXPECTS = re.compile(
     r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?"
-    r"(?:expect(?:s\b|ed(?!\s+to\b)\b|\b)"
+    r"(?:expect(?:s\b|ed(?!\s+(?:not\s+|never\s+)?to\b)\b|\b)"
     r"|(?:forecasts?|forecasted|anticipates?|anticipated|predicts?|predicted|projects?|projected)"
     r"(?!\s+(?:of|for|from|that|to|is|are|was|were|by)\b)\b)",
     re.IGNORECASE,
