@@ -73,9 +73,9 @@ _BEFORE = (
 _MARKET_ISSUER = re.compile(
     r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\s*$", re.IGNORECASE
 )
-_REPORTED = r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+(?:to|by)\b)\b"
+_REPORTED = r"\s+(?:(?:said|says)\s+(?:that\s+)?(?:it|they)\s+)?expected(?!\s+to\b)\b"
 _MARKET_EXPECTS = re.compile(
-    r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?expect(?:s\b|ed(?!\s+(?:to|by)\b)\b|\b)",
+    r"\b(?:markets?|market\s+participants)\s+(?:(?:now|still)\s+)?expect(?:s\b|ed(?!\s+to\b)\b|\b)",
     re.IGNORECASE,
 )
 # Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
@@ -92,6 +92,7 @@ _BEFORE_MARKET = {
     "since",
 }
 # A comparison up to this point, within one clause: "more than the RBNZ", "as both the RBNZ and the IMF". "As of June," is not.
+_EXPECTED_BY = re.compile(r"\bexpected\s+by\s+(?:the\s+)?", re.IGNORECASE)
 _WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
 _STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)
 _COMPARED_WITH = re.compile(
@@ -141,20 +142,40 @@ def is_market_name(name: str) -> bool:
     return bool(_MARKET_ISSUER.match(name))
 
 
+def _agent_at(text: str, at: int) -> str | None:
+    """The organisation whose name starts at `at`, if any."""
+    return next((key for key, (name, _) in _PATTERNS.items() if name.match(text, at)), None)
+
+
 def reported(text: str) -> set[str]:
     """Organisations named as forecasters by reported wording. A comparison ("higher than the RBNZ expected") credits nobody."""
     text = re.sub(r"Reserve Bank of New Zealand", "Reserve Bank", text, flags=re.IGNORECASE)
+
+    # "The RBNZ expected by the IMF to cut" is the IMF's view, so it counts for the IMF. "Expected by 2029" names no agent.
+    def passive(m: re.Match[str]) -> bool:
+        by = _EXPECTED_BY.match(text, m.end() - len("expected"))
+        return by is not None and _agent_at(text, by.end()) is not None
+
     keys = {
         key
         for key, pattern in _REPORTED_PATTERNS.items()
-        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
+        if any(
+            not _COMPARED_WITH.search(text[: m.start()]) and not passive(m)
+            for m in pattern.finditer(text)
+        )
     }
+    for m in _EXPECTED_BY.finditer(text):
+        agent = _agent_at(text, m.end())
+        if agent is not None and not _COMPARED_WITH.search(text[: m.start()]):
+            keys.add(agent)
     for m in _MARKET_EXPECTS.finditer(text):
         before = text[: m.start()]
         words = before.split()
         starts_clause = not words or words[-1][-1] in ",;:("
-        if not _COMPARED_WITH.search(before) and (
-            starts_clause or words[-1].lower() in _BEFORE_MARKET
+        if (
+            not passive(m)
+            and not _COMPARED_WITH.search(before)
+            and (starts_clause or words[-1].lower() in _BEFORE_MARKET)
         ):
             keys.add("market")
     return keys
