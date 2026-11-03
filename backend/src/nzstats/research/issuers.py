@@ -277,7 +277,7 @@ def _credited_outside_comparison(text: str) -> set[str]:
 
 # A figure with units. A bare year or count is not another assertion's figure.
 _FIGURE = re.compile(
-    r"\d[\d,.]*\s*(?:%|per\s?cent\b|percent\b|basis\s+points?\b|bps\b|b\b|bn\b|billion\b|million\b)|\$\s*\d",
+    r"\d[\d,.]*\s*(?:%|per\s?cent\b|percent\b|basis\s+points?\b|bps\b|b\b|bn\b|billion\b|million\b)|\$\s*\d[\d,]*(?:\.\d+)?",
     re.IGNORECASE,
 )
 # Only a contrast opens a new assertion. A bare "and" may coordinate figures under one credit, so it never ends one.
@@ -291,14 +291,20 @@ _NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|then)\b", re.IGNORE
 _NAMES_ANY = "|".join(f"(?:{o.names})" for o in ORGANISATIONS if o.key != "market")
 _ASSERTING_WORD = rf"(?:{_ACTIVE}|expected\b)"
 _CREDIT_IN_CLAUSE = re.compile(
-    rf"(?:the\s+)?(?:{_NAMES_ANY})(?:['’]s)?\s+{_FILLER}{_ASSERTING_WORD}(?P<rest>[^,;:]*)",
+    rf"(?:the\s+)?(?:{_NAMES_ANY})(?:['’]s)?\s+{_FILLER}{_ASSERTING_WORD}(?P<rest>(?:[^,;:]|(?<=\d),(?=\d{{3}}\b))*)",
     re.IGNORECASE,
 )
 _COMPLEMENT = re.compile(
     r"\s*(?:to\s+(?:be|remain|prove|become|stay)|(?:will|would|should|could|might|may)\s+\w+)\b",
     re.IGNORECASE,
 )
-_NUMBER = re.compile(r"\d[\d,]*\.?\d*")
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_NUMBER_WORD = re.compile(
+    r"\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|(?:thir|four|fif|six|seven|eight|nine)teen"
+    r"|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|(?:a|an)\s+(?:hundred|thousand|million|billion))\b",
+    re.IGNORECASE,
+)
+_YEAR = re.compile(r"(?:19|20)\d\d\Z")
 # Straight after "which" the organisation is the one expecting, since "which" is what is expected: "which the IMF expected to be 3%"
 # is the IMF's forecast, though "the RBNZ expected to cut" alone may be a passive.
 _WHICH_EXPECTED = re.compile(
@@ -320,9 +326,23 @@ def leading_figure(after: str) -> float | None:
     return _value(m.group()) if m else None
 
 
+def _numbers(text: str) -> list[float | None]:
+    """The numbers in `text` other than a bare year ("in 2029"), which dates a forecast but is no figure."""
+    return [
+        _value(m.group())
+        for m in _NUMBER.finditer(text)
+        if not (_YEAR.match(m.group()) and not _FIGURE.match(text, m.start()))
+    ]
+
+
 def _is_other_assertion(rest: str, figure: float | None) -> bool:
-    """Does what a relative clause's forecaster says leave the claimed figure alone?"""
-    values = [_value(m.group()) for m in _FIGURE.finditer(rest)]
+    """Does what a relative clause's forecaster says leave the claimed figure alone?
+
+    Any number, or a number word, counts as a figure, whatever its unit: a figure that is not recognised must not look like none.
+    """
+    if _NUMBER_WORD.search(rest):
+        return False  # "three per cent" cannot be compared with the claimed figure, so it blocks
+    values = _numbers(rest)
     if values:
         return figure is not None and None not in values and figure not in values
     return _COMPLEMENT.match(rest) is not None
