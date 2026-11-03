@@ -287,6 +287,20 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     return keys - {author}
 
 
+def author_governs(before: str, author: str | None) -> bool:
+    """Does the author's own wording come right before the figure, with no other figure or forecaster between?
+
+    "The IMF expects 2%, less than we forecast at 3%": the 3% is the author's, even though that credit sits in a comparison.
+    """
+    ends = [m.end() for m in SELF_REFERENCE.finditer(before)]
+    if author in _PATTERNS:
+        ends += [m.end() for m in _PATTERNS[author][1].finditer(before)]
+    if not ends:
+        return False
+    between = before[max(ends) :]
+    return not _FIGURE.search(between) and not ((credited(between) | reported(between)) - {author})
+
+
 def author_only_compared(text: str, author: str | None) -> bool:
     """Is every credit to the document's author inside a comparison, as in "more than we expected"?"""
     spans = [m.start() for m in SELF_REFERENCE.finditer(text)]
