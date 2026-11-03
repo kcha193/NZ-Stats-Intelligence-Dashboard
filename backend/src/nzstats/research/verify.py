@@ -115,9 +115,12 @@ _FRACTIONS = {"½": 0.5, "¼": 0.25, "¾": 0.75}
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
 # The start of a comparison after a figure. Only ever used to add a rejection: see `_period_only_in_comparison`.
+# "against a backdrop of weak demand" is context, but "against a backdrop of 2% growth" compares: only a phrase with no figure of
+# its own (before the clause ends) is exempt.
+_NO_FIGURE = r"(?![^,;]*\d[\d.,]*\s*(?:%|percent|per\s?cent|bps|basis))"
 _COMPARISON = re.compile(
     r"\b(?:up|down|higher|lower)\s+from\b|\bfrom\b|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b"
-    r"|\bvs\b|\bagainst\b(?!\s+(?:an?|the)\s+(?:back(?:drop|ground)|context)\b)|\babove\b|\bbelow\b",
+    rf"|\bvs\b|\bagainst\b(?!\s+(?:an?|the)\s+(?:back(?:drop|ground)|context)\b{_NO_FIGURE})|\babove\b|\bbelow\b",
     re.IGNORECASE,
 )
 # A bare "from" states when a level starts only when one of these leads straight to the figure. Anything else compares.
@@ -126,9 +129,10 @@ _LEVEL = re.compile(
     r"|\b(?:remained|stayed|held)\s+(?:(?:at|around|about|near)\s+)?$",
     re.IGNORECASE,
 )
-# A comparison that opens a sentence: "Compared with June, freight rose 0.8%."
+# A comparison that opens a sentence: "Compared with June, freight rose 0.8%." An opening "Against a backdrop of … in 2029," names a
+# period that may be the backdrop's rather than the figure's, so it stays a comparison.
 _LEAD_COMPARISON = re.compile(
-    r"\s*(?:compared\s+(?:with|to)|relative\s+to|versus|against(?!\s+(?:an?|the)\s+(?:back(?:drop|ground)|context)\b))\b[^,;]*[,;]",
+    r"\s*(?:compared\s+(?:with|to)|relative\s+to|versus|against)\b[^,;]*[,;]",
     re.IGNORECASE,
 )
 _FORWARD = re.compile(

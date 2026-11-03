@@ -101,7 +101,13 @@ _CLAUSE_END = re.compile(r"[,;:]")
 _THE = re.compile(r"the\s+", re.IGNORECASE)
 # Case-sensitive on purpose: "Market Economics Ltd" and the "Financial Markets Authority" are named organisations, not the market.
 _MARKET_AGENT = re.compile(
-    r"(?:[Tt]he\s+)?(?:[Ff]inancial\s+)?[Mm]arkets?(?:\s+participants)?\b(?!\s+[A-Z])"
+    r"(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\b", re.IGNORECASE
+)
+_CAPITALISED_WORD = re.compile(r"\s+[A-Z][a-z]")
+# An agent that is a proper name, not a date: "expected by Acme Research", never "expected by June".
+_PROPER_AGENT = re.compile(
+    r"(?:the\s+)?(?!(?:January|February|March|April|May|June|July|August|September|October|November|December"
+    r"|Q[1-4]|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b)[A-Z]\w"
 )
 _WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
 _STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)
@@ -152,9 +158,17 @@ def is_market_name(name: str) -> bool:
     return bool(_MARKET_ISSUER.match(name))
 
 
+def _names_an_organisation(matched: str, rest: str) -> bool:
+    """A title-case "Market" or "Markets" followed by another capitalised word is a name: "Market Economics Ltd"."""
+    word = re.search(r"markets?\b", matched, re.IGNORECASE)
+    token = matched[word.start() : word.end()] if word else ""
+    return token[:1].isupper() and token[1:].islower() and bool(_CAPITALISED_WORD.match(rest))
+
+
 def _agent_at(text: str, at: int) -> str | None:
     """The organisation whose name starts at `at`, with or without "the", if any."""
-    if _MARKET_AGENT.match(text, at):
+    market = _MARKET_AGENT.match(text, at)
+    if market and not _names_an_organisation(market.group(), text[market.end() :]):
         return "market"
     the = _THE.match(text, at)
     starts = (at, the.end()) if the else (at,)
@@ -177,6 +191,16 @@ def _expected_by(text: str) -> set[str]:
         if not _COMPARED_WITH.search(text[: m.start()])
     }
     return agents - {None}
+
+
+def _unnamed_expected_by(text: str) -> bool:
+    """Is a proper name that this module does not know the agent of "expected by", outside a comparison?"""
+    return any(
+        _agent_at(text, m.end()) is None
+        and _PROPER_AGENT.match(text, m.end())
+        and not _COMPARED_WITH.search(text[: m.start()])
+        for m in _EXPECTED_BY.finditer(text)
+    )
 
 
 def reported(text: str) -> set[str]:
@@ -284,7 +308,12 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
         keys |= reported(text) | _credited_outside_comparison(
             _WHICH.sub(" ", _STAFF.sub("expects", text))
         )
-    keys |= _expected_by(_CLAUSE_END.split(after, maxsplit=1)[0])
+    clause = _CLAUSE_END.split(after, maxsplit=1)[0]
+    keys |= _expected_by(clause)
+    if _unnamed_expected_by(clause):
+        keys.add(
+            "other"
+        )  # someone else's forecast, though not one this module can name: never the author's
     return keys - {author}
 
 
