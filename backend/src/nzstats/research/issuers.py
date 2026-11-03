@@ -288,22 +288,33 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     return keys - {author}
 
 
-def author_governs(before: str, after: str, author: str | None) -> bool:
-    """Is the figure the author's own, stated by the author as the forecaster, with no third party crediting it?
+# The author's own forecasting words, joined to the figure only by a short connective. No free word may sit between them.
+_CONNECTIVE = r"(?:(?:of|at|to\s+be|that)\s+)?"
+_OWN_FORECAST = re.compile(
+    r"\b(?:we|our)\s+(?:(?:still|now|also|currently)\s+)?"
+    r"(?:forecasts?|projections?|estimates?|expects?|projects?|anticipates?|predicts?|sees?)"
+    rf"\s+{_CONNECTIVE}$",
+    re.IGNORECASE,
+)
 
-    "The IMF expects 2%, less than we forecast at 3%": the author's forecasting words come right before the figure, with no
-    other figure or forecaster between, and the rest of the figure's assertion credits nobody else. A bare "us" or "our", or a
-    third party's credit after the figure ("… 3% according to the IMF"), does not qualify.
+
+def _author_speaks_just_before(before: str, author: str | None) -> bool:
+    if _OWN_FORECAST.search(before):
+        return True
+    return author in _PATTERNS and any(
+        re.fullmatch(rf"\s*{_CONNECTIVE}", before[m.end() :], re.IGNORECASE)
+        for m in _PATTERNS[author][1].finditer(before)
+    )
+
+
+def author_governs(before: str, after: str, author: str | None) -> bool:
+    """Is the figure the author's own, with the author's forecasting words directly before it and no third party after it?
+
+    "The IMF expects 2%, less than we forecast at 3%": the figure is the author's even though that credit sits in a comparison.
+    Nothing may stand between the author's words and the figure ("our rivals forecast at 3%", "unlike our forecast, growth of
+    3%" do not qualify), and a third party's credit after the figure ("… 3% according to the IMF") ends it.
     """
-    ends = [m.end() for m in SELF_REFERENCE.finditer(before)]
-    if author in _PATTERNS:
-        ends += [m.end() for m in _PATTERNS[author][1].finditer(before)]
-    if not ends:
-        return False
-    between = before[max(ends) :]
-    if not re.match(rf"\s*(?:\w+\s+)?{_ACTIVE}", between, re.IGNORECASE):
-        return False  # not the author speaking as the forecaster
-    if _FIGURE.search(between) or (credited(between) | reported(between)) - {author}:
+    if not _author_speaks_just_before(before, author):
         return False
     own = own_assertion(after)
     trailing = _credited_outside_comparison(_WHICH.sub(" ", own)) | reported(own)
