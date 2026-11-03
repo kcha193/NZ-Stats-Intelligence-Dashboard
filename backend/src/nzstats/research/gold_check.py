@@ -286,9 +286,11 @@ def _decision_codes(item: GoldItem, quote: str, nearby: str, published_on: date)
         day = (item.decided_on.month, item.decided_on.day)
         stated = _calendar_dates(quote)
         if stated:
-            supported = day in stated
+            supported = day in stated and _year_agrees(quote, item.decided_on)
         else:
-            supported = day in _calendar_dates(nearby) or item.decided_on == published_on
+            supported = (
+                day in _calendar_dates(nearby) and _year_agrees(nearby, item.decided_on)
+            ) or item.decided_on == published_on
         if not supported:
             codes.append("decided_on_not_supported")
     return codes
@@ -355,6 +357,22 @@ def _relative_candidates(phrase: str, document: date) -> set[date] | None:
     if "next" in words and first.isocalendar()[:2] == document.isocalendar()[:2]:
         return {first, first + timedelta(days=7)}
     return {first}
+
+
+def _year_agrees(line: str, day: date) -> bool:
+    """A year written beside the day ("28 October 2026") must be the decision's year. No year written: nothing to contradict."""
+    month = rf"(?P<m>{'|'.join(MONTHS)})(?:{'|'.join(MONTH_ENDINGS)})?\.?"
+    text = line.lower()
+    years = {
+        int(m["y"])
+        for m in re.finditer(rf"\b(?P<d>\d{{1,2}})\s+{month}\s*,?\s*(?P<y>\d{{4}})\b", text)
+        if (MONTHS.index(m["m"]) + 1, int(m["d"])) == (day.month, day.day)
+    } | {
+        int(m["y"])
+        for m in re.finditer(rf"\b{month}\s+(?P<d>\d{{1,2}})\s*,?\s*(?P<y>\d{{4}})\b", text)
+        if (MONTHS.index(m["m"]) + 1, int(m["d"])) == (day.month, day.day)
+    }
+    return not years or day.year in years
 
 
 def _calendar_dates(line: str) -> set[tuple[int, int]]:

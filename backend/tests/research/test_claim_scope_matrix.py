@@ -53,6 +53,8 @@ HORIZON_VALID = [
     ),
     ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "June 2029"),
     ("We expect output to be 3% above trend in the 4 quarters to June 2029.", 3, "June 2029"),
+    ("We expect growth of 3% against a backdrop of weak demand in 2029.", 3, "2029"),
+    ("We expect growth of 3% against the background of weak demand in 2029.", 3, "2029"),
 ]
 
 
@@ -72,6 +74,8 @@ HORIZON_INVALID = [
     ),
     ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "June 2030"),
     ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "March 2029"),
+    ("We expect growth of 3% against a backdrop of weak demand in 2029.", 3, "2030"),
+    ("We expect growth of 3% against 2% in 2029.", 3, "2029"),
 ]
 
 
@@ -99,6 +103,8 @@ def test_a_sentence_opening_year_still_reaches_a_coordinated_fact():
 ISSUER_VALID = [
     ("The IMF expects growth of 2%, less than we forecast at 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets forecast growth of 3% in 2029.", 3, "Markets", "third_party"),
+    ("Growth of 3% is expected by Market Economics Ltd in 2029.", 3, "Market Economics Ltd", "third_party"),
+    ("Growth of 3% is expected by the Financial Markets Authority in 2029.", 3, "Financial Markets Authority", "third_party"),
     ("Markets anticipate growth of 3% in 2029.", 3, "Markets", "third_party"),
     ("The market forecasts growth of 3% in 2029.", 3, "The market", "third_party"),
     ("With the RBNZ expected by the IMF to cut the OCR to 3% in 2029, financing costs will ease.", 3, "IMF", "third_party"),
@@ -137,7 +143,12 @@ ISSUER_INVALID = [
     ("The IMF expects growth of 3% in 2029, higher than we expected.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 3%, less than we forecast at 2% in 2029.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than we forecast, and the IMF also forecasts 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029 according to the IMF.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
+    ("The IMF expects, unlike us, growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029.", 3, "IMF", "third_party"),
     ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Markets in 2029.", 3, "The Treasury", "author"),
     ("Markets projected growth of 3% in 2029.", 3, "The Treasury", "author"),
 ]  # fmt: skip
 
