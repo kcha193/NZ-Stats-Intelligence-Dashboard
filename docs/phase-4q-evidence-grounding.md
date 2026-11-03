@@ -247,7 +247,7 @@ The recorded comparison limit means a claimed period beside a comparison would s
 **Before any run, in order:**
 
 1. Owner resolves `period-review-worksheet.html` and the Phase 4O human review.
-2. Owner completes human gold for version 3 from `gold-worksheet-v3.html`, without opening any model output.
+2. Owner completes human gold for version 3 from `gold-worksheet-v3.html`, without opening any model output. This includes the decision date in the AI-written pack, which `check-gold` reports as not stated in that document's text (`decided_on_not_supported`).
 3. Owner checks the publication page and decides on third-party content.
 4. The post-run key reading from Phase 4O is recorded.
 5. A reviewed code change adds the experiment and version.
