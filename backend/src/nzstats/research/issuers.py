@@ -287,10 +287,12 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     return keys - {author}
 
 
-def author_governs(before: str, author: str | None) -> bool:
-    """Does the author's own wording come right before the figure, with no other figure or forecaster between?
+def author_governs(before: str, after: str, author: str | None) -> bool:
+    """Is the figure the author's own, stated by the author as the forecaster, with no third party crediting it?
 
-    "The IMF expects 2%, less than we forecast at 3%": the 3% is the author's, even though that credit sits in a comparison.
+    "The IMF expects 2%, less than we forecast at 3%": the author's forecasting words come right before the figure, with no
+    other figure or forecaster between, and the rest of the figure's assertion credits nobody else. A bare "us" or "our", or a
+    third party's credit after the figure ("… 3% according to the IMF"), does not qualify.
     """
     ends = [m.end() for m in SELF_REFERENCE.finditer(before)]
     if author in _PATTERNS:
@@ -298,7 +300,13 @@ def author_governs(before: str, author: str | None) -> bool:
     if not ends:
         return False
     between = before[max(ends) :]
-    return not _FIGURE.search(between) and not ((credited(between) | reported(between)) - {author})
+    if not re.match(rf"\s*(?:\w+\s+)?{_ACTIVE}", between, re.IGNORECASE):
+        return False  # not the author speaking as the forecaster
+    if _FIGURE.search(between) or (credited(between) | reported(between)) - {author}:
+        return False
+    own = own_assertion(after)
+    trailing = _credited_outside_comparison(_WHICH.sub(" ", own)) | reported(own)
+    return not trailing - {author}
 
 
 def author_only_compared(text: str, author: str | None) -> bool:

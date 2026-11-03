@@ -1415,14 +1415,16 @@ class _Checker:
                 blocks = set()
                 if (
                     who is None
+                    and author_credited
+                    and issuers.author_only_compared(text, author)
+                    and issuers.author_governs(*loc.sentence_around(at), author)
+                ):
+                    # "The IMF expects 2%, less than we forecast at 3%": the figure is the author's, comparison or not.
+                    return "author", set()
+                if (
+                    who is None
                     and third_parties
-                    and (
-                        not author_credited
-                        or (
-                            issuers.author_only_compared(text, author)
-                            and not issuers.author_governs(loc.sentence_around(at)[0], author)
-                        )
-                    )
+                    and (not author_credited or issuers.author_only_compared(text, author))
                 ):
                     # Several third parties, or the author only in a comparison.
                     blocks = third_parties

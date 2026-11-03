@@ -137,6 +137,10 @@ ISSUER_INVALID = [
     ("The IMF expects growth of 3% in 2029, higher than we expected.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 3%, less than we forecast at 2% in 2029.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than we forecast, and the IMF also forecasts 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029 according to the IMF.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
+    ("The IMF expects, unlike us, growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029.", 3, "IMF", "third_party"),
     ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets projected growth of 3% in 2029.", 3, "The Treasury", "author"),
 ]  # fmt: skip
