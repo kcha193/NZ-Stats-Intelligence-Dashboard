@@ -131,6 +131,8 @@ ISSUER_INVALID = [
     ("The RBNZ expected growth of 2% but the IMF forecasts 3% in 2029.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expects, while inflation will be 2%.", 3, "The Treasury", "author"),
     ("The IMF forecasts growth of 2%, but the RBNZ expected 3% in 2029.", 3, "IMF", "third_party"),
+    ("We expect growth of 3% in 2029 and inflation of 2%, which the IMF expects.", 3, "The Treasury", "author"),
+    ("The IMF forecasts growth of 2% in 2029, but the IMF is above what the RBNZ expects: the RBNZ expected 3% in 2029.", 3, "IMF", "third_party"),
     ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets projected growth of 3% in 2029.", 3, "The Treasury", "author"),
 ]  # fmt: skip
