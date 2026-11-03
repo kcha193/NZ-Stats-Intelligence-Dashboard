@@ -62,6 +62,8 @@ text. The public site, static snapshot, public gate and private gate are unchang
   its page, value and period inside the quote, issuer near the quote, and relative dates resolved from the document date.
   A value matches as a whole signed number, a stated year must agree with the resolved quarter, and a relative weekday must resolve to
   the week the phrase means and to the date its calendar line states.
+  The words that name a forecast's issuer must identify that issuer and role ("We forecast" is the author, so an item naming another organisation as the
+  forecaster, or the author as a third party, is flagged `issuer_not_identified`).
   A decision's action, vote and date must also appear in its quote (a date the quote omits may come from nearby text or the publication date).
   That last check found the pack's `ocr-decision` date (28 October) is not stated anywhere in the stored FEU text, so the owner must confirm it
   or correct the pack; an earlier "0 problems" for the pack did not test decisions this way.
