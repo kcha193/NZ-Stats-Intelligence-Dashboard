@@ -151,3 +151,16 @@ def test_a_true_figure_beside_a_comparison_passes_with_no_period_claimed():
     # What outlook-v5 asks for in this case: state nothing rather than choose. The quote still shows the document's words.
     assert "period_not_supported" not in errors(UP_FROM, 6.3, None)
     assert "period_not_supported" not in errors(BARE_FROM, 6.3, None)
+
+
+# Found by the automated security review.
+@pytest.mark.parametrize(
+    ("sentence", "value", "period"),
+    [
+        ("Output rose 6.3% in 2029 versus 5.9%.", 5.9, "2029"),
+        ("Output rose 6.3% in September compared with 5.9%.", 5.9, "September"),
+        ("Output rose 6.3% in 2029, up from 5.9%.", 5.9, "2029"),
+    ],
+)
+def test_the_base_of_a_comparison_cannot_take_the_compared_figures_period(sentence, value, period):
+    assert "period_not_supported" in errors(sentence, value, period)

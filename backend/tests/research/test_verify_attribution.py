@@ -3,7 +3,7 @@
 import pytest
 
 from nzstats.research.contract import SectionText
-from nzstats.research.issuers import credited, named, organisation_of
+from nzstats.research.issuers import credited, is_market_name, named, organisation_of
 from nzstats.research.issuers import reported as reported_keys
 
 from .test_verify_layout import TABLE
@@ -349,13 +349,12 @@ def test_past_tense_market_expectations_are_the_markets():
         "Markets",
         "the market",
         "financial markets",
-        "market pricing",
         "market participants",
         "financial market participants",
     ],
 )
 def test_each_market_issuer_name_is_recognised(issuer):
-    assert organisation_of(issuer) == "market"
+    assert is_market_name(issuer)
 
 
 @pytest.mark.parametrize(
@@ -363,7 +362,7 @@ def test_each_market_issuer_name_is_recognised(issuer):
     ["Market Economics Ltd", "Market Economics", "Financial Markets Authority", "Markets Insight"],
 )
 def test_a_real_organisation_with_market_in_its_name_is_not_the_market(issuer):
-    assert organisation_of(issuer) != "market"
+    assert not is_market_name(issuer) and organisation_of(issuer) != "market"
     report = authors(
         "Market pricing shows growth will reach 3% in 2029.", role="third_party", issuer=issuer
     )
@@ -383,3 +382,66 @@ def test_a_line_or_table_row_saying_market_is_not_a_credit():
     assert "market" not in credited("Market") and "market" not in named(
         "line one\nmarkets\nline three"
     )
+
+
+# Found by the third review: a credit at one evidence spot could satisfy a claim about the other spot's figure.
+MULTI = (
+    "The World Bank forecasts GDP growth of 3% in 2029.",
+    "The IMF forecasts GDP growth of 3% in 2029 while the OECD forecasts 2% in 2029.",
+    "The IMF expected GDP growth of 3% in 2029.",
+    "The IMF forecasts GDP growth of 3% in 2029, more than we expected.",
+    "Like the IMF forecasts, we forecast GDP growth of 3% in 2029.",
+)
+
+
+def spots(first, second, issuer, role="third_party"):
+    q1, q2 = first.rstrip("."), second.rstrip(".")
+    claim = forecast(0, q1, 1, value=3, unit="percent", horizon="2029", issuer=issuer, issuer_role=role,
+                     evidence=[ref(0, q1, 1), ref(0, q2, 1)])  # fmt: skip
+    section = {0: SectionText(f"{first} {second}", 1, 1)}
+    return codes(check(section, outlook_ref=ref(0, q1), institution="treasury", forecasts=[claim]))
+
+
+@pytest.mark.parametrize(
+    ("second", "issuer"),
+    [(MULTI[1], "OECD"), (MULTI[2], "IMF"), (MULTI[3], "IMF"), (MULTI[4], "IMF")],
+)
+def test_a_new_credit_at_one_spot_cannot_satisfy_a_claim(second, issuer):
+    assert "issuer_mismatch" in spots(MULTI[0], second, issuer)
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Growth of 3% in 2029 is above market expectations.",
+        "Unlike market pricing, growth will be 3% in 2029.",
+    ],
+)
+def test_market_wording_in_a_comparison_does_not_make_a_markets_issuer_pass(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence, role="third_party", issuer="Markets"))
+
+
+# Found by the automated security review.
+def test_a_reported_third_party_before_the_figure_outranks_the_authors_voice():
+    assert "issuer_mismatch" in codes(
+        authors("We note the MPC said it expected inflation of 3% in 2029.")
+    )
+
+
+def test_the_authors_own_figure_before_a_reported_view_stays_the_authors():
+    assert "issuer_mismatch" not in codes(
+        authors("Our forecast is 3% in 2029 while the RBNZ expected 2%.")
+    )
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "As of June, the RBNZ expected growth of 3% in 2029.",
+        "As markets rallied, the RBNZ expected growth of 3% in 2029.",
+        "In June, markets expect growth of 3% in 2029.",
+        "(Markets expect growth of 3% in 2029.",
+    ],
+)
+def test_the_comparison_guard_stops_at_punctuation_and_clause_starts_count(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))

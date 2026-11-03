@@ -668,12 +668,24 @@ def _period_parts(text: str) -> tuple[set[int], set[str], set[str], set[str]]:
 
 
 def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
-    """Does the clause state `period` only in a comparison after the figure? Then it is the base's period, not the figure's."""
+    """Is `period` stated for the other side of a comparison, not this figure? Only ever adds a rejection.
+
+    Either the clause states it only after a comparison that follows the figure, or the figure is itself the base of a
+    comparison ("6.3% in 2029 versus 5.9%") and the period is not stated after the comparison word.
+    """
     a, b = loc._clause_span(at)
-    comparison = next((m for m in _COMPARISON.finditer(loc.text, at, b)), None)
-    if comparison is None or not any(_period_parts(loc.text[comparison.start() : b])[:3]):
-        return False
-    return bool(_unstated_period(period, loc.text[a : comparison.start()]))
+    after = next((m for m in _COMPARISON.finditer(loc.text, at, b)), None)
+    if after is not None and any(_period_parts(loc.text[after.start() : b])[:3]):
+        if _unstated_period(period, loc.text[a : after.start()]):
+            return True
+    before = [m for m in _COMPARISON.finditer(loc.text, a, at)]
+    if before:
+        base = before[-1]
+        earlier = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", loc.text[a : base.start()])))
+        between = loc.text[base.end() : at]
+        if _numbers(earlier) and not _numbers(between) and len(between.split()) <= 3:
+            return bool(_unstated_period(period, loc.text[base.end() : b]))
+    return False
 
 
 def _period_missing(
@@ -1336,48 +1348,57 @@ class _Checker:
         return out
 
     # -- who made a forecast --------------------------------------------------------------------
-    def _credited(self, loc: _Located, at: int) -> set[str]:
+    def _credited(self, loc: _Located, at: int) -> tuple[str | None, set[str]]:
         """Who the evidence credits with the figure at `at`: "author", an organisation key, or None."""
         author = self.ctx.institution
 
-        def keys_of(keys: set[str], self_reference: bool = False) -> set[str]:
-            return {"author" if k == author else k for k in keys} | (
+        def one(keys: set[str], self_reference: bool = False) -> str | None:
+            keys = {"author" if k == author else k for k in keys} | (
                 {"author"} if self_reference else set()
             )
+            return next(iter(keys)) if len(keys) == 1 else None  # none, or several: unclear
 
-        def one(keys: set[str], self_reference: bool = False) -> set[str]:
-            found = keys_of(keys, self_reference)
-            return found if len(found) == 1 else set()  # none, or several: unclear
+        def others(keys: set[str]) -> set[str]:
+            return {k for k in keys if k != author}
 
+        # The first value decides whether a claim may pass, by verify-3's rule. The second can only block one.
         place, line = loc.layout.place(at)
         if place == "cell":
             label = loc.layout.row(line).label
             who = one(issuers.named(label), bool(issuers.SELF_REFERENCE.search(label)))
-            if not who:
+            if who is None:
                 who = one(issuers.named(loc.layout.table(line).caption))
-            if who:
-                return who
+            if who is not None:
+                return who, set()
         for text in (loc.clause_at(at), loc.sentence_text()):
             credited, own = issuers.credited(text), bool(issuers.SELF_REFERENCE.search(text))
             if credited or own:
-                keys = keys_of(credited, own)
-                # "The IMF forecasts 3%, more than we expected": the author is only the comparison.
-                if len(keys) > 1 and issuers.author_only_compared(text, author):
-                    keys.discard("author")
-                # Several third parties are unclear between themselves, but none of them is the author.
-                return keys if len(keys) == 1 or "author" not in keys else set()
-        # Reported wording is read only when nothing above credited anyone, and never credits the author, so it can only
-        # add a rejection.
+                who = one(credited, own)
+                third_parties = others(credited)
+                author_credited = own or author in credited
+                blocks = set()
+                if (
+                    who is None
+                    and third_parties
+                    and (not author_credited or issuers.author_only_compared(text, author))
+                ):
+                    # Several third parties, or the author only in a comparison.
+                    blocks = third_parties
+                if who == "author":
+                    # "We note the MPC said it expected".
+                    blocks = others(issuers.reported(loc.lead_to(at)))
+                return who, blocks
+        blocks: set[str] = set()
         for text in (loc.clause_at(at), loc.sentence_text()):
-            reported = issuers.reported(text) - {author}
-            if reported:
-                return reported
+            blocks = others(issuers.reported(text))
+            if blocks:
+                break
         # A sentence that names nobody continues the one before it: "…in the IMF's World Economic Outlook (WEO).
         # The outlook for growth in 2026 has been revised to 3.1%" is the IMF's figure.
         previous = loc.previous_sentence()
         if not issuers.named(loc.sentence_text()) and not issuers.SELF_REFERENCE.search(previous):
-            return one({k for k in issuers.credited(previous) if k != author})
-        return set()
+            return one({k for k in issuers.credited(previous) if k != author}), blocks
+        return None, blocks
 
     def issuer(
         self,
@@ -1407,7 +1428,19 @@ class _Checker:
             return
         claimed = "author" if role is IssuerRole.AUTHOR else key
         spots = value_at or [(loc, loc.start) for _, loc in found]
-        credited = set().union(*(self._credited(loc, at) for loc, at in spots))
+        results = [self._credited(loc, at) for loc, at in spots]
+        credited = {who for who, _ in results} - {None}
+        blocks = {k for _, keys in results for k in keys}
+        if issuers.is_market_name(name):
+            blocks.discard("market")
+        if blocks - {claimed} and (role is IssuerRole.AUTHOR or claimed not in blocks | credited):
+            who = ", ".join(sorted(_who(c) for c in blocks))
+            self.error(
+                "issuer_mismatch",
+                path,
+                f"the evidence credits this forecast to {who}, not {name!r}",
+            )
+            return
         if claimed is not None and claimed in credited:
             return
         if credited:

@@ -7,8 +7,7 @@ it the forecaster: a publication name, "the IMF expects/forecasts", "the IMF's f
 attribute the forecast to it. "We" and "our" are the document's author.
 
 `reported` adds wording that names a forecaster in the past tense ("the MPC said it expected") or the market's view ("markets
-expect"). It is narrow and separate: the verifier reads it only when `credited` finds nobody, so it can add a rejection and
-cannot remove one.
+expect"). It is narrow and separate: the verifier uses it only to block a claim, never to let one pass.
 """
 
 from __future__ import annotations
@@ -69,9 +68,10 @@ _BEFORE = (
 )
 
 
-# The issuer named as the market itself. A closed list: "Market Economics Ltd" and the "Financial Markets Authority" are not it.
+# An issuer named as the market itself, for a claim that the market's wording may not block. A closed list: "Market Economics
+# Ltd" and the "Financial Markets Authority" are not it. `organisation_of` keeps its existing answer for these names.
 _MARKET_ISSUER = re.compile(
-    r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+(?:participants|pricing))?\s*$", re.IGNORECASE
+    r"^\s*(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\s*$", re.IGNORECASE
 )
 _REPORTED = r"\s+(?:(?:said|says)\s+(?:it|they)\s+)?expected(?!\s+to\b)\b"
 _MARKET_EXPECTS = re.compile(
@@ -90,7 +90,10 @@ _BEFORE_MARKET = {
     "because",
     "since",
 }
-_COMPARED_WITH = re.compile(r"\b(?:than|as|what|unlike|like)\s+(?:\S+\s+){0,5}$", re.IGNORECASE)
+# A comparison up to this point, within one clause: "more than the RBNZ", "as both the RBNZ and the IMF". "As of June," is not.
+_COMPARED_WITH = re.compile(
+    r"\b(?:than|as(?!\s+of\b)|what|unlike|like)\s+(?:[^\s,;:]+\s+){0,5}$", re.IGNORECASE
+)
 
 
 def _compiled() -> dict[str, tuple[re.Pattern[str], re.Pattern[str]]]:
@@ -115,8 +118,6 @@ _REPORTED_PATTERNS = {
 
 def organisation_of(name: str) -> str | None:
     """The known organisation an issuer name refers to, or None (an organisation this module does not know)."""
-    if _MARKET_ISSUER.match(name):
-        return "market"
     for o in ORGANISATIONS:
         if _PATTERNS[o.key][0].search(name):
             return o.key
@@ -133,6 +134,10 @@ def credited(text: str) -> set[str]:
     return {key for key, (_, credit) in _PATTERNS.items() if credit.search(text)}
 
 
+def is_market_name(name: str) -> bool:
+    return bool(_MARKET_ISSUER.match(name))
+
+
 def reported(text: str) -> set[str]:
     """Organisations named as forecasters by reported wording. A comparison ("higher than the RBNZ expected") credits nobody."""
     text = re.sub(r"Reserve Bank of New Zealand", "Reserve Bank", text, flags=re.IGNORECASE)
@@ -144,7 +149,10 @@ def reported(text: str) -> set[str]:
     for m in _MARKET_EXPECTS.finditer(text):
         before = text[: m.start()]
         words = before.split()
-        if not _COMPARED_WITH.search(before) and (not words or words[-1].lower() in _BEFORE_MARKET):
+        starts_clause = not words or words[-1][-1] in ",;:("
+        if not _COMPARED_WITH.search(before) and (
+            starts_clause or words[-1].lower() in _BEFORE_MARKET
+        ):
             keys.add("market")
     return keys
 
