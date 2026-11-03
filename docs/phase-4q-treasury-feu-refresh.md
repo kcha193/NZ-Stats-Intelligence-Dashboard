@@ -62,6 +62,9 @@ text. The public site, static snapshot, public gate and private gate are unchang
   its page, value and period inside the quote, issuer near the quote, and relative dates resolved from the document date.
   A value matches as a whole signed number, a stated year must agree with the resolved quarter, and a relative weekday must resolve to
   the week the phrase means and to the date its calendar line states.
+  A decision's action, vote and date must also appear in its quote (a date the quote omits may come from nearby text or the publication date).
+  That last check found the pack's `ocr-decision` date (28 October) is not stated anywhere in the stored FEU text, so the owner must confirm it
+  or correct the pack; an earlier "0 problems" for the pack did not test decisions this way.
 - **Verifier probes.** True claims, then corrupted copies, through the real verifier. A corruption counts only when its true claim
   passed. These measure the checks, not any model.
 
@@ -71,7 +74,7 @@ Claude Code wrote the pack for version 3 before any pipeline summary existed. **
 
 | Measure | Result |
 |---|---|
-| Gold check: 26 items, 4 relative dates | 0 problems |
+| Gold check: 26 items, 4 relative dates | 1 problem: `ocr-decision` `decided_on_not_supported` (see below) |
 | True claims accepted | 17/26 (forecasts 4/4, views 2/2, facts 11/19, decision 0/1) |
 | Corruptions caught, of those measurable | 57/59 |
 | Corruptions not measurable, because the true claim was rejected | 45 |

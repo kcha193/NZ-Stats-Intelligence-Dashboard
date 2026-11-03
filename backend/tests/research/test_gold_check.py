@@ -10,6 +10,7 @@ from nzstats.research.contract import IssuerRole
 from nzstats.research.gold_check import (
     AccuracyPack,
     GoldPackError,
+    _calendar_dates,
     _has_number,
     _mutations,
     _period_conflict,
@@ -405,6 +406,77 @@ def test_a_decision_with_no_recorded_vote_is_probed_without_a_vote_mutation(stor
     report = probe_pack(conn, built(items=[item], relative_dates=[]))  # must not raise
     mutations = {r.mutation for r in report.results}
     assert "wrong_vote" not in mutations and {"wrong_rate", "wrong_date"} <= mutations
+
+
+@pytest.mark.parametrize(
+    ("over", "code"),
+    [
+        ({"vote_for": 6}, "vote_not_in_quote"),
+        (
+            {"vote_for": 2, "vote_against": 5},
+            "vote_not_in_quote",
+        ),  # the order as the document writes it
+        ({"action": "increase"}, "action_not_in_quote"),
+        ({"action": "decrease"}, "action_not_in_quote"),
+        ({"decided_on": "2026-10-15"}, "decided_on_not_supported"),  # the quote states 28 October
+    ],
+)
+def test_a_gold_decision_must_be_supported_by_the_quote(stored, over, code):
+    conn, _ = stored
+    assert code in codes(check_pack(conn, built(items=[decision(**over)], relative_dates=[])))
+
+
+def test_a_decision_with_no_vote_is_not_asked_for_one(stored):
+    conn, _ = stored
+    item = decision(vote_for=None, vote_against=None)
+    assert codes(check_pack(conn, built(items=[item], relative_dates=[]))) == []
+
+
+@pytest.mark.parametrize(
+    ("line", "dates"),
+    [
+        ("4 Nov Labour data", {(11, 4)}),
+        ("on 28 October 2026", {(10, 28)}),
+        ("Sept 3 survey", {(9, 3)}),
+        ("2 May and 3 Sept", {(5, 2), (9, 3)}),
+        ("5 market participants expect", set()),  # 'market' is not March
+        ("3 decembrist", set()),
+        ("in 2026 the rate", set()),
+    ],
+)
+def test_a_calendar_line_states_dates_only_in_month_names(line, dates):
+    assert _calendar_dates(line) == dates
+
+
+@pytest.mark.parametrize("vote", ["5-2", "5:2", "5 to 2", "5\u20132"])
+def test_a_vote_may_be_written_with_any_usual_separator(conn, vote):
+    page = (
+        f"The Synthetic Bank's committee voted {vote} to hold the OCR at 3.25% on 28 October 2026."
+    )
+    hashes = seed_dated(conn, page)
+    item = decision(quote=page.rstrip("."))
+    assert codes(check_pack(conn, built(**hashes, items=[item], relative_dates=[]))) == []
+
+
+def test_an_undated_quote_takes_its_decision_date_from_nearby_text_or_the_publication_date(conn):
+    page = "On 28 October the committee met. The Synthetic Bank's committee voted 5-2 to hold the OCR at 3.25%."
+    hashes = seed_dated(conn, page)
+    item = decision(quote="The Synthetic Bank's committee voted 5-2 to hold the OCR at 3.25%")
+    assert codes(check_pack(conn, built(**hashes, items=[item], relative_dates=[]))) == []
+    elsewhere = decision(
+        quote="The Synthetic Bank's committee voted 5-2 to hold the OCR at 3.25%",
+        decided_on="2026-10-15",
+    )
+    assert "decided_on_not_supported" in codes(
+        check_pack(conn, built(**hashes, items=[elsewhere], relative_dates=[]))
+    )
+    published = decision(
+        quote="The Synthetic Bank's committee voted 5-2 to hold the OCR at 3.25%",
+        decided_on="2026-11-02",
+    )
+    assert (
+        codes(check_pack(conn, built(**hashes, items=[published], relative_dates=[]))) == []
+    )  # the publication date
 
 
 @pytest.mark.parametrize("missing", ["action", "decided_on", "value"])
