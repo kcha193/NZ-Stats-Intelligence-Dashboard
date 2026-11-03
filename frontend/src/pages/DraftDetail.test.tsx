@@ -146,12 +146,22 @@ describe("internal drafts on the outlook", () => {
     const [latest, earlier] = within(held).getAllByRole("listitem");
     expect(latest).toHaveTextContent("Newest");
     expect(latest).toHaveTextContent("published 2 Nov 2026");
-    expect(latest).toHaveTextContent("No AI summary");
+    expect(latest).toHaveTextContent("No internal draft available");
+    expect(latest).not.toHaveTextContent(/No AI summary/i);
     expect(within(latest).getByRole("link", { name: /Example Update, later/ })).toHaveAttribute("href", "https://research.example.org/later");
     expect(earlier).not.toHaveTextContent("Newest");
     expect(earlier).toHaveTextContent("published 19 Oct 2026");
     expect(within(earlier).getByRole("link", { name: /Example Update \(synthetic\)/ })).toHaveAttribute("href", "https://research.example.org/update");
     expect(within(earlier).getByRole("link", { name: "Read the unapproved AI draft" })).toHaveAttribute("href", "/economic-outlook/draft/7");
+  });
+
+  it("does not claim a report was never summarised just because no draft can be shown", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [], reports: reports.slice(0, 1) } });
+    renderWithProviders(<InternalDrafts />);
+    const held = await screen.findByRole("region", { name: "Reports held" });
+    expect(held).toHaveTextContent("No internal draft available");
+    expect(held).not.toHaveTextContent(/No AI summary/i);
+    expect(within(held).queryByRole("link", { name: "Read the unapproved AI draft" })).not.toBeInTheDocument();
   });
 
   it("says a listed draft covers an earlier report when a newer one is held", async () => {
