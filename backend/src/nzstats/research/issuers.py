@@ -99,8 +99,9 @@ _BEFORE_MARKET = {
 _EXPECTED_BY = re.compile(r"\bexpected\s+by\s+", re.IGNORECASE)
 _CLAUSE_END = re.compile(r"[,;:]")
 _THE = re.compile(r"the\s+", re.IGNORECASE)
+# Case-sensitive on purpose: "Market Economics Ltd" and the "Financial Markets Authority" are named organisations, not the market.
 _MARKET_AGENT = re.compile(
-    r"(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\b", re.IGNORECASE
+    r"(?:[Tt]he\s+)?(?:[Ff]inancial\s+)?[Mm]arkets?(?:\s+participants)?\b(?!\s+[A-Z])"
 )
 _WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
 _STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)

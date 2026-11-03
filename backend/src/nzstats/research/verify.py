@@ -117,7 +117,7 @@ _CLAUSE = re.compile(r";|,\s*(?:and|but|while|whereas|then|compared with)\b")
 # The start of a comparison after a figure. Only ever used to add a rejection: see `_period_only_in_comparison`.
 _COMPARISON = re.compile(
     r"\b(?:up|down|higher|lower)\s+from\b|\bfrom\b|\bcompared\s+(?:with|to)\b|\brelative\s+to\b|\bversus\b"
-    r"|\bvs\b|\bagainst\b|\babove\b|\bbelow\b",
+    r"|\bvs\b|\bagainst\b(?!\s+(?:an?|the)\s+(?:back(?:drop|ground)|context)\b)|\babove\b|\bbelow\b",
     re.IGNORECASE,
 )
 # A bare "from" states when a level starts only when one of these leads straight to the figure. Anything else compares.
@@ -128,7 +128,8 @@ _LEVEL = re.compile(
 )
 # A comparison that opens a sentence: "Compared with June, freight rose 0.8%."
 _LEAD_COMPARISON = re.compile(
-    r"\s*(?:compared\s+(?:with|to)|relative\s+to|versus|against)\b[^,;]*[,;]", re.IGNORECASE
+    r"\s*(?:compared\s+(?:with|to)|relative\s+to|versus|against(?!\s+(?:an?|the)\s+(?:back(?:drop|ground)|context)\b))\b[^,;]*[,;]",
+    re.IGNORECASE,
 )
 _FORWARD = re.compile(
     r"forecast|expect|project|predict|anticipat|outlook|assum|\bwill\b|\bwould\b|\bshould\b"
