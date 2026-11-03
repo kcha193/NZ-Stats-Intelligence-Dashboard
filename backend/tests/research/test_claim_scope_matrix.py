@@ -141,6 +141,8 @@ ISSUER_VALID = [
     ("We note growth of 3% in 2029, which the IMF expects to remain unchanged for 2 years.", 3, "IMF", "third_party"),
     ("We expect growth of 3% in 2029, which exceeds the IMF\'s forecast of 2%.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which is below the IMF\'s forecast of 4%.", 3, "The Treasury", "author"),
+    ("We expect growth of -3% in 2029, which is below the IMF\'s forecast of -2%.", -3, "The Treasury", "author"),
+    ("We expect growth of -3% in 2029, which the IMF expects to be a challenging year.", -3, "The Treasury", "author"),
     # "expected by" a date: abbreviated months, half-years, fiscal and relative labels name no forecaster.
     ("Growth of 3% is expected by Dec 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by Dec. 2029.", 3, "The Treasury", "author"),
@@ -212,6 +214,7 @@ ISSUER_INVALID = [
     ("We note growth of 3% in 2029, which the IMF expects to remain unchanged for 2 years.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 3, "The Treasury", "author"),
     ("We expect growth of 3% in 2029, which is in line with the IMF\'s forecast of 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of -3% in 2029, which the IMF forecasts at -3%.", -3, "The Treasury", "author"),
     # A name that merely starts like a date is still a forecaster.
     ("Growth of 3% is expected by Decker Economics in 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by Mar Capital in 2029.", 3, "The Treasury", "author"),
