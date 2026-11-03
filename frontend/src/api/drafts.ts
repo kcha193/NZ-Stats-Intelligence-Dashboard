@@ -51,6 +51,18 @@ export type DraftItem = {
   licence_url: string | null;
   provenance: { provider: string; model: string; hosted: boolean; prompt_version: string; processing_version: string; verifier_version: string; written_at: string; checks_scope: string };
   claims: DraftClaim[];
+  newer_report: { title: string; published_on: string } | null;
 };
 
-export type DraftFeed = { items: DraftItem[]; notice: string };
+export type DraftReport = {
+  institution: string;
+  institution_name: string;
+  title: string;
+  url: string;
+  series: string | null;
+  published_on: string | null;
+  newest: boolean;
+  draft_id: number | null;
+};
+
+export type DraftFeed = { items: DraftItem[]; reports: DraftReport[]; notice: string };

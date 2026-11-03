@@ -56,7 +56,7 @@ def test_a_faithful_summary_is_verified_stored_with_claims_usage_and_audit(conn)
     assert summary["status"] == "verified" and summary["review_status"] == "unreviewed"
     assert summary["version_id"] == v and summary["hosted"] == 0 and summary["provider"] == "fake"
     output = json.loads(summary["output_json"])
-    assert output["provenance"]["prompt_version"] == "outlook-v4"
+    assert output["provenance"]["prompt_version"] == "outlook-v5"
     assert output["provenance"]["input_text_sha256"] == summary["input_sha256"]
     assert output["not_official_statistic"] is True
     verification = json.loads(summary["verification"])

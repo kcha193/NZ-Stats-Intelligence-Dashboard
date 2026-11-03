@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DraftItem } from "@/api/drafts";
+import type { DraftItem, DraftReport } from "@/api/drafts";
 import { InternalDrafts } from "@/components/outlook/InternalDrafts";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import DraftDetail from "./DraftDetail";
@@ -30,6 +30,7 @@ const draft: DraftItem = {
     fetched_at: "2026-10-16T10:00:00+13:00", version_no: 1, format: "pdf", page_count: 7 },
   licence: "Synthetic licence",
   licence_url: null,
+  newer_report: null,
   provenance: { provider: "openrouter", model: "example/model", hosted: true, prompt_version: "outlook-v4", processing_version: "3b-1",
     verifier_version: "verify-3", written_at: "2026-10-16T10:00:00+13:00", checks_scope: "Checks test where a quote sits." },
   claims: [
@@ -40,6 +41,13 @@ const draft: DraftItem = {
       path: "facts[0]", status: "warning", problems: [{ code: "source_not_named", severity: "warning", message: "facts[0]: source is not named" }] },
   ],
 };
+const reports: DraftReport[] = [
+  { institution: "example", institution_name: "Example Research (synthetic)", title: "Example Update, later (synthetic)", url: "https://research.example.org/later",
+    series: "Update", published_on: "2026-11-02", newest: true, draft_id: null },
+  { institution: "example", institution_name: "Example Research (synthetic)", title: "Example Update (synthetic)", url: "https://research.example.org/update",
+    series: "Update", published_on: "2026-10-19", newest: false, draft_id: 7 },
+];
+const newer = { title: "Example Update, later (synthetic)", published_on: "2026-11-02" };
 const open = (id = 7) =>
   renderWithProviders(<Routes><Route path="/economic-outlook/draft/:id" element={<DraftDetail />} /></Routes>, { route: `/economic-outlook/draft/${id}` });
 const on = { research_public: false, internal_drafts: true };
@@ -90,6 +98,18 @@ describe("draft detail", () => {
     expect(screen.getByText("Not published")).toBeInTheDocument();
   });
 
+  it("says when the institution has published a newer report than the one this draft covers", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": { ...draft, newer_report: newer } });
+    open();
+    expect(await screen.findByRole("alert")).toHaveTextContent("This draft covers an earlier report. Newest held: Example Update, later (synthetic), published 2 Nov 2026.");
+  });
+
+  it("does not mention a newer report when none is held", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": draft });
+    open();
+    expect(await screen.findByRole("alert")).not.toHaveTextContent("earlier report");
+  });
+
   it("says a draft that passed is still unapproved", async () => {
     mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": { ...draft, checks_passed: true, errors: 0, counts: { clean: 3, warning: 0, failed: 0 } } });
     open();
@@ -119,6 +139,53 @@ describe("draft detail", () => {
 });
 
 describe("internal drafts on the outlook", () => {
+  it("names the newest report by publication date and keeps earlier reports reachable", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [{ ...draft, newer_report: newer }], reports } });
+    renderWithProviders(<InternalDrafts />);
+    const held = await screen.findByRole("region", { name: "Reports held" });
+    const [latest, earlier] = within(held).getAllByRole("listitem");
+    expect(latest).toHaveTextContent("Newest");
+    expect(latest).toHaveTextContent("published 2 Nov 2026");
+    expect(latest).toHaveTextContent("No internal draft available");
+    expect(latest).not.toHaveTextContent(/No AI summary/i);
+    expect(within(latest).getByRole("link", { name: /Example Update, later/ })).toHaveAttribute("href", "https://research.example.org/later");
+    expect(earlier).not.toHaveTextContent("Newest");
+    expect(earlier).toHaveTextContent("published 19 Oct 2026");
+    expect(within(earlier).getByRole("link", { name: /Example Update \(synthetic\)/ })).toHaveAttribute("href", "https://research.example.org/update");
+    expect(within(earlier).getByRole("link", { name: "Read the unapproved AI draft" })).toHaveAttribute("href", "/economic-outlook/draft/7");
+  });
+
+  it("does not claim a report was never summarised just because no draft can be shown", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [], reports: reports.slice(0, 1) } });
+    renderWithProviders(<InternalDrafts />);
+    const held = await screen.findByRole("region", { name: "Reports held" });
+    expect(held).toHaveTextContent("No internal draft available");
+    expect(held).not.toHaveTextContent(/No AI summary/i);
+    expect(within(held).queryByRole("link", { name: "Read the unapproved AI draft" })).not.toBeInTheDocument();
+  });
+
+  it("says a listed draft covers an earlier report when a newer one is held", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [{ ...draft, newer_report: newer }], reports } });
+    renderWithProviders(<InternalDrafts />);
+    const drafts = await screen.findByRole("region", { name: "Internal drafts" });
+    expect(within(drafts).getByText(/This draft covers an earlier report\./)).toBeInTheDocument();
+  });
+
+  it("shows held reports when no draft has been named", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [], reports: reports.slice(0, 1) } });
+    renderWithProviders(<InternalDrafts />);
+    expect(await screen.findByRole("region", { name: "Reports held" })).toHaveTextContent("Example Update, later (synthetic)");
+    expect(screen.queryByText(/These AI summaries may have failed/)).not.toBeInTheDocument();
+  });
+
+  it("does not call a report undated by its import date", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [], reports: [{ ...reports[0], published_on: null, newest: false }] } });
+    renderWithProviders(<InternalDrafts />);
+    const held = await screen.findByRole("region", { name: "Reports held" });
+    expect(held).toHaveTextContent("publication date not stated");
+    expect(held).not.toHaveTextContent("Newest");
+  });
+
   it("sends no draft request and renders nothing while the switch is off", async () => {
     const fn = mockApi({ "/api/capabilities": off, "/api/internal/drafts": { items: [draft] } });
     renderWithProviders(<InternalDrafts />);

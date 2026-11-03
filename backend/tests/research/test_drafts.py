@@ -3,6 +3,7 @@
 import hashlib
 import json
 from dataclasses import replace
+from datetime import date
 
 import pytest
 
@@ -13,6 +14,7 @@ from nzstats.research.drafts import (
     DraftAllowlistError,
     draft_summaries,
     load_allowlist,
+    stored_reports,
     why_not_draft,
 )
 from nzstats.research.private import private_summaries
@@ -238,3 +240,143 @@ def test_a_malformed_list_is_refused_with_a_fixed_message(tmp_path, body):
     with pytest.raises(DraftAllowlistError) as caught:
         load_allowlist(path)
     assert str(caught.value) == "the internal draft list is not valid"
+
+
+def reports(conn, reg):
+    return [(r.title, r.published_on, r.newest) for r in stored_reports(conn, reg)]
+
+
+def test_the_newest_report_is_chosen_by_publication_date_not_by_import_order(conn):
+    seed_version(conn, doc="newer", published_on="2026-11-02")
+    seed_version(conn, doc="older", published_on="2026-10-19")  # imported last
+    assert reports(conn, registry(institution())) == [
+        ("Synthetic outlook newer", date(2026, 11, 2), True),
+        ("Synthetic outlook older", date(2026, 10, 19), False),
+    ]
+
+
+def test_an_undated_report_stays_listed_but_is_never_the_newest(conn):
+    seed_version(conn, doc="undated", published_on=None)
+    seed_version(conn, doc="dated", published_on="2026-10-19")
+    assert reports(conn, registry(institution())) == [
+        ("Synthetic outlook dated", date(2026, 10, 19), True),
+        ("Synthetic outlook undated", None, False),
+    ]
+
+
+def test_each_institution_has_its_own_newest_report(conn):
+    seed_version(conn, doc="a", published_on="2026-11-02")
+    seed_version(conn, key="other", doc="b", published_on="2026-10-28")
+    reg = {"example": institution(), "other": institution("other")}
+    assert [(r.institution.key, r.newest) for r in stored_reports(conn, reg)] == [
+        ("example", True),
+        ("other", True),
+    ]
+
+
+@pytest.mark.parametrize(
+    "withheld",
+    [
+        "UPDATE research_publication SET duplicate_of_id = id",
+        "UPDATE research_publication SET current_version_id = NULL",
+    ],
+)
+def test_a_duplicate_or_a_publication_with_no_current_text_is_not_listed(conn, withheld):
+    seed_version(conn)
+    with transaction(conn):
+        conn.execute(withheld)
+    assert stored_reports(conn, registry(institution())) == []
+
+
+def test_a_purged_report_is_not_listed(conn):
+    seed_version(conn)
+    with transaction(conn):
+        purge_id = conn.execute(
+            "INSERT INTO research_purge(institution_id, reason, scope, purged_by, note, versions, sections,"
+            " summaries, claims, withdrawn, artifacts, purged_at)"
+            " SELECT id, 'other', '{}', 'x', 'x', 1, 0, 0, 0, 0, 0, ? FROM research_institution",
+            (NOW.isoformat(),),
+        ).lastrowid
+        conn.execute(
+            "UPDATE research_document_version SET purged_at = ?, purge_id = ?",
+            (NOW.isoformat(), purge_id),
+        )
+    assert stored_reports(conn, registry(institution())) == []
+
+
+@pytest.mark.parametrize(
+    "reg",
+    [
+        {},
+        registry(replace(institution(), content_policy=ContentPolicy.NONE)),
+        registry(replace(institution(), allowed_hosts=("other.example.org",))),
+    ],
+)
+def test_a_report_the_registry_no_longer_covers_is_not_listed(conn, reg):
+    seed_version(conn)
+    assert stored_reports(conn, reg) == []
+
+
+def test_a_report_whose_route_was_revoked_is_not_listed(conn):
+    seed_version(conn)
+    revoked = institution(review_status="needs_review", approved_by=None, approved_on=None,
+                          approval_note=None)  # fmt: skip
+    assert stored_reports(conn, registry(revoked)) == []
+
+
+def test_a_withheld_report_cannot_be_the_newest(conn):
+    seed_version(conn, doc="newer", published_on="2026-11-02")
+    seed_version(conn, doc="older", published_on="2026-10-19")
+    with transaction(conn):
+        conn.execute(
+            "UPDATE research_publication SET duplicate_of_id = id WHERE title LIKE '%newer'"
+        )
+    assert reports(conn, registry(institution())) == [
+        ("Synthetic outlook older", date(2026, 10, 19), True)
+    ]
+
+
+def test_a_draft_whose_route_was_revoked_is_withheld(conn):
+    sid = failing(conn)
+    listed = allow(conn, sid)
+    revoked = institution(review_status="needs_review", approved_by=None, approved_on=None,
+                          approval_note=None)  # fmt: skip
+    reg = registry(revoked)
+    assert ids(conn, reg, listed) == []
+    assert (
+        why_not_draft(conn, reg, listed, sid)
+        == "the approval that let this document in was revoked"
+    )
+
+
+def test_reports_published_on_the_same_day_are_all_the_newest(conn):
+    seed_version(conn, doc="a", published_on="2026-11-02")
+    seed_version(conn, doc="b", published_on="2026-11-02")
+    seed_version(conn, doc="c", published_on="2026-10-19")
+    assert [r.newest for r in stored_reports(conn, registry(institution()))] == [True, True, False]
+
+
+def test_a_malformed_publication_date_cannot_break_the_list(conn):
+    seed_version(conn, doc="bad", published_on="2026-11-02")
+    seed_version(conn, doc="good", published_on="2026-10-19")
+    with transaction(conn):
+        conn.execute(
+            "UPDATE research_publication SET published_on = 'not a date' WHERE title LIKE '%bad'"
+        )
+    assert reports(conn, registry(institution())) == [
+        ("Synthetic outlook good", date(2026, 10, 19), True),
+        ("Synthetic outlook bad", None, False),
+    ]
+
+
+def test_a_malformed_publication_date_withholds_a_draft(conn):
+    # The date feeds the verifier's historical check, so a draft cannot be checked without it.
+    sid = failing(conn)
+    listed = allow(conn, sid)
+    with transaction(conn):
+        conn.execute("UPDATE research_publication SET published_on = 'not a date'")
+    assert ids(conn, registry(institution()), listed) == []
+    assert (
+        why_not_draft(conn, registry(institution()), listed, sid)
+        == "the stored publication date is not valid"
+    )

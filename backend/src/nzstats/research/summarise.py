@@ -232,10 +232,11 @@ def summarise_versions(
     limits = replace(limits, max_run_usd=min(limits.max_run_usd, remaining))
     parameters = dict(provider.parameters())
     scope = provider.pilot_scope if provider.name == "openrouter" else None
+    prompt_version = provider.prompt_version if provider.name == "openrouter" else PROMPT_VERSION
     if not dry_run:
         result.run_id = ss.start_run(
             conn, provider=provider.name, model=provider.model, hosted=provider.hosted,
-            prompt_version=PROMPT_VERSION, processing_version=PROCESSING_VERSION,
+            prompt_version=prompt_version, processing_version=PROCESSING_VERSION,
             limits={"max_input_chars": limits.max_input_chars, "max_output_tokens": limits.max_output_tokens,
                     "max_retries": limits.max_retries, "max_run_usd": run_limits.max_run_usd,
                     "max_period_usd": limits.max_period_usd, "period_days": PERIOD_DAYS,
@@ -273,7 +274,7 @@ def summarise_versions(
                     )
                     continue
             inst = registry.get(candidate.institution)
-            request = build_request(candidate.version_id, sections, prompt_version=PROMPT_VERSION,
+            request = build_request(candidate.version_id, sections, prompt_version=prompt_version,
                                     limits=limits, published_on=candidate.published_on,
                                     institution=candidate.institution,
                                     author=inst.name if inst else None)  # fmt: skip
@@ -290,7 +291,7 @@ def summarise_versions(
                 result.items.append(item)
                 continue
             key = ss.SummaryKey(
-                candidate.version_id, provider.name, provider.model, PROMPT_VERSION, PROCESSING_VERSION,
+                candidate.version_id, provider.name, provider.model, prompt_version, PROCESSING_VERSION,
                 input_sha256(request, provider=provider.name, model=provider.model, parameters=parameters),
             )  # fmt: skip
             if provider.name == "openrouter":

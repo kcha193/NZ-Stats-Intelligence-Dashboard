@@ -397,6 +397,9 @@ Four permissions, each a separate recorded decision, in this order:
 | `research readiness KEY` | each gate with its evidence fields, warnings (unverified discovery) and blocker; what is stored, summarised, approved and public |
 | `research quality [VERSION …]` | extraction quality of stored versions (default: every current one): `ok`, `review` or `poor`, with findings |
 | `research evaluate --annotations FILE [--model M]` | stored real summaries scored against a human annotation; calls no model |
+| `research check-gold --pack FILE [--json]` | a version-bound gold pack tested against the stored text, then verifier probes; calls no model ([Phase 4Q](../phase-4q-treasury-feu-refresh.md)) |
+| `research gold-worksheet VERSION --out FILE` | a private review sheet built from the document alone; reads no model output ([Phase 4Q](../phase-4q-evidence-grounding.md)) |
+| `research score-gold --extension FILE [--json]` | stored summaries against a human-reviewed gold extension, with denominators; numbers only, calls no model |
 
 `quality` findings: `missing_pages`, `empty_sections` (scanned or chart pages), `undecodable_characters` (replacement
 or private-use characters from an incomplete PDF font map; `poor` above 0.5% of characters), `control_characters`

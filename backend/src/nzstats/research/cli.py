@@ -18,7 +18,7 @@ from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
 from nzstats.research import purge
 from nzstats.research import summary_store as ss
-from nzstats.research.contract import Provider
+from nzstats.research.contract import OutlookSummary, Provider
 from nzstats.research.cpi_reconcile import reconcile
 from nzstats.research.drafts import (
     ALLOWLIST_FILE,
@@ -31,6 +31,13 @@ from nzstats.research.fetch import (
     ResearchFetcher,
     build_research_client,
     research_pacer,
+)
+from nzstats.research.gold_check import GoldPackError, check_pack, load_pack, probe_pack
+from nzstats.research.gold_extension import (
+    GoldExtensionError,
+    load_extension,
+    score_extension,
+    write_worksheet,
 )
 from nzstats.research.health import research_health
 from nzstats.research.ingest import RunResult, refusal_for, run_institution
@@ -49,7 +56,7 @@ from nzstats.research.quality import version_quality
 from nzstats.research.readiness import assess, pipeline_state
 from nzstats.research.registry import Institution, RegistryError, load_registry
 from nzstats.research.summarise import summarise_versions
-from nzstats.research.verify import SCOPE
+from nzstats.research.verify import SCOPE, VerificationContext
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.store.db import connect, migrate
 
@@ -128,6 +135,26 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         "--annotations", required=True, help="JSON annotation file (keep it under data/)"
     )
     p_eval.add_argument("--model", help="only summaries from this model")
+    p_gold = rsub.add_parser(
+        "check-gold",
+        help="test a version-bound gold pack against the stored text and probe the verifier (4Q; calls no model)",
+    )
+    p_gold.add_argument("--pack", required=True, help="JSON gold pack (keep it under data/)")
+    p_gold.add_argument("--json", action="store_true", help="the full report as JSON")
+    p_sheet = rsub.add_parser(
+        "gold-worksheet",
+        help="write a private gold review worksheet from a document alone (4Q; reads no model output)",
+    )
+    p_sheet.add_argument("version", type=int)
+    p_sheet.add_argument(
+        "--out", required=True, help="the HTML file to write (keep it under data/)"
+    )
+    p_score = rsub.add_parser(
+        "score-gold",
+        help="score stored summaries against a human-reviewed gold extension (4Q; calls no model)",
+    )
+    p_score.add_argument("--extension", required=True, help="reviewed JSON (keep it under data/)")
+    p_score.add_argument("--json", action="store_true", help="the full report as JSON")
     p_qual = rsub.add_parser(
         "quality", help="extraction quality of stored document versions (Phase 3D-A)"
     )
@@ -513,6 +540,102 @@ def _evaluate(
     return 0
 
 
+def _check_gold(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    conn = _open(settings)
+    try:
+        pack = load_pack(Path(args.pack))
+        report = check_pack(conn, pack)
+        probes = probe_pack(conn, pack)
+    except GoldPackError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    if args.json:
+        _emit(json.dumps({"check": report.to_json(), "probes": probes.to_json()}, indent=1))
+    else:
+        _emit(f"version {report.version_id}: {report.items} items, {report.relative_dates} relative dates:"
+              f" {'no problems' if not report.problems else f'{len(report.problems)} problems'}")  # fmt: skip
+        for problem in report.problems:
+            _emit(f"  {problem.item}: {problem.code}")
+        _emit(f"probes: {probes.caught} corruptions caught, {probes.missed} missed, {probes.not_measured} not measured,"
+              f" {probes.false_rejections} true claims rejected. Measures the checks, not any model.")  # fmt: skip
+        for r in probes.results:
+            if r.expected == "accepted" and r.caught:
+                _emit(f"  {r.item} true claim rejected: {','.join(r.codes)}")
+            elif r.expected == "rejected" and r.measured and not r.caught:
+                _emit(f"  {r.item} {r.mutation}: corruption accepted")
+    return 0 if not report.problems else 1
+
+
+def _gold_worksheet(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    try:
+        count = write_worksheet(_open(settings), args.version, Path(args.out))
+    except GoldExtensionError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    _emit(
+        f"version {args.version}: {count} sentences written for review. Built from the document alone."
+    )
+    return 0
+
+
+def _stored_summary(output_json: str) -> OutlookSummary:
+    return OutlookSummary.model_validate_json(output_json)
+
+
+def _score_gold(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    conn = _open(settings)
+    try:
+        extension = load_extension(Path(args.extension))
+        rows = conn.execute(
+            "SELECT s.id, s.output_json, p.published_on, i.key AS institution FROM research_summary s"
+            " JOIN research_document_version v ON v.id = s.version_id"
+            " JOIN research_publication p ON p.id = v.publication_id"
+            " JOIN research_institution i ON i.id = p.institution_id"
+            " WHERE s.version_id = ? AND s.status IN ('verified', 'failed_verification') ORDER BY s.id",
+            (extension.version_id,),
+        ).fetchall()
+        reports = [
+            score_extension(
+                conn, _stored_summary(row["output_json"]), extension,
+                VerificationContext(
+                    published_on=date.fromisoformat(row["published_on"]) if row["published_on"] else None,
+                    institution=row["institution"],
+                ),
+                summary_id=row["id"],
+            )
+            for row in rows
+        ]  # fmt: skip
+    except GoldExtensionError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    except (
+        ValueError
+    ) as exc:  # a stored summary or date that no longer parses; its content is not repeated
+        _emit(f"refused: a stored summary or date is not valid ({type(exc).__name__})")
+        return 2
+    if args.json:
+        _emit(json.dumps([r.to_json() for r in reports], indent=1))
+        return 0
+    if not reports:
+        _emit(f"version {extension.version_id}: no stored summary to score")
+    for report in reports:
+        _emit(
+            f"version {report.version_id}, summary {report.summary_id}: verifier {'passed' if report.passed else 'rejected the summary'}; gold {report.gold_counts}"
+        )
+        for name, view in report.views.items():
+            _emit(f"  {name}: claims {view.claims}, precision {view.precision.text}, recall {view.recall.text},"
+                  f" numbers {view.numerical_accuracy.text}, periods {view.period_exact.text},"
+                  f" issuers {view.issuer_accuracy.text}, unmatched {view.unmatched}, repeated {view.duplicates},"
+                  f" expected rejections emitted {view.expected_rejections}, ambiguous {view.ambiguous}")  # fmt: skip
+    return 0
+
+
 def _quality(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
     conn = _open(settings)
     ids = list(args.version) or [
@@ -729,4 +852,4 @@ def _cpi_reconcile(
 _SUMMARY_COMMANDS = {"cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
-                     "quality": _quality, "evaluate": _evaluate}  # fmt: skip
+                     "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "score-gold": _score_gold}  # fmt: skip

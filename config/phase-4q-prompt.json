@@ -1,0 +1,10 @@
+{
+  "note": "Inert record of the Phase 4Q prompt. Nothing loads this file and it grants nothing. No request has used this prompt.",
+  "prompt_version": "outlook-v5",
+  "rules_sha256": "f976a085024457ed28489fa269927736600397f694d747306ea0a8a6bda91ae0",
+  "system_text_sha256": "15f71d9562c1eb681fe09f3f8722b46969c5196b5c00d6d8bc7e96cf6d5eaead",
+  "previous": {
+    "prompt_version": "outlook-v4",
+    "rules_sha256": "b77701837d1ad6a9d8bf0e06ce7789dc16710bc467d88e6d47c0c88ecfa1c821"
+  }
+}

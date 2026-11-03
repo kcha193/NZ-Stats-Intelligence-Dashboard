@@ -601,3 +601,95 @@ def test_orphans_lists_old_unreferenced_files_and_removes_only_on_request(env, t
     assert "ab/" in capsys.readouterr().out and stray.exists()
     assert main(["research", "orphans", "--remove"]) == 0
     assert not stray.exists()
+
+
+def test_check_gold_reports_a_pack_and_its_probes_without_calling_a_model(
+    env, capsys, tmp_path, monkeypatch
+):
+    from nzstats.store.db import connect, migrate, transaction
+
+    from .llm_support import seed_version
+
+    monkeypatch.setattr("nzstats.research.cli.build_llm_provider", pytest.fail)
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    version = seed_version(conn, published_on="2026-11-02")
+    with transaction(conn):
+        conn.execute("UPDATE research_publication SET title = 'Synthetic Update - 29 October 2026'")
+    digest = conn.execute(
+        "SELECT text_sha256 FROM research_document_version WHERE id = ?", (version,)
+    ).fetchone()[0]
+    conn.close()
+    item = {"id": "growth", "kind": "fact", "issuer": "Example", "issuer_role": "author",
+            "named_as": "The economy", "page": 1,
+            "quote": "The economy is expected to grow 2.5% in the year to March 2027",
+            "text": "Growth", "value": 2.5, "unit": "percent"}  # fmt: skip
+    pack = {"annotator": "Test", "annotated_on": "2026-11-02", "version_id": version, "text_sha256": digest,
+            "content_sha256": digest, "document_date": "2026-10-29", "published_on": "2026-11-02",
+            "foreign_quote": "A sentence from another synthetic report.", "items": [item]}  # fmt: skip
+    path = tmp_path / "pack.json"
+    path.write_text(json.dumps(pack))
+    assert main(["research", "check-gold", "--pack", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "1 items" in out and "no problems" in out and "probes" in out
+    assert main(["research", "check-gold", "--pack", str(path), "--json"]) == 0
+    body = json.loads(capsys.readouterr().out)
+    assert body["check"]["ok"] is True and body["probes"]["results"]
+
+    pack["items"] = [{**item, "value": 9.9}]
+    path.write_text(json.dumps(pack))
+    assert main(["research", "check-gold", "--pack", str(path)]) == 1
+    assert "value_not_in_quote" in capsys.readouterr().out
+
+    pack["text_sha256"] = "a" * 64
+    path.write_text(json.dumps(pack))
+    assert main(["research", "check-gold", "--pack", str(path)]) == 2
+    assert "refused" in capsys.readouterr().out
+
+
+def test_gold_worksheet_and_score_gold_call_no_model_and_print_no_text(
+    env, capsys, tmp_path, monkeypatch
+):
+    import hashlib
+
+    from nzstats.research.contract import OutlookSummary
+    from nzstats.store.db import connect, migrate
+
+    from .llm_support import SECTIONS, draft, seed_version
+    from .public_support import store_summary
+
+    monkeypatch.setattr("nzstats.research.cli.build_llm_provider", pytest.fail)
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    version = seed_version(conn)
+    store_summary(conn, version, output=draft(version), review=None, publish=False)
+    conn.close()
+    sheet = tmp_path / "sheet.html"
+    assert main(["research", "gold-worksheet", str(version), "--out", str(sheet)]) == 0
+    assert "sentences" in capsys.readouterr().out and sheet.exists()
+    assert main(["research", "gold-worksheet", "99", "--out", str(tmp_path / "none.html")]) == 2
+    capsys.readouterr()
+
+    digest = hashlib.sha256("\n".join(SECTIONS).encode()).hexdigest()
+    extension = {"annotator": "A", "reviewed_by": "B", "reviewed_on": "2026-11-03", "written_without_model_output": True,
+                 "version_id": version, "text_sha256": digest,
+                 "items": [{"id": "g", "category": "accepted_eligible", "kind": "forecast", "terms": ["growth"], "value": 2.5,
+                            "unit": "percent", "period_as_stated": "year to March 2027", "issuer_role": "author"}]}  # fmt: skip
+    path = tmp_path / "ext.json"
+    path.write_text(json.dumps(extension))
+    assert main(["research", "score-gold", "--extension", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "raw" in out and "1/1" in out and "Economic growth" not in out and SECTIONS[0] not in out
+    assert main(["research", "score-gold", "--extension", str(path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)[0]["views"]["raw"]["recall"]["text"] == "1/1"
+
+    def corrupt(_):
+        return OutlookSummary.model_validate_json('{"outlook": "SECRET STORED TEXT"}')
+
+    monkeypatch.setattr("nzstats.research.cli._stored_summary", corrupt)
+    path.write_text(json.dumps(extension))
+    assert main(["research", "score-gold", "--extension", str(path)]) == 2
+    assert "SECRET" not in capsys.readouterr().out
+
+    path.write_text("{}")
+    assert main(["research", "score-gold", "--extension", str(path)]) == 2

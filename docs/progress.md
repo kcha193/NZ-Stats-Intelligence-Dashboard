@@ -1,10 +1,43 @@
 # Progress and verification record
 
-Last updated 2026-11-02. Phase 4O started from main `26612a4`, after merged
+Last updated 2026-11-02. **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4Q: economic accuracy and evidence grounding, 2 November 2026
+
+Full record: [phase-4q-evidence-grounding.md](phase-4q-evidence-grounding.md). Design only: [phase-4q-per-claim-design.md](phase-4q-per-claim-design.md).
+Local evidence: ignored `data/phase-4q/`. **GO WITH CONDITIONS to prepare one experiment. No inference ran. Everything else stays NO-GO.**
+
+- Root cause: 4 of 5 rejected facts carry a year not stated for the figure. Fact 3's year is only in its comparison's period, and fact 2 has no period in its cited sentence. Removing the year alone clears 2 of 5.
+- New: prompt `outlook-v5`, unused. `verify-4` only tightens: 0 of 45,117 invented period, issuer and two-evidence cases newly pass. Phase 4O's summary recomputes identically.
+- Independent reviews broke three earlier designs and found a draft gate gap from PR #42. Those are fixed. A true figure beside a comparison stays rejected, as a recorded limit. The issuer checks are wording checks and cannot prove whose figure it is.
+- New: `gold-worksheet`, `score-gold`. No human gold exists yet.
+- Next: owner resolves `data/phase-4q/period-review-worksheet.html` and the gold worksheets. Six conditions precede any run.
+
+Verification at `302567d`, run in a clean worktree, 3 November 2026: backend 4,235 passed, Ruff clean, frontend 546 passed, typecheck and build clean, browser 174 passed, research browser 18 passed and 3 skipped, static 315 passed and 24 skipped. Differential against `verify-3`, on invented text: 45,117 cases, 0 newly pass, 2,508 newly rejected. Real data, by codes: Phase 4O summary unchanged at 8 errors; 29 October pack 59/59 corruptions caught, wrong issuer 4/4, 9/26 true claims rejected, 45 not measured.
+
+After that, PR #43's `gold_check.py` fixes up to `3e9d389` were merged forward, and a duplicate decision check was removed. Backend rerun at `8b72efe`: 4,265 passed, Ruff clean, and the real-data probe results above are unchanged. The gold check now also tests decisions, and reports 1 problem on the 29 October pack: `ocr-decision`, `decided_on_not_supported`. The owner needs to confirm that date. Frontend and browser suites were not rerun, because no frontend code changed.
+
+Reviews: four Claude rounds, four automated security reviews, and the Codex GitHub connector. The last security review and the last Codex finding came after the final code and were not patched: `phase-4q-evidence-grounding.md` lists them for the owner. No independent review covers the final commit as a whole.
+
+## Phase 4Q: Treasury FEU refresh, 2 November 2026
+
+Full record: [phase-4q-treasury-feu-refresh.md](phase-4q-treasury-feu-refresh.md). Local evidence: ignored `data/phase-4q/`,
+`data/annotations/phase-4q-*`.
+
+- Imported the browser-saved PDF after a verified backup: publication 3, version 3. Versions 1 and 2 and all LLM rows unchanged.
+- `serve --internal-drafts` lists reports held by publication date; a draft of an earlier report says a newer one exists.
+- New `research check-gold`: on version 3, 0 gold problems, 57/59 measurable corruptions caught, 9/26 true claims rejected. The
+  2 misses relabel a third party's forecast as Treasury's. No threshold, rule or prompt changed.
+- Next: owner checks the publication page, and reviews the gold pack and the Phase 4O packet. Hosted processing needs its own approval.
+
+Verification: full backend suite passed (3983 tests), Ruff lint and format clean; frontend 545 tests, typecheck and build pass;
+research browser specs 18 passed, 3 skipped. Real data checked on loopback at desktop and phone widths: local requests only, no console
+errors. `freeze` on version 3 refused, on a copy. Not run: `scripts/e2e_static.sh` and the default Playwright config.
 
 ## Phase 4O: second controlled pilot, Treasury, 2 November 2026
 

@@ -7,6 +7,9 @@ exact output hash, it holds a parsed output, no reviewer has rejected it, its do
 duplicate, its institution allows quoting, and no section reads like instructions to a model. The checks are rerun
 on each call and every claim carries its own result, so a draft can never be mistaken for a verified summary.
 
+`stored_reports` lists what is held, by title, date and address only, so a report with no summary yet is not hidden
+and the newest one is known from the institution's own publication date, never from the order of import.
+
 The list lives beside the database under `data/` (`internal-drafts.json`, never in Git). A missing file means no
 drafts; a malformed one is refused and shows nothing.
 """
@@ -146,6 +149,8 @@ def _assess(
         return "the institution is not in the research registry", None
     if inst.content_policy is not ContentPolicy.FULL_TEXT:
         return "the source's content policy does not allow quoting", None
+    if not inst.holds(row["acquisition"]):
+        return "the approval that let this document in was revoked", None
     if not allowed_document_url(row["canonical_url"], inst):
         return "the document address is not https on one of the institution's allowed hosts", None
     try:
@@ -157,7 +162,9 @@ def _assess(
     sections = load_sections(conn, row["version_id"])
     if injection_findings(sections):
         return "a section reads like instructions to a model", None
-    published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
+    published = _civil_date(row["published_on"])
+    if row["published_on"] and published is None:
+        return "the stored publication date is not valid", None
     report = verify(summary, sections, VerificationContext(
         published_on=published, institution=row["institution"]))  # fmt: skip
     draft = DraftSummary(
@@ -186,6 +193,60 @@ def draft_summaries(
             out.append(draft)
         else:
             log.info("internal draft %s withheld: %s", row["id"], reason)
+    return out
+
+
+@dataclass(frozen=True)
+class StoredReport:
+    publication_id: int
+    institution: Institution
+    title: str
+    url: str
+    series: str | None
+    published_on: date | None
+    newest: bool  # published on the institution's latest date among the reports listed; a tie marks each
+
+
+def _civil_date(text: str | None) -> date | None:
+    """A stored publication date, or None when it is absent or malformed: never a guess."""
+    try:
+        return date.fromisoformat(text) if text else None
+    except ValueError:
+        log.warning("a stored publication date is not a valid date")
+        return None
+
+
+def stored_reports(
+    conn: sqlite3.Connection, registry: Mapping[str, Institution]
+) -> list[StoredReport]:
+    """Current, held, non-duplicate reports, latest publication date first; undated ones last and never newest."""
+    rows = conn.execute(
+        "SELECT p.id, i.key, p.title, p.canonical_url, p.series, p.published_on, v.acquisition"
+        " FROM research_publication p JOIN research_institution i ON i.id = p.institution_id"
+        " JOIN research_document_version v ON v.id = p.current_version_id"
+        " WHERE p.duplicate_of_id IS NULL AND v.purged_at IS NULL AND v.superseded_at IS NULL"
+    ).fetchall()
+    held = []
+    for row in rows:
+        inst = registry.get(row["key"])
+        if (
+            inst is None
+            or inst.content_policy is not ContentPolicy.FULL_TEXT
+            or not inst.holds(row["acquisition"])
+            or not allowed_document_url(row["canonical_url"], inst)
+        ):
+            continue
+        held.append((row, inst, _civil_date(row["published_on"])))
+    latest: dict[str, date] = {}
+    for _, inst, published in held:
+        if published is not None:
+            latest[inst.key] = max(published, latest.get(inst.key, published))
+    held.sort(key=lambda h: (h[2] is None, -(h[2].toordinal() if h[2] else 0), -int(h[0]["id"])))
+    out = [
+        StoredReport(int(row["id"]), inst, row["title"], row["canonical_url"], row["series"], published,
+                     published is not None and published == latest[inst.key])
+        for row, inst, published in held
+    ]  # fmt: skip
     return out
 
 
