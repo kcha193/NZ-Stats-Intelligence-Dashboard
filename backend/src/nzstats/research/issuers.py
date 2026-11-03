@@ -327,13 +327,24 @@ _OWN_FORECAST = re.compile(
 )
 
 
+_FORECAST_VERBS = (
+    r"(?:forecasts?|projections?|estimates?|expects?|projects?|anticipates?|predicts?|sees?)"
+)
+_ADVERB = r"(?:(?:still|now|also|currently)\s+)?"
+_OWN_WORDS = {
+    o.key: re.compile(
+        rf"\b(?:{o.names})(?:['’]s)?\s+{_ADVERB}{_FORECAST_VERBS}\s+{_CONNECTIVE}$", re.IGNORECASE
+    )
+    for o in ORGANISATIONS
+    if o.key != "market"
+}
+
+
 def _author_speaks_just_before(before: str, author: str | None) -> bool:
+    """The author's own forecasting words end `before`: "we forecast at", "the Treasury's forecast of". Nothing else counts."""
     if _OWN_FORECAST.search(before):
         return True
-    return author in _PATTERNS and any(
-        re.fullmatch(rf"\s*{_CONNECTIVE}", before[m.end() :], re.IGNORECASE)
-        for m in _PATTERNS[author][1].finditer(before)
-    )
+    return author in _OWN_WORDS and bool(_OWN_WORDS[author].search(before))
 
 
 def author_governs(before: str, after: str, author: str | None) -> bool:
