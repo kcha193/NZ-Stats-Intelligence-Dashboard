@@ -47,6 +47,9 @@ ISSUER_BEFORE_CHARS = 1500
 ISSUER_AFTER_CHARS = 200  # a figure's source line follows the sentence it supports
 QUARTERS = {"march": 1, "june": 2, "september": 3, "december": 4}
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+WRONG_PERIOD_YEARS = range(
+    2031, 2045
+)  # a wrong period is "March <the first of these the document never states>"
 UNSUPPORTED_YEARS = range(
     2025, 1999, -1
 )  # an added year is the latest of these the document never states
@@ -91,6 +94,12 @@ class GoldItem(_Strict):
     def _whole_vote(self) -> GoldItem:
         if (self.vote_for is None) != (self.vote_against is None):
             raise ValueError("a vote is recorded as both counts or neither")
+        return self
+
+    @model_validator(mode="after")
+    def _decision_is_whole(self) -> GoldItem:
+        if self.kind == "decision" and None in (self.action, self.decided_on, self.value):
+            raise ValueError("a decision states its action, date and rate")
         return self
 
 
@@ -335,9 +344,21 @@ def _check_relative(
     return codes
 
 
+def _require_claimable(pack: AccuracyPack) -> None:
+    """Refuse a pack with an item that the claim contracts cannot hold, instead of failing later inside the probes."""
+    for item in pack.items:
+        try:
+            _claim(item, _evidence(pack.version_id, 1, item.page, item.quote))
+        except ValidationError:
+            raise GoldPackError(
+                "the gold pack has an item that cannot be made into a claim"
+            ) from None
+
+
 def check_pack(conn: sqlite3.Connection, pack: AccuracyPack) -> PackReport:
     """Test the gold against the stored text; raises `GoldPackError` when it is bound to another document."""
     row = _bound(conn, pack)
+    _require_claimable(pack)
     sections = load_sections(conn, pack.version_id)
     problems = []
     day = pack.document_date
@@ -399,10 +420,10 @@ def _wrong_issuer(item: GoldItem, institution: str, institution_name: str) -> di
     return {}
 
 
-def _unsupported_year(document_text: str) -> str | None:
-    """The latest year in `UNSUPPORTED_YEARS` that the document never states, or None when it states them all."""
+def _unsupported_year(document_text: str, years: range = UNSUPPORTED_YEARS) -> str | None:
+    """The first year in `years` that the document never states, or None when it states them all."""
     stated = set(re.findall(r"\b\d{4}\b", document_text))
-    return next((str(year) for year in UNSUPPORTED_YEARS if str(year) not in stated), None)
+    return next((str(year) for year in years if str(year) not in stated), None)
 
 
 def _mutations(
@@ -422,7 +443,8 @@ def _mutations(
     changes = {}
     if item.period_as_stated:
         period = "period" if item.kind == "fact" else "horizon"
-        changes["wrong_period"] = {period: "March 2031"}
+        if wrong := _unsupported_year(document_text, WRONG_PERIOD_YEARS):
+            changes["wrong_period"] = {period: f"March {wrong}"}
         year = _unsupported_year(document_text)
         # Adding a year already stated, by the period or by the document, corrupts nothing: skip rather than score it as a miss
         if year and not re.search(r"\b\d{4}\b", item.period_as_stated):
@@ -466,11 +488,17 @@ def _probes(
     institution: tuple[str, str],
 ) -> list[tuple[str, ForecastClaim | ReportedFact | PolicyDecision | Statement]]:
     good = _evidence(pack.version_id, ordinal, item.page, item.quote)
-    claims = [("baseline", _claim(item, good))]
-    claims += [
-        (name, _claim(item, good, **over))
-        for name, over in _mutations(item, document_text, *institution).items()
-    ]
+    baseline = _claim(item, good)
+    claims = [("baseline", baseline)]
+    for name, over in _mutations(item, document_text, *institution).items():
+        try:
+            claim = _claim(item, good, **over)
+        except ValidationError:
+            continue  # a corruption the contract cannot hold corrupts nothing the verifier sees
+        if (
+            claim != baseline
+        ):  # an unchanged claim is not a corruption: scoring its acceptance as a miss would distort the result
+            claims.append((name, claim))
     claims.append(
         ("wrong_page", _claim(item, _evidence(pack.version_id, ordinal, item.page + 1, item.quote)))
     )
@@ -486,6 +514,7 @@ def _probes(
 def probe_pack(conn: sqlite3.Connection, pack: AccuracyPack) -> ProbeReport:
     """True claims and corrupted copies through the real verifier. A quote that is not found is skipped: `check_pack` reports it."""
     row = _bound(conn, pack)
+    _require_claimable(pack)
     sections = load_sections(conn, pack.version_id)
     results = []
     document_text = " ".join(_flat(s.text) for s in sections.values())

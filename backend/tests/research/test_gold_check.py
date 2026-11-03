@@ -407,9 +407,45 @@ def test_a_decision_with_no_recorded_vote_is_probed_without_a_vote_mutation(stor
     assert "wrong_vote" not in mutations and {"wrong_rate", "wrong_date"} <= mutations
 
 
+@pytest.mark.parametrize("missing", ["action", "decided_on", "value"])
+def test_a_decision_must_state_what_was_decided(missing):
+    with pytest.raises(ValidationError):
+        built(items=[decision(**{missing: None})])
+
+
+def test_an_item_the_claim_contract_cannot_hold_is_refused_not_a_crash(stored):
+    conn, _ = stored
+    too_long = built(
+        items=[forecast(text="x" * 201)]
+    )  # the pack accepts it; ForecastClaim.indicator_label does not
+    with pytest.raises(GoldPackError):
+        check_pack(conn, too_long)
+    with pytest.raises(GoldPackError):
+        probe_pack(conn, too_long)
+
+
 def test_a_pack_cannot_record_only_half_a_vote():
     with pytest.raises(ValidationError):
         built(items=[decision(vote_against=None)])
+
+
+def test_a_period_already_at_the_wrong_period_is_not_probed_by_setting_it_again(conn):
+    page = "Annual inflation was 2.9% in March 2031, Synthetic Statistics reported."
+    hashes = seed_dated(conn, page)
+    item = fact(quote=page.rstrip("."), period_as_stated="March 2031", period_resolved=None)
+    report = probe_pack(conn, built(**hashes, items=[item], relative_dates=[]))
+    wrong = [r for r in report.results if r.mutation == "wrong_period"]
+    assert (
+        wrong and wrong[0].codes != ()
+    )  # a different, unsupported period, so the verifier does reject it
+    assert report.missed == 0
+
+
+def test_a_mutation_that_leaves_the_claim_unchanged_is_not_scored(stored):
+    conn, _ = stored
+    item = decision(decided_on="2031-03-03")  # the wrong_date probe would set exactly this
+    report = probe_pack(conn, built(items=[item], relative_dates=[]))
+    assert "wrong_date" not in {r.mutation for r in report.results}
 
 
 def test_a_year_already_stated_is_not_probed_by_adding_it_again(conn):
