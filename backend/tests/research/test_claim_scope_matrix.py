@@ -54,6 +54,12 @@ HORIZON_VALID = [
     ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "June 2029"),
     ("We expect output to be 3% above trend in the 4 quarters to June 2029.", 3, "June 2029"),
     ("We expect growth of 3% against a backdrop of weak demand in 2029.", 3, "2029"),
+    ("We expect growth of 3% from stronger exports in 2029.", 3, "2029"),
+    (
+        "We expect growth of 3% from higher investment in the year to June 2029.",
+        3,
+        "year to June 2029",
+    ),
     ("We expect growth of 3% against the background of weak demand in 2029.", 3, "2029"),
 ]
 
@@ -76,6 +82,8 @@ HORIZON_INVALID = [
     ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "March 2029"),
     ("We expect growth of 3% against a backdrop of weak demand in 2029.", 3, "2030"),
     ("We expect growth of 3% against 2% in 2029.", 3, "2029"),
+    ("We expect growth of 3% from July 2028 in 2029.", 3, "2029"),
+    ("We expect growth of 3% from 2% in 2029.", 3, "2029"),
     ("We expect growth of 3% against a backdrop of 2% growth in 2029.", 3, "2029"),
     ("Against a backdrop of weak demand in 2029, we expect growth of 3%.", 3, "2029"),
 ]
@@ -107,6 +115,7 @@ ISSUER_VALID = [
     ("The IMF expects growth of 2%, less than the Treasury forecasts at 3% in 2029.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than the Treasury\'s forecast of 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets forecast growth of 3% in 2029.", 3, "Markets", "third_party"),
+    ("With the RBNZ expected by Capital Economics to cut the OCR to 3% in 2029, financing costs will ease.", 3, "Capital Economics", "third_party"),
     ("Growth of 3% is expected by Market Economics Ltd in 2029.", 3, "Market Economics Ltd", "third_party"),
     ("Growth of 3% is expected by the Financial Markets Authority in 2029.", 3, "Financial Markets Authority", "third_party"),
     ("Markets anticipate growth of 3% in 2029.", 3, "Markets", "third_party"),
@@ -157,6 +166,7 @@ ISSUER_INVALID = [
     ("The IMF expects growth of 2%, less than the Treasury\'s critics forecast at 3% in 2029.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than the Treasury does not forecast at 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("With the RBNZ expected by Capital Economics to cut the OCR to 3% in 2029, financing costs will ease.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by Market Participants in 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by THE MARKET in 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by Market Economics Ltd in 2029.", 3, "The Treasury", "author"),

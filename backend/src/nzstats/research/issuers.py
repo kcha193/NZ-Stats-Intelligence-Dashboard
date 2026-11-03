@@ -210,7 +210,9 @@ def reported(text: str) -> set[str]:
     # "The RBNZ expected by the IMF to cut" is the IMF's view, so it counts for the IMF. "Expected by 2029" names no agent.
     def passive(m: re.Match[str]) -> bool:
         by = _EXPECTED_BY.match(text, m.end() - len("expected"))
-        return by is not None and _agent_at(text, by.end()) is not None
+        return by is not None and (
+            _agent_at(text, by.end()) is not None or bool(_PROPER_AGENT.match(text, by.end()))
+        )
 
     keys = {
         key
@@ -305,6 +307,8 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
         texts.append(after[which.end() :])
     keys: set[str] = set()
     for text in texts:
+        if _unnamed_expected_by(text):
+            keys.add("other")
         keys |= reported(text) | _credited_outside_comparison(
             _WHICH.sub(" ", _STAFF.sub("expects", text))
         )
