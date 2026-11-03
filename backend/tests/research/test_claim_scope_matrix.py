@@ -131,6 +131,14 @@ ISSUER_VALID = [
     ("We expect growth of 3% in 2029, while inflation will be 2%, which the IMF expects.", 2, "IMF", "third_party"),
     ("The RBNZ expected growth of 2% but the IMF forecasts 3% in 2029.", 3, "IMF", "third_party"),
     ("Our growth forecast of 3% in 2029 compares with market forecasts of 2%.", 3, "The Treasury", "author"),
+    # A trailing "which" clause binds to the figure only when it credits the figure itself.
+    ("We expect growth of 3% in 2029, which the IMF expects to be a challenging year.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be too optimistic.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected would be a challenging year.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which is above the IMF\'s forecast of 2%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 2, "IMF", "third_party"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects to be a challenging year.", 3, "The Treasury", "author"),
 ]  # fmt: skip
 
 
@@ -176,6 +184,17 @@ ISSUER_INVALID = [
     ("Growth of 3% is expected by the Financial Markets Authority in 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by Markets in 2029.", 3, "The Treasury", "author"),
     ("Markets projected growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be a challenging year.", 3, "IMF", "third_party"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 3.0 per cent.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF forecasts at 2% and 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects in 2029.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be a challenging year, and the IMF forecasts 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expects to be 2%.", 3, "IMF", "third_party"),
+    ("The IMF expects growth of 2%, less than we forecast at 3% in 2029, which the IMF expects.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected to be 3%.", 3, "The Treasury", "author"),
+    ("We expect growth of 3% in 2029, which the IMF expected 3%.", 3, "The Treasury", "author"),
 ]  # fmt: skip
 
 

@@ -1417,7 +1417,13 @@ class _Checker:
                 who = one(issuers.named(loc.layout.table(line).caption))
             if who is not None:
                 return who, set()
-        for text in (loc.clause_at(at), loc.sentence_text()):
+        # A ", which" clause that is not about this figure ("which the IMF expects to be a challenging year") credits nobody with it.
+        figure = issuers.leading_figure(loc.sentence_around(at)[1])
+        texts = [
+            issuers.without_other_assertions(t, figure)
+            for t in (loc.clause_at(at), loc.sentence_text())
+        ]
+        for text in texts:
             credited, own = issuers.credited(text), bool(issuers.SELF_REFERENCE.search(text))
             if credited or own:
                 who = one(credited, own)
@@ -1445,7 +1451,7 @@ class _Checker:
                     blocks = others(issuers.reported(lead)) - {who}
                 return who, blocks
         blocks: set[str] = set()
-        for text in (loc.clause_at(at), loc.sentence_text()):
+        for text in texts:
             keys = issuers.reported(text)
             if keys:  # the nearest report decides, even when it is the author's own
                 blocks = others(keys)

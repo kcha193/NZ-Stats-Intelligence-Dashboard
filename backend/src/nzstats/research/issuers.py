@@ -283,6 +283,62 @@ _FIGURE = re.compile(
 # Only a contrast opens a new assertion. A bare "and" may coordinate figures under one credit, so it never ends one.
 _NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|then)\b", re.IGNORECASE)
 
+# A relative clause ("…3% in 2029, which the IMF expects to be a challenging year") says something about its antecedent, and the
+# antecedent need not be the figure: it may be the year, or a comparison benchmark. A credit in it belongs to the figure only when
+# it could be the figure's own assertion. Two things show it is not, and both must be positive evidence, so any doubt still blocks:
+# the clause's verb takes a complement that names no figure ("expects to be too optimistic"), or the clause states other figures
+# and never the claimed one ("the IMF's forecast of 2%", "expects to be 2%").
+_NAMES_ANY = "|".join(f"(?:{o.names})" for o in ORGANISATIONS if o.key != "market")
+_ASSERTING_WORD = rf"(?:{_ACTIVE}|expected\b)"
+_CREDIT_IN_CLAUSE = re.compile(
+    rf"(?:the\s+)?(?:{_NAMES_ANY})(?:['’]s)?\s+{_FILLER}{_ASSERTING_WORD}(?P<rest>[^,;:]*)",
+    re.IGNORECASE,
+)
+_COMPLEMENT = re.compile(
+    r"\s*(?:to\s+(?:be|remain|prove|become|stay)|(?:will|would|should|could|might|may)\s+\w+)\b",
+    re.IGNORECASE,
+)
+_NUMBER = re.compile(r"\d[\d,]*\.?\d*")
+# Straight after "which" the organisation is the one expecting, since "which" is what is expected: "which the IMF expected to be 3%"
+# is the IMF's forecast, though "the RBNZ expected to cut" alone may be a passive.
+_WHICH_EXPECTED = re.compile(
+    rf"\s*(?:the\s+)?(?P<name>{_NAMES_ANY})\s+(?:(?:also|still|now)\s+)?expected\b", re.IGNORECASE
+)
+
+
+def _value(figure: str) -> float | None:
+    number = _NUMBER.search(figure)
+    try:
+        return float(number.group().replace(",", "")) if number else None
+    except ValueError:
+        return None
+
+
+def leading_figure(after: str) -> float | None:
+    """The value of the figure `after` starts with (a sentence split at the figure), or None if it cannot be read."""
+    m = _FIGURE.match(after)
+    return _value(m.group()) if m else None
+
+
+def _is_other_assertion(rest: str, figure: float | None) -> bool:
+    """Does what a relative clause's forecaster says leave the claimed figure alone?"""
+    values = [_value(m.group()) for m in _FIGURE.finditer(rest)]
+    if values:
+        return figure is not None and None not in values and figure not in values
+    return _COMPLEMENT.match(rest) is not None
+
+
+def without_other_assertions(text: str, figure: float | None) -> str:
+    """`text` with the credits of a ", which" clause that are not about `figure` taken out (see above)."""
+    which = _WHICH.search(text)
+    if which is None:
+        return text
+
+    def drop(m: re.Match[str]) -> str:
+        return " " if _is_other_assertion(m.group("rest"), figure) else m.group()
+
+    return text[: which.end()] + _CREDIT_IN_CLAUSE.sub(drop, text[which.end() :])
+
 
 def own_assertion(after: str) -> str:
     """What follows a figure, up to the next assertion that has a figure of its own.
@@ -302,12 +358,14 @@ def third_parties_around(before: str, after: str, author: str | None) -> set[str
     its own clause after it. A name alone does not count, so
     "the RBNZ is expected to cut" stays beside the author's own forecast.
     """
-    after = own_assertion(after)
+    after = without_other_assertions(own_assertion(after), leading_figure(after))
     texts = [since_author(before, author)]
     which = _WHICH.search(after)
     if which is not None:
         texts.append(after[which.end() :])
     keys: set[str] = set()
+    if which is not None and (agent := _WHICH_EXPECTED.match(after, which.end())):
+        keys.add(organisation_of(agent.group("name")) or "other")
     for text in texts:
         if _unnamed_expected_by(text):
             keys.add("other")
@@ -362,7 +420,7 @@ def author_governs(before: str, after: str, author: str | None) -> bool:
     """
     if not _author_speaks_just_before(before, author):
         return False
-    own = own_assertion(after)
+    own = without_other_assertions(own_assertion(after), leading_figure(after))
     trailing = _credited_outside_comparison(_WHICH.sub(" ", own)) | reported(own)
     return not trailing - {author}
 
