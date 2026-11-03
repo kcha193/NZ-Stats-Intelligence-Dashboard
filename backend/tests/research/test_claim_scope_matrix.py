@@ -76,6 +76,8 @@ HORIZON_INVALID = [
     ("We expect output to be 3% above trend over the 12 months to June 2029.", 3, "March 2029"),
     ("We expect growth of 3% against a backdrop of weak demand in 2029.", 3, "2030"),
     ("We expect growth of 3% against 2% in 2029.", 3, "2029"),
+    ("We expect growth of 3% against a backdrop of 2% growth in 2029.", 3, "2029"),
+    ("Against a backdrop of weak demand in 2029, we expect growth of 3%.", 3, "2029"),
 ]
 
 
@@ -151,6 +153,10 @@ ISSUER_INVALID = [
     ("The IMF expects growth of 2%, less than our rivals forecast at 3% in 2029.", 3, "The Treasury", "author"),
     ("The IMF expects growth of 2%, less than we doubt at 3% in 2029.", 3, "The Treasury", "author"),
     ("Markets anticipate growth of 3% in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Market Participants in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by THE MARKET in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by Market Economics Ltd in 2029.", 3, "The Treasury", "author"),
+    ("Growth of 3% is expected by the Financial Markets Authority in 2029.", 3, "The Treasury", "author"),
     ("Growth of 3% is expected by Markets in 2029.", 3, "The Treasury", "author"),
     ("Markets projected growth of 3% in 2029.", 3, "The Treasury", "author"),
 ]  # fmt: skip
