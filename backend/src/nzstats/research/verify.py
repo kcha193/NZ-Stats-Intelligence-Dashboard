@@ -1496,10 +1496,15 @@ class _Checker:
                     blocks |= issuers.third_parties_around(*loc.sentence_around(at), author)
         elif issuers.is_market_name(name):
             blocks.discard("market")
-        elif issuers.is_group_name(name):
-            blocks.discard("group")
-        if blocks - {claimed} and (role is IssuerRole.AUTHOR or claimed not in blocks):
-            who = ", ".join(sorted(_who(c) for c in blocks))
+        # Phase 4R wording can only add a rejection: a block it finds is never used to waive one the older wording raised.
+        more = set()
+        for loc, at in spots:
+            if loc.layout.place(at)[0] == "text":
+                more |= issuers.more_around(*loc.sentence_around(at), claimed, author)
+        if issuers.is_group_name(name):
+            more.discard("group")
+        if (blocks | more) - {claimed} and (role is IssuerRole.AUTHOR or claimed not in blocks):
+            who = ", ".join(sorted(_who(c) for c in blocks | more))
             self.error(
                 "issuer_mismatch",
                 path,

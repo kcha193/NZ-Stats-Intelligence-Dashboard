@@ -84,30 +84,46 @@ _MARKET_EXPECTS = re.compile(
     r"(?!\s+(?:of|for|from|that|to|is|are|was|were|by)\b)\b)",
     re.IGNORECASE,
 )
-# Phase 4R: groups of outside forecasters that no registry names. "Economists", "staff" and "officials" are left out on purpose: a
-# document's own economists can be its author, and wording cannot tell them from outsiders (see `_STAFF`).
-_GROUPS = (
-    r"(?:(?:market|bank|private[- ]sector|independent)\s+)?(?:analysts|forecasters)"
+# Phase 4R: wording that makes a group of outside forecasters, or a reporter, the forecaster. It lives apart from `reported` on
+# purpose: the verifier may only ADD a rejection with it. It never credits the author, and it never waives a block that the earlier
+# wording raised (a third party's claim passes only on the strength of the older wording). "Economists", "staff" and "officials" are
+# left out of the groups: a document's own economists can be its author, and wording cannot tell them from outsiders (`_STAFF`).
+_GROUP_NOUN = (
+    r"(?:(?:market|bank|private[- ]sector|independent|sell-side)\s+)?(?:analysts|forecasters)"
     r"|(?:market|bank|private[- ]sector)\s+economists"
     r"|investors|traders|commentators|banks|rating\s+agencies|survey\s+respondents"
 )
+_GROUP_MODIFIER = r"(?:(?:the|most|many|some|major|big|leading|local|domestic|australian|four)\s+)*"
+_GROUP = rf"{_GROUP_MODIFIER}(?:{_GROUP_NOUN})"
+_OTHER_PEOPLE = rf"(?:{_GROUP_NOUN}|economists|staff|officials)"
+_OWN_PEOPLE = re.compile(
+    rf"(?:['’]s)?\s*{_OTHER_PEOPLE}(?:\s*(?:,|and)\s*{_OTHER_PEOPLE})*\b", re.IGNORECASE
+)
+_AT_AN_ORGANISATION = r"(?:\s+(?:at|from)\s+(?:the\s+)?[A-Z][\w&]*(?:\s+[A-Z][\w&]*)*)?"
 _GROUP_EXPECTS = re.compile(
-    rf"\b(?:{_GROUPS})\s+(?:(?:now|still|also)\s+)?"
+    rf"\b{_GROUP}{_AT_AN_ORGANISATION}\s+(?:(?:now|still|also|currently|mostly)\s+)?"
     r"(?:expect(?:s\b|ed(?!\s+(?:not\s+|never\s+)?to\b)\b|\b)"
+    r"|(?:are\s+|is\s+|have\s+|has\s+)?(?:expecting|forecasting|predicting|projecting|anticipating|estimating)\b"
     r"|(?:forecasts?|forecasted|anticipates?|anticipated|predicts?|predicted|projects?|projected|sees?|saw"
-    r"|estimates?|estimated|reckons?|reckoned)(?!\s+(?:of|for|from|that|to|is|are|was|were|by)\b)\b)",
+    r"|estimates?|estimated|reckons?|reckoned|says?|said)(?!\s+(?:of|for|from|to|is|are|was|were|by)\b)\b)",
     re.IGNORECASE,
 )
-_GROUP_AFTER_AUTHOR = re.compile(rf"\s*(?:{_GROUPS})\b", re.IGNORECASE)
-_GROUP_ISSUER = re.compile(rf"^\s*(?:the\s+)?(?:{_GROUPS})\s*$", re.IGNORECASE)
-_GROUP_AGENT = re.compile(rf"(?:(?:the|most|many|some)\s+)?(?:{_GROUPS})\b", re.IGNORECASE)
+_GROUP_ISSUER = re.compile(rf"^\s*(?:the\s+)?(?:{_GROUP_NOUN})\s*$", re.IGNORECASE)
+_GROUP_PASSIVE = re.compile(
+    rf"\b(?:expected|forecast|projected|predicted|anticipated|estimated)\s+by\s+{_GROUP}\b",
+    re.IGNORECASE,
+)
 _ACCORDING_TO_GROUP = re.compile(
-    rf"\baccording\s+to\s+(?:(?:the|most|many|some)\s+)?(?:{_GROUPS})\b", re.IGNORECASE
+    rf"\baccording\s+to\s+(?:an?\s+(?:survey|range|poll)\s+of\s+)?{_GROUP}\b", re.IGNORECASE
+)
+_GROUP_IN_CLAUSE = re.compile(
+    rf"\b{_GROUP}\s+(?:also\s+|still\s+)?(?:expect|forecast|predict|project|anticipate|see|estimate)\w*(?P<rest>[^,;:]*)",
+    re.IGNORECASE,
 )
 # "The IMF said growth will be 3%": the reporter is the forecaster, though no forecasting verb follows its name.
 _SAID = (
-    r"(?:['’]s)?\s+(?:said|says|stated|states|noted|notes|warned|warns|suggested|suggests|believes?|thinks?"
-    r"|reckons?)\b"
+    r"(?:['’]s)?(?:\s+(?:staff|economists|officials|governor|managing\s+director))?"
+    r"\s+(?:has\s+|have\s+)?(?:said|says|stated|states|noted|notes|warned|warns|suggested|suggests|believes?|thinks?|reckons?)\b"
 )
 # Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
 _BEFORE_MARKET = {
@@ -219,10 +235,6 @@ def _agent_at(text: str, at: int) -> str | None:
         return "market"
     the = _THE.match(text, at)
     starts = (at, the.end()) if the else (at,)
-    if not any(
-        name.match(text, start) for start in starts for name, _ in _PATTERNS.values()
-    ) and _GROUP_AGENT.match(text, at):
-        return "group"
     return next(
         (
             key
@@ -274,27 +286,16 @@ def reported(text: str) -> set[str]:
         )
     }
     keys |= _expected_by(text)
-    for key, pattern in (("market", _MARKET_EXPECTS), ("group", _GROUP_EXPECTS)):
-        for m in pattern.finditer(text):
-            before = text[: m.start()]
-            words = before.split()
-            starts_clause = not words or words[-1][-1] in ",;:("
-            if (
-                not passive(m)
-                and not _COMPARED_WITH.search(before)
-                and (starts_clause or words[-1].lower() in _BEFORE_MARKET)
-            ):
-                keys.add(key)
-    # Phase 4R: "according to analysts", and an organisation that "said" the figure.
-    if any(
-        not _COMPARED_WITH.search(text[: m.start()]) for m in _ACCORDING_TO_GROUP.finditer(text)
-    ):
-        keys.add("group")
-    keys |= {
-        key
-        for key, pattern in _SAID_PATTERNS.items()
-        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
-    }
+    for m in _MARKET_EXPECTS.finditer(text):
+        before = text[: m.start()]
+        words = before.split()
+        starts_clause = not words or words[-1][-1] in ",;:("
+        if (
+            not passive(m)
+            and not _COMPARED_WITH.search(before)
+            and (starts_clause or words[-1].lower() in _BEFORE_MARKET)
+        ):
+            keys.add("market")
     return keys
 
 
@@ -303,10 +304,80 @@ def since_author(before: str, author: str | None) -> str:
     last = [m.end() for m in SELF_REFERENCE.finditer(before)]
     if author in _PATTERNS:
         last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
+    return before[max(last, default=0) :]
+
+
+_LEAD_IN = {
+    "currently",
+    "meanwhile",
+    "now",
+    "overall",
+    "instead",
+    "so",
+    "yet",
+    "also",
+    "today",
+    "however",
+    "still",
+    "then",
+    "and",
+}
+
+
+def _since_author_and_people(before: str, author: str | None) -> str:
+    """`since_author`, also past the author's own people: "our analysts and forecasters expect" is the author speaking."""
+    last = [m.end() for m in SELF_REFERENCE.finditer(before)]
+    if author in _PATTERNS:
+        last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
     start = max(last, default=0)
-    # "Our analysts expect", "Treasury forecasters expect": the group is the author's own people, whose words these are.
-    own_people = _GROUP_AFTER_AUTHOR.match(before, start) if last else None
-    return before[own_people.end() if own_people else start :]
+    people = _OWN_PEOPLE.match(before, start) if last else None
+    return before[people.end() if people else start :]
+
+
+def reported_more(text: str) -> set[str]:
+    """Outside groups and reporters that `text` makes the forecaster, by the wording above. Rejection only: see the note there."""
+    keys: set[str] = set()
+    for m in _GROUP_EXPECTS.finditer(text):
+        before = text[: m.start()]
+        words = before.split()
+        starts_clause = not words or words[-1][-1] in ",;:("
+        if not _COMPARED_WITH.search(before) and (
+            starts_clause or words[-1].lower() in _BEFORE_MARKET | _LEAD_IN
+        ):
+            keys.add("group")
+    for pattern in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP):
+        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text)):
+            keys.add("group")
+    keys |= {
+        key
+        for key, pattern in _SAID_PATTERNS.items()
+        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
+    }
+    return keys
+
+
+def more_around(before: str, after: str, who: str | None, author: str | None) -> set[str]:
+    """`reported_more` for the wording that leads to a figure (since the credited forecaster's last words) and its own "which" clause.
+
+    A "which" clause that only comments on the year or the forecast ("which analysts expect to be a testing year") credits nobody.
+    """
+    lead = (
+        _since_author_and_people(before, author)
+        if who in (None, "author")
+        else since_credit(before, who, author)
+    )
+    keys = reported_more(lead)
+    after = own_assertion(after)
+    # After the figure only the passive and "according to" forms can name who made it.
+    if any(p.search(after) for p in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP)):
+        keys.add("group")
+    which = _WHICH.search(after)
+    if which is not None:
+        clause = _GROUP_IN_CLAUSE.sub(
+            lambda m: " " if _COMMENT.match(m.group("rest")) else m.group(), after[which.end() :]
+        )
+        keys |= reported_more(clause)
+    return keys - {author}
 
 
 def since_credit(before: str, who: str | None, author: str | None) -> str:
