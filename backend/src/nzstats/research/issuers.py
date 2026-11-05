@@ -95,7 +95,8 @@ _GROUP_NOUN = (
 )
 _GROUP_MODIFIER = r"(?:(?:the|most|many|some|major|big|leading|local|domestic|australian|four)\s+)*"
 _GROUP = rf"{_GROUP_MODIFIER}(?:{_GROUP_NOUN})"
-_OTHER_PEOPLE = rf"(?:{_GROUP_NOUN}|economists|staff|officials)"
+# Only people a document can call its own ("our analysts"): never investors, banks or the like, and never "analysts at ANZ".
+_OTHER_PEOPLE = r"(?:analysts|forecasters|economists|staff|officials)(?!\s+(?:at|from)\s)"
 _OWN_PEOPLE = re.compile(
     rf"(?:['’]s)?\s*{_OTHER_PEOPLE}(?:\s*(?:,|and)\s*{_OTHER_PEOPLE})*\b", re.IGNORECASE
 )
@@ -330,7 +331,12 @@ def _since_author_and_people(before: str, author: str | None) -> str:
     if author in _PATTERNS:
         last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
     start = max(last, default=0)
-    people = _OWN_PEOPLE.match(before, start) if last else None
+    # "Unlike us, analysts expect": a self-reference inside a comparison does not make the next words the author's.
+    people = (
+        _OWN_PEOPLE.match(before, start)
+        if last and not _COMPARED_WITH.search(before[:start] + " ")
+        else None
+    )
     return before[people.end() if people else start :]
 
 

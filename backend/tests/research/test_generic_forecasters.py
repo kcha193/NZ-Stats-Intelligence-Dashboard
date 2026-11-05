@@ -127,3 +127,36 @@ def test_the_authors_own_people_are_not_outside_groups(sentence):
 )
 def test_common_ways_of_reporting_an_outside_forecast_cannot_be_the_authors(sentence):
     assert "issuer_mismatch" in codes(authors(sentence))
+
+
+# Automated security review, round 1.
+def test_a_group_name_is_no_exemption_for_a_claim_labelled_as_the_author():
+    assert "issuer_mismatch" in codes(
+        authors("Analysts expect growth of 3% in 2029.", "author", "Analysts")
+    )
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Our investors and banks expect growth of 3% in 2029.",
+        "Treasury analysts at ANZ expect growth of 3% in 2029.",
+        "Unlike us, analysts expect growth of 3% in 2029.",
+    ],
+)
+def test_only_the_authors_own_kind_of_people_are_skipped(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    ("sentence", "issuer"),
+    [
+        (
+            "The RBNZ expected by analysts to cut the OCR to 3% in 2029.",
+            "Reserve Bank of New Zealand",
+        ),
+        ("The IMF expected by investors growth of 3% in 2029.", "International Monetary Fund"),
+    ],
+)
+def test_the_new_wording_is_not_waived_by_the_claimed_issuers_own_credit(sentence, issuer):
+    assert "issuer_mismatch" in codes(authors(sentence, "third_party", issuer))

@@ -1501,9 +1501,12 @@ class _Checker:
         for loc, at in spots:
             if loc.layout.place(at)[0] == "text":
                 more |= issuers.more_around(*loc.sentence_around(at), claimed, author)
-        if issuers.is_group_name(name):
+        if role is not IssuerRole.AUTHOR and issuers.is_group_name(name):
             more.discard("group")
-        if (blocks | more) - {claimed} and (role is IssuerRole.AUTHOR or claimed not in blocks):
+        # What the new wording finds is never waived, not even by a credit the older wording found for the claimed issuer.
+        if (more - {claimed}) or (
+            (blocks - {claimed}) and (role is IssuerRole.AUTHOR or claimed not in blocks)
+        ):
             who = ", ".join(sorted(_who(c) for c in blocks | more))
             self.error(
                 "issuer_mismatch",
