@@ -16,7 +16,6 @@ the gold counts against it. An empty denominator is unmeasured, never a pass. Re
 
 from __future__ import annotations
 
-import html
 import os
 import re
 import sqlite3
@@ -27,7 +26,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from nzstats.research import issuers
+from nzstats.research import gold_sheet, issuers
 from nzstats.research.contract import Direction, IssuerRole, OutlookSummary
 from nzstats.research.summarise import load_sections
 from nzstats.research.verify import _YEAR, VerificationContext, verify
@@ -484,26 +483,15 @@ def write_worksheet(conn: sqlite3.Connection, version_id: int, out: Path) -> int
     ).fetchone()
     if row is None or row["superseded_at"] or row["purged_at"]:
         raise GoldExtensionError("no current document version to review")
-    rows = []
+    rows: list[tuple[int | None, int, str]] = []
     for ordinal, section in load_sections(conn, version_id).items():
         for sentence in re.split(r"(?<=[.!?])\s+", " ".join(section.text.split())):
             if _CANDIDATE.search(sentence):
                 rows.append((section.page_start, ordinal, sentence))
-    boxes = " ".join(f"[ ] {c}" for c in CATEGORIES)
-    body = "\n".join(
-        f"<tr><td>{page or ''}</td><td>{ordinal}</td><td>{html.escape(text)}</td><td>{boxes}<br>Issuer: ____ Period as written: ____</td></tr>"
-        for page, ordinal, text in rows
-    )
-    page = (
-        "<!doctype html><meta charset=utf-8><title>Gold review worksheet</title>"
-        "<style>body{font:15px system-ui;margin:2em}td,th{border:1px solid #bbb;padding:6px;vertical-align:top;text-align:left}"
-        "table{border-collapse:collapse;width:100%}</style>"
-        f"<h1>Gold review worksheet: version {version_id}</h1>"
-        "<p>Private and local. Built from the document alone. Read the original PDF, and do not open any model output first."
-        " Copy periods exactly as written. An item may be left out.</p>"
-        "<p>[ ] Written without seeing model output. Reviewer: ____________ Date: ____________</p>"
-        f"<table><tr><th>Page</th><th>Section</th><th>Sentence</th><th>Your reading</th></tr>{body}</table>"
-    )
+    digest = conn.execute(
+        "SELECT text_sha256 FROM research_document_version WHERE id = ?", (version_id,)
+    ).fetchone()["text_sha256"]
+    page = gold_sheet.render(version_id, digest, rows)
     fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     os.fchmod(fd, 0o600)  # an existing file keeps its old mode otherwise
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
