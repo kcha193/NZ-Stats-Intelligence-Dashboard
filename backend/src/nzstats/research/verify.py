@@ -1496,6 +1496,8 @@ class _Checker:
                     blocks |= issuers.third_parties_around(*loc.sentence_around(at), author)
         elif issuers.is_market_name(name):
             blocks.discard("market")
+        elif issuers.is_group_name(name):
+            blocks.discard("group")
         if blocks - {claimed} and (role is IssuerRole.AUTHOR or claimed not in blocks):
             who = ", ".join(sorted(_who(c) for c in blocks))
             self.error(

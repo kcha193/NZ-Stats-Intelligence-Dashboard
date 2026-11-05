@@ -84,6 +84,31 @@ _MARKET_EXPECTS = re.compile(
     r"(?!\s+(?:of|for|from|that|to|is|are|was|were|by)\b)\b)",
     re.IGNORECASE,
 )
+# Phase 4R: groups of outside forecasters that no registry names. "Economists", "staff" and "officials" are left out on purpose: a
+# document's own economists can be its author, and wording cannot tell them from outsiders (see `_STAFF`).
+_GROUPS = (
+    r"(?:(?:market|bank|private[- ]sector|independent)\s+)?(?:analysts|forecasters)"
+    r"|(?:market|bank|private[- ]sector)\s+economists"
+    r"|investors|traders|commentators|banks|rating\s+agencies|survey\s+respondents"
+)
+_GROUP_EXPECTS = re.compile(
+    rf"\b(?:{_GROUPS})\s+(?:(?:now|still|also)\s+)?"
+    r"(?:expect(?:s\b|ed(?!\s+(?:not\s+|never\s+)?to\b)\b|\b)"
+    r"|(?:forecasts?|forecasted|anticipates?|anticipated|predicts?|predicted|projects?|projected|sees?|saw"
+    r"|estimates?|estimated|reckons?|reckoned)(?!\s+(?:of|for|from|that|to|is|are|was|were|by)\b)\b)",
+    re.IGNORECASE,
+)
+_GROUP_AFTER_AUTHOR = re.compile(rf"\s*(?:{_GROUPS})\b", re.IGNORECASE)
+_GROUP_ISSUER = re.compile(rf"^\s*(?:the\s+)?(?:{_GROUPS})\s*$", re.IGNORECASE)
+_GROUP_AGENT = re.compile(rf"(?:(?:the|most|many|some)\s+)?(?:{_GROUPS})\b", re.IGNORECASE)
+_ACCORDING_TO_GROUP = re.compile(
+    rf"\baccording\s+to\s+(?:(?:the|most|many|some)\s+)?(?:{_GROUPS})\b", re.IGNORECASE
+)
+# "The IMF said growth will be 3%": the reporter is the forecaster, though no forecasting verb follows its name.
+_SAID = (
+    r"(?:['’]s)?\s+(?:said|says|stated|states|noted|notes|warned|warns|suggested|suggests|believes?|thinks?"
+    r"|reckons?)\b"
+)
 # Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
 _BEFORE_MARKET = {
     "the",
@@ -146,6 +171,13 @@ _REPORTED_PATTERNS = {
 }
 
 
+_SAID_PATTERNS = {
+    o.key: re.compile(rf"(?:{o.names}){_SAID}", re.IGNORECASE)
+    for o in ORGANISATIONS
+    if o.key != "market"
+}
+
+
 def organisation_of(name: str) -> str | None:
     """The known organisation an issuer name refers to, or None (an organisation this module does not know)."""
     for o in ORGANISATIONS:
@@ -168,6 +200,11 @@ def is_market_name(name: str) -> bool:
     return bool(_MARKET_ISSUER.match(name))
 
 
+def is_group_name(name: str) -> bool:
+    """An issuer named as one of the closed list of outside groups ("Analysts"), which may be a third party's own label."""
+    return bool(_GROUP_ISSUER.match(name))
+
+
 def _names_an_organisation(matched: str, rest: str) -> bool:
     """A title-case "Market" or "Markets" followed by another capitalised word is a name: "Market Economics Ltd"."""
     word = re.search(r"markets?\b", matched, re.IGNORECASE)
@@ -182,6 +219,10 @@ def _agent_at(text: str, at: int) -> str | None:
         return "market"
     the = _THE.match(text, at)
     starts = (at, the.end()) if the else (at,)
+    if not any(
+        name.match(text, start) for start in starts for name, _ in _PATTERNS.values()
+    ) and _GROUP_AGENT.match(text, at):
+        return "group"
     return next(
         (
             key
@@ -233,16 +274,27 @@ def reported(text: str) -> set[str]:
         )
     }
     keys |= _expected_by(text)
-    for m in _MARKET_EXPECTS.finditer(text):
-        before = text[: m.start()]
-        words = before.split()
-        starts_clause = not words or words[-1][-1] in ",;:("
-        if (
-            not passive(m)
-            and not _COMPARED_WITH.search(before)
-            and (starts_clause or words[-1].lower() in _BEFORE_MARKET)
-        ):
-            keys.add("market")
+    for key, pattern in (("market", _MARKET_EXPECTS), ("group", _GROUP_EXPECTS)):
+        for m in pattern.finditer(text):
+            before = text[: m.start()]
+            words = before.split()
+            starts_clause = not words or words[-1][-1] in ",;:("
+            if (
+                not passive(m)
+                and not _COMPARED_WITH.search(before)
+                and (starts_clause or words[-1].lower() in _BEFORE_MARKET)
+            ):
+                keys.add(key)
+    # Phase 4R: "according to analysts", and an organisation that "said" the figure.
+    if any(
+        not _COMPARED_WITH.search(text[: m.start()]) for m in _ACCORDING_TO_GROUP.finditer(text)
+    ):
+        keys.add("group")
+    keys |= {
+        key
+        for key, pattern in _SAID_PATTERNS.items()
+        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
+    }
     return keys
 
 
@@ -251,7 +303,10 @@ def since_author(before: str, author: str | None) -> str:
     last = [m.end() for m in SELF_REFERENCE.finditer(before)]
     if author in _PATTERNS:
         last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
-    return before[max(last, default=0) :]
+    start = max(last, default=0)
+    # "Our analysts expect", "Treasury forecasters expect": the group is the author's own people, whose words these are.
+    own_people = _GROUP_AFTER_AUTHOR.match(before, start) if last else None
+    return before[own_people.end() if own_people else start :]
 
 
 def since_credit(before: str, who: str | None, author: str | None) -> str:
@@ -429,7 +484,7 @@ def author_only_compared(text: str, author: str | None) -> bool:
 
 _DISPLAY = {"imf": "the IMF", "oecd": "the OECD", "world_bank": "the World Bank", "rba": "the RBA",
             "fed": "the Federal Reserve", "rbnz": "the RBNZ", "treasury": "the Treasury",
-            "market": "market pricing"}  # fmt: skip
+            "market": "market pricing", "group": "a group of outside forecasters"}  # fmt: skip
 
 
 def display_name(key: str) -> str:
