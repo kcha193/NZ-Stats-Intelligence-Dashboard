@@ -394,6 +394,8 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
     covered = frozenset(item.id for item in assigned.values())
     found: set[str] = set()
     valued: set[str] = set()
+    period_ok: set[str] = set()
+    issuer_ok: set[str] = set()
     right = matched = unmatched = ambiguous = rejected = numbers = numbers_right = duplicates = 0
     periods = periods_right = issued = issued_right = 0
     # Credited claims first, then the rest, each in content order: the report is the same for any order of the same claims.
@@ -424,12 +426,21 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
                 numbers_right += good
             if good:
                 valued.add(item.id)
+            # As for numbers: saying a right period or issuer again is not a further right answer, but every wrong one counts.
             if item.period_as_stated is not None:
-                periods += 1
-                periods_right += _period_exact(claim, item)
+                exact = _period_exact(claim, item)
+                if not (exact and item.id in period_ok):
+                    periods += 1
+                    periods_right += exact
+                if exact:
+                    period_ok.add(item.id)
             if issuer_checked:
-                issued += 1
-                issued_right += _issuer_right(claim, item)
+                named_right = _issuer_right(claim, item)
+                if not (named_right and item.id in issuer_ok):
+                    issued += 1
+                    issued_right += named_right
+                if named_right:
+                    issuer_ok.add(item.id)
     return ViewScore(
         len(claims), Ratio(right, matched + unmatched + rejected), Ratio(len(found), len(in_recall)),
         Ratio(numbers_right, numbers), Ratio(periods_right, periods), Ratio(issued_right, issued),

@@ -708,3 +708,25 @@ def test_a_misattributed_claim_still_meets_its_gold_item_and_counts_an_issuer_mi
     ]
     raw = scored(conn, summary([], [wrong]), items=items).views["raw"]
     assert raw.issuer_accuracy.text == "0/1" and raw.recall.text == "0/1" and raw.unmatched == 0
+
+
+# Phase 4R: a claim stated again is not further evidence of a right period or issuer.
+def test_repeating_a_right_period_does_not_raise_period_exactness(stored):
+    conn, _ = stored
+    wrong = fact(period="September quarter 2026")
+    raw = scored(conn, summary([wrong, fact(), fact(), fact()]), items=[gold()]).views["raw"]
+    assert raw.period_exact.text == "1/2"
+
+
+def test_repeating_a_right_issuer_does_not_raise_issuer_accuracy(stored):
+    conn, _ = stored
+    wrong = {**IMF, "issuer": "The Treasury", "issuer_role": "author"}
+    raw = scored(conn, summary([], [wrong, IMF, IMF, IMF])).views["raw"]
+    assert raw.issuer_accuracy.text == "1/2"
+
+
+def test_repeating_a_wrong_period_is_still_one_error_each_time_it_is_made(stored):
+    conn, _ = stored
+    wrong = fact(period="September quarter 2026")
+    raw = scored(conn, summary([wrong, wrong]), items=[gold()]).views["raw"]
+    assert raw.period_exact.text == "0/2"
