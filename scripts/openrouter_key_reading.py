@@ -22,8 +22,13 @@ from nzstats.research.pilot import PilotRefused
 
 def main() -> int:
     data = Path(os.environ.get("NZSTATS_DATA_DIR", "data")).resolve()
-    conn = sqlite3.connect(f"{(data / 'nzstats.db').as_uri()}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
+    try:
+        conn = sqlite3.connect(f"{(data / 'nzstats.db').as_uri()}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        conn.execute("SELECT 1 FROM research_llm_reservation LIMIT 1")
+    except sqlite3.Error:
+        print("refused: the local database could not be read")
+        return 2
     try:
         with httpx.Client() as client:
             reading = read_key(client, os.environ.get("NZSTATS_LLM_API_KEY", ""), conn)

@@ -850,4 +850,33 @@ def test_the_export_with_no_marks_is_refused(tmp_path):
 def test_the_export_refuses_a_value_that_is_not_a_number(tmp_path):
     row = {"id": "a", "category": "accepted_eligible", "kind": "fact", "terms": "g", "value": "abc"}
     result = _exported(tmp_path, META, [row], {"version_id": 1, "text_sha256": DIGEST})
-    assert any("not a number" in e for e in result["errors"])
+    assert any("plain number" in e for e in result["errors"])
+
+
+@pytest.mark.parametrize(
+    ("meta", "row", "fragment"),
+    [
+        ({"reviewed_on": "2026-13-45"}, {}, "real day"),
+        ({"reviewed_on": "2099-01-01"}, {}, "future"),
+        ({"reviewed_by": "Claude"}, {}, "people"),
+        ({"annotator": "GPT reviewer"}, {}, "people"),
+        ({}, {"kind": "decision", "period_as_stated": "2026-02-31"}, "real day"),
+        ({}, {"value": "0x10"}, "plain number"),
+        ({}, {"value": "1e3"}, "plain number"),
+    ],
+)
+def test_the_sheet_checks_what_the_validator_will_check_later(tmp_path, meta, row, fragment):
+    base = {"id": "a", "category": "accepted_eligible", "kind": "fact", "terms": "g", "value": "1"}
+    result = _exported(
+        tmp_path, {**META, **meta}, [{**base, **row}], {"version_id": 1, "text_sha256": DIGEST}
+    )
+    assert any(fragment in e for e in result["errors"])
+
+
+def test_a_saved_draft_never_restores_names_dates_or_the_attestation(stored, tmp_path):
+    conn, version = stored
+    out = tmp_path / "sheet.html"
+    write_worksheet(conn, version, out)
+    page = out.read_text()
+    assert 'q("#attest").checked =' not in page and 'q("#annotator").value =' not in page
+    assert "{ rows: read().rows }" in page

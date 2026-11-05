@@ -25,16 +25,16 @@ GOLD_EXTENSION_FILE = "annotations/gold-extension-v{version}.json"
 
 # Where the sheets other phases wrote live, relative to the data directory.
 EXISTING_SHEETS = {
-    "phase4o": (
-        "phase-4n/run-treasury-20261102/human-review.html",
-        "Phase 4O Treasury output: all 18 claims with their evidence and the verifier's findings. Rejected and unreviewed.",
-    ),
     "periods": (
         "phase-4q/period-review-worksheet.html",
         "The five rejected facts and the year each one carries, for you to check against the PDF.",
     ),
 }
 AI_WRITTEN = {
+    "phase4o": (
+        "phase-4n/run-treasury-20261102/human-review.html",
+        "Phase 4O Treasury output: all 18 claims with their evidence and the verifier's findings. It is MODEL OUTPUT. Rejected and unreviewed.",
+    ),
     "ai_pack": (
         "annotations/phase-4q-feu-2026-10-29.json",
         "An AI reading of the 29 October report. It is not human gold. Open it only after you have finished your own marks.",
@@ -44,6 +44,10 @@ AI_WRITTEN = {
         "An AI comparison of the two Treasury reports. Not a review.",
     ),
 }
+
+
+# Model output is linked only in the "after your own marks" table, never beside the blind gold sheet.
+LINKED_AFTER_GOLD = {"phase-4n/run-treasury-20261102/human-review.html"}
 
 
 @dataclass(frozen=True)
@@ -71,9 +75,27 @@ YEAR_OPTIONS = (
 
 GROUPS: tuple[tuple[str, str, str, tuple[Decision, ...]], ...] = (
     (
+        "C",
+        "Treasury version 3 gold",
+        "Use the gold sheet in this package, from the document alone, before you open any model output or the AI pack. Mark: accepted-eligible, "
+        "expected rejection, ambiguous, and third-party forecasts. Then download the file and save it where the status below says.",
+        (
+            Decision(
+                "gold-done",
+                "I finished the gold marks myself, without model output, and saved the file.",
+                ("Yes", "Not yet"),
+            ),
+            Decision(
+                "third-party-in-scope",
+                "Third-party forecasts (the IMF, markets, banks) count toward recall.",
+                ("Yes, they count", "No, author's own only"),
+            ),
+        ),
+    ),
+    (
         "A",
         "Phase 4O Treasury output: whose forecasts?",
-        "Open the Phase 4O packet. Five forecasts carry an IMF label, and two name the IMF only in the sentence before the figure.",
+        "Only after your gold marks in section A: open the Phase 4O packet. Five forecasts carry an IMF label, and two name the IMF only in the sentence before the figure.",
         tuple(
             Decision(
                 f"imf-label-{n}",
@@ -93,28 +115,10 @@ GROUPS: tuple[tuple[str, str, str, tuple[Decision, ...]], ...] = (
     (
         "B",
         "The years on the five rejected facts",
-        "Open the period worksheet. Facts 2 and 3 need you most: fact 2's period is only in the previous sentence and fact 3's year is only in its comparison.",
+        "Only after your gold marks in section A: open the period worksheet. Facts 2 and 3 need you most: fact 2's period is only in the previous sentence and fact 3's year is only in its comparison.",
         tuple(
             Decision(f"year-fact-{n}", f"facts[{n}]: is its year in the report?", YEAR_OPTIONS)
             for n in range(5)
-        ),
-    ),
-    (
-        "C",
-        "Treasury version 3 gold",
-        "Use the gold sheet in this package, from the document alone, before you open any model output or the AI pack. Mark: accepted-eligible, "
-        "expected rejection, ambiguous, and third-party forecasts. Then download the file and save it where the status below says.",
-        (
-            Decision(
-                "gold-done",
-                "I finished the gold marks myself, without model output, and saved the file.",
-                ("Yes", "Not yet"),
-            ),
-            Decision(
-                "third-party-in-scope",
-                "Third-party forecasts (the IMF, markets, banks) count toward recall.",
-                ("Yes, they count", "No, author's own only"),
-            ),
         ),
     ),
     (
@@ -232,7 +236,7 @@ function save() { try { localStorage.setItem(STORE, JSON.stringify(read())); } c
 function restore() {
   try {
     const s = JSON.parse(localStorage.getItem(STORE) || "null"); if (!s) return;
-    q("#reviewer").value = s.reviewer || ""; q("#reviewed_on").value = s.reviewed_on || "";
+    // Your name and the date are typed again each session.
     document.querySelectorAll("[data-d]").forEach((box) => {
       const a = (s.answers || {})[box.dataset.d]; if (!a) return;
       box.querySelectorAll("input[type=radio]").forEach((r) => { r.checked = r.value === a.choice; });
@@ -321,8 +325,16 @@ def build_package(
     conn: sqlite3.Connection, data_dir: Path, out_dir: Path, version: int
 ) -> dict[str, object]:
     """Write the package into `out_dir` (private) and return counts and statuses only."""
+    out_dir = out_dir.resolve()
+    if not out_dir.is_relative_to(data_dir.resolve()):
+        raise GoldExtensionError("the package must be written under the data directory")
+    created = not out_dir.exists()
     out_dir.mkdir(parents=True, exist_ok=True)
-    os.chmod(out_dir, 0o700)
+    if created:
+        os.chmod(out_dir, 0o700)
+    for name in ("index.html", f"gold-worksheet-v{version}.html"):
+        if (out_dir / name).is_symlink():
+            raise GoldExtensionError("a package file is a symbolic link")
     gold_path = out_dir / f"gold-worksheet-v{version}.html"
     sentences = write_worksheet(conn, version, gold_path)
     status = gold_status(conn, data_dir, version)
@@ -345,8 +357,13 @@ def build_package(
 
     package_id = hashlib.sha256(f"{version}:{PACKAGE_VERSION}".encode()).hexdigest()[:16]
     sections = []
-    for letter, title, intro, decisions in GROUPS:
-        extra = f"<p><b>Gold file status:</b> {html.escape(status)}</p>" if letter == "C" else ""
+    for position, (_, title, intro, decisions) in enumerate(GROUPS):
+        letter = "ABCDEFGH"[position]
+        extra = (
+            f"<p><b>Gold file status:</b> {html.escape(status)}</p>"
+            if decisions[0].id == "gold-done"
+            else ""
+        )
         sections.append(
             f"<section><h2>{letter}. {html.escape(title)}</h2><p>{html.escape(intro)}</p>{extra}"
             + "".join(_decision(d) for d in decisions)
@@ -385,6 +402,9 @@ def build_package(
         "decision_groups": len(GROUPS),
         "decisions": sum(len(g[3]) for g in GROUPS),
         "gold_status": status,
-        "sheets_found": sum((data_dir / rel).is_file() for rel, _ in EXISTING_SHEETS.values()),
-        "sheets_expected": len(EXISTING_SHEETS),
+        "sheets_found": sum(
+            (data_dir / rel).is_file()
+            for rel, _ in (*EXISTING_SHEETS.values(), *AI_WRITTEN.values())
+        ),
+        "sheets_expected": len(EXISTING_SHEETS) + len(AI_WRITTEN),
     }

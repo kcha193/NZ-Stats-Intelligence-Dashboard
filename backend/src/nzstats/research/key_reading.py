@@ -40,6 +40,11 @@ def read_key(client: httpx.Client, key: str, conn: sqlite3.Connection) -> dict[s
     )
     if None in (usage, limit, remaining, byok):
         raise PilotRefused("dedicated key metadata invalid")
+    if not all(0 <= n <= LIFETIME_USD for n in (usage, limit, remaining, byok)):  # type: ignore[operator]
+        raise PilotRefused("dedicated key metadata out of range")
+    management, reset = data.get("is_management_key"), data.get("limit_reset")
+    if type(management) is not bool or reset is not None:
+        raise PilotRefused("dedicated key metadata not as expected")
     ledger = lifetime_spent(conn)
     attempts = int(
         conn.execute(
@@ -58,15 +63,15 @@ def read_key(client: httpx.Client, key: str, conn: sqlite3.Connection) -> dict[s
         "key_limit_usd": limit,
         "key_remaining_usd": remaining,
         "byok_usage_usd": byok,
-        "management_key": data.get("is_management_key"),
-        "limit_reset": data.get("limit_reset"),
+        "management_key": management,
+        "limit_reset": None,
         "ledger_usd": ledger,
         "ledger_attempts": attempts,
         "lifetime_attempts": LIFETIME_ATTEMPTS,
         "attempts_left": LIFETIME_ATTEMPTS - attempts,
         "attempts_by_version": per_version,
         "usage_matches_ledger": abs(usage - ledger) <= TOLERANCE,
-        "limit_is_lifetime_cap": limit == LIFETIME_USD and data.get("limit_reset") is None,
+        "limit_is_lifetime_cap": limit == LIFETIME_USD,
         "remaining_is_consistent": abs(remaining + usage - limit) <= TOLERANCE,
         "byok_is_zero": byok == 0,
     }

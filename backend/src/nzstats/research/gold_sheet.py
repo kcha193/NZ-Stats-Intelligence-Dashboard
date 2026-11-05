@@ -4,7 +4,7 @@ The sheet holds sentences of one document and nothing else: no model output, no 
 attestation. A person marks sentences, types their own name and ticks the attestation themselves, and the page downloads a JSON file
 that `load_extension` still validates. Nothing is sent anywhere: the page's policy blocks every network request.
 
-The export logic is pure (`collect`) and is tested under Node against the same validator that scores the gold.
+The export logic is pure (`collect`) and is tested under Node. It checks what it can, but `load_extension` stays the authority: it runs again when the file is scored.
 """
 
 from __future__ import annotations
@@ -26,10 +26,20 @@ PURE_JS = r"""
 function collect(meta, rows, fixed) {
   const errors = [];
   const text = (v) => (v === undefined || v === null ? "" : String(v).trim());
-  const day = /^\d{4}-\d{2}-\d{2}$/;
+  const shape = /^\d{4}-\d{2}-\d{2}$/;
+  const real = (v) => { // a real calendar day, as the validator needs it
+    if (!shape.test(v)) return false;
+    const d = new Date(v + "T00:00:00Z");
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+  };
+  const day = { test: real };
+  const ai = /\b(?:claude|codex|gpt|chatgpt|openai|anthropic|gemini|llm|ai)\b/i;
+  const tomorrow = new Date(Date.now() + 36 * 3600 * 1000).toISOString().slice(0, 10);
   if (!text(meta.annotator)) errors.push("Type the name of the person who wrote the marks.");
   if (!text(meta.reviewed_by)) errors.push("Type the name of the person who reviewed them.");
-  if (!day.test(text(meta.reviewed_on))) errors.push("Type the review date as YYYY-MM-DD.");
+  if (!day.test(text(meta.reviewed_on))) errors.push("Type the review date as a real day, YYYY-MM-DD.");
+  else if (text(meta.reviewed_on) > tomorrow) errors.push("The review date is in the future.");
+  if (ai.test(text(meta.annotator)) || ai.test(text(meta.reviewed_by))) errors.push("The annotator and reviewer must be people.");
   if (meta.written_without_model_output !== true) errors.push("Tick the attestation only if it is true.");
   const items = [];
   rows.forEach((r, i) => {
@@ -41,7 +51,7 @@ function collect(meta, rows, fixed) {
     if (!text(r.kind)) errors.push(where + "say whether it is a fact, a forecast or a decision.");
     if (text(r.value) !== "") {
       const v = Number(text(r.value));
-      if (!Number.isFinite(v)) errors.push(where + "the value is not a number.");
+      if (!/^-?\d+(\.\d+)?$/.test(text(r.value)) || !Number.isFinite(v)) errors.push(where + "the value is not a plain number.");
       else item.value = v;
     }
     for (const k of ["unit", "scenario", "issuer", "expected_reason"]) if (text(r[k])) item[k] = text(r[k]);
@@ -57,7 +67,7 @@ function collect(meta, rows, fixed) {
       errors.push(where + "a forecast without a number must say its direction.");
     if (r.category === "expected_rejection" && !item.expected_reason) errors.push(where + "say why it should be refused.");
     if (r.kind === "decision" && item.period_as_stated && !day.test(item.period_as_stated))
-      errors.push(where + "write a decision's date as YYYY-MM-DD.");
+      errors.push(where + "write a decision's date as a real day, YYYY-MM-DD.");
     items.push(item);
   });
   if (!items.length) errors.push("Mark at least one sentence.");
@@ -87,13 +97,12 @@ function read() {
   });
   return { meta, rows };
 }
-function save() { try { localStorage.setItem(STORE, JSON.stringify(read())); } catch (e) { /* storage may be unavailable */ } }
+function save() { try { localStorage.setItem(STORE, JSON.stringify({ rows: read().rows })); } catch (e) { /* storage may be unavailable */ } }
 function restore() {
   try {
     const s = JSON.parse(localStorage.getItem(STORE) || "null");
     if (!s) return;
-    q("#annotator").value = s.meta.annotator || ""; q("#reviewed_by").value = s.meta.reviewed_by || "";
-    q("#reviewed_on").value = s.meta.reviewed_on || ""; q("#attest").checked = s.meta.written_without_model_output === true;
+    // Names, the date and the attestation are never restored: each session you type and tick them again.
     s.rows.forEach((r) => {
       const tr = document.querySelector('tr[data-row="' + CSS.escape(r.id) + '"]');
       if (tr) tr.querySelectorAll("[data-f]").forEach((el) => { if (r[el.dataset.f] !== undefined) el.value = r[el.dataset.f]; });
@@ -195,6 +204,6 @@ def render(version_id: int, text_sha256: str, sentences: list[tuple[int | None, 
         "<h2>Export preview</h2><textarea id=json rows=10 cols=80 readonly></textarea>"
         "<p>Save the downloaded file under <code>data/annotations/</code>, then run "
         "<code>nzstats research score-gold</code> against the stored summary.</p>"
-        f"<script type='application/json' id='fixed'>{fixed}</script>"
+        f"<script type='application/json' id='fixed'>{fixed.replace('<', chr(92) + 'u003c')}</script>"
         f"<script>{PURE_JS}{GLUE_JS}</script>"
     )

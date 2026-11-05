@@ -8,6 +8,7 @@ import subprocess
 import pytest
 
 from nzstats.research import owner_review
+from nzstats.research.gold_extension import GoldExtensionError
 from nzstats.research.owner_review import GROUPS, build_package, gold_status
 
 from .llm_support import seed_version
@@ -25,9 +26,9 @@ def _build(stored, tmp_path, make_sheets=True):
     conn, version = stored
     data = tmp_path / "data"
     if make_sheets:
-        for rel, _ in owner_review.EXISTING_SHEETS.values():
+        for rel, _ in (*owner_review.EXISTING_SHEETS.values(), *owner_review.AI_WRITTEN.values()):
             target = data / rel
-            target.parent.mkdir(parents=True)
+            target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(SHEET_TEXT)
     report = build_package(conn, data, data / "phase-4r" / "owner-review", version)
     return data, report, (data / "phase-4r" / "owner-review" / "index.html").read_text()
@@ -48,7 +49,7 @@ def _node(tmp_path, source):
 def test_the_package_lists_the_sheets_by_size_and_hash_and_never_shows_their_text(stored, tmp_path):
     _, report, page = _build(stored, tmp_path)
     assert SHEET_TEXT not in page
-    assert report["sheets_found"] == report["sheets_expected"] == 2
+    assert report["sheets_found"] == report["sheets_expected"] == 4
     assert "<code>" in page and "bytes" in page
 
 
@@ -155,3 +156,36 @@ def test_the_command_writes_the_package_and_prints_statuses_only(capsys, tmp_pat
     assert (tmp_path / "data" / "phase-4r" / "owner-review" / "index.html").is_file()
     assert main(["research", "owner-review-package", "--version", "99"]) == 2
     assert "refused" in capsys.readouterr().out
+
+
+def test_model_output_is_linked_only_after_the_gold_sheet_and_gold_comes_first(stored, tmp_path):
+    _, _, page = _build(stored, tmp_path)
+    after = page.index("Open only after your own marks are finished")
+    assert page.index("human-review.html") > after
+    assert "href='file://" not in page[after:] or "human-review.html</a>" in page[after:]
+    assert page.index("A. Treasury version 3 gold") < page.index("B. Phase 4O Treasury output")
+
+
+def test_the_package_must_stay_under_the_data_directory(stored, tmp_path):
+    conn, version = stored
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    elsewhere.chmod(0o755)
+    with pytest.raises(GoldExtensionError):
+        build_package(conn, tmp_path / "data", elsewhere, version)
+    assert elsewhere.stat().st_mode & 0o777 == 0o755 and not list(elsewhere.iterdir())
+
+
+def test_an_existing_directory_is_not_re_moded_and_a_symlinked_file_is_refused(stored, tmp_path):
+    conn, version = stored
+    data = tmp_path / "data"
+    out = data / "mine"
+    out.mkdir(parents=True)
+    out.chmod(0o755)
+    (out / "index.html").symlink_to(tmp_path / "target.html")
+    with pytest.raises(GoldExtensionError):
+        build_package(conn, data, out, version)
+    (out / "index.html").unlink()
+    build_package(conn, data, out, version)
+    assert out.stat().st_mode & 0o777 == 0o755
+    assert not (tmp_path / "target.html").exists()

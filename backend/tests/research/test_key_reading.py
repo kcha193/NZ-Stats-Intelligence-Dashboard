@@ -88,3 +88,20 @@ def test_a_refused_request_and_a_missing_key_are_refused(spent):
         read_key(_client({"error": "SECRET-SERVER-TEXT"}, status=401), KEY, spent)
     with pytest.raises(PilotRefused):
         read_key(_client(_meta(0.5)), "", spent)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"is_management_key": "SERVER-CONTROLLED-TEXT\x1b[31m"},
+        {"limit_reset": "monthly"},
+        {"usage": -1},
+        {"usage": 99},
+    ],
+)
+def test_server_fields_that_are_not_numbers_or_booleans_are_never_passed_on(spent, change):
+    payload = _meta(0.5)
+    payload["data"].update(change)
+    with pytest.raises(PilotRefused) as exc:
+        read_key(_client(payload), KEY, spent)
+    assert "SERVER-CONTROLLED" not in str(exc.value)
