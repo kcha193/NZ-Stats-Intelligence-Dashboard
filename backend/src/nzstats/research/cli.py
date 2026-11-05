@@ -43,6 +43,7 @@ from nzstats.research.health import research_health
 from nzstats.research.ingest import RunResult, refusal_for, run_institution
 from nzstats.research.manual_import import ImportRefused, import_document
 from nzstats.research.outcomes import stored_cpi_releases
+from nzstats.research.owner_review import build_package
 from nzstats.research.pilot_eval import AnnotationError, evaluate_stored, load_annotations
 from nzstats.research.private import why_not_private
 from nzstats.research.providers import (
@@ -149,6 +150,14 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_sheet.add_argument(
         "--out", required=True, help="the HTML file to write (keep it under data/)"
     )
+    p_owner = rsub.add_parser(
+        "owner-review-package",
+        help="write one local owner-review page: sheets, open decisions and the gold form (4R; reads no model output)",
+    )
+    p_owner.add_argument(
+        "--version", type=int, default=3, help="document version for the gold form"
+    )
+    p_owner.add_argument("--out", help="directory to write (default: <data>/phase-4r/owner-review)")
     p_score = rsub.add_parser(
         "score-gold",
         help="score stored summaries against a human-reviewed gold extension (4Q; calls no model)",
@@ -582,6 +591,20 @@ def _gold_worksheet(
     return 0
 
 
+def _owner_review_package(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    out = Path(args.out) if args.out else settings.data_dir / "phase-4r" / "owner-review"
+    try:
+        report = build_package(_open(settings), settings.data_dir, out, args.version)
+    except GoldExtensionError as exc:
+        _emit(f"refused: {exc}")
+        return 2
+    for key, value in report.items():
+        _emit(f"{key}: {value}")
+    return 0
+
+
 def _stored_summary(output_json: str) -> OutlookSummary:
     return OutlookSummary.model_validate_json(output_json)
 
@@ -852,4 +875,4 @@ def _cpi_reconcile(
 _SUMMARY_COMMANDS = {"cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
-                     "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "score-gold": _score_gold}  # fmt: skip
+                     "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "owner-review-package": _owner_review_package, "score-gold": _score_gold}  # fmt: skip
