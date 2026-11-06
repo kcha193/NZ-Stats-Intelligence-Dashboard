@@ -84,6 +84,69 @@ _MARKET_EXPECTS = re.compile(
     r"(?!\s+(?:of|for|from|that|to|is|are|was|were|by)\b)\b)",
     re.IGNORECASE,
 )
+# Phase 4R: wording that makes a group of outside forecasters, or a reporter, the forecaster. It lives apart from `reported` on
+# purpose: the verifier may only ADD a rejection with it. It never credits the author, and it never waives a block that the earlier
+# wording raised (a third party's claim passes only on the strength of the older wording). "Economists", "staff" and "officials" are
+# left out of the groups: a document's own economists can be its author, and wording cannot tell them from outsiders (`_STAFF`).
+_GROUP_NOUN = (
+    r"(?:(?:market|bank|private[- ]sector|independent|sell-side)\s+)?(?:analysts|forecasters)"
+    r"|(?:market|bank|private[- ]sector)\s+economists"
+    r"|investors|traders|commentators|banks|rating\s+agencies|survey\s+respondents"
+)
+_GROUP_MODIFIER = r"(?:(?:the|most|many|some|major|big|leading|local|domestic|australian|four)\s+)*"
+_GROUP = rf"{_GROUP_MODIFIER}(?:{_GROUP_NOUN})"
+# Only people a document can call its own ("our analysts"): never investors, banks or the like, and never "analysts at ANZ".
+# The modifiers are those `_GROUP_NOUN` already reads as an outside group ("market analysts"), so "our market analysts" is not one.
+# An organisation's name is no modifier: "our ANZ analysts" is not skipped, and "market analysts at ANZ" is still outside.
+_OWN_MODIFIER = r"(?:(?:market|bank|private[- ]sector|independent|sell-side)\s+){0,2}"
+_OTHER_PEOPLE = (
+    rf"(?:{_OWN_MODIFIER}(?:analysts|forecasters|economists)|staff|officials)(?!\s+(?:at|from)\s)"
+)
+_OWN_PEOPLE = re.compile(
+    rf"(?:['’]s)?\s*{_OTHER_PEOPLE}(?:\s*(?:,|and)\s*{_OTHER_PEOPLE})*\b", re.IGNORECASE
+)
+# The organisation a group is "at": capitalised names, matched CASE-SENSITIVELY (these patterns are compiled with IGNORECASE, under which
+# [A-Z] would take any word and "at the Treasury after discussions with ANZ" would name two organisations). Several names count only
+# when an explicit connector joins them ("ANZ and Westpac", "the Treasury, ANZ"); any other lowercase word ends the affiliation.
+_ORG_WORD = r"[A-ZĀĒĪŌŪ][\w&-]*"
+# A name may hold lowercase words between capitalised ones ("Reserve Bank of New Zealand", "Organisation for Economic Co-operation and
+# Development"). They are the same connectors that join two organisations, so how many are named is decided by what they resolve to.
+_ORG_NAME = rf"(?-i:(?:[Tt]he\s+)?{_ORG_WORD}(?:(?:\s*,\s*|\s+(?:(?:of|for|and|or|the|&)\s+)*){_ORG_WORD})*)"
+_AT_AN_ORGANISATION = rf"(?:\s+(?:at|from)\s+(?P<org>{_ORG_NAME}))?"
+# Words between the affiliation and the verb ("analysts at ANZ in Wellington expect", "at ANZ, a bank, expect"). Only after an organisation was
+# captured, at most five words, never across a sentence end, a semicolon, a colon, a bracket or a contrast: ending the affiliation at the
+# organisation's name must not drop the credit when a short phrase follows it.
+_ORG_QUALIFIER = r"(?(org)(?:['’]s)?(?:[\s,]+(?!(?:but|while|whereas|then|although|though|because|since|so)\b)[^\s,;:.()]+){0,5},?|)"
+_GROUP_EXPECTS = re.compile(
+    rf"\b{_GROUP}{_AT_AN_ORGANISATION}{_ORG_QUALIFIER}\s+(?:(?:now|still|also|currently|mostly)\s+)?"
+    r"(?:expect(?:s\b|ed(?!\s+(?:not\s+|never\s+)?to\b)\b|\b)"
+    r"|(?:are\s+|is\s+|have\s+|has\s+)?(?:expecting|forecasting|predicting|projecting|anticipating|estimating)\b"
+    r"|(?:forecasts?|forecasted|anticipates?|anticipated|predicts?|predicted|projects?|projected|sees?|saw"
+    r"|estimates?|estimated|reckons?|reckoned|says?|said)(?!\s+(?:of|for|from|to|is|are|was|were|by)\b)\b)",
+    re.IGNORECASE,
+)
+# A third party's own label may carry the modifiers the evidence's group does ("Major banks", "Most analysts"), and nothing else.
+_GROUP_ISSUER = re.compile(rf"^\s*{_GROUP}\s*$", re.IGNORECASE)
+_GROUP_PASSIVE = re.compile(
+    rf"\b(?:expected|forecast|projected|predicted|anticipated|estimated)\s+by\s+{_GROUP}\b{_AT_AN_ORGANISATION}",
+    re.IGNORECASE,
+)
+_ACCORDING_TO_GROUP = re.compile(
+    rf"\baccording\s+to\s+(?:an?\s+(?:survey|range|poll)\s+of\s+)?{_GROUP}\b{_AT_AN_ORGANISATION}",
+    re.IGNORECASE,
+)
+# The same head as `_GROUP_EXPECTS` (modifiers, "at ANZ", adverbs, "are expecting") and the same verbs, so that a comment on the year is
+# excluded in every wording that would otherwise count as attribution. It only ever blanks a clause that is a closed-list comment.
+_GROUP_IN_CLAUSE = re.compile(
+    rf"\b{_GROUP}{_AT_AN_ORGANISATION}{_ORG_QUALIFIER}\s+(?:(?:now|still|also|currently|mostly)\s+)?(?:(?:are|is|have|has)\s+)?"
+    r"(?:expect|forecast|predict|project|anticipate|see|saw|estimate|reckon|say|said)\w*(?P<rest>[^,;:]*)",
+    re.IGNORECASE,
+)
+# "The IMF said growth will be 3%": the reporter is the forecaster, though no forecasting verb follows its name.
+_SAID = (
+    r"(?:['’]s)?(?:\s+(?:staff|economists|officials|governor|managing\s+director))?"
+    r"\s+(?:has\s+|have\s+)?(?:said|says|stated|states|noted|notes|warned|warns|suggested|suggests|believes?|thinks?|reckons?)\b"
+)
 # Words that may come directly before "markets expect". Anything else may be a sector: "the housing market expects".
 _BEFORE_MARKET = {
     "the",
@@ -101,6 +164,9 @@ _BEFORE_MARKET = {
 _EXPECTED_BY = re.compile(r"\bexpected\s+by\s+", re.IGNORECASE)
 _CLAUSE_END = re.compile(r"[,;:]")
 _THE = re.compile(r"the\s+", re.IGNORECASE)
+_CLAUSE_REST = re.compile(
+    r"[^,;:]*"
+)  # what is left of the clause after a match, which may be empty
 # Case-sensitive on purpose: "Market Economics Ltd" and the "Financial Markets Authority" are named organisations, not the market.
 _MARKET_AGENT = re.compile(
     r"(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\b", re.IGNORECASE
@@ -122,6 +188,13 @@ _WHICH = re.compile(r",\s*which\b", re.IGNORECASE)
 _STAFF = re.compile(r"\b(?:staff|economists|officials)\s+expect\b", re.IGNORECASE)
 _COMPARED_WITH = re.compile(
     r"\b(?:than|as(?!\s+of\b)|what|unlike|like|above|below|versus|vs\.?|compared\s+with|relative\s+to|exceeds?|exceeding)\s+(?:[^\s,;:]+\s+){0,5}$",
+    re.IGNORECASE,
+)
+# `_COMPARED_WITH` for wording that follows the figure. There a bare "as" is NOT a comparison: "3%, as forecast by analysts" gives the
+# figure to analysts. "as" counts only as "as strong as". "like" and "what" are left out for the same reason: they can introduce a source.
+_COMPARED_AFTER_FIGURE = re.compile(
+    r"\b(?:than|unlike|above|below|versus|vs\.?|compared\s+with|relative\s+to|exceeds?|exceeding"
+    r"|as\s+[^\s,;:]+\s+as)\s+(?:[^\s,;:]+\s+){0,5}$",
     re.IGNORECASE,
 )
 
@@ -146,6 +219,13 @@ _REPORTED_PATTERNS = {
 }
 
 
+_SAID_PATTERNS = {
+    o.key: re.compile(rf"(?:{o.names}){_SAID}", re.IGNORECASE)
+    for o in ORGANISATIONS
+    if o.key != "market"
+}
+
+
 def organisation_of(name: str) -> str | None:
     """The known organisation an issuer name refers to, or None (an organisation this module does not know)."""
     for o in ORGANISATIONS:
@@ -166,6 +246,11 @@ def credited(text: str) -> set[str]:
 
 def is_market_name(name: str) -> bool:
     return bool(_MARKET_ISSUER.match(name))
+
+
+def is_group_name(name: str) -> bool:
+    """An issuer named as one of the closed list of outside groups ("Analysts"), which may be a third party's own label."""
+    return bool(_GROUP_ISSUER.match(name))
 
 
 def _names_an_organisation(matched: str, rest: str) -> bool:
@@ -254,6 +339,154 @@ def since_author(before: str, author: str | None) -> str:
     return before[max(last, default=0) :]
 
 
+_LEAD_IN = {
+    "currently",
+    "meanwhile",
+    "now",
+    "overall",
+    "instead",
+    "so",
+    "yet",
+    "also",
+    "today",
+    "however",
+    "still",
+    "then",
+    "and",
+}
+
+
+def _since_author_and_people(before: str, author: str | None) -> str:
+    """`since_author`, also past the author's own people: "our analysts and forecasters expect" is the author speaking."""
+    last = [m.end() for m in SELF_REFERENCE.finditer(before)]
+    if author in _PATTERNS:
+        last += [m.end() for m in _PATTERNS[author][0].finditer(before)]
+    start = max(last, default=0)
+    # "Unlike us, analysts expect": a self-reference inside a comparison does not make the next words the author's.
+    people = (
+        _OWN_PEOPLE.match(before, start)
+        if last and not _COMPARED_WITH.search(before[:start] + " ")
+        else None
+    )
+    return before[people.end() if people else start :]
+
+
+def _group_key(m: re.Match[str]) -> str:
+    """ "group", or "group@<organisation>" when the match puts the group at exactly one known organisation ("analysts at ANZ").
+
+    Anything less certain stays the plain "group": two organisations, none that this module knows, or none at all.
+    """
+    # "Reserve Bank of New Zealand" holds "Bank of New Zealand" (BNZ): it is one organisation, as in `reported`.
+    org = re.sub(
+        r"Reserve Bank of New Zealand", "Reserve Bank", m.group("org") or "", flags=re.IGNORECASE
+    )
+    at = {key for key in named(org) if key != "market"}
+    return f"group@{next(iter(at))}" if len(at) == 1 else "group"
+
+
+def answer_group(keys: set[str], name: str, claimed: str | None) -> set[str]:
+    """`keys` without the group blocks that a THIRD PARTY's own label answers. Never call this for the author.
+
+    A label that is a closed-list group ("Major banks") answers every group block, as before. A label that is an organisation answers
+    only the group said to be at that organisation, so "ANZ" answers "analysts at ANZ" and nothing else.
+    """
+    if is_group_name(name):
+        return {k for k in keys if k != "group" and not k.startswith("group@")}
+    return keys - {f"group@{claimed}"} if claimed else keys
+
+
+def _group_credits(text: str) -> list[re.Match[str]]:
+    """The matches in `text` that make an outside group the forecaster. The one place that decides it: rejecting and resetting share it."""
+    found = []
+    for m in _GROUP_EXPECTS.finditer(text):
+        before = text[: m.start()]
+        words = before.split()
+        starts_clause = not words or words[-1][-1] in ",;:("
+        if not _COMPARED_WITH.search(before) and (
+            starts_clause or words[-1].lower() in _BEFORE_MARKET | _LEAD_IN | {"which"}
+        ):
+            found.append(m)
+    for pattern in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP):
+        found += [m for m in pattern.finditer(text) if not _COMPARED_WITH.search(text[: m.start()])]
+    return found
+
+
+def since_group(before: str, after: str) -> str:
+    """What `before` says after the claimed GROUP's own forecast, so that an earlier reporter's separate figure does not reach it.
+
+    The group is credited before the figure ("…but analysts expect growth of 3%"), or right after it in one clause ("growth of 3% is
+    forecast by analysts"), in which case only a contrast ends the earlier assertion. Otherwise nothing is reset.
+    """
+    ends = [m.end() for m in _group_credits(before)]
+    if ends:
+        return before[max(ends) :]
+    tail = own_assertion(after)
+    for pattern in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP):
+        for m in pattern.finditer(tail):
+            gap = tail[: m.start()]
+            if not _COMPARED_AFTER_FIGURE.search(gap) and not _CLAUSE_END.search(gap):
+                cuts = [c.end() for c in _NEXT_ASSERTION.finditer(before)]
+                return before[max(cuts, default=0) :]
+    return before
+
+
+def reported_more(text: str) -> set[str]:
+    """Outside groups and reporters that `text` makes the forecaster, by the wording above. Rejection only: see the note there."""
+    keys: set[str] = {_group_key(m) for m in _group_credits(text)}
+    keys |= {
+        key
+        for key, pattern in _SAID_PATTERNS.items()
+        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text))
+    }
+    return keys
+
+
+def _without_comments(clause: str) -> str:
+    """`clause` without the credits that only comment on the year or the forecast ("which analysts say will be a testing year").
+
+    The one filter for both sides of the figure. A comment is a closed list (`_COMMENT`), and a named reporter's "says will be a
+    challenging year" is the same comment as a group's.
+    """
+    clause = _GROUP_IN_CLAUSE.sub(
+        lambda m: " " if _COMMENT.match(m.group("rest")) else m.group(), clause
+    )
+    for said in _SAID_PATTERNS.values():
+        clause = said.sub(
+            lambda m: " " if _COMMENT.match(_CLAUSE_REST.match(m.string, m.end())[0]) else m[0],
+            clause,
+        )
+    return clause
+
+
+def more_around(before: str, after: str, who: str | None, author: str | None) -> set[str]:
+    """`reported_more` for the wording that leads to a figure (since the credited forecaster's last words) and its own "which" clause.
+
+    A "which" clause that only comments on the year or the forecast ("which analysts expect to be a testing year") credits nobody.
+    """
+    before, after = claimed_scope(before, after)
+    if who == "group":
+        lead = since_group(before, after)
+    elif who in (None, "author"):
+        lead = _since_author_and_people(before, author)
+    else:
+        lead = since_credit(before, who, author)
+    keys = reported_more(_without_comments(lead))
+    # After the figure only the passive and "according to" forms can name who made it, unless the group is only the other side of
+    # a comparison ("higher than forecast by analysts").
+    keys |= {
+        _group_key(m)
+        for p in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP)
+        for m in p.finditer(after)
+        if not _COMPARED_AFTER_FIGURE.search(after[: m.start()])
+        and not _OWN_PASSIVE_CLAUSE.search(after[: m.start()])
+    }
+    which = _WHICH.search(after)
+    if which is not None:
+        keys |= reported_more(_without_comments(after[which.end() :]))
+    # The author's own analysts ("analysts at the Treasury") are the author speaking, for an author label only.
+    return keys - {author} - ({f"group@{author}"} if who == "author" else set())
+
+
 def since_credit(before: str, who: str | None, author: str | None) -> str:
     """What `before` says after the last credit to `who`, the one the figure is credited to.
 
@@ -262,16 +495,19 @@ def since_credit(before: str, who: str | None, author: str | None) -> str:
     """
     if who in (None, "author"):
         return since_author(before, author)
-    # Only wording that credits `who` ends the earlier forecaster's reach; a bare mention or a comparison does not.
-    last = (
-        [
-            m.end()
-            for m in _PATTERNS[who][1].finditer(before)
-            if not _COMPARED_WITH.search(before[: m.start()])
-        ]
-        if who in _PATTERNS
-        else []
-    )
+    # Only wording that credits `who` ends the earlier forecaster's reach; a bare mention or a comparison does not. Its "said" counts
+    # as well ("The OECD said 2%, but the IMF said 3%"), though that wording only ever adds a rejection elsewhere.
+    credits = [
+        pattern
+        for pattern in (_PATTERNS[who][1] if who in _PATTERNS else None, _SAID_PATTERNS.get(who))
+        if pattern is not None
+    ]
+    last = [
+        m.end()
+        for pattern in credits
+        for m in pattern.finditer(before)
+        if not _COMPARED_WITH.search(before[: m.start()])
+    ]
     return before[max(last, default=0) :]
 
 
@@ -290,6 +526,27 @@ _FIGURE = re.compile(
 )
 # Only a contrast opens a new assertion. A bare "and" may coordinate figures under one credit, so it never ends one.
 _NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|then)\b", re.IGNORECASE)
+
+# After the figure, a group is the agent of a LATER clause's own finite passive when a clause with a subject and a figure of its own
+# comes first: "…3% in 2029, and inflation of 2% is forecast by analysts", or after a bracket, a dash, "as" or "because". `own_assertion`
+# ends an assertion at "while" or "but" but never at a bare "and" (which may coordinate figures under one credit), so this is checked
+# here, for the new wording only.
+# It is deliberately narrow: the clause needs a subject noun, a figure, at most one short prepositional phrase and a finite auxiliary
+# right before the passive. "3% and 4% are forecast by analysts", "…, and inflation of 2%, as forecast by analysts", "with inflation at
+# 2% forecast by analysts" and "…inflation of 2% according to analysts" may attribute the claimed figure too, so they stay rejected.
+# A subject noun, not a connective, a preposition or a pronoun: "that of 2%", "it at 2%" and "and of 2%" point back at the claimed figure,
+# and "with inflation of 2% is…" is no clause (the absolute "with inflation at 2% now forecast by…" is left rejected, as above).
+_SUBJECT_WORD = (
+    r"(?!(?:and|but|while|whereas|as|because|since|although|though|of|at|to|near|around|in|by|for|over|with|without|from|on|than|also|then|now|still|even|only|just"
+    r"|it|its|this|that|these|those|they|them|which|there)\b)[a-z][\w-]*"
+)
+_OWN_PASSIVE_CLAUSE = re.compile(
+    r"(?:[,(\u2013\u2014-]|\b(?:and|but|while|whereas|as|because|since|although|though))\s*(?:the\s+)?"
+    rf"(?:{_SUBJECT_WORD}\s+){{1,3}}(?:of|at|to|near|around)\s+"
+    rf"(?:{_FIGURE.pattern})(?:\s+(?:in|by|for|over)\s+[\w-]+(?:\s+[\w-]+)?)?"
+    r"\s+(?:is|are|was|were|will\s+be|would\s+be|has\s+been|have\s+been)\s+(?:(?:also|now|widely|generally)\s+)?\Z",
+    re.IGNORECASE,
+)
 
 # A relative clause ("…3% in 2029, which the IMF expects to be a challenging year") says something about its antecedent, and the
 # antecedent need not be the figure: it may be the year. A credit in it belongs to the figure unless the clause is positively a
@@ -343,6 +600,85 @@ def own_assertion(after: str) -> str:
         if _FIGURE.search(after, m.end()):
             return after[: m.start()]
     return after
+
+
+# ---- The claimed figure's own assertion (convergence review of PR 46) -------------------------------------------------------------
+# Most review findings of the Phase 4R wording had one cause: each check scanned the sentence from its own starting point, and only
+# some cut it where a different assertion begins. `claimed_scope` is that cut, made once, for every scan of the new wording.
+#
+# A cut is a boundary (a contrast, a semicolon, ", and", or the comparator that opens the other side of a comparison) AND proof that
+# the claimed figure's side names its own forecaster: a credit between the boundary and the figure, or a "forecast by" / "according to"
+# agent after the figure. A bare mention, "but only 2% in 2030", a bare "and" and "only if banks cut rates" prove nothing, so nothing
+# is cut and the earlier credit keeps reaching the figure. The scope only ever shrinks what the new wording reads, so it can remove a
+# rejection but never add one, and it never touches the older wording.
+_SCOPE_BOUNDARY = re.compile(
+    r";|,?\s*\b(?:while|whereas|but|then)\b|,\s*(?:and|which)\b|,?\s*\b(?:compared\s+(?:with|to)|versus|vs\.?)(?=\s)",
+    re.IGNORECASE,
+)
+_TAIL_AGENT = re.compile(
+    r"\b(?:(?:expected|forecast|projected|predicted|anticipated|estimated)\s+by|according\s+to)\s+\w",
+    re.IGNORECASE,
+)
+# The author speaking in the first person, which the other credit patterns (organisations, outside groups) do not cover.
+_OWN_CREDIT = re.compile(
+    r"\b(?:we|our\s+(?:\w+\s+){0,2}?(?:analysts|forecasters|economists|staff|officials))\s+"
+    r"(?:(?:still|now|also|currently)\s+)?(?:forecast|project|expect|estimate|anticipate|predict|see|think|believe)\w*",
+    re.IGNORECASE,
+)
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _number(text: str) -> float | None:
+    m = _NUMBER.search(text)
+    return float(m.group().replace(",", "")) if m else None
+
+
+def _tail_agent(trail: str) -> bool:
+    """Does a "forecast by" / "according to" agent follow the figure in its own assertion, outside a comparison?"""
+    return any(
+        not _COMPARED_AFTER_FIGURE.search(trail[: m.start()]) for m in _TAIL_AGENT.finditer(trail)
+    )
+
+
+def _names_its_forecaster(segment: str) -> bool:
+    """Does `segment` credit someone with a figure, by any wording this module reads? One question, asked of every kind of credit."""
+    return bool(
+        reported_more(segment)
+        or reported(segment)
+        or _credited_outside_comparison(segment)
+        or _OWN_CREDIT.search(segment)
+    )
+
+
+def _without_other_figures_clause(trail: str, claimed: str) -> str:
+    """`trail` without a ", which" clause whose figures are all numerically different from the claimed one: it is about those figures.
+
+    "We forecast growth of 3%, which the banks say will be 2%" gives 2% to the banks. "…will be 3%", "…3.0%", "…between 2% and 3%" and
+    "…will be higher" keep the credit on the claimed figure: any figure equal to it, or none at all, leaves the clause as it was.
+    """
+    which = _WHICH.search(trail)
+    figure = _FIGURE.match(claimed)
+    if which is None or figure is None:
+        return trail
+    value = _number(figure.group())
+    others = [_number(m.group()) for m in _FIGURE.finditer(trail, which.end())]
+    if value is None or not others or any(o is None or o == value for o in others):
+        return trail
+    return trail[: which.start()]
+
+
+def claimed_scope(before: str, after: str) -> tuple[str, str]:
+    """(lead, trail): what the sentence says before the claimed figure and from it on, within the figure's own assertion.
+
+    `after` starts at the claimed figure. See the note above for when `before` is cut.
+    """
+    trail = _without_other_figures_clause(own_assertion(after), after)
+    boundaries = list(_SCOPE_BOUNDARY.finditer(before))
+    if boundaries:
+        segment = before[boundaries[-1].end() :]
+        if _names_its_forecaster(segment) or _tail_agent(trail):
+            return segment, trail
+    return before, trail
 
 
 def third_parties_around(before: str, after: str, author: str | None) -> set[str]:
@@ -429,8 +765,10 @@ def author_only_compared(text: str, author: str | None) -> bool:
 
 _DISPLAY = {"imf": "the IMF", "oecd": "the OECD", "world_bank": "the World Bank", "rba": "the RBA",
             "fed": "the Federal Reserve", "rbnz": "the RBNZ", "treasury": "the Treasury",
-            "market": "market pricing"}  # fmt: skip
+            "market": "market pricing", "group": "a group of outside forecasters"}  # fmt: skip
 
 
 def display_name(key: str) -> str:
+    if key.startswith("group@"):
+        return f"a group of outside forecasters at {display_name(key[len('group@') :])}"
     return _DISPLAY.get(key, key.upper() if len(key) <= 4 else key.capitalize())

@@ -16,7 +16,6 @@ the gold counts against it. An empty denominator is unmeasured, never a pass. Re
 
 from __future__ import annotations
 
-import html
 import os
 import re
 import sqlite3
@@ -27,7 +26,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from nzstats.research import issuers
+from nzstats.research import gold_sheet, issuers
 from nzstats.research.contract import Direction, IssuerRole, OutlookSummary
 from nzstats.research.summarise import load_sections
 from nzstats.research.verify import _YEAR, VerificationContext, verify
@@ -119,8 +118,8 @@ class GoldExtension(_Strict):
     def _reviewed_by_a_person(self) -> GoldExtension:
         if not self.annotator.strip() or not self.reviewed_by.strip():
             raise ValueError("the annotator and reviewer must be named")
-        if _AI_REVIEWER.search(self.reviewed_by):
-            raise ValueError("the reviewer must be a person")
+        if _AI_REVIEWER.search(self.reviewed_by) or _AI_REVIEWER.search(self.annotator):
+            raise ValueError("the annotator and reviewer must be people")
         if self.reviewed_on > datetime.now(UTC).date() + timedelta(
             days=1
         ):  # Auckland is ahead of UTC
@@ -394,6 +393,8 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
     covered = frozenset(item.id for item in assigned.values())
     found: set[str] = set()
     valued: set[str] = set()
+    period_ok: set[str] = set()
+    issuer_ok: set[str] = set()
     right = matched = unmatched = ambiguous = rejected = numbers = numbers_right = duplicates = 0
     periods = periods_right = issued = issued_right = 0
     # Credited claims first, then the rest, each in content order: the report is the same for any order of the same claims.
@@ -424,12 +425,21 @@ def _score(claims: list[_Emitted], items: tuple[ExtensionItem, ...]) -> ViewScor
                 numbers_right += good
             if good:
                 valued.add(item.id)
+            # As for numbers: saying a right period or issuer again is not a further right answer, but every wrong one counts.
             if item.period_as_stated is not None:
-                periods += 1
-                periods_right += _period_exact(claim, item)
+                exact = _period_exact(claim, item)
+                if not (exact and item.id in period_ok):
+                    periods += 1
+                    periods_right += exact
+                if exact:
+                    period_ok.add(item.id)
             if issuer_checked:
-                issued += 1
-                issued_right += _issuer_right(claim, item)
+                named_right = _issuer_right(claim, item)
+                if not (named_right and item.id in issuer_ok):
+                    issued += 1
+                    issued_right += named_right
+                if named_right:
+                    issuer_ok.add(item.id)
     return ViewScore(
         len(claims), Ratio(right, matched + unmatched + rejected), Ratio(len(found), len(in_recall)),
         Ratio(numbers_right, numbers), Ratio(periods_right, periods), Ratio(issued_right, issued),
@@ -473,26 +483,15 @@ def write_worksheet(conn: sqlite3.Connection, version_id: int, out: Path) -> int
     ).fetchone()
     if row is None or row["superseded_at"] or row["purged_at"]:
         raise GoldExtensionError("no current document version to review")
-    rows = []
+    rows: list[tuple[int | None, int, str]] = []
     for ordinal, section in load_sections(conn, version_id).items():
         for sentence in re.split(r"(?<=[.!?])\s+", " ".join(section.text.split())):
             if _CANDIDATE.search(sentence):
                 rows.append((section.page_start, ordinal, sentence))
-    boxes = " ".join(f"[ ] {c}" for c in CATEGORIES)
-    body = "\n".join(
-        f"<tr><td>{page or ''}</td><td>{ordinal}</td><td>{html.escape(text)}</td><td>{boxes}<br>Issuer: ____ Period as written: ____</td></tr>"
-        for page, ordinal, text in rows
-    )
-    page = (
-        "<!doctype html><meta charset=utf-8><title>Gold review worksheet</title>"
-        "<style>body{font:15px system-ui;margin:2em}td,th{border:1px solid #bbb;padding:6px;vertical-align:top;text-align:left}"
-        "table{border-collapse:collapse;width:100%}</style>"
-        f"<h1>Gold review worksheet: version {version_id}</h1>"
-        "<p>Private and local. Built from the document alone. Read the original PDF, and do not open any model output first."
-        " Copy periods exactly as written. An item may be left out.</p>"
-        "<p>[ ] Written without seeing model output. Reviewer: ____________ Date: ____________</p>"
-        f"<table><tr><th>Page</th><th>Section</th><th>Sentence</th><th>Your reading</th></tr>{body}</table>"
-    )
+    digest = conn.execute(
+        "SELECT text_sha256 FROM research_document_version WHERE id = ?", (version_id,)
+    ).fetchone()["text_sha256"]
+    page = gold_sheet.render(version_id, digest, rows)
     fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     os.fchmod(fd, 0o600)  # an existing file keeps its old mode otherwise
     with os.fdopen(fd, "w", encoding="utf-8") as handle:

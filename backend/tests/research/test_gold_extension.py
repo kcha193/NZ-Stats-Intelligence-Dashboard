@@ -2,10 +2,13 @@
 
 import hashlib
 import json
+import shutil
 import sqlite3
+import subprocess
 
 import pytest
 
+from nzstats.research import gold_sheet
 from nzstats.research.contract import OutlookSummary
 from nzstats.research.gold_extension import (
     ExtensionItem,
@@ -261,7 +264,10 @@ def test_the_worksheet_escapes_document_text(conn, tmp_path):
     )
     out = tmp_path / "sheet.html"
     write_worksheet(conn, version, out)
-    assert "<script>" not in out.read_text() and "&lt;script&gt;" in out.read_text()
+    text = out.read_text()
+    assert (
+        "<script>alert(1)</script>" not in text and "&lt;script&gt;alert(1)&lt;/script&gt;" in text
+    )
 
 
 def test_the_worksheet_refuses_an_unknown_version(conn, tmp_path):
@@ -313,6 +319,12 @@ def test_the_worksheet_is_private_from_the_moment_it_exists(stored, tmp_path):
         {"reviewed_by": "Claude Code"},
         {"reviewed_by": "codex"},
         {"reviewed_by": "GPT reviewer"},
+        # Convergence review of PR 46: the annotator wrote the marks, so an AI name there is as wrong as one on the reviewer. The form
+        # already refuses both; the validator is the authority and also unlocks the owner-review package.
+        {"annotator": "Claude Code"},
+        {"annotator": "codex"},
+        {"annotator": "GPT reviewer"},
+        {"annotator": "OpenAI Team"},
     ],
 )
 def test_review_must_be_by_a_named_person_and_already_done(change):
@@ -708,3 +720,169 @@ def test_a_misattributed_claim_still_meets_its_gold_item_and_counts_an_issuer_mi
     ]
     raw = scored(conn, summary([], [wrong]), items=items).views["raw"]
     assert raw.issuer_accuracy.text == "0/1" and raw.recall.text == "0/1" and raw.unmatched == 0
+
+
+# Phase 4R: a claim stated again is not further evidence of a right period or issuer.
+def test_repeating_a_right_period_does_not_raise_period_exactness(stored):
+    conn, _ = stored
+    wrong = fact(period="September quarter 2026")
+    raw = scored(conn, summary([wrong, fact(), fact(), fact()]), items=[gold()]).views["raw"]
+    assert raw.period_exact.text == "1/2"
+
+
+def test_repeating_a_right_issuer_does_not_raise_issuer_accuracy(stored):
+    conn, _ = stored
+    wrong = {**IMF, "issuer": "The Treasury", "issuer_role": "author"}
+    raw = scored(conn, summary([], [wrong, IMF, IMF, IMF])).views["raw"]
+    assert raw.issuer_accuracy.text == "1/2"
+
+
+def test_repeating_a_wrong_period_is_still_one_error_each_time_it_is_made(stored):
+    conn, _ = stored
+    wrong = fact(period="September quarter 2026")
+    raw = scored(conn, summary([wrong, wrong]), items=[gold()]).views["raw"]
+    assert raw.period_exact.text == "0/2"
+
+
+# Phase 4R: the worksheet is a form that exports a gold extension, with nothing filled in for the reviewer.
+
+
+def _exported(tmp_path, meta, rows, fixed):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    script = tmp_path / "run.js"
+    script.write_text(
+        gold_sheet.PURE_JS
+        + f"\nconsole.log(JSON.stringify(collect({json.dumps(meta)}, {json.dumps(rows)}, {json.dumps(fixed)})));"
+    )
+    out = subprocess.run(
+        [node, str(script)], capture_output=True, text=True, check=True, timeout=30
+    )
+    return json.loads(out.stdout)
+
+
+META = {
+    "annotator": "Test Person",
+    "reviewed_by": "Test Reviewer",
+    "reviewed_on": "2026-11-03",
+    "written_without_model_output": True,
+}
+
+
+def test_the_sheet_prefills_no_name_no_date_and_no_attestation(stored, tmp_path):
+    conn, version = stored
+    out = tmp_path / "sheet.html"
+    write_worksheet(conn, version, out)
+    page = out.read_text()
+    for field_id in ("annotator", "reviewed_by", "reviewed_on"):
+        assert f"id={field_id} " in page or f"id={field_id}>" in page
+        assert f"id={field_id} value" not in page
+    assert "id=attest checked" not in page and "<input type=checkbox id=attest>" in page
+    assert DIGEST in page and f'"version_id": {version}' in page
+
+
+def test_the_sheet_blocks_the_network_and_leaks_nothing_outward(stored, tmp_path):
+    conn, version = stored
+    out = tmp_path / "sheet.html"
+    write_worksheet(conn, version, out)
+    page = out.read_text()
+    assert "default-src 'none'" in page and "form-action 'none'" in page
+    assert "http://" not in page.replace("http-equiv", "") and "https://" not in page
+
+
+def test_the_exported_marks_are_a_valid_extension(tmp_path):
+    rows = [
+        {"id": "a", "category": "accepted_eligible", "kind": "fact", "terms": "output, rose", "value": "6.3", "unit": "percent",
+         "period_as_stated": "September quarter"},
+        {"id": "b", "category": "third_party_forecast", "kind": "forecast", "terms": "growth", "value": "2.9", "unit": "percent",
+         "period_as_stated": "2027", "issuer": "IMF"},
+        {"id": "c", "category": "expected_rejection", "kind": "fact", "terms": "trend", "value": "40", "expected_reason": "no_period"},
+        {"id": "d", "category": "", "kind": "fact", "terms": "skipped"},
+    ]  # fmt: skip
+    result = _exported(tmp_path, META, rows, {"version_id": 1, "text_sha256": DIGEST})
+    assert result["errors"] == []
+    extension = GoldExtension.model_validate(result["extension"])
+    assert [i.id for i in extension.items] == ["a", "b", "c"]
+    assert extension.items[1].issuer_role.value == "third_party"
+
+
+@pytest.mark.parametrize(
+    ("change", "fragment"),
+    [
+        ({"annotator": ""}, "wrote the marks"),
+        ({"reviewed_by": " "}, "reviewed"),
+        ({"reviewed_on": "3 Nov"}, "date"),
+        ({"written_without_model_output": False}, "attestation"),
+    ],
+)
+def test_the_export_refuses_missing_header_fields(tmp_path, change, fragment):
+    rows = [{"id": "a", "category": "ambiguous", "kind": "fact", "terms": "x"}]
+    result = _exported(tmp_path, {**META, **change}, rows, {"version_id": 1, "text_sha256": DIGEST})
+    assert any(fragment in e.lower() for e in result["errors"])
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        {"category": "third_party_forecast", "kind": "forecast", "terms": "g", "value": "1"},
+        {"category": "expected_rejection", "kind": "fact", "terms": "g", "value": "1"},
+        {"category": "accepted_eligible", "kind": "forecast", "terms": "g"},
+        {
+            "category": "accepted_eligible",
+            "kind": "decision",
+            "terms": "g",
+            "period_as_stated": "3 November",
+        },
+        {"category": "accepted_eligible", "kind": "fact", "terms": " , ", "value": "1"},
+    ],
+)
+def test_the_export_refuses_marks_the_validator_would_refuse(tmp_path, row):
+    result = _exported(
+        tmp_path, META, [{"id": "a", **row}], {"version_id": 1, "text_sha256": DIGEST}
+    )
+    assert result["errors"]
+    with pytest.raises(ValueError):
+        GoldExtension.model_validate(result["extension"])
+
+
+def test_the_export_with_no_marks_is_refused(tmp_path):
+    result = _exported(
+        tmp_path, META, [{"id": "a", "category": ""}], {"version_id": 1, "text_sha256": DIGEST}
+    )
+    assert any("at least one" in e for e in result["errors"])
+
+
+def test_the_export_refuses_a_value_that_is_not_a_number(tmp_path):
+    row = {"id": "a", "category": "accepted_eligible", "kind": "fact", "terms": "g", "value": "abc"}
+    result = _exported(tmp_path, META, [row], {"version_id": 1, "text_sha256": DIGEST})
+    assert any("plain number" in e for e in result["errors"])
+
+
+@pytest.mark.parametrize(
+    ("meta", "row", "fragment"),
+    [
+        ({"reviewed_on": "2026-13-45"}, {}, "real day"),
+        ({"reviewed_on": "2099-01-01"}, {}, "future"),
+        ({"reviewed_by": "Claude"}, {}, "people"),
+        ({"annotator": "GPT reviewer"}, {}, "people"),
+        ({}, {"kind": "decision", "period_as_stated": "2026-02-31"}, "real day"),
+        ({}, {"value": "0x10"}, "plain number"),
+        ({}, {"value": "1e3"}, "plain number"),
+    ],
+)
+def test_the_sheet_checks_what_the_validator_will_check_later(tmp_path, meta, row, fragment):
+    base = {"id": "a", "category": "accepted_eligible", "kind": "fact", "terms": "g", "value": "1"}
+    result = _exported(
+        tmp_path, {**META, **meta}, [{**base, **row}], {"version_id": 1, "text_sha256": DIGEST}
+    )
+    assert any(fragment in e for e in result["errors"])
+
+
+def test_a_saved_draft_never_restores_names_dates_or_the_attestation(stored, tmp_path):
+    conn, version = stored
+    out = tmp_path / "sheet.html"
+    write_worksheet(conn, version, out)
+    page = out.read_text()
+    assert 'q("#attest").checked =' not in page and 'q("#annotator").value =' not in page
+    assert "{ rows: read().rows }" in page

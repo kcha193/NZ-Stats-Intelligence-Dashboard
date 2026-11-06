@@ -1,11 +1,25 @@
 # Progress and verification record
 
-Last updated 2026-11-02. **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-05. **Phase 4R (below) found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4R: acceptance and production readiness, 5 November 2026
+
+Full record: [phase-4r-acceptance.md](phase-4r-acceptance.md). Baseline main `1c021c9`, with PRs #43 to #45 integrated. Local evidence: ignored `data/phase-4r/`.
+**No OpenRouter request, crawl, scheduler, deployment or merge.**
+
+- **Live refresh.** Refresh run 16 (4 Nov, 06:09 UTC) ingested the labour market September 2026 quarter, 11 vintages, after a verified backup. Existing observations are identical,
+  raw hashes match, and the values reconcile with the release headline, the household survey identities and the labour cost index file. GO WITH CONDITIONS: one release family only.
+- **Verifier.** Outside groups ("analysts expect") and reporters ("the IMF said") can no longer be labelled as the author's. Old code against new, 657,024 invented cases: 0 newly pass.
+  Real-data probes identical. Two independent review cycles and an automated security review. Wording limits that remain are listed, not patched.
+- **Gold.** A repeated right period or issuer counts once. The gold sheet is now a local form that exports a gold file. No human gold exists yet.
+- **Owner package.** `research owner-review-package`: 23 open decisions, gold first. Nothing prefilled.
+- **Ledger.** 3 of 4 attempts, US$0.508462812 of US$5. Key reading is an owner-run read-only script. Recommendation: Option A (Treasury version 3, prose pages 1 to 3), not yet.
+- Dependency audit: local venv has `pypdf` 6.21.2 and `certifi` 2026.7.22 with fixed releases. The repo already requires `pypdf>=6.21.4`.
 
 ## Phase 4Q: economic accuracy and evidence grounding, 2 November 2026
 
