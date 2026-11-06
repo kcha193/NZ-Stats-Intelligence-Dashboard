@@ -15,10 +15,11 @@ import re
 import secrets
 import sqlite3
 from collections.abc import Callable, Mapping
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from types import MappingProxyType
 from typing import Literal
 
 import httpx
@@ -27,7 +28,13 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError
 from nzstats.clock import utc_now
 from nzstats.research.contract import LlmLimits, SummaryRequest, build_request
 from nzstats.research.hosted import HostedConsent, approved_sections, section_inventory_sha256
-from nzstats.research.openrouter import SECOND_PILOT, OpenRouterProvider, input_token_bound
+from nzstats.research.openrouter import (
+    SECOND_PILOT,
+    TREASURY_V3_PILOT,
+    Experiment,
+    OpenRouterProvider,
+    input_token_bound,
+)
 from nzstats.research.prompt import input_sha256, render
 from nzstats.research.providers import OPENROUTER_URL, LlmSettings, Pricing
 from nzstats.research.registry import Institution
@@ -47,6 +54,31 @@ ROUTE = "google-vertex/europe"
 PILOT_VERSIONS = {1: "treasury", 2: "rbnz"}
 EXPERIMENT_ID = "phase-4n-second-pilot"
 FREEZE_FORMAT = 2  # format 1 and its approvals belong to the consumed Phase 4M attempts
+
+
+@dataclass(frozen=True)
+class PilotPlan:
+    """One reviewed experiment: its exact document versions, freeze format and ledger precondition.
+
+    A plan never widens another: each names the only versions it may freeze, and a freeze or approval
+    from one cannot run under another. `prior_attempts` is what the ledger must already hold per
+    version, so a consumed slot is never reopened and an unused one is never assumed consumed.
+    """
+
+    experiment: Experiment
+    versions: Mapping[int, str]
+    freeze_format: int
+    prior_attempts: int
+
+    @property
+    def experiment_id(self) -> str:
+        return self.experiment.scope.experiment
+
+
+SECOND_PLAN = PilotPlan(SECOND_PILOT, MappingProxyType(PILOT_VERSIONS), FREEZE_FORMAT, 1)
+# Phase 4S: Treasury version 3 has no attempt yet. Format 3 keeps format 2 freezes from running it.
+TREASURY_V3_PLAN = PilotPlan(TREASURY_V3_PILOT, MappingProxyType({3: "treasury"}), 3, 0)
+PLANS = {p.experiment_id: p for p in (SECOND_PLAN, TREASURY_V3_PLAN)}
 
 
 class PilotRefused(ValueError):
@@ -71,7 +103,7 @@ class DocumentRights(_Strict):
 
 class Approval(_Strict):
     state: Literal["approved"]
-    experiment: Literal["phase-4n-second-pilot"]
+    experiment: str = Field(min_length=1)
     experiment_spend_limit_usd: float
     approved_by: str = Field(min_length=1)
     approved_at: datetime
@@ -110,7 +142,7 @@ def _write(path: Path, body: bytes) -> None:
         os.fsync(stream.fileno())
 
 
-def _settings(key: str) -> LlmSettings:
+def _settings(key: str, experiment: Experiment) -> LlmSettings:
     return LlmSettings(
         "openrouter",
         MODEL,
@@ -119,16 +151,16 @@ def _settings(key: str) -> LlmSettings:
         Pricing(4.4, 22),
         LlmLimits(
             max_input_chars=45000,
-            max_output_tokens=SECOND_PILOT.max_output_tokens,
+            max_output_tokens=experiment.max_output_tokens,
             max_documents_per_run=2,
-            timeout_seconds=SECOND_PILOT.timeout_seconds,
+            timeout_seconds=experiment.timeout_seconds,
             max_retries=0,
-            max_run_usd=SECOND_PILOT.scope.max_usd,
+            max_run_usd=experiment.scope.max_usd,
             max_period_usd=5,
         ),
         ROUTE,
-        SECOND_PILOT.reasoning_effort,
-        EXPERIMENT_ID,
+        experiment.reasoning_effort,
+        experiment.scope.experiment,
     )
 
 
@@ -147,6 +179,7 @@ def freeze(
     registry: Mapping[str, Institution],
     scopes: Mapping[int, tuple[int, ...]],
     output: Path,
+    plan: PilotPlan = SECOND_PLAN,
 ) -> dict:
     """Create exact local frames and metadata, without network calls or database writes."""
     if not scopes or len(scopes) > 2 or any(type(v) is not int for v in scopes):
@@ -160,7 +193,8 @@ def freeze(
     )
     if refusals or {c.version_id for c in candidates} != set(scopes):
         raise PilotRefused("source acquisition or exact version refused")
-    settings = _settings("offline-freeze-no-transmission")
+    experiment = plan.experiment
+    settings = _settings("offline-freeze-no-transmission", experiment)
     with httpx.Client(trust_env=False) as client:
         provider = OpenRouterProvider(settings, client)
         documents = []
@@ -168,7 +202,7 @@ def freeze(
             ordinals = scopes[c.version_id]
             sections = load_sections(conn, c.version_id)
             if (
-                PILOT_VERSIONS.get(c.version_id) != c.institution
+                plan.versions.get(c.version_id) != c.institution
                 or not isinstance(ordinals, tuple)
                 or not ordinals
                 or any(type(n) is not int or n not in sections for n in ordinals)
@@ -179,7 +213,7 @@ def freeze(
             request = build_request(
                 c.version_id,
                 {n: sections[n] for n in ordinals},
-                prompt_version=SECOND_PILOT.prompt_version,
+                prompt_version=experiment.prompt_version,
                 limits=settings.limits,
                 published_on=c.published_on,
                 institution=c.institution,
@@ -216,17 +250,17 @@ def freeze(
             )
             _write(output / f"v{c.version_id}-request.json", body)
     result = {
-        "format": FREEZE_FORMAT,
-        "experiment": EXPERIMENT_ID,
-        "experiment_spend_limit_usd": SECOND_PILOT.scope.max_usd,
-        "reasoning_effort": SECOND_PILOT.reasoning_effort,
-        "max_output_tokens": SECOND_PILOT.max_output_tokens,
-        "timeout_seconds": SECOND_PILOT.timeout_seconds,
+        "format": plan.freeze_format,
+        "experiment": plan.experiment_id,
+        "experiment_spend_limit_usd": experiment.scope.max_usd,
+        "reasoning_effort": experiment.reasoning_effort,
+        "max_output_tokens": experiment.max_output_tokens,
+        "timeout_seconds": experiment.timeout_seconds,
         "status": "proposal_only_requires_separate_approval",
         "model": MODEL,
         "canonical_model": CANONICAL_MODEL,
         "provider_id": ROUTE,
-        "prompt_version": SECOND_PILOT.prompt_version,
+        "prompt_version": experiment.prompt_version,
         "processing_version": PROCESSING_VERSION,
         "verifier_version": VERIFIER_VERSION,
         "contract_version": 2,
@@ -276,7 +310,9 @@ def _get(client: httpx.Client, path: str, *, key: str | None = None) -> dict:
         raise PilotRefused("OpenRouter read-only preflight failed") from exc
 
 
-def _remote_checks(client: httpx.Client, key: str, bound: float, ledger_usd: float) -> dict:
+def _remote_checks(
+    client: httpx.Client, key: str, bound: float, ledger_usd: float, experiment: Experiment
+) -> dict:
     metadata = _get(client, "/key", key=key).get("data", {})
     if not isinstance(metadata, dict):
         raise PilotRefused("dedicated key metadata invalid")
@@ -308,7 +344,7 @@ def _remote_checks(client: httpx.Client, key: str, bound: float, ledger_usd: flo
         raise PilotRefused("approved model alias identity changed")
     reasoning = matches[0].get("reasoning")
     efforts = reasoning.get("supported_efforts") if isinstance(reasoning, dict) else None
-    if not isinstance(efforts, list) or SECOND_PILOT.reasoning_effort not in efforts:
+    if not isinstance(efforts, list) or experiment.reasoning_effort not in efforts:
         raise PilotRefused("approved reasoning effort is no longer supported")
     endpoints = _get(client, f"/models/{MODEL}/endpoints").get("data", {})
     zdr = _get(client, "/endpoints/zdr").get("data", [])
@@ -336,7 +372,7 @@ def _remote_checks(client: httpx.Client, key: str, bound: float, ledger_usd: flo
                 )
                 and e.get("supports_implicit_caching") is False
                 and e.get("context_length", 0) >= 272000
-                and e.get("max_completion_tokens", 0) >= SECOND_PILOT.max_output_tokens
+                and e.get("max_completion_tokens", 0) >= experiment.max_output_tokens
                 and {"max_tokens", "response_format", "reasoning", "reasoning_effort"}.issubset(
                     e.get("supported_parameters", [])
                 )
@@ -356,8 +392,8 @@ def _remote_checks(client: httpx.Client, key: str, bound: float, ledger_usd: flo
         "limit_reset": None,
         "remaining_usd": metadata["limit_remaining"],
         "ledger_usd": ledger_usd,
-        "reasoning_effort": SECOND_PILOT.reasoning_effort,
-        "max_output_tokens": SECOND_PILOT.max_output_tokens,
+        "reasoning_effort": experiment.reasoning_effort,
+        "max_output_tokens": experiment.max_output_tokens,
         "catalogue_and_zdr": selected,
     }
 
@@ -378,29 +414,33 @@ def execute(
     """Admit the entire frozen scope first; execute serially without retries or output approval."""
     try:
         approval = Approval.model_validate_json(approval.model_dump_json())
+        plan = PLANS.get(approval.experiment)
+        if plan is None:
+            raise PilotRefused("approval names no reviewed experiment")
+        experiment = plan.experiment
         now = now_fn()
         if (
             approval.approved_at.tzinfo is None
             or approval.expires_at.tzinfo is None
             or not approval.approved_at <= now < approval.expires_at
             or approval.expires_at - approval.approved_at > timedelta(days=1)
-            or approval.experiment_spend_limit_usd != SECOND_PILOT.scope.max_usd
+            or approval.experiment_spend_limit_usd != experiment.scope.max_usd
             or file_sha256(frozen / "freeze.json") != approval.frozen_sha256
             or file_sha256(approval.gold_path) != approval.gold_sha256
         ):
             raise PilotRefused("approval time, frozen scope or reviewed gold mismatched")
         manifest = json.loads((frozen / "freeze.json").read_bytes())
         expected = (
-            FREEZE_FORMAT,
-            EXPERIMENT_ID,
-            SECOND_PILOT.scope.max_usd,
-            SECOND_PILOT.reasoning_effort,
-            SECOND_PILOT.max_output_tokens,
-            SECOND_PILOT.timeout_seconds,
+            plan.freeze_format,
+            plan.experiment_id,
+            experiment.scope.max_usd,
+            experiment.reasoning_effort,
+            experiment.max_output_tokens,
+            experiment.timeout_seconds,
             MODEL,
             CANONICAL_MODEL,
             ROUTE,
-            SECOND_PILOT.prompt_version,
+            experiment.prompt_version,
             PROCESSING_VERSION,
             VERIFIER_VERSION,
             2,
@@ -434,12 +474,12 @@ def execute(
             or set(rights) != set(frames)
         ):
             raise PilotRefused("rights do not cover the exact frozen document list")
-        settings = _settings(api_key)
+        settings = _settings(api_key, experiment)
         grants = []
         for version, frame in frames.items():
             ordinals = tuple(frame["approved_section_ordinals"])
             if (
-                PILOT_VERSIONS.get(version) != frame["institution"]
+                plan.versions.get(version) != frame["institution"]
                 or not re.fullmatch(r"[0-9a-f]{32}", frame["boundary"])
                 or not re.fullmatch(r"[0-9a-f]{64}", frame["content_sha256"])
                 or (frame["institution"] == "rbnz" and 0 in ordinals)
@@ -466,13 +506,14 @@ def execute(
                 5,
                 ordinals,
                 frame["sections_sha256"],
-                EXPERIMENT_ID,
+                plan.experiment_id,
             )
             approved_sections(load_sections(conn, version), grant)
             grants.append(grant)
-            # Exactly the consumed first-pilot row. With the per-version lifetime limit, this keeps
-            # one attempt per version true even if a run's editable experiment tag is changed.
-            if version_attempts(conn, version) != 1:
+            # Exactly the ledger state the plan was reviewed against (the consumed first-pilot row for
+            # Phase 4N, none for Phase 4S). With the per-version lifetime limit, this keeps one
+            # attempt per version true even if a run's editable experiment tag is changed.
+            if version_attempts(conn, version) != plan.prior_attempts:
                 raise PilotRefused("frozen version's attempt ledger is not the authorised state")
     except (ValidationError, KeyError, TypeError, OSError, ValueError) as exc:
         raise PilotRefused("incomplete or mismatched execution approval") from exc
@@ -509,7 +550,7 @@ def execute(
                 approved_sections(
                     load_sections(conn, version), next(g for g in grants if g.version_id == version)
                 ),
-                prompt_version=SECOND_PILOT.prompt_version,
+                prompt_version=experiment.prompt_version,
                 limits=settings.limits,
                 published_on=c[0].published_on,
                 institution=c[0].institution,
@@ -517,7 +558,7 @@ def execute(
             )
             provider.request_body(request)
         remote = _remote_checks(
-            http, api_key, sum(i.estimated_usd for i in dry.items), lifetime_spent(conn)
+            http, api_key, sum(i.estimated_usd for i in dry.items), lifetime_spent(conn), experiment
         )
         output.mkdir(mode=0o700, parents=True, exist_ok=False)
         _write(output / "preflight.json", _bytes(remote))

@@ -1,0 +1,50 @@
+{
+  "state": "proposal_only_not_approved_not_run",
+  "note": "Inert record. Nothing loads this file and it grants nothing. Execution needs a separate, signed, expiring pilot.Approval bound to this exact freeze, fresh owner consent for version 3 and the owner's human gold. A new freeze draws a new random boundary, so every hash below changes with it. Details: docs/phase-4s-treasury-v3-pilot-prep.md.",
+  "experiment": "phase-4s-treasury-v3",
+  "uses_last_lifetime_attempt": true,
+  "route": {
+    "model": "anthropic/claude-opus-5.5",
+    "canonical_model": "anthropic/claude-opus-5.5-20260921",
+    "provider_only": "google-vertex/europe",
+    "expected_response_provider": "Google",
+    "zdr": true,
+    "data_collection": "deny",
+    "allow_fallbacks": false,
+    "require_parameters": true,
+    "safety_retention_required": false,
+    "endpoint_usd_per_mtok": {"input": 4.4, "output": 22.0}
+  },
+  "request": {
+    "reasoning": {"effort": "low"},
+    "max_tokens": 12000,
+    "timeout_seconds": 300,
+    "response_format": "json_object",
+    "retries": 0,
+    "prompt_version": "outlook-v5",
+    "rules_sha256": "f976a085024457ed28489fa269927736600397f694d747306ea0a8a6bda91ae0",
+    "system_text_sha256": "15f71d9562c1eb681fe09f3f8722b46969c5196b5c00d6d8bc7e96cf6d5eaead",
+    "contract_version": 2,
+    "verifier_version": "verify-4",
+    "processing_version": "3b-1"
+  },
+  "spend": {
+    "experiment_cap_usd": 0.5,
+    "conservative_bound_usd": 0.3900688,
+    "lifetime_cap_usd": 5.0,
+    "lifetime_spent_usd_before": 0.508462812
+  },
+  "frozen_candidate": {
+    "version_id": 3,
+    "institution": "treasury",
+    "section_ordinals": [0, 1, 2],
+    "pages": [1, 2, 3],
+    "content_sha256": "f39f10d7eedc366230f2e4da975fadf39ca457487ef05f4dd2f781b23359f4e6",
+    "text_sha256": "d2092d5b542ec824a4c80a57730f3b49fa28f65f69f52d558bbe3bf1f03f57a5",
+    "sections_sha256": "253087af69813001506a28ecc134dd0260af782187ab8a7e373e0fc7ef2f0c9e",
+    "freeze_sha256": "ab615391b4abcacf447e2460b4a38dde2f785658b64343c519143027e1048fd7",
+    "request_sha256": "2f15b2e12736bc37f5e33fe2bcad9657993da5e27ba4a81e4a2717b706c1d928",
+    "body_sha256": "7f297b404e6973b29c2d7dc472f3163fbb6097e4f9b14f3560367b94a35d519a",
+    "freeze_format": 3
+  }
+}

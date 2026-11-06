@@ -1,11 +1,23 @@
 # Progress and verification record
 
-Last updated 2026-11-05. **Phase 4R (below) found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-07. **Phase 4S (below) prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4S: validation readiness and Treasury version 3 pilot preparation, 7 November 2026
+
+Full record: [phase-4s-treasury-v3-pilot-prep.md](phase-4s-treasury-v3-pilot-prep.md). Baseline main `61214c7` (PR #46 merged). Local evidence: ignored `data/phase-4s/`.
+**No OpenRouter request, crawl, scheduler, deployment, approval or merge.** Verdict: **GO WITH CONDITIONS** to review the code change and freeze, **NO-GO** to run.
+
+- **Human gold: not available.** The owner's decisions file says gold is done, but no `gold-extension-v3.json` exists anywhere. The package is still blind. Stopped at the owner gate; exact steps are in the record.
+- **Scoring:** `score-gold` needs a stored summary of the same version. Version 3 has none, so nothing is measurable until the one experiment runs.
+- **CI:** all jobs fail in about 5 seconds (billing block, no failed step). Local: 4,980 passed on main. npm audit clean. Python audit: `pypdf` and `certifi` in the local venv only.
+- **Code:** `pilot.PilotPlan` makes each experiment own its versions, freeze format and expected prior attempts. New experiment `phase-4s-treasury-v3` (version 3, sections 0 to 2, `outlook-v5`, `verify-4`, low effort, 12,000 tokens, one request, cap US$0.50). Phase 4N behaviour unchanged. 17 new tests.
+- **Freeze:** offline, worst case US$0.3901, `freeze.json` `ab615391…`. Route, ZDR and price rechecked unauthenticated and unchanged. Dedicated key and account controls are owner checks.
+- **Refresh:** `nzstats status` OK, labour acceptance rows intact. Next live proof: card spending, 12 November.
 
 ## Phase 4R: acceptance and production readiness, 5 November 2026
 

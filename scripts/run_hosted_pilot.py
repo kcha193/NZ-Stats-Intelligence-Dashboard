@@ -9,7 +9,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from nzstats.research.pilot import Approval, PilotRefused, execute, file_sha256, freeze
+from nzstats.research.pilot import PLANS, Approval, PilotRefused, execute, file_sha256, freeze
 from nzstats.research.registry import load_registry
 from nzstats.store.backup_bundle import create_bundle, restore_bundle
 from pydantic import ValidationError
@@ -41,6 +41,11 @@ def main() -> int:
         type=Path,
         help="JSON mapping of version IDs to proposed ordinal arrays",
     )
+    parser.add_argument(
+        "--experiment",
+        choices=sorted(PLANS),
+        help="the reviewed experiment to freeze (execute takes it from the approval)",
+    )
     parser.add_argument("--frozen", type=Path)
     parser.add_argument("--approval", type=Path)
     args = parser.parse_args()
@@ -55,10 +60,10 @@ def main() -> int:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     try:
-        if args.action == "freeze" and args.scope:
+        if args.action == "freeze" and args.scope and args.experiment:
             raw = json.loads(args.scope.read_bytes())
             scopes = {int(k): tuple(v) for k, v in raw.items()}
-            freeze(conn, load_registry(), scopes, args.output)
+            freeze(conn, load_registry(), scopes, args.output, PLANS[args.experiment])
             print(
                 "Local proposal frozen; no transmission or approval. Review local freeze.json."
             )
@@ -79,7 +84,7 @@ def main() -> int:
             )
         else:
             parser.error(
-                "freeze requires --scope; execute requires --frozen and --approval"
+                "freeze requires --scope and --experiment; execute requires --frozen and --approval"
             )
         return 0
     except (PilotRefused, ValidationError, OSError, ValueError, sqlite3.Error):

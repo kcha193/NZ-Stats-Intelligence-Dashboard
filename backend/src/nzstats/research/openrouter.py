@@ -77,7 +77,16 @@ SECOND_PILOT = Experiment(
     MAX_OUTPUT_TOKENS,
     300.0,
 )
-EXPERIMENTS = {SECOND_PILOT.scope.experiment: SECOND_PILOT}
+# Phase 4S: one request on Treasury version 3 with the unused prompt `outlook-v5`. It takes the last of
+# the four lifetime attempts (`LIFETIME_ATTEMPTS` is unchanged), so the cap is the only new spend term.
+TREASURY_V3_PILOT = Experiment(
+    PilotScope("phase-4s-treasury-v3", max_attempts=1, max_usd=0.5),
+    "outlook-v5",
+    "low",
+    MAX_OUTPUT_TOKENS,
+    300.0,
+)
+EXPERIMENTS = {e.scope.experiment: e for e in (SECOND_PILOT, TREASURY_V3_PILOT)}
 
 
 def validate_settings(settings: LlmSettings) -> Route:
