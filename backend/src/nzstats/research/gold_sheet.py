@@ -42,9 +42,13 @@ function collect(meta, rows, fixed) {
   if (ai.test(text(meta.annotator)) || ai.test(text(meta.reviewed_by))) errors.push("The annotator and reviewer must be people.");
   if (meta.written_without_model_output !== true) errors.push("Tick the attestation only if it is true.");
   const items = [];
+  const seenIds = new Set();
   rows.forEach((r, i) => {
     if (!text(r.category)) return;
     const where = "Row " + (i + 1) + ": ";
+    // The validator refuses repeated ids, so the sheet says so before it writes a file.
+    if (seenIds.has(r.id)) errors.push(where + "two marked rows have the same row id.");
+    seenIds.add(r.id);
     const terms = text(r.terms).split(",").map((t) => t.trim()).filter(Boolean);
     if (!terms.length) errors.push(where + "give at least one word a claim about this must use.");
     const item = { id: r.id, category: r.category, kind: r.kind, terms: terms };
@@ -78,6 +82,23 @@ function collect(meta, rows, fixed) {
   };
   return { errors: errors, extension: extension };
 }
+// A sentence can hold several claims ("3% in 2029 and 4% in 2030"). The first claim keeps the sentence's own row id, and each further
+// claim takes that id plus "x1", "x2", and so on, so every item stays independently identified.
+const EXTRA_CLAIM = /^(p\d+s\d+n\d+)x(\d+)$/;
+function nextClaimId(base, taken) {
+  let k = 1;
+  while (taken.indexOf(base + "x" + k) !== -1) k++;
+  return base + "x" + k;
+}
+function extraClaimIds(ids) {
+  const seen = new Set();
+  return ids.map((id) => EXTRA_CLAIM.exec(id)).filter((m) => m && !seen.has(m[0]) && seen.add(m[0]))
+    .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : Number(a[2]) - Number(b[2]))).map((m) => m[0]);
+}
+function markedCounts(rows) {
+  const marked = rows.filter((r) => r.category);
+  return { claims: marked.length, sentences: new Set(marked.map((r) => r.id.replace(/x\d+$/, ""))).size };
+}
 /*PURE-END*/
 """
 
@@ -98,10 +119,33 @@ function read() {
   return { meta, rows };
 }
 function save() { try { localStorage.setItem(STORE, JSON.stringify({ rows: read().rows })); } catch (e) { /* storage may be unavailable */ } }
+const rowOf = (id) => document.querySelector('tr[data-row="' + CSS.escape(id) + '"]');
+function addClaim(base, id) {
+  const anchor = rowOf(base);
+  if (!anchor) return null;
+  const taken = [...document.querySelectorAll("tr[data-row]")].map((tr) => tr.dataset.row);
+  const rid = id || nextClaimId(base, taken);
+  if (taken.includes(rid)) return null;
+  let last = anchor;
+  while (last.nextElementSibling && last.nextElementSibling.dataset.sentence === base) last = last.nextElementSibling;
+  const tr = document.createElement("tr");
+  tr.dataset.row = rid; tr.dataset.sentence = base; tr.className = "extra";
+  const cell = document.createElement("td");
+  cell.colSpan = 3;
+  const title = document.createElement("b");
+  title.textContent = "Another claim from the sentence above";
+  const remove = document.createElement("button");
+  remove.type = "button"; remove.dataset.remove = ""; remove.textContent = "Remove this claim";
+  cell.append(title, " ", remove, q("#claim-controls").content.cloneNode(true));
+  tr.appendChild(cell);
+  last.after(tr);
+  return tr;
+}
 function restore() {
   try {
     const s = JSON.parse(localStorage.getItem(STORE) || "null");
     if (!s) return;
+    extraClaimIds(s.rows.map((r) => r.id)).forEach((id) => addClaim(id.replace(/x\d+$/, ""), id));
     // Names, the date and the attestation are never restored: each session you type and tick them again.
     s.rows.forEach((r) => {
       const tr = document.querySelector('tr[data-row="' + CSS.escape(r.id) + '"]');
@@ -110,8 +154,9 @@ function restore() {
   } catch (e) { /* ignore a damaged draft */ }
 }
 function refresh() {
-  const { meta, rows } = read();
-  q("#marked").textContent = rows.filter((r) => r.category).length;
+  const counts = markedCounts(read().rows);
+  q("#marked").textContent = counts.claims;
+  q("#marked-sentences").textContent = counts.sentences;
   save();
 }
 function exportJson() {
@@ -128,6 +173,13 @@ function exportJson() {
   a.download = "gold-extension-v" + fixed.version_id + ".json";
   a.click();
 }
+document.addEventListener("click", (ev) => {
+  const button = ev.target.closest ? ev.target.closest("button") : null;
+  if (!button || !button.closest("tr[data-row]")) return;
+  const tr = button.closest("tr[data-row]");
+  if ("add" in button.dataset) { addClaim(tr.dataset.row); refresh(); }
+  else if ("remove" in button.dataset) { tr.remove(); refresh(); }
+});
 document.addEventListener("input", refresh);
 document.addEventListener("change", refresh);
 q("#export").addEventListener("click", exportJson);
@@ -140,7 +192,7 @@ body{font:15px/1.5 system-ui,sans-serif;margin:1.5em auto;max-width:1100px;paddi
 table{border-collapse:collapse;width:100%}td,th{border:1px solid #9995;padding:6px;vertical-align:top;text-align:left}
 details{margin-top:.4em}summary{cursor:pointer;font-weight:600}label{display:block;margin:.3em 0;font-size:13px}
 input,select,textarea{font:inherit;max-width:100%}.warn{border:2px solid #b00020;padding:.6em;border-radius:6px}
-.sticky{position:sticky;top:0;background:inherit;padding:.5em 0;border-bottom:1px solid #9995}
+tr.extra td{background:#9991}.sticky{position:sticky;top:0;background:inherit;padding:.5em 0;border-bottom:1px solid #9995}
 """
 
 
@@ -152,9 +204,9 @@ def _select(field: str, options: tuple[str, ...], blank: str = "") -> str:
     return f"<select data-f='{field}'>{opts}</select>"
 
 
-def _row(n: int, page: int | None, ordinal: int, text: str) -> str:
-    rid = html.escape(f"p{page or 0}s{ordinal}n{n}")
-    controls = (
+def _controls() -> str:
+    """The fields that describe one claim. One source: the sentence row and the template for further claims both use it."""
+    return (
         f"<label>Group {_select('category', tuple(CATEGORY_HELP), 'not a claim (skip)')}</label>"
         f"<label>Kind {_select('kind', ('fact', 'forecast', 'decision'))}</label>"
         "<label>Words a claim about this must use (comma separated)<input data-f='terms'></label>"
@@ -167,9 +219,15 @@ def _row(n: int, page: int | None, ordinal: int, text: str) -> str:
         f"<label>Direction, if no number {_select('direction', DIRECTIONS)}</label>"
         "<label>Why it should be refused (expected rejection only)<input data-f='expected_reason'></label>"
     )
+
+
+def _row(n: int, page: int | None, ordinal: int, text: str) -> str:
+    rid = html.escape(f"p{page or 0}s{ordinal}n{n}")
     return (
-        f"<tr data-row='{rid}'><td>{page or ''}</td><td>{ordinal}</td><td>{html.escape(text)}"
-        f"<details><summary>Mark this sentence</summary>{controls}</details></td></tr>"
+        f"<tr data-row='{rid}' data-sentence='{rid}'><td>{page or ''}</td><td>{ordinal}</td><td>{html.escape(text)}"
+        f"<details><summary>Mark this sentence</summary>{_controls()}"
+        "<p><button type=button data-add>Add another claim from this sentence</button> "
+        "<small>For a sentence that holds more than one claim, such as two years.</small></p></details></td></tr>"
     )
 
 
@@ -197,9 +255,12 @@ def render(version_id: int, text_sha256: str, sentences: list[tuple[int | None, 
         "<label>Reviewer (your name, or the person who checked)<input id=reviewed_by autocomplete=off></label>"
         "<label>Review date (YYYY-MM-DD)<input id=reviewed_on placeholder='YYYY-MM-DD'></label>"
         "<label><input type=checkbox id=attest> Written without seeing model output</label>"
-        "<p>Marked: <b id=marked>0</b> of " + str(len(sentences)) + " sentences. "
+        "<p>Marked: <b id=marked>0</b> claims in <b id=marked-sentences>0</b> of "
+        + str(len(sentences))
+        + " sentences. "
         "<button id=export type=button>Check and download gold extension</button></p>"
         "<ul id=problems role=alert></ul></div>"
+        f"<template id=claim-controls>{_controls()}</template>"
         f"<table><tr><th>Page</th><th>Section</th><th>Sentence</th></tr>{rows}</table>"
         "<h2>Export preview</h2><textarea id=json rows=10 cols=80 readonly></textarea>"
         "<p>Save the downloaded file under <code>data/annotations/</code>, then run "

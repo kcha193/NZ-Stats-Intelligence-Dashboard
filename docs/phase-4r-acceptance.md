@@ -87,8 +87,10 @@ The 29 October page itself still needs the owner's own check in a browser (autom
   45 not measurable, 9 true claims rejected, one gold problem (`decided_on_not_supported`).
 - **Gold scoring.** A repeated right period or issuer counts once, a repeated wrong one every time. Nothing else changed in the scorers.
 - **Gold form.** `gold-worksheet` now writes a local page from the document alone. The reviewer marks sentences, types their own name and date and ticks the
-  attestation, and the page downloads a file that `load_extension` still checks. Nothing is prefilled or restored from a draft, the page blocks the network,
-  and the file is mode 0600. Node tests run the export logic against the same validator.
+  attestation, and the page downloads a file that `load_extension` still checks. A sentence that holds several claims ("3% in 2029 and 4% in 2030") takes
+  one marked row per claim ("Add another claim from this sentence"), each with its own row id, and every one is exported and scored as its own item. Nothing
+  is prefilled, and names, the date and the attestation are never restored from a draft (only the marks are), the page blocks the network, and the file is
+  mode 0600. Node tests run the export logic against the same validator, and a jsdom test drives the page when the frontend dependencies are installed.
 - **`research owner-review-package`.** One local index: sheets with size and a short hash (never their content), the gold form, the gold file's status, and 23
   decisions in six groups. Gold comes first. The Phase 4O packet is linked, and no other model output, only in the "after your own marks" table and only
   once the gold extension is saved, valid and bound to the document (build the package again after saving it). Output must stay under the data directory.
