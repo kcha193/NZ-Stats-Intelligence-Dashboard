@@ -404,3 +404,72 @@ def test_a_second_indicators_passive_does_not_excuse_a_group_that_wrote_the_clai
         "The Treasury",
     )
     assert "issuer_mismatch" in codes(report)
+
+
+# Review of PR 46 (Codex, P2, round 6, finding 1): a third party's label may carry the same modifiers the evidence's group does.
+@pytest.mark.parametrize(
+    ("sentence", "issuer"),
+    [
+        ("The major banks expect growth of 3% in 2029.", "Major banks"),
+        ("The major banks expect growth of 3% in 2029.", "The major banks"),
+        ("Most analysts expect growth of 3% in 2029.", "Most analysts"),
+        ("The four major banks expect growth of 3% in 2029.", "The four major banks"),
+        ("Leading forecasters predict growth of 3% in 2029.", "Leading forecasters"),
+        ("Australian banks expect growth of 3% in 2029.", "Australian banks"),
+        ("Some market economists forecast growth of 3% in 2029.", "Some market economists"),
+    ],
+)
+def test_a_group_label_with_the_evidences_modifiers_is_accepted_for_a_third_party(sentence, issuer):
+    report = authors(sentence, "third_party", issuer)
+    assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+@pytest.mark.parametrize(
+    ("sentence", "role", "issuer"),
+    [
+        # A group is never the author, whatever its label.
+        ("The major banks expect growth of 3% in 2029.", "author", "Major banks"),
+        # The label must be in the evidence and be a closed-list group, not any longer name.
+        ("Analysts expect growth of 3% in 2029.", "third_party", "Major banks"),
+        ("The major banks expect growth of 3% in 2029.", "third_party", "Major banks of Asia"),
+        ("The major banks expect growth of 3% in 2029.", "third_party", "Westpac"),
+        ("The IMF said growth will be 3% in 2029.", "third_party", "Most analysts"),
+        ("Most analysts expect growth of 3% in 2029.", "third_party", "The Treasury"),
+    ],
+)
+def test_a_group_label_is_still_refused_when_it_is_not_what_the_evidence_names(
+    sentence, role, issuer
+):
+    assert codes(authors(sentence, role, issuer)) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+# Round 6, finding 2: a group that only comments on the year in a "which" clause is not the forecaster, in every wording the group
+# attribution itself recognises.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, which analysts say will be a challenging year.",
+        "We expect growth of 3% in 2029, which analysts said would be too optimistic.",
+        "We expect growth of 3% in 2029, which analysts are expecting to be a testing year.",
+        "We expect growth of 3% in 2029, which analysts at ANZ expect to be a testing year.",
+        "We expect growth of 3% in 2029, which most analysts now expect to be a difficult year.",
+        "We expect growth of 3% in 2029, which market economists currently reckon will be a tough year.",
+    ],
+)
+def test_a_group_commenting_on_the_year_in_any_of_its_wordings_is_not_the_forecaster(sentence):
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, which analysts say will be 3%.",
+        "We expect growth of 3% in 2029, which analysts said would be higher.",
+        "We expect growth of 3% in 2029, which analysts are expecting to be 3%.",
+        "We expect growth of 3% in 2029, which analysts at ANZ expect growth of 3%.",
+        "We expect growth of 3% in 2029, which analysts say.",
+        "We expect growth of 3% in 2029, which most analysts now expect to stay unchanged.",
+    ],
+)
+def test_a_group_in_a_which_clause_that_is_not_a_comment_still_blocks(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))

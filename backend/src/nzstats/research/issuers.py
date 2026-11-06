@@ -114,7 +114,8 @@ _GROUP_EXPECTS = re.compile(
     r"|estimates?|estimated|reckons?|reckoned|says?|said)(?!\s+(?:of|for|from|to|is|are|was|were|by)\b)\b)",
     re.IGNORECASE,
 )
-_GROUP_ISSUER = re.compile(rf"^\s*(?:the\s+)?(?:{_GROUP_NOUN})\s*$", re.IGNORECASE)
+# A third party's own label may carry the modifiers the evidence's group does ("Major banks", "Most analysts"), and nothing else.
+_GROUP_ISSUER = re.compile(rf"^\s*{_GROUP}\s*$", re.IGNORECASE)
 _GROUP_PASSIVE = re.compile(
     rf"\b(?:expected|forecast|projected|predicted|anticipated|estimated)\s+by\s+{_GROUP}\b",
     re.IGNORECASE,
@@ -122,8 +123,11 @@ _GROUP_PASSIVE = re.compile(
 _ACCORDING_TO_GROUP = re.compile(
     rf"\baccording\s+to\s+(?:an?\s+(?:survey|range|poll)\s+of\s+)?{_GROUP}\b", re.IGNORECASE
 )
+# The same head as `_GROUP_EXPECTS` (modifiers, "at ANZ", adverbs, "are expecting") and the same verbs, so that a comment on the year is
+# excluded in every wording that would otherwise count as attribution. It only ever blanks a clause that is a closed-list comment.
 _GROUP_IN_CLAUSE = re.compile(
-    rf"\b{_GROUP}\s+(?:also\s+|still\s+)?(?:expect|forecast|predict|project|anticipate|see|estimate)\w*(?P<rest>[^,;:]*)",
+    rf"\b{_GROUP}{_AT_AN_ORGANISATION}\s+(?:(?:now|still|also|currently|mostly)\s+)?(?:(?:are|is|have|has)\s+)?"
+    r"(?:expect|forecast|predict|project|anticipate|see|saw|estimate|reckon|say|said)\w*(?P<rest>[^,;:]*)",
     re.IGNORECASE,
 )
 # "The IMF said growth will be 3%": the reporter is the forecaster, though no forecasting verb follows its name.
