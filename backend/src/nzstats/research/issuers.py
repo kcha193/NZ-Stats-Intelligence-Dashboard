@@ -148,6 +148,9 @@ _BEFORE_MARKET = {
 _EXPECTED_BY = re.compile(r"\bexpected\s+by\s+", re.IGNORECASE)
 _CLAUSE_END = re.compile(r"[,;:]")
 _THE = re.compile(r"the\s+", re.IGNORECASE)
+_CLAUSE_REST = re.compile(
+    r"[^,;:]*"
+)  # what is left of the clause after a match, which may be empty
 # Case-sensitive on purpose: "Market Economics Ltd" and the "Financial Markets Authority" are named organisations, not the market.
 _MARKET_AGENT = re.compile(
     r"(?:the\s+)?(?:financial\s+)?markets?(?:\s+participants)?\b", re.IGNORECASE
@@ -399,6 +402,12 @@ def more_around(before: str, after: str, who: str | None, author: str | None) ->
         clause = _GROUP_IN_CLAUSE.sub(
             lambda m: " " if _COMMENT.match(m.group("rest")) else m.group(), after[which.end() :]
         )
+        # A named reporter's "says will be a challenging year" is the same comment, in the same closed list.
+        for said in _SAID_PATTERNS.values():
+            clause = said.sub(
+                lambda m: " " if _COMMENT.match(_CLAUSE_REST.match(m.string, m.end())[0]) else m[0],
+                clause,
+            )
         keys |= reported_more(clause)
     return keys - {author}
 
@@ -411,16 +420,19 @@ def since_credit(before: str, who: str | None, author: str | None) -> str:
     """
     if who in (None, "author"):
         return since_author(before, author)
-    # Only wording that credits `who` ends the earlier forecaster's reach; a bare mention or a comparison does not.
-    last = (
-        [
-            m.end()
-            for m in _PATTERNS[who][1].finditer(before)
-            if not _COMPARED_WITH.search(before[: m.start()])
-        ]
-        if who in _PATTERNS
-        else []
-    )
+    # Only wording that credits `who` ends the earlier forecaster's reach; a bare mention or a comparison does not. Its "said" counts
+    # as well ("The OECD said 2%, but the IMF said 3%"), though that wording only ever adds a rejection elsewhere.
+    credits = [
+        pattern
+        for pattern in (_PATTERNS[who][1] if who in _PATTERNS else None, _SAID_PATTERNS.get(who))
+        if pattern is not None
+    ]
+    last = [
+        m.end()
+        for pattern in credits
+        for m in pattern.finditer(before)
+        if not _COMPARED_WITH.search(before[: m.start()])
+    ]
     return before[max(last, default=0) :]
 
 

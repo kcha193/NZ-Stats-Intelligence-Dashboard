@@ -258,3 +258,78 @@ def test_a_comparison_after_the_figure_does_not_excuse_a_third_party_label_for_a
         "International Monetary Fund",
     )
     assert "issuer_mismatch" in codes(report)
+
+
+# Review of PR 46 (Codex, P2, round 3, finding 1): the claimed issuer's own "said" ends an earlier reporter's reach, as its forecast does.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The OECD said growth would be 2% in 2029, but the IMF said growth would be 3% in 2029.",
+        "The OECD says growth will be 2% in 2029, while the IMF says growth will be 3% in 2029.",
+        "The OECD noted growth of 2% in 2029; IMF staff said growth would be 3% in 2029.",
+        "The OECD said growth would be 2% in 2029, but the IMF has said growth would be 3% in 2029.",
+    ],
+)
+def test_the_claimed_reporters_own_words_end_an_earlier_reporters_reach(sentence):
+    report = authors(sentence, "third_party", "International Monetary Fund")
+    assert "issuer_mismatch" not in codes(report)
+
+
+IMF = "International Monetary Fund"
+
+
+@pytest.mark.parametrize(
+    ("sentence", "role", "issuer"),
+    [
+        # The other reporter is the one who gives the figure.
+        (
+            "The IMF said growth would be 2% in 2029, but the OECD said growth would be 3% in 2029.",
+            "third_party",
+            IMF,
+        ),
+        # A bare mention is no credit: the OECD's wording still leads to the figure.
+        (
+            "The OECD said growth would be 2% in 2029, but the IMF has a view and growth would be 3% in 2029.",
+            "third_party",
+            IMF,
+        ),
+        # Under the author label, a named reporter who gives the figure is still no author.
+        (
+            "The OECD said growth would be 2% in 2029, but the IMF said growth would be 3% in 2029.",
+            "author",
+            "The Treasury",
+        ),
+    ],
+)
+def test_an_earlier_or_other_reporter_is_still_a_mismatch(sentence, role, issuer):
+    assert "issuer_mismatch" in codes(authors(sentence, role, issuer))
+
+
+# Round 3, finding 2: a named reporter who only comments on the year in a "which" clause is not the forecaster.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, which the IMF says will be a challenging year.",
+        "We expect growth of 3% in 2029, which the IMF said would be too optimistic.",
+        "We expect growth of 3% in 2029, which the OECD notes will be a difficult year.",
+        "We expect growth of 3% in 2029, which the Reserve Bank has said will be a testing year.",
+    ],
+)
+def test_a_named_reporter_commenting_on_the_year_is_not_the_forecaster(sentence):
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, which the IMF says will be 3%.",
+        "We expect growth of 3% in 2029, which the IMF said would be higher.",
+        "We expect growth of 3% in 2029, which the IMF says is the right figure.",
+        "We expect growth of 3% in 2029, which the OECD noted will be a challenging year and growth would be 3%.",
+        "We expect growth of 3% in 2029, which the IMF says.",
+        # Outside the closed list of comments: it may be the forecast itself.
+        "We expect growth of 3% in 2029, which the IMF said would stay unchanged.",
+    ],
+)
+def test_a_named_reporter_in_a_which_clause_that_is_not_a_comment_still_blocks(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
