@@ -1501,8 +1501,8 @@ class _Checker:
         for loc, at in spots:
             if loc.layout.place(at)[0] == "text":
                 more |= issuers.more_around(*loc.sentence_around(at), claimed, author)
-        if role is not IssuerRole.AUTHOR and issuers.is_group_name(name):
-            more.discard("group")
+        if role is not IssuerRole.AUTHOR:
+            more = issuers.answer_group(more, name, claimed)
         # What the new wording finds is never waived, not even by a credit the older wording found for the claimed issuer.
         if (more - {claimed}) or (
             (blocks - {claimed}) and (role is IssuerRole.AUTHOR or claimed not in blocks)

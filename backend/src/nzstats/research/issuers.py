@@ -105,7 +105,7 @@ _OTHER_PEOPLE = (
 _OWN_PEOPLE = re.compile(
     rf"(?:['’]s)?\s*{_OTHER_PEOPLE}(?:\s*(?:,|and)\s*{_OTHER_PEOPLE})*\b", re.IGNORECASE
 )
-_AT_AN_ORGANISATION = r"(?:\s+(?:at|from)\s+(?:the\s+)?[A-Z][\w&]*(?:\s+[A-Z][\w&]*)*)?"
+_AT_AN_ORGANISATION = r"(?:\s+(?:at|from)\s+(?P<org>(?:the\s+)?[A-Z][\w&]*(?:\s+[A-Z][\w&]*)*))?"
 _GROUP_EXPECTS = re.compile(
     rf"\b{_GROUP}{_AT_AN_ORGANISATION}\s+(?:(?:now|still|also|currently|mostly)\s+)?"
     r"(?:expect(?:s\b|ed(?!\s+(?:not\s+|never\s+)?to\b)\b|\b)"
@@ -117,11 +117,12 @@ _GROUP_EXPECTS = re.compile(
 # A third party's own label may carry the modifiers the evidence's group does ("Major banks", "Most analysts"), and nothing else.
 _GROUP_ISSUER = re.compile(rf"^\s*{_GROUP}\s*$", re.IGNORECASE)
 _GROUP_PASSIVE = re.compile(
-    rf"\b(?:expected|forecast|projected|predicted|anticipated|estimated)\s+by\s+{_GROUP}\b",
+    rf"\b(?:expected|forecast|projected|predicted|anticipated|estimated)\s+by\s+{_GROUP}\b{_AT_AN_ORGANISATION}",
     re.IGNORECASE,
 )
 _ACCORDING_TO_GROUP = re.compile(
-    rf"\baccording\s+to\s+(?:an?\s+(?:survey|range|poll)\s+of\s+)?{_GROUP}\b", re.IGNORECASE
+    rf"\baccording\s+to\s+(?:an?\s+(?:survey|range|poll)\s+of\s+)?{_GROUP}\b{_AT_AN_ORGANISATION}",
+    re.IGNORECASE,
 )
 # The same head as `_GROUP_EXPECTS` (modifiers, "at ANZ", adverbs, "are expecting") and the same verbs, so that a comment on the year is
 # excluded in every wording that would otherwise count as attribution. It only ever blanks a clause that is a closed-list comment.
@@ -359,6 +360,26 @@ def _since_author_and_people(before: str, author: str | None) -> str:
     return before[people.end() if people else start :]
 
 
+def _group_key(m: re.Match[str]) -> str:
+    """ "group", or "group@<organisation>" when the match puts the group at exactly one known organisation ("analysts at ANZ").
+
+    Anything less certain stays the plain "group": two organisations, none that this module knows, or none at all.
+    """
+    at = {key for key in named(m.group("org") or "") if key != "market"}
+    return f"group@{next(iter(at))}" if len(at) == 1 else "group"
+
+
+def answer_group(keys: set[str], name: str, claimed: str | None) -> set[str]:
+    """`keys` without the group blocks that a THIRD PARTY's own label answers. Never call this for the author.
+
+    A label that is a closed-list group ("Major banks") answers every group block, as before. A label that is an organisation answers
+    only the group said to be at that organisation, so "ANZ" answers "analysts at ANZ" and nothing else.
+    """
+    if is_group_name(name):
+        return {k for k in keys if k != "group" and not k.startswith("group@")}
+    return keys - {f"group@{claimed}"} if claimed else keys
+
+
 def reported_more(text: str) -> set[str]:
     """Outside groups and reporters that `text` makes the forecaster, by the wording above. Rejection only: see the note there."""
     keys: set[str] = set()
@@ -369,10 +390,13 @@ def reported_more(text: str) -> set[str]:
         if not _COMPARED_WITH.search(before) and (
             starts_clause or words[-1].lower() in _BEFORE_MARKET | _LEAD_IN
         ):
-            keys.add("group")
+            keys.add(_group_key(m))
     for pattern in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP):
-        if any(not _COMPARED_WITH.search(text[: m.start()]) for m in pattern.finditer(text)):
-            keys.add("group")
+        keys |= {
+            _group_key(m)
+            for m in pattern.finditer(text)
+            if not _COMPARED_WITH.search(text[: m.start()])
+        }
     keys |= {
         key
         for key, pattern in _SAID_PATTERNS.items()
@@ -395,13 +419,13 @@ def more_around(before: str, after: str, who: str | None, author: str | None) ->
     after = own_assertion(after)
     # After the figure only the passive and "according to" forms can name who made it, unless the group is only the other side of
     # a comparison ("higher than forecast by analysts").
-    if any(
-        not _COMPARED_AFTER_FIGURE.search(after[: m.start()])
-        and not _OWN_PASSIVE_CLAUSE.search(after[: m.start()])
+    keys |= {
+        _group_key(m)
         for p in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP)
         for m in p.finditer(after)
-    ):
-        keys.add("group")
+        if not _COMPARED_AFTER_FIGURE.search(after[: m.start()])
+        and not _OWN_PASSIVE_CLAUSE.search(after[: m.start()])
+    }
     which = _WHICH.search(after)
     if which is not None:
         clause = _GROUP_IN_CLAUSE.sub(
@@ -620,4 +644,6 @@ _DISPLAY = {"imf": "the IMF", "oecd": "the OECD", "world_bank": "the World Bank"
 
 
 def display_name(key: str) -> str:
+    if key.startswith("group@"):
+        return f"a group of outside forecasters at {display_name(key[len('group@') :])}"
     return _DISPLAY.get(key, key.upper() if len(key) <= 4 else key.capitalize())

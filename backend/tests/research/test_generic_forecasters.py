@@ -473,3 +473,53 @@ def test_a_group_commenting_on_the_year_in_any_of_its_wordings_is_not_the_foreca
 )
 def test_a_group_in_a_which_clause_that_is_not_a_comment_still_blocks(sentence):
     assert "issuer_mismatch" in codes(authors(sentence))
+
+
+# Review of PR 46 (Codex, P2, round 7): a group said to be at ONE named organisation is that organisation's view, so that organisation's
+# own third-party label answers the group block. Nothing else does.
+@pytest.mark.parametrize(
+    ("sentence", "issuer"),
+    [
+        ("Analysts at ANZ expect growth of 3% in 2029.", "ANZ"),
+        ("Growth of 3% in 2029 is forecast by analysts at ANZ.", "ANZ"),
+        ("Market economists at Westpac forecast growth of 3% in 2029.", "Westpac"),
+        ("Analysts from the IMF expect growth of 3% in 2029.", "International Monetary Fund"),
+        ("According to analysts at ASB, growth will be 3% in 2029.", "ASB"),
+        ("Most analysts at BNZ now expect growth of 3% in 2029.", "BNZ"),
+        ("Analysts at ANZ expect growth of 3% in 2029.", "ANZ Bank New Zealand"),
+        ("Investors at Kiwibank are expecting growth of 3% in 2029.", "Kiwibank"),
+    ],
+)
+def test_a_group_at_one_named_organisation_is_answered_by_that_organisations_label(
+    sentence, issuer
+):
+    report = authors(sentence, "third_party", issuer)
+    assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+@pytest.mark.parametrize(
+    ("sentence", "role", "issuer"),
+    [
+        # Another organisation, even one the evidence names elsewhere.
+        (
+            "Analysts at ANZ expect growth of 3% in 2029, while Westpac said it was cautious.",
+            "third_party",
+            "Westpac",
+        ),
+        (
+            "Analysts at ANZ expect growth of 3% in 2029.",
+            "third_party",
+            "International Monetary Fund",
+        ),
+        # An author label is never answered by a group, whichever organisation it is at.
+        ("Analysts at ANZ expect growth of 3% in 2029.", "author", "The Treasury"),
+        ("Growth of 3% in 2029 is forecast by analysts at ANZ.", "author", "The Treasury"),
+        # More than one organisation, or none attached to the group: the label cannot tell which view it is.
+        ("Analysts at ANZ and Westpac expect growth of 3% in 2029.", "third_party", "ANZ"),
+        ("Analysts at ANZ and the IMF expect growth of 3% in 2029.", "third_party", "ANZ"),
+        ("Analysts expect growth of 3% in 2029, as ANZ noted.", "third_party", "ANZ"),
+        ("Growth of 3% in 2029 is forecast by analysts, as ANZ noted.", "third_party", "ANZ"),
+    ],
+)
+def test_nothing_else_answers_a_group_attached_to_an_organisation(sentence, role, issuer):
+    assert codes(authors(sentence, role, issuer)) & {"issuer_mismatch", "issuer_not_in_evidence"}
