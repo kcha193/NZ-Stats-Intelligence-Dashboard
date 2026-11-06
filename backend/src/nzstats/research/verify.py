@@ -1498,9 +1498,15 @@ class _Checker:
             blocks.discard("market")
         # Phase 4R wording can only add a rejection: a block it finds is never used to waive one the older wording raised.
         more = set()
+        # A group label has no organisation key: its lead is cut at the group's own forecast, not at an organisation's credit.
+        scope = (
+            "group"
+            if role is not IssuerRole.AUTHOR and claimed is None and issuers.is_group_name(name)
+            else claimed
+        )
         for loc, at in spots:
             if loc.layout.place(at)[0] == "text":
-                more |= issuers.more_around(*loc.sentence_around(at), claimed, author)
+                more |= issuers.more_around(*loc.sentence_around(at), scope, author)
         if role is not IssuerRole.AUTHOR:
             more = issuers.answer_group(more, name, claimed)
         # What the new wording finds is never waived, not even by a credit the older wording found for the claimed issuer.

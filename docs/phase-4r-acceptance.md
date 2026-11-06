@@ -112,7 +112,39 @@ Two cycles, of at most three, by a fresh reviewer working only on invented text.
 
 An automated security review of the pushed commits raised four points: a group-name exemption not scoped to third-party labels (fixed, with a test),
 the new wording not applied to table cells (a documented limit), the own-people skip being too wide (narrowed), and the new wording being waivable by an
-older credit (fixed). The reviews are independent of this session's reasoning, but their model family is the author's. No Codex review ran on these commits.
+older credit (fixed). The reviews are independent of this session's reasoning, but their model family is the author's.
+
+### Codex review of PR #46
+
+The Codex GitHub connector reviewed every push of PR #46. Each finding was reproduced, fixed test-first, answered on its thread and checked with a differential:
+the same generated sentences run through the previous and the new code, expecting no sentence newly rejected and every newly accepted one inside the intended class.
+
+| Push | Finding | Outcome |
+|---|---|---|
+| 1 | Modified names of the author's own people ("our market analysts") read as outside groups; the post-gold table had no links | Fixed. The packet is linked only once the gold file is saved, valid and bound |
+| 2 | A group after the figure that is only the other side of a comparison | Fixed with a narrower comparison filter: a bare "as" is no comparison there |
+| 3 | The claimed reporter's own "said" did not end an earlier reporter's reach; a reporter's comment on the year | Fixed |
+| 4 | A group that is the agent of another indicator's own passive ("and inflation of 2% is forecast by analysts") | Fixed, narrowly: the clause needs a subject noun, a figure and a finite auxiliary |
+| 5 | The gold form allowed one claim per sentence | Fixed in the form only; the format and the scorers already work per item |
+| 6 | Group labels with modifiers ("Major banks"); a group's comment on the year in other wordings | Fixed |
+| 7 | A group at one named organisation ("analysts at ANZ") with that organisation's own label | Fixed: `group@<org>`, third-party labels only |
+| 8 | The author's own organisation's analysts; an earlier reporter's figure before the claimed group's own forecast | Fixed |
+
+**The shared cause.** Most findings had one origin: the Phase 4R attribution wording is several regular expressions that each carry their own copy of the
+vocabulary (`_GROUP_EXPECTS`, `_GROUP_IN_CLAUSE`, `_GROUP_ISSUER`, `since_credit`) and each run over text that is wider than the figure's own assertion. A
+fix to one copy left the others behind, and the next review found the next one. This push removed the clearest duplicate: `_group_credits` now decides
+what counts as a group's attribution for both rejecting and resetting. The robust fix is a small clause segmenter that gives every check the same scope, and
+it is not done here.
+
+**Known limits** (all fail closed, none newly accepted a misattribution): a group label's modifiers are not compared with the evidence's ("Local analysts"
+for "Analysts expect…", the noun is compared); an organisation this module does not list ("analysts at Acme") is not matched; "ANZ analysts expect…" and
+"expected by our analysts and investors" were accepted before this PR and still are; "expected by market economists" is read as market pricing by the older
+wording; an organisation's forecasting credit earlier in the sentence still blocks a group label, by verify-3's rule. The jsdom tests of the gold form run only
+where the frontend dependencies are installed.
+
+**CI.** All three required GitHub Actions jobs fail in seconds because the account's payment or spending limit stops them from starting
+(annotation: "The job was not started because recent account payments have failed or your spending limit needs to be increased"). No code is at fault. The
+equivalent checks were run locally on each push: the full backend suite, `ruff check` and `ruff format --check`, and the frontend unit tests and type check.
 
 ## The internal draft view
 

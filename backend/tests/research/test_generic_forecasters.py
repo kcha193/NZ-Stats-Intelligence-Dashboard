@@ -523,3 +523,91 @@ def test_a_group_at_one_named_organisation_is_answered_by_that_organisations_lab
 )
 def test_nothing_else_answers_a_group_attached_to_an_organisation(sentence, role, issuer):
     assert codes(authors(sentence, role, issuer)) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+# Review of PR 46 (Codex, P2, round 8, finding 1): the document author's OWN analysts ("analysts at the Treasury") are the author speaking.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury.",
+        "According to analysts at the Treasury, growth will be 3% in 2029.",
+        "Growth of 3% in 2029 is expected by forecasters at the Treasury.",
+        "Growth of 3% in 2029 is projected by forecasters from Treasury.",
+    ],
+)
+def test_the_authors_own_analysts_named_with_its_organisation_are_the_author(sentence):
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    ("sentence", "role", "issuer"),
+    [
+        # Another organisation's analysts, for an author label.
+        ("Growth of 3% in 2029 is forecast by analysts at ANZ.", "author", "The Treasury"),
+        (
+            "Growth of 3% in 2029 is forecast by analysts at ANZ and the Treasury.",
+            "author",
+            "The Treasury",
+        ),
+        # The author's analysts do not answer a THIRD PARTY's label.
+        (
+            "Growth of 3% in 2029 is forecast by analysts at the Treasury, while ANZ was silent.",
+            "third_party",
+            "ANZ",
+        ),
+    ],
+)
+def test_only_the_authors_own_organisation_is_the_author(sentence, role, issuer):
+    assert "issuer_mismatch" in codes(authors(sentence, role, issuer))
+
+
+# Round 8, finding 2: an earlier reporter's separate figure does not reach the claimed group's own forecast.
+@pytest.mark.parametrize(
+    ("sentence", "issuer"),
+    [
+        (
+            "The IMF said growth would be 2% in 2029, but analysts expect growth of 3% in 2029.",
+            "Analysts",
+        ),
+        (
+            "The OECD says growth will be 2% in 2029; most analysts now expect growth of 3% in 2029.",
+            "Most analysts",
+        ),
+        (
+            "The IMF said growth would be 2% in 2029, but growth of 3% in 2029 is forecast by analysts.",
+            "Analysts",
+        ),
+    ],
+)
+def test_an_earlier_reporters_figure_does_not_reach_the_claimed_groups_own_forecast(
+    sentence, issuer
+):
+    report = authors(sentence, "third_party", issuer)
+    assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+@pytest.mark.parametrize(
+    ("sentence", "issuer"),
+    [
+        # The reporter gives the claimed figure, so the group label is wrong.
+        (
+            "Analysts expect growth of 2% in 2028, while the IMF said growth would be 3% in 2029.",
+            "Analysts",
+        ),
+        ("The IMF said growth would be 3% in 2029, and analysts expect 2%.", "Analysts"),
+        ("The IMF said growth would be 3% in 2029.", "Analysts"),
+        # The group's credit belongs to another figure, not the claimed one.
+        (
+            "The IMF said growth would be 2% in 2028, but growth of 3% in 2029 is ours, and analysts expect 4%.",
+            "Analysts",
+        ),
+        # A group credit that is only a comparison does not reset anything.
+        ("The IMF said growth would be 3% in 2029, higher than analysts expect.", "Analysts"),
+        ("The IMF said growth would be 3% in 2029, higher than forecast by analysts.", "Analysts"),
+    ],
+)
+def test_a_reporter_who_gives_the_claimed_figure_still_blocks_a_group_label(sentence, issuer):
+    assert codes(authors(sentence, "third_party", issuer)) & {
+        "issuer_mismatch",
+        "issuer_not_in_evidence",
+    }

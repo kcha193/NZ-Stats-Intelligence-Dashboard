@@ -380,9 +380,9 @@ def answer_group(keys: set[str], name: str, claimed: str | None) -> set[str]:
     return keys - {f"group@{claimed}"} if claimed else keys
 
 
-def reported_more(text: str) -> set[str]:
-    """Outside groups and reporters that `text` makes the forecaster, by the wording above. Rejection only: see the note there."""
-    keys: set[str] = set()
+def _group_credits(text: str) -> list[re.Match[str]]:
+    """The matches in `text` that make an outside group the forecaster. The one place that decides it: rejecting and resetting share it."""
+    found = []
     for m in _GROUP_EXPECTS.finditer(text):
         before = text[: m.start()]
         words = before.split()
@@ -390,13 +390,34 @@ def reported_more(text: str) -> set[str]:
         if not _COMPARED_WITH.search(before) and (
             starts_clause or words[-1].lower() in _BEFORE_MARKET | _LEAD_IN
         ):
-            keys.add(_group_key(m))
+            found.append(m)
     for pattern in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP):
-        keys |= {
-            _group_key(m)
-            for m in pattern.finditer(text)
-            if not _COMPARED_WITH.search(text[: m.start()])
-        }
+        found += [m for m in pattern.finditer(text) if not _COMPARED_WITH.search(text[: m.start()])]
+    return found
+
+
+def since_group(before: str, after: str) -> str:
+    """What `before` says after the claimed GROUP's own forecast, so that an earlier reporter's separate figure does not reach it.
+
+    The group is credited before the figure ("…but analysts expect growth of 3%"), or right after it in one clause ("growth of 3% is
+    forecast by analysts"), in which case only a contrast ends the earlier assertion. Otherwise nothing is reset.
+    """
+    ends = [m.end() for m in _group_credits(before)]
+    if ends:
+        return before[max(ends) :]
+    tail = own_assertion(after)
+    for pattern in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP):
+        for m in pattern.finditer(tail):
+            gap = tail[: m.start()]
+            if not _COMPARED_AFTER_FIGURE.search(gap) and not _CLAUSE_END.search(gap):
+                cuts = [c.end() for c in _NEXT_ASSERTION.finditer(before)]
+                return before[max(cuts, default=0) :]
+    return before
+
+
+def reported_more(text: str) -> set[str]:
+    """Outside groups and reporters that `text` makes the forecaster, by the wording above. Rejection only: see the note there."""
+    keys: set[str] = {_group_key(m) for m in _group_credits(text)}
     keys |= {
         key
         for key, pattern in _SAID_PATTERNS.items()
@@ -410,11 +431,12 @@ def more_around(before: str, after: str, who: str | None, author: str | None) ->
 
     A "which" clause that only comments on the year or the forecast ("which analysts expect to be a testing year") credits nobody.
     """
-    lead = (
-        _since_author_and_people(before, author)
-        if who in (None, "author")
-        else since_credit(before, who, author)
-    )
+    if who == "group":
+        lead = since_group(before, after)
+    elif who in (None, "author"):
+        lead = _since_author_and_people(before, author)
+    else:
+        lead = since_credit(before, who, author)
     keys = reported_more(lead)
     after = own_assertion(after)
     # After the figure only the passive and "according to" forms can name who made it, unless the group is only the other side of
@@ -438,7 +460,8 @@ def more_around(before: str, after: str, who: str | None, author: str | None) ->
                 clause,
             )
         keys |= reported_more(clause)
-    return keys - {author}
+    # The author's own analysts ("analysts at the Treasury") are the author speaking, for an author label only.
+    return keys - {author} - ({f"group@{author}"} if who == "author" else set())
 
 
 def since_credit(before: str, who: str | None, author: str | None) -> str:
