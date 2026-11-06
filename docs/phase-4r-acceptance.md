@@ -134,20 +134,21 @@ the same generated sentences run through the previous and the new code, expectin
 | 7 | A group at one named organisation ("analysts at ANZ") with that organisation's own label | Fixed: `group@<org>`, third-party labels only |
 | 8 | The author's own organisation's analysts; an earlier reporter's figure before the claimed group's own forecast | Fixed |
 | 9 | The owner-review index showed model-derived decision sections and the period worksheet before gold existed (only the packet link was gated) | Fixed at the server: see the owner review package above |
+| 10 | The affiliation capture (`analysts at the Treasury after discussions with ANZ`) ran on, because the pattern is compiled case-insensitively | Fixed: names are matched case-sensitively, joined only by explicit connectors, and may hold "of", "for", "and" and macron capitals. The first version of this fix dropped the credit for "Reserve Bank of New Zealand"; a probe of the fix, not a review, found it |
 
 ### Convergence review of PR #46
 
 Thirteen review threads over nine pushes, then one pass that grouped them by cause, not by round, and audited the neighbours instead of waiting for the next review.
 The method: a generated matrix whose answer is known by construction (`tests/research/attribution_matrix.py`), run against the PR baseline `1c021c9`, the previous
 head `905100f` and the fixed tree; each row is classed `correct`, `over_reject` (a true label refused, which fails closed) or `under_reject` (a wrong label
-accepted, a safety defect). 60,188 rows from 8,491 invented sentences, covering several forecasts in one sentence, several organisations, figures and indicators, the
+accepted, a safety defect). 61,070 rows from 8,707 invented sentences, covering several forecasts in one sentence, several organisations, figures and indicators, the
 author against a third party, the author's own analysts, modified group names, passive and "according to" wording, speech verbs, comparisons, relative clauses,
-comments on the year and a reporter's separate figure.
+comments on the year, a reporter's separate figure, and (added for push 10) an affiliation followed by more words and organisations named in full.
 
 | Cause | Pushes | What was wrong | Correction |
 |---|---|---|---|
 | A. Scope | 2, 3, 4, 8, and 604 latent rows the matrix found | Each check read the sentence from its own start and reset on its own vocabulary, so an earlier assertion's forecaster reached a later figure that named its own | `claimed_scope()`: one cut for every scan of the new wording. A boundary (contrast, semicolon, ", and", ", which", a comparator) cuts only when the claimed side names its forecaster, before the figure or as a "forecast by"/"according to" agent after it. A bare mention, "but only 2% in 2030" and "only if banks cut rates" cut nothing |
-| B. Duplicated vocabulary | 1, 3, 6, 7 | Group wording, speech verbs and comment filters existed in several copies | `_group_credits` (credits), `_without_comments` (one filter for both sides of the figure) and `_names_its_forecaster` (one question for every kind of credit). A group credit after "which" is now read before the figure too, which closed 12 author-label misattributions that `905100f` still accepted |
+| B. Duplicated vocabulary or a pattern broader than its intent | 1, 3, 6, 7, 10 | Group wording, speech verbs and comment filters existed in several copies | `_group_credits` (credits), `_without_comments` (one filter for both sides of the figure) and `_names_its_forecaster` (one question for every kind of credit). A group credit after "which" is now read before the figure too, which closed 12 author-label misattributions that `905100f` still accepted |
 | C. A fix reopening an earlier case | 8 (push 7's `group@<org>` broke the author's own analysts), 9 (push 1's link fix left the content open) and the 604 | Each fix was checked against its own sentence only | The historical registry (below) holds every reproducer with its neighbours and both label roles |
 | D. A gate on the wrong layer | 1 and 9 | Links were gated; the content that exposed model output was not | The gate is one server-side decision that selects which page is built |
 | E. Form against validator | 5 | The form allowed one claim per sentence | Fixed in the form. Audit: 1,500 random row sets, the form never accepts a file `load_extension` refuses. It exposed that the validator checked an AI name on the reviewer only, not the annotator; now both |
@@ -158,13 +159,13 @@ comments on the year and a reporter's separate figure.
 
 | | Correct | True label refused | Wrong label accepted | Author label accepted for an outside forecaster |
 |---|---|---|---|---|
-| PR baseline `1c021c9` | 42,259 | 4,804 | 13,125 | 4,715 |
-| `905100f` (before this pass) | 50,855 | 5,408 | 3,925 | 12 |
-| This tree | 51,504 | **4,804** | 3,880 | **0** |
+| PR baseline `1c021c9` | 42,830 | 4,818 | 13,422 | 4,828 |
+| `905100f` (before this pass) | 51,493 | 5,495 | 4,082 | 27 |
+| `30b858c` (first push of this pass) | 52,142 | 4,891 | 4,037 | 15 |
+| This tree | 52,240 | **4,818** | 4,012 | **0** |
 
-* Against the baseline: **0 rows newly accepted** (the monotonic guarantee), 9,245 newly refused and every one a wrong label, **0 true labels newly refused**. `905100f` had 604.
-* Against `905100f`: 607 newly accepted (604 true labels, plus 3 that are the documented generic-label residual below) and 48 newly refused, all wrong labels
-  (the "which analysts say" shape). The semantic classes of the 604 are: another assertion's group credit reaching a later figure (449), a "which" clause with a
+* Against the baseline: **0 rows newly accepted** (the monotonic guarantee), 9,410 newly refused and every one a wrong label, **0 true labels newly refused**. `905100f` had 604 (before the push-10 classes were added to the matrix).
+* Against `905100f`: 680 newly accepted and 73 newly refused, none of the 73 a true label (the "which analysts say" shape and organisations named in full). Against `30b858c`: 73 newly accepted, all true, and 25 newly refused, all wrong labels (names that run on). The semantic classes of the 604 are: another assertion's group credit reaching a later figure (449), a "which" clause with a
   figure of its own (106), a comparison with a figure (45), and a reporter's earlier figure (4).
 * The 74-row registry of every historical finding (`test_codex_review_history.py`): baseline 38 correct, 34 wrong labels accepted, 2 true labels refused;
   `905100f` 69, 0, 5; this tree **72, 0, 2**. The 2 are older-wording limits, identical at the baseline, and the test asserts them exactly.
@@ -174,17 +175,17 @@ comments on the year and a reporter's separate figure.
 
 **What did not change, and why (known limits, all fail closed or were already accepted at the baseline).**
 
-* 4,804 true labels are still refused, **the same 4,804 rows the baseline refuses**, all by the older Phase 4I wording, which scans the whole sentence for a credit
+* 4,818 true labels are still refused, **the same 4,818 rows the baseline refuses**, all by the older Phase 4I wording, which scans the whole sentence for a credit
   ("Growth of 3% in 2029 is forecast by the IMF, and analysts at ANZ predict inflation of 2%" refuses the ANZ label for the 2%).
-* 3,880 wrong labels are still accepted, **all of them accepted at the baseline too**, all third-party labels and none the author's: 3,273 by the documented rule that a
+* 4,012 wrong labels are still accepted, **all of them accepted at the baseline too**, all third-party labels and none the author's: 3,405 by the documented rule that a
   generic group label ("Analysts", "Banks") answers every group block and only its noun is compared, and 607 by the older rule that a named third party's label passes when
   that organisation is credited elsewhere in the sentence.
 * "A group label's modifiers are not compared with the evidence's", an unlisted organisation ("analysts at Acme"), "ANZ analysts expect…" and "expected by market
   economists" are as before.
 
 **Follow-up proposal (not in this PR, which keeps the older wording byte-identical).** A reviewed `verify-5`, with the same method and a fresh independent review:
-(1) apply `claimed_scope` to `third_parties_around`, `_credited` and `reported`, which removes the 4,804 refusals; (2) answer a generic group label only for its own
-noun and, for "analysts at ANZ", only for the organisation, which removes the 3,273; (3) require the credited organisation to be the figure's own, not the sentence's, which
+(1) apply `claimed_scope` to `third_parties_around`, `_credited` and `reported`, which removes the 4,818 refusals; (2) answer a generic group label only for its own
+noun and, for "analysts at ANZ", only for the organisation, which removes the 3,405; (3) require the credited organisation to be the figure's own, not the sentence's, which
 removes the 607. Each step can only be judged by a differential against `verify-4`, and (2) and (3) change what a third party's label proves, so they need the owner's decision first.
 A clause segmenter that returns assertions (a subject, a verb and its figures) would make (1) to (3) one change, and it is the right size for its own phase.
 
@@ -252,10 +253,10 @@ were last run at `881ab01` and were **not re-run** in this pass: no frontend, AP
 
 | Check | Result |
 |---|---|
-| Backend suite | **4,932 passed**, 1 existing warning, 6 min 11 s |
+| Backend suite | **4,964 passed**, 1 existing warning, 6 min 3 s |
 | Ruff lint, format | Clean |
 | Frontend tests, typecheck, build | 546 passed, clean, built (frontend diff against main is empty) |
-| Attribution matrix, 60,188 rows, three revisions | 0 newly accepted against the baseline, 0 true labels newly refused, author label never accepted for an outsider (details above) |
+| Attribution matrix, 61,070 rows, four revisions | 0 newly accepted against the baseline, 0 true labels newly refused, author label never accepted for an outsider (details above) |
 | Browser suite, research browser suite | Last run at `881ab01`: 174 passed. 18 passed, 3 skipped. Not re-run |
 | Static and public isolation | Last run at `881ab01`: 315 passed, 24 skipped on the rerun. **The first run had 1 failure**: a full-page pixel parity spec (card spending, desktop) that then passed alone and in the full rerun. Recorded as a visual-timing flake. Not re-run |
 | Dependency audit, npm | 0 vulnerabilities |

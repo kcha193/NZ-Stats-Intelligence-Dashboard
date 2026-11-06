@@ -818,3 +818,148 @@ def test_a_cut_is_never_made_where_the_earlier_credit_may_still_reach_the_figure
 ):
     report = authors(sentence, role, issuer, value)
     assert codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+# ---- Convergence review, cycle 1 (Codex P2 on 30b858c): the affiliation ends at the organisation's name ----------------------------
+# "analysts at the Treasury after discussions with ANZ" is the Treasury's analysts, whatever else the sentence names afterwards.
+# Names joined by "and", "or", "&" or a comma are still one affiliation to several organisations, which no single label answers.
+AFFILIATION_ACCEPTED = [
+    (
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury after discussions with ANZ.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury, following talks with ANZ.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Analysts at the Treasury expect growth of 3% in 2029 after discussions with ANZ.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at ANZ following talks with the Treasury.",
+        "third_party",
+        "ANZ",
+    ),
+    (
+        "According to analysts at ANZ after a meeting with Westpac, growth will be 3% in 2029.",
+        "third_party",
+        "ANZ",
+    ),
+]
+
+
+@pytest.mark.parametrize(("sentence", "role", "issuer"), AFFILIATION_ACCEPTED)
+def test_a_later_organisation_does_not_change_whose_analysts_they_are(sentence, role, issuer):
+    assert not codes(authors(sentence, role, issuer)) & {
+        "issuer_mismatch",
+        "issuer_not_in_evidence",
+    }
+
+
+AFFILIATION_STILL_BLOCKED = [
+    (
+        "Growth of 3% in 2029 is forecast by analysts at ANZ after discussions with the Treasury.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury after discussions with ANZ.",
+        "third_party",
+        "ANZ",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury and ANZ.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury or ANZ.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury, ANZ.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at ANZ & the Treasury.",
+        "author",
+        "The Treasury",
+    ),
+    ("Growth of 3% in 2029 is forecast by analysts at ANZ and Westpac.", "third_party", "ANZ"),
+    ("Analysts at ANZ and the Treasury expect growth of 3% in 2029.", "third_party", "ANZ"),
+]
+
+
+@pytest.mark.parametrize(("sentence", "role", "issuer"), AFFILIATION_STILL_BLOCKED)
+def test_several_organisations_joined_by_a_connector_still_answer_no_single_label(
+    sentence, role, issuer
+):
+    assert codes(authors(sentence, role, issuer)) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+# A name may hold lowercase words and macron capitals, and it is still ONE organisation. Found by probing the fix above: capturing
+# only capitalised words dropped the group credit for "Reserve Bank of New Zealand", which the previous commit still refused.
+FULL_NAMES_ACCEPTED = [
+    (
+        "Analysts at the Reserve Bank of New Zealand expect growth of 3% in 2029.",
+        "third_party",
+        "Reserve Bank of New Zealand",
+    ),
+    (
+        "Analysts at the Organisation for Economic Co-operation and Development expect growth of 3% in 2029.",
+        "third_party",
+        "OECD",
+    ),
+    ("Analysts at Te Tai Ōhanga expect growth of 3% in 2029.", "author", "The Treasury"),
+]
+
+
+@pytest.mark.parametrize(("sentence", "role", "issuer"), FULL_NAMES_ACCEPTED)
+def test_a_full_organisation_name_with_lowercase_words_is_one_organisation(sentence, role, issuer):
+    assert not codes(authors(sentence, role, issuer)) & {
+        "issuer_mismatch",
+        "issuer_not_in_evidence",
+    }
+
+
+FULL_NAMES_BLOCKED = [
+    (
+        "Analysts at the Reserve Bank of New Zealand expect growth of 3% in 2029.",
+        "author",
+        "The Treasury",
+    ),
+    ("Analysts at Bank of New Zealand expect growth of 3% in 2029.", "author", "The Treasury"),
+    (
+        "Analysts at the Organisation for Economic Co-operation and Development expect growth of 3% in 2029.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by analysts at the Federal Reserve Bank of New York.",
+        "author",
+        "The Treasury",
+    ),
+    (
+        "Analysts at the Reserve Bank of New Zealand expect growth of 3% in 2029.",
+        "third_party",
+        "ANZ",
+    ),
+    (
+        "Analysts at the Reserve Bank of New Zealand and ANZ expect growth of 3% in 2029.",
+        "third_party",
+        "ANZ",
+    ),
+]
+
+
+@pytest.mark.parametrize(("sentence", "role", "issuer"), FULL_NAMES_BLOCKED)
+def test_a_group_at_a_fully_named_organisation_is_not_the_author_or_another_organisation(
+    sentence, role, issuer
+):
+    assert codes(authors(sentence, role, issuer)) & {"issuer_mismatch", "issuer_not_in_evidence"}

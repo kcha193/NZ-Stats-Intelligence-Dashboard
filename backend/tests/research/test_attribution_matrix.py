@@ -8,7 +8,7 @@ The generator and its oracle are in `attribution_matrix.py`. Two kinds of test l
   and update the table with the reason. An improvement is not a licence to trade away a safety row, so it has to be looked at.
 
 "over_reject" is a true label refused (the summary fails, closed). "under_reject" is a wrong label accepted (a safety defect).
-At the PR baseline the older wording was the only check: 4,804 true labels refused and 13,125 wrong labels accepted on this matrix.
+At the PR baseline the older wording was the only check: 4,818 true labels refused and 13,422 wrong labels accepted on this matrix.
 """
 
 from collections import Counter
@@ -46,12 +46,14 @@ def test_the_matrix_is_deterministic_and_covers_every_class():
         "which_gives_figure",
         "reporter_then_forecaster",
         "forecaster_then_reporter",
+        "affiliation_then_more",
+        "full_name_affiliation",
     }
     assert len(ALL) > 7000
 
 
 def test_an_outside_forecasters_figure_is_never_accepted_as_the_authors_in_any_sentence():
-    """The Phase 4R guarantee, over every sentence of the matrix (the PR baseline accepted 4,715 of these)."""
+    """The Phase 4R guarantee, over every sentence of the matrix (the PR baseline accepted 4,828 of these)."""
     leaked = [
         (c.sentence, f.value)
         for c in ALL
@@ -92,6 +94,9 @@ def test_no_sentence_of_the_matrix_crashes_the_verifier():
 
 # The outcome table, on every fourth case. Rows: (class, outcome) -> count of (case, figure, label) triples.
 EXPECTED = {
+    ("affiliation_then_more", "correct"): 104,
+    ("affiliation_then_more", "over_reject"): 2,
+    ("affiliation_then_more", "under_reject"): 14,
     ("comparison", "correct"): 615,
     ("comparison", "over_reject"): 61,
     ("comparison", "under_reject"): 56,
@@ -101,6 +106,9 @@ EXPECTED = {
     ("forecaster_then_reporter", "correct"): 178,
     ("forecaster_then_reporter", "over_reject"): 18,
     ("forecaster_then_reporter", "under_reject"): 2,
+    ("full_name_affiliation", "correct"): 83,
+    ("full_name_affiliation", "over_reject"): 2,
+    ("full_name_affiliation", "under_reject"): 18,
     ("single", "correct"): 99,
     ("single", "under_reject"): 3,
     ("two_forecasts", "correct"): 9106,

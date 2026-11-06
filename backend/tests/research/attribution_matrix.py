@@ -87,6 +87,42 @@ ENTITIES: dict[str, Entity] = {
     )
 }
 
+# Analysts at an organisation that is named in full. Kept apart from ENTITIES so that the pairwise compositions do not multiply.
+FULL_NAME_ENTITIES: dict[str, Entity] = {
+    e.key: e
+    for e in (
+        Entity(
+            "rbnz_group",
+            ("Analysts at the Reserve Bank of New Zealand",),
+            ("analysts at the Reserve Bank of New Zealand",),
+            False,
+            (("third_party", "Reserve Bank of New Zealand"), ("third_party", "RBNZ")),
+        ),
+        Entity(
+            "oecd_group",
+            ("Analysts at the Organisation for Economic Co-operation and Development",),
+            ("analysts at the Organisation for Economic Co-operation and Development",),
+            False,
+            (("third_party", "OECD"),),
+        ),
+        Entity(
+            "bnz_group",
+            ("Analysts at Bank of New Zealand",),
+            ("analysts at Bank of New Zealand",),
+            False,
+            (("third_party", "Bank of New Zealand"), ("third_party", "BNZ")),
+        ),
+        Entity(
+            "treasury_maori_group",
+            ("Analysts at Te Tai Ōhanga",),
+            ("analysts at Te Tai Ōhanga",),
+            False,
+            (AUTHOR_LABEL,),
+        ),
+    )
+}
+_EVERY_ENTITY = ENTITIES | FULL_NAME_ENTITIES
+
 FORECAST_VERBS = ("expect", "forecast", "project", "predict", "anticipate")
 COMMENTS = ("a challenging year", "a testing year", "too optimistic", "a tough year")
 
@@ -123,7 +159,7 @@ def _takes_s(entity: Entity, subject: str) -> bool:
 
 def assertions(key: str, ind: str, n: int) -> Iterator[tuple[str, str]]:
     """(form, text) for the surface forms of `key` saying that `ind` will be `n`% in 2029."""
-    e = ENTITIES[key]
+    e = _EVERY_ENTITY[key]
     for i, subject in enumerate(e.subjects):
         s = _takes_s(e, subject)
         for verb in FORECAST_VERBS[: 2 if i else len(FORECAST_VERBS)]:
@@ -268,6 +304,49 @@ def _reporters() -> Iterator[Case]:
                 )
 
 
+def _affiliation_then_more() -> Iterator[Case]:
+    """Words after "analysts at <organisation>" do not change whose analysts they are, whichever organisation they name."""
+    others = {"author_group": ("ANZ", "Westpac"), "anz_group": ("the Treasury", "Westpac")}
+    tails = (
+        " after discussions with {o}",
+        " following talks with {o}",
+        " after a meeting with {o}",
+        ", according to a survey by {o}",
+    )
+    for key, orgs in others.items():
+        forms = [
+            t for f, t in assertions(key, "growth", 3) if f in ("active", "passive", "expected_by")
+        ]
+        for text in forms:
+            for org in orgs:
+                for tail in tails:
+                    yield Case(
+                        f"affiliation/{key}/{text}{tail.format(o=org)}",
+                        "affiliation_then_more",
+                        _end(text + tail.format(o=org)),
+                        (Figure(3, "2029", key),),
+                    )
+
+
+def _full_names() -> Iterator[Case]:
+    """Organisations named in full, with and without words after them: still one organisation, still not the author's (bar the Treasury's own)."""
+    tails = ("", " after discussions with ANZ", " following talks with Westpac")
+    for key in FULL_NAME_ENTITIES:
+        forms = [
+            t for f, t in assertions(key, "growth", 3) if f in ("active", "passive", "according")
+        ]
+        for text in forms:
+            for tail in tails:
+                if text.startswith("According to") and tail:
+                    continue
+                yield Case(
+                    f"fullname/{key}/{text}{tail}",
+                    "full_name_affiliation",
+                    _end(text + tail),
+                    (Figure(3, "2029", key),),
+                )
+
+
 def cases() -> list[Case]:
     out: list[Case] = []
     for part in (
@@ -277,6 +356,8 @@ def cases() -> list[Case]:
         _comparisons,
         _year_comments,
         _reporters,
+        _affiliation_then_more,
+        _full_names,
     ):
         out += list(part())
     return out
@@ -289,7 +370,7 @@ def labels_for(case: Case) -> list[tuple[str, str]]:
     """The labels worth trying: the author's, those of every entity the sentence names, and one nobody in it is called."""
     seen: list[tuple[str, str]] = [AUTHOR_LABEL]
     lowered = case.sentence.lower()
-    for key, e in ENTITIES.items():
+    for key, e in _EVERY_ENTITY.items():
         named = key in case.entities or any(t.lower() in lowered for t in (*e.subjects, *e.agents))
         if named:
             seen += [label for label in e.labels if label not in seen]
@@ -298,7 +379,7 @@ def labels_for(case: Case) -> list[tuple[str, str]]:
 
 def truth(figure: Figure, label: tuple[str, str]) -> bool:
     """Does `label` name the forecaster of `figure`?"""
-    return label in ENTITIES[figure.maker].labels
+    return label in _EVERY_ENTITY[figure.maker].labels
 
 
 def outcome(expected_accept: bool, refused: bool) -> str:

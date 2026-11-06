@@ -416,6 +416,71 @@ ROWS = [
         3,
         False,
     ),
+    # R12 30b858c: the affiliation ends at the organisation's name; a later organisation does not change whose analysts they are.
+    (
+        "R12 ORIGINAL",
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury after discussions with ANZ.",
+        A,
+        TREASURY,
+        3,
+        True,
+    ),
+    (
+        "R12 near",
+        "Analysts at the Treasury expect growth of 3% in 2029 after discussions with ANZ.",
+        A,
+        TREASURY,
+        3,
+        True,
+    ),
+    (
+        "R12 near",
+        "Growth of 3% in 2029 is forecast by analysts at ANZ following talks with the Treasury.",
+        T,
+        "ANZ",
+        3,
+        True,
+    ),
+    (
+        "R12 near",
+        "Growth of 3% in 2029 is forecast by analysts at ANZ following talks with the Treasury.",
+        A,
+        TREASURY,
+        3,
+        False,
+    ),
+    (
+        "R12 near",
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury after discussions with ANZ.",
+        T,
+        "ANZ",
+        3,
+        False,
+    ),
+    (
+        "R12 near",
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury and ANZ.",
+        A,
+        TREASURY,
+        3,
+        False,
+    ),
+    (
+        "R12 near",
+        "Growth of 3% in 2029 is forecast by analysts at the Treasury, ANZ.",
+        A,
+        TREASURY,
+        3,
+        False,
+    ),
+    (
+        "R12 near",
+        "Growth of 3% in 2029 is forecast by analysts at ANZ and Westpac.",
+        T,
+        "ANZ",
+        3,
+        False,
+    ),
 ]
 # Rows where the sentence's meaning and the verifier disagree because of the OLDER Phase 4I check ("the evidence credits this forecast to
 # the author"), which Phase 4R leaves byte-identical. Identical message at the PR baseline 1c021c9, at 905100f and now. Each is a TRUE label
@@ -449,7 +514,7 @@ def test_each_review_finding_keeps_its_original_reproducer_and_neighbours(row):
 
 def test_the_table_covers_every_review_round_with_an_original_reproducer_and_both_roles():
     rounds = {row[0].split()[0] for row in ROWS}
-    assert rounds == {"R1", "R3", "R4a", "R4b", "R5", "R7", "R7b", "R8", "R9", "R10", "R11"}
+    assert rounds == {"R1", "R3", "R4a", "R4b", "R5", "R7", "R7b", "R8", "R9", "R10", "R11", "R12"}
     for r in rounds:
         mine = [row for row in ROWS if row[0].split()[0] == r]
         assert any("ORIGINAL" in row[0] for row in mine)

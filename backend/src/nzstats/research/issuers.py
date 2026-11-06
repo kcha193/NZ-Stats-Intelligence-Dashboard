@@ -105,7 +105,14 @@ _OTHER_PEOPLE = (
 _OWN_PEOPLE = re.compile(
     rf"(?:['’]s)?\s*{_OTHER_PEOPLE}(?:\s*(?:,|and)\s*{_OTHER_PEOPLE})*\b", re.IGNORECASE
 )
-_AT_AN_ORGANISATION = r"(?:\s+(?:at|from)\s+(?P<org>(?:the\s+)?[A-Z][\w&]*(?:\s+[A-Z][\w&]*)*))?"
+# The organisation a group is "at": capitalised names, matched CASE-SENSITIVELY (these patterns are compiled with IGNORECASE, under which
+# [A-Z] would take any word and "at the Treasury after discussions with ANZ" would name two organisations). Several names count only
+# when an explicit connector joins them ("ANZ and Westpac", "the Treasury, ANZ"); any other lowercase word ends the affiliation.
+_ORG_WORD = r"[A-ZĀĒĪŌŪ][\w&-]*"
+# A name may hold lowercase words between capitalised ones ("Reserve Bank of New Zealand", "Organisation for Economic Co-operation and
+# Development"). They are the same connectors that join two organisations, so how many are named is decided by what they resolve to.
+_ORG_NAME = rf"(?-i:(?:[Tt]he\s+)?{_ORG_WORD}(?:(?:\s*,\s*|\s+(?:(?:of|for|and|or|the|&)\s+)*){_ORG_WORD})*)"
+_AT_AN_ORGANISATION = rf"(?:\s+(?:at|from)\s+(?P<org>{_ORG_NAME}))?"
 _GROUP_EXPECTS = re.compile(
     rf"\b{_GROUP}{_AT_AN_ORGANISATION}\s+(?:(?:now|still|also|currently|mostly)\s+)?"
     r"(?:expect(?:s\b|ed(?!\s+(?:not\s+|never\s+)?to\b)\b|\b)"
@@ -365,7 +372,11 @@ def _group_key(m: re.Match[str]) -> str:
 
     Anything less certain stays the plain "group": two organisations, none that this module knows, or none at all.
     """
-    at = {key for key in named(m.group("org") or "") if key != "market"}
+    # "Reserve Bank of New Zealand" holds "Bank of New Zealand" (BNZ): it is one organisation, as in `reported`.
+    org = re.sub(
+        r"Reserve Bank of New Zealand", "Reserve Bank", m.group("org") or "", flags=re.IGNORECASE
+    )
+    at = {key for key in named(org) if key != "market"}
     return f"group@{next(iter(at))}" if len(at) == 1 else "group"
 
 
