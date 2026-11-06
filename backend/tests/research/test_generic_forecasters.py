@@ -333,3 +333,74 @@ def test_a_named_reporter_commenting_on_the_year_is_not_the_forecaster(sentence)
 )
 def test_a_named_reporter_in_a_which_clause_that_is_not_a_comment_still_blocks(sentence):
     assert "issuer_mismatch" in codes(authors(sentence))
+
+
+# Review of PR 46 (Codex, P2, round 4): a group that is the agent of ANOTHER indicator's own passive is not the claimed figure's source.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, and inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, and inflation of 2% in 2030 is expected by investors.",
+        "We expect growth of 3% in 2029 and the unemployment rate of 4% was projected by market economists.",
+        "We expect growth of 3% in 2029, and the cash rate of 3.5% will be forecast by the banks.",
+        "We expect growth of 3% in 2029, and wage growth of 2% has been predicted by independent forecasters.",
+        # Other ways to open that clause.
+        "We expect growth of 3% in 2029 (inflation of 2% is forecast by analysts).",
+        "We expect growth of 3% in 2029 - inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029 \u2014 inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, as inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, because inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, although inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, inflation of 2% is forecast by analysts.",
+    ],
+)
+def test_another_indicators_own_passive_does_not_make_its_group_the_source_of_the_claimed_figure(
+    sentence,
+):
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        # Several figures under one attribution: no clause of its own for the second figure.
+        "We expect growth of 3% in 2029 and 4% in 2030, which is forecast by analysts.",
+        "We expect growth of 3% in 2029 and 4% in 2030 are forecast by analysts.",
+        # Detached attribution may cover both figures.
+        "We expect growth of 3% in 2029, and inflation of 2%, as forecast by analysts.",
+        "We expect growth of 3% in 2029, with inflation at 2% as forecast by analysts.",
+        "We expect growth of 3% in 2029, with inflation at 2% now forecast by analysts.",
+        "We expect growth of 3% in 2029, and inflation of 2% forecast by analysts.",
+        "We expect growth of 3% in 2029, and inflation of 2% according to analysts.",
+        # No second figure at all, or the passive belongs to the claimed figure.
+        "We expect growth of 3% in 2029, and it is forecast by analysts.",
+        "We expect growth of 3% in 2029, and that is expected by investors.",
+        "We expect growth of 3% in 2029, and inflation is forecast by analysts.",
+        # The group comes before the second clause.
+        "Growth of 3% in 2029 is forecast by analysts, and inflation of 2% is ours.",
+        # A second figure without a subject of its own, or a passive that is not finite, may still be about the claimed figure.
+        "We expect growth of 3% in 2029, inflation of 2% and 4% in 2030 are forecast by analysts.",
+        "We expect growth of 3% in 2029 (and 4% in 2030 are forecast by analysts).",
+        # A pronoun or a bare connective is no subject of its own: "that of 2%" and "and of 2%" point back at the claimed figure.
+        "We expect growth of 3% in 2029, and that of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, and it at 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, and of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, this of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, with inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029, without inflation of 2% is forecast by analysts.",
+        "We expect growth of 3% in 2029 and also of 2% is forecast by analysts.",
+        # The second clause is not a subject with a figure of its own.
+        "We expect growth of 3% in 2029, and over 2030 it is forecast by analysts.",
+    ],
+)
+def test_a_group_that_may_still_be_the_source_of_the_claimed_figure_still_blocks(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+def test_a_second_indicators_passive_does_not_excuse_a_group_that_wrote_the_claimed_figure():
+    report = authors(
+        "Analysts expect growth of 3% in 2029, and inflation of 2% is forecast by the IMF.",
+        "author",
+        "The Treasury",
+    )
+    assert "issuer_mismatch" in codes(report)

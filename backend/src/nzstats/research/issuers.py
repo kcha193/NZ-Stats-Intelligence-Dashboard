@@ -393,6 +393,7 @@ def more_around(before: str, after: str, who: str | None, author: str | None) ->
     # a comparison ("higher than forecast by analysts").
     if any(
         not _COMPARED_AFTER_FIGURE.search(after[: m.start()])
+        and not _OWN_PASSIVE_CLAUSE.search(after[: m.start()])
         for p in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP)
         for m in p.finditer(after)
     ):
@@ -451,6 +452,27 @@ _FIGURE = re.compile(
 )
 # Only a contrast opens a new assertion. A bare "and" may coordinate figures under one credit, so it never ends one.
 _NEXT_ASSERTION = re.compile(r";|,?\s*\b(?:while|whereas|but|then)\b", re.IGNORECASE)
+
+# After the figure, a group is the agent of a LATER clause's own finite passive when a clause with a subject and a figure of its own
+# comes first: "…3% in 2029, and inflation of 2% is forecast by analysts", or after a bracket, a dash, "as" or "because". `own_assertion`
+# ends an assertion at "while" or "but" but never at a bare "and" (which may coordinate figures under one credit), so this is checked
+# here, for the new wording only.
+# It is deliberately narrow: the clause needs a subject noun, a figure, at most one short prepositional phrase and a finite auxiliary
+# right before the passive. "3% and 4% are forecast by analysts", "…, and inflation of 2%, as forecast by analysts", "with inflation at
+# 2% forecast by analysts" and "…inflation of 2% according to analysts" may attribute the claimed figure too, so they stay rejected.
+# A subject noun, not a connective, a preposition or a pronoun: "that of 2%", "it at 2%" and "and of 2%" point back at the claimed figure,
+# and "with inflation of 2% is…" is no clause (the absolute "with inflation at 2% now forecast by…" is left rejected, as above).
+_SUBJECT_WORD = (
+    r"(?!(?:and|but|while|whereas|as|because|since|although|though|of|at|to|near|around|in|by|for|over|with|without|from|on|than|also|then|now|still|even|only|just"
+    r"|it|its|this|that|these|those|they|them|which|there)\b)[a-z][\w-]*"
+)
+_OWN_PASSIVE_CLAUSE = re.compile(
+    r"(?:[,(\u2013\u2014-]|\b(?:and|but|while|whereas|as|because|since|although|though))\s*(?:the\s+)?"
+    rf"(?:{_SUBJECT_WORD}\s+){{1,3}}(?:of|at|to|near|around)\s+"
+    rf"(?:{_FIGURE.pattern})(?:\s+(?:in|by|for|over)\s+[\w-]+(?:\s+[\w-]+)?)?"
+    r"\s+(?:is|are|was|were|will\s+be|would\s+be|has\s+been|have\s+been)\s+(?:(?:also|now|widely|generally)\s+)?\Z",
+    re.IGNORECASE,
+)
 
 # A relative clause ("…3% in 2029, which the IMF expects to be a challenging year") says something about its antecedent, and the
 # antecedent need not be the figure: it may be the year. A credit in it belongs to the figure unless the clause is positively a
