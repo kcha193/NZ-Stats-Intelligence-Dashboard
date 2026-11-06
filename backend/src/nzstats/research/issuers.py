@@ -96,7 +96,12 @@ _GROUP_NOUN = (
 _GROUP_MODIFIER = r"(?:(?:the|most|many|some|major|big|leading|local|domestic|australian|four)\s+)*"
 _GROUP = rf"{_GROUP_MODIFIER}(?:{_GROUP_NOUN})"
 # Only people a document can call its own ("our analysts"): never investors, banks or the like, and never "analysts at ANZ".
-_OTHER_PEOPLE = r"(?:analysts|forecasters|economists|staff|officials)(?!\s+(?:at|from)\s)"
+# The modifiers are those `_GROUP_NOUN` already reads as an outside group ("market analysts"), so "our market analysts" is not one.
+# An organisation's name is no modifier: "our ANZ analysts" is not skipped, and "market analysts at ANZ" is still outside.
+_OWN_MODIFIER = r"(?:(?:market|bank|private[- ]sector|independent|sell-side)\s+){0,2}"
+_OTHER_PEOPLE = (
+    rf"(?:{_OWN_MODIFIER}(?:analysts|forecasters|economists)|staff|officials)(?!\s+(?:at|from)\s)"
+)
 _OWN_PEOPLE = re.compile(
     rf"(?:['’]s)?\s*{_OTHER_PEOPLE}(?:\s*(?:,|and)\s*{_OTHER_PEOPLE})*\b", re.IGNORECASE
 )

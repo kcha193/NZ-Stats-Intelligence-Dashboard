@@ -160,3 +160,55 @@ def test_only_the_authors_own_kind_of_people_are_skipped(sentence):
 )
 def test_the_new_wording_is_not_waived_by_the_claimed_issuers_own_credit(sentence, issuer):
     assert "issuer_mismatch" in codes(authors(sentence, "third_party", issuer))
+
+
+# Review of PR 46 (Codex, P2): a modifier on the author's own kind of people ("our market analysts") is still the author speaking.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Our market analysts expect growth of 3% in 2029.",
+        "Our bank economists expect growth of 3% in 2029.",
+        "Our independent forecasters expect growth of 3% in 2029.",
+        "Our private-sector economists forecast growth of 3% in 2029.",
+        "Our sell-side analysts predict growth of 3% in 2029.",
+        "Our independent market analysts expect growth of 3% in 2029.",
+        "Our market analysts and independent forecasters expect growth of 3% in 2029.",
+        "Our staff, bank economists and market analysts expect growth of 3% in 2029.",
+        "Treasury market analysts expect growth of 3% in 2029.",
+        "The Treasury's bank economists expect growth of 3% in 2029.",
+    ],
+)
+def test_the_authors_own_people_keep_their_modifiers(sentence):
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        # The same wording without a self-reference is still an outside group.
+        "Market analysts expect growth of 3% in 2029.",
+        "Independent forecasters expect growth of 3% in 2029.",
+        "Bank economists expect growth of 3% in 2029.",
+        # Another organisation, or a different group, attached to the people.
+        "Our market analysts at ANZ expect growth of 3% in 2029.",
+        "Our bank economists from Westpac expect growth of 3% in 2029.",
+        "Our market analysts and investors expect growth of 3% in 2029.",
+        "Our market analysts and the banks expect growth of 3% in 2029.",
+        # A self-reference in a comparison, or an unrelated opening, does not hand the next words to the author.
+        "Unlike us, market analysts expect growth of 3% in 2029.",
+        "Treasury and market analysts expect growth of 3% in 2029.",
+        "Our forecast is 2%, but market analysts expect growth of 3% in 2029.",
+        "We said so, and independent forecasters now expect growth of 3% in 2029.",
+        # A modifier does not excuse a reporter.
+        "According to market analysts, growth will be 3% in 2029.",
+    ],
+)
+def test_a_modifier_does_not_turn_an_outside_group_into_the_authors_people(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+@pytest.mark.parametrize("issuer", ["Analysts", "Market analysts", "ANZ"])
+def test_our_market_analysts_are_not_credited_to_another_label(issuer):
+    # A third-party label on the author's own people's forecast stays an error, as before the fix.
+    report = authors("Our market analysts expect growth of 3% in 2029.", "third_party", issuer)
+    assert codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
