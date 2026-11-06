@@ -120,5 +120,14 @@ If the verifier rejects the summary, the raw measures still answer the question.
 
 ## Verification
 
-See `progress.md` for the entry. Commands: `pytest`, `ruff check .`, `ruff format --check .` in `backend/`; new tests in `backend/tests/research/test_pilot_treasury_v3.py` (17,
-each of the two ledger and plan guards checked by mutation: removing the guard fails the test that names it).
+Run on this branch with `PYTHONPATH` at the worktree (the venv's editable install points at main).
+
+| Check | Result |
+|---|---|
+| Backend suite | **4,994 passed, 5 skipped**, 0 failed, 5 min 58 s. The 5 skips are the jsdom gold-form tests (the worktree has no `node_modules`); they passed on main and this change does not touch the gold form |
+| Ruff lint, format | Clean |
+| New tests | `backend/tests/research/test_pilot_treasury_v3.py`, 19. Four guards were checked by mutation (removing the prior-attempts check, the plan's version check, or raising `LIFETIME_ATTEMPTS` makes the test that names it fail). Two tests first passed for the wrong reason (the mock key endpoint refused, not the guard); an independent reviewer and a mutation caught that and both were fixed |
+| Phase 4N tests | `test_pilot.py` unchanged and passing |
+| Frontend, browser, static suites | **Not re-run**: no frontend, API or snapshot code changed since Phase 4R |
+| Independent review | One fresh Claude reviewer, working from the diff and synthetic tests only (no `data/`, no network). No blocker or unintended-spend path. Three test weaknesses and a mutable-dict nit, all fixed. Same model family as the author, so the Codex connector review of the PR is the different-vendor check |
+| CI | Not available: billing block (see above) |
