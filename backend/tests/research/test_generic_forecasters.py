@@ -963,3 +963,55 @@ def test_a_group_at_a_fully_named_organisation_is_not_the_author_or_another_orga
     sentence, role, issuer
 ):
     assert codes(authors(sentence, role, issuer)) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+# ---- Convergence review: words between the affiliation and the verb (automated security review of cb96c59) ---------------------------
+# "Analysts at ANZ in Wellington expect growth" is still ANZ's analysts. Ending the affiliation at the organisation's name must not drop
+# the credit when a short phrase sits between it and the verb.
+QUALIFIED = [
+    "Analysts at ANZ in Wellington expect growth of 3% in 2029.",
+    "Analysts at ANZ's markets desk expect growth of 3% in 2029.",
+    "Analysts at ANZ, a bank, expect growth of 3% in 2029.",
+    "Analysts from ANZ who cover the economy expect growth of 3% in 2029.",
+    "Analysts at ANZ in Wellington are expecting growth of 3% in 2029.",
+]
+
+
+@pytest.mark.parametrize("sentence", QUALIFIED)
+def test_a_phrase_between_the_affiliation_and_the_verb_still_makes_the_group_the_forecaster(
+    sentence,
+):
+    assert codes(authors(sentence, "author", "The Treasury")) & {"issuer_mismatch"}
+    assert codes(authors(sentence, "third_party", "Westpac")) & {
+        "issuer_mismatch",
+        "issuer_not_in_evidence",
+    }
+    assert not codes(authors(sentence, "third_party", "ANZ")) & {
+        "issuer_mismatch",
+        "issuer_not_in_evidence",
+    }
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Analysts at the Treasury in Wellington expect growth of 3% in 2029.",
+        "Analysts at the Treasury, a team of five, expect growth of 3% in 2029.",
+    ],
+)
+def test_the_authors_own_analysts_with_a_phrase_before_the_verb_are_the_author(sentence):
+    assert not codes(authors(sentence, "author", "The Treasury")) & {"issuer_mismatch"}
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Analysts at ANZ cut rates on Tuesday. We expect growth of 3% in 2029.",
+        "Analysts at ANZ wrote a note, but we expect growth of 3% in 2029.",
+        "Analysts at ANZ wrote a note; we expect growth of 3% in 2029.",
+        "Analysts at ANZ wrote a note while we expect growth of 3% in 2029.",
+        "We expect growth of 3% in 2029, unlike analysts at ANZ in Wellington who expect 2%.",
+    ],
+)
+def test_the_phrase_never_runs_across_a_sentence_or_a_contrast(sentence):
+    assert not codes(authors(sentence, "author", "The Treasury")) & {"issuer_mismatch"}

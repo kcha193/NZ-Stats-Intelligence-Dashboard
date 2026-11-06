@@ -65,6 +65,12 @@ PROHIBITED_BEFORE_GOLD = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _about_the_seeded_version(monkeypatch):
+    """Here the package is about the seeded document; the tests that run as shipped patch it back (see `shipped_document`)."""
+    monkeypatch.setattr(owner_review, "REVIEW_DOCUMENT_VERSION", 1)
+
+
 @pytest.fixture()
 def stored(conn):
     return conn, seed_version(conn, (PAGE,), published_on="2026-11-02")
@@ -402,3 +408,56 @@ def test_a_refused_output_directory_writes_nothing_before_gold_either(stored, tm
     with pytest.raises(GoldExtensionError):
         build_package(conn, tmp_path / "data", elsewhere, version)
     assert not list(elsewhere.iterdir())
+
+
+# ---- Codex P2 on cb96c59: the gate is bound to the document the package is about -------------------------------------------------------
+# Everything the package unlocks (the packet, the AI pack, the period worksheet and every question) is about ONE document. Valid gold for
+# another version must not unlock it. The two fixtures above run with that document patched to the seeded version; these run as shipped.
+
+
+@pytest.fixture()
+def shipped_document(monkeypatch):
+    monkeypatch.setattr(owner_review, "REVIEW_DOCUMENT_VERSION", 3)
+
+
+def test_the_package_is_about_one_document_and_the_command_defaults_to_it(shipped_document):
+    assert owner_review.REVIEW_DOCUMENT_VERSION == 3
+    import argparse
+
+    from nzstats.research import cli
+
+    root = argparse.ArgumentParser()
+    cli.add_research_parser(root.add_subparsers(dest="command"))
+    assert root.parse_args(["research", "owner-review-package"]).version == 3
+
+
+def test_valid_gold_for_another_version_unlocks_nothing_and_writes_nothing(
+    stored, tmp_path, shipped_document
+):
+    conn, version = stored
+    assert version != owner_review.REVIEW_DOCUMENT_VERSION
+    data = tmp_path / "data"
+    _make_model_files(data)
+    _save_gold(
+        stored, data
+    )  # valid and bound to `version`, which is not the document the package is about
+    with pytest.raises(GoldExtensionError, match="document version 3"):
+        build_package(conn, data, data / "phase-4r" / "owner-review", version)
+    assert not (data / "phase-4r").exists()
+
+
+def test_the_command_refuses_a_version_the_package_is_not_about(
+    stored, tmp_path, monkeypatch, capsys, shipped_document
+):
+    from nzstats.cli import main
+
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "data"))
+    from nzstats.store.db import connect, migrate
+
+    conn = connect(tmp_path / "data" / "nzstats.db")
+    migrate(conn)
+    version = seed_version(conn, (PAGE,), published_on="2026-11-02")
+    conn.close()
+    assert main(["research", "owner-review-package", "--version", str(version)]) == 2
+    assert "refused" in capsys.readouterr().out
+    assert not (tmp_path / "data" / "phase-4r").exists()

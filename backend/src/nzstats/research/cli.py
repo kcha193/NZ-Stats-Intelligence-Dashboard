@@ -43,7 +43,7 @@ from nzstats.research.health import research_health
 from nzstats.research.ingest import RunResult, refusal_for, run_institution
 from nzstats.research.manual_import import ImportRefused, import_document
 from nzstats.research.outcomes import stored_cpi_releases
-from nzstats.research.owner_review import build_package
+from nzstats.research.owner_review import REVIEW_DOCUMENT_VERSION, build_package
 from nzstats.research.pilot_eval import AnnotationError, evaluate_stored, load_annotations
 from nzstats.research.private import why_not_private
 from nzstats.research.providers import (
@@ -155,7 +155,10 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         help="write one local owner-review page: sheets, open decisions and the gold form (4R; reads no model output)",
     )
     p_owner.add_argument(
-        "--version", type=int, default=3, help="document version for the gold form"
+        "--version",
+        type=int,
+        default=REVIEW_DOCUMENT_VERSION,
+        help="document version for the gold form (the package is about one document; any other is refused)",
     )
     p_owner.add_argument("--out", help="directory to write (default: <data>/phase-4r/owner-review)")
     p_score = rsub.add_parser(

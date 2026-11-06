@@ -113,8 +113,12 @@ _ORG_WORD = r"[A-ZĀĒĪŌŪ][\w&-]*"
 # Development"). They are the same connectors that join two organisations, so how many are named is decided by what they resolve to.
 _ORG_NAME = rf"(?-i:(?:[Tt]he\s+)?{_ORG_WORD}(?:(?:\s*,\s*|\s+(?:(?:of|for|and|or|the|&)\s+)*){_ORG_WORD})*)"
 _AT_AN_ORGANISATION = rf"(?:\s+(?:at|from)\s+(?P<org>{_ORG_NAME}))?"
+# Words between the affiliation and the verb ("analysts at ANZ in Wellington expect", "at ANZ, a bank, expect"). Only after an organisation was
+# captured, at most five words, never across a sentence end, a semicolon, a colon, a bracket or a contrast: ending the affiliation at the
+# organisation's name must not drop the credit when a short phrase follows it.
+_ORG_QUALIFIER = r"(?(org)(?:['’]s)?(?:[\s,]+(?!(?:but|while|whereas|then|although|though|because|since|so)\b)[^\s,;:.()]+){0,5},?|)"
 _GROUP_EXPECTS = re.compile(
-    rf"\b{_GROUP}{_AT_AN_ORGANISATION}\s+(?:(?:now|still|also|currently|mostly)\s+)?"
+    rf"\b{_GROUP}{_AT_AN_ORGANISATION}{_ORG_QUALIFIER}\s+(?:(?:now|still|also|currently|mostly)\s+)?"
     r"(?:expect(?:s\b|ed(?!\s+(?:not\s+|never\s+)?to\b)\b|\b)"
     r"|(?:are\s+|is\s+|have\s+|has\s+)?(?:expecting|forecasting|predicting|projecting|anticipating|estimating)\b"
     r"|(?:forecasts?|forecasted|anticipates?|anticipated|predicts?|predicted|projects?|projected|sees?|saw"
@@ -134,7 +138,7 @@ _ACCORDING_TO_GROUP = re.compile(
 # The same head as `_GROUP_EXPECTS` (modifiers, "at ANZ", adverbs, "are expecting") and the same verbs, so that a comment on the year is
 # excluded in every wording that would otherwise count as attribution. It only ever blanks a clause that is a closed-list comment.
 _GROUP_IN_CLAUSE = re.compile(
-    rf"\b{_GROUP}{_AT_AN_ORGANISATION}\s+(?:(?:now|still|also|currently|mostly)\s+)?(?:(?:are|is|have|has)\s+)?"
+    rf"\b{_GROUP}{_AT_AN_ORGANISATION}{_ORG_QUALIFIER}\s+(?:(?:now|still|also|currently|mostly)\s+)?(?:(?:are|is|have|has)\s+)?"
     r"(?:expect|forecast|predict|project|anticipate|see|saw|estimate|reckon|say|said)\w*(?P<rest>[^,;:]*)",
     re.IGNORECASE,
 )

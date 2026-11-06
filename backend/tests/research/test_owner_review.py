@@ -19,6 +19,12 @@ from .test_gold_extension import PAGE, extension
 SHEET_TEXT = "SYNTHETIC sheet text that must never be shown"
 
 
+@pytest.fixture(autouse=True)
+def _about_the_seeded_version(monkeypatch):
+    """Here the package is about the seeded document; the tests that run as shipped patch it back (see `shipped_document`)."""
+    monkeypatch.setattr(owner_review, "REVIEW_DOCUMENT_VERSION", 1)
+
+
 @pytest.fixture()
 def stored(conn):
     return conn, seed_version(conn, (PAGE,), published_on="2026-11-02")

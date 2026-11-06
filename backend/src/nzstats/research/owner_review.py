@@ -26,6 +26,9 @@ from urllib.parse import quote
 from nzstats.research.gold_extension import GoldExtensionError, load_extension, write_worksheet
 
 PACKAGE_VERSION = 1
+# The one document this package is about: the 29 October Treasury report. The decisions, the Phase 4O packet, the AI pack, the period
+# worksheet and the gold form all belong to it, so the unlock gate is bound to it too. Valid gold for any other version unlocks nothing.
+REVIEW_DOCUMENT_VERSION = 3
 GOLD_EXTENSION_FILE = "annotations/gold-extension-v{version}.json"
 
 # Where the sheets other phases wrote live, relative to the data directory.
@@ -412,6 +415,10 @@ def build_package(
 
     The gold check runs first and alone selects the page. Without valid gold, no model-derived path is read, stat-ed or hashed.
     """
+    if version != REVIEW_DOCUMENT_VERSION:
+        raise GoldExtensionError(
+            f"the sheets and decisions in this package are for document version {REVIEW_DOCUMENT_VERSION}"
+        )
     out_dir = out_dir.resolve()
     if not out_dir.is_relative_to(data_dir.resolve()):
         raise GoldExtensionError("the package must be written under the data directory")

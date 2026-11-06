@@ -328,6 +328,22 @@ def _affiliation_then_more() -> Iterator[Case]:
                     )
 
 
+def _qualified_affiliation() -> Iterator[Case]:
+    """A short phrase between the organisation and the verb ("analysts at ANZ in Wellington expect") leaves the group the forecaster."""
+    qualifiers = (" in Wellington", ", a bank,", " who cover the economy", "'s markets desk")
+    for key in ("author_group", "anz_group", *FULL_NAME_ENTITIES):
+        subject = _EVERY_ENTITY[key].subjects[0]
+        for qualifier in qualifiers:
+            for verb in ("expect", "forecast"):
+                for tail in ("", " after discussions with Westpac"):
+                    yield Case(
+                        f"qualified/{key}/{subject}{qualifier}/{verb}{tail}",
+                        "qualified_affiliation",
+                        _end(f"{subject}{qualifier} {verb} growth of 3% in 2029{tail}"),
+                        (Figure(3, "2029", key),),
+                    )
+
+
 def _full_names() -> Iterator[Case]:
     """Organisations named in full, with and without words after them: still one organisation, still not the author's (bar the Treasury's own)."""
     tails = ("", " after discussions with ANZ", " following talks with Westpac")
@@ -358,6 +374,7 @@ def cases() -> list[Case]:
         _reporters,
         _affiliation_then_more,
         _full_names,
+        _qualified_affiliation,
     ):
         out += list(part())
     return out

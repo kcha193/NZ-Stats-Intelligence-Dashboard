@@ -8,7 +8,7 @@ The generator and its oracle are in `attribution_matrix.py`. Two kinds of test l
   and update the table with the reason. An improvement is not a licence to trade away a safety row, so it has to be looked at.
 
 "over_reject" is a true label refused (the summary fails, closed). "under_reject" is a wrong label accepted (a safety defect).
-At the PR baseline the older wording was the only check: 4,818 true labels refused and 13,422 wrong labels accepted on this matrix.
+At the PR baseline the older wording was the only check: 4,830 true labels refused and 13,530 wrong labels accepted on this matrix.
 """
 
 from collections import Counter
@@ -48,12 +48,13 @@ def test_the_matrix_is_deterministic_and_covers_every_class():
         "forecaster_then_reporter",
         "affiliation_then_more",
         "full_name_affiliation",
+        "qualified_affiliation",
     }
     assert len(ALL) > 7000
 
 
 def test_an_outside_forecasters_figure_is_never_accepted_as_the_authors_in_any_sentence():
-    """The Phase 4R guarantee, over every sentence of the matrix (the PR baseline accepted 4,828 of these)."""
+    """The Phase 4R guarantee, over every sentence of the matrix (the PR baseline accepted 4,876 of these)."""
     leaked = [
         (c.sentence, f.value)
         for c in ALL
@@ -109,6 +110,8 @@ EXPECTED = {
     ("full_name_affiliation", "correct"): 83,
     ("full_name_affiliation", "over_reject"): 2,
     ("full_name_affiliation", "under_reject"): 18,
+    ("qualified_affiliation", "correct"): 76,
+    ("qualified_affiliation", "under_reject"): 20,
     ("single", "correct"): 99,
     ("single", "under_reject"): 3,
     ("two_forecasts", "correct"): 9106,
