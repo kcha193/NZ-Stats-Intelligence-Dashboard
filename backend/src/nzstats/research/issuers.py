@@ -171,6 +171,13 @@ _COMPARED_WITH = re.compile(
     r"\b(?:than|as(?!\s+of\b)|what|unlike|like|above|below|versus|vs\.?|compared\s+with|relative\s+to|exceeds?|exceeding)\s+(?:[^\s,;:]+\s+){0,5}$",
     re.IGNORECASE,
 )
+# `_COMPARED_WITH` for wording that follows the figure. There a bare "as" is NOT a comparison: "3%, as forecast by analysts" gives the
+# figure to analysts. "as" counts only as "as strong as". "like" and "what" are left out for the same reason: they can introduce a source.
+_COMPARED_AFTER_FIGURE = re.compile(
+    r"\b(?:than|unlike|above|below|versus|vs\.?|compared\s+with|relative\s+to|exceeds?|exceeding"
+    r"|as\s+[^\s,;:]+\s+as)\s+(?:[^\s,;:]+\s+){0,5}$",
+    re.IGNORECASE,
+)
 
 
 def _compiled() -> dict[str, tuple[re.Pattern[str], re.Pattern[str]]]:
@@ -379,8 +386,13 @@ def more_around(before: str, after: str, who: str | None, author: str | None) ->
     )
     keys = reported_more(lead)
     after = own_assertion(after)
-    # After the figure only the passive and "according to" forms can name who made it.
-    if any(p.search(after) for p in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP)):
+    # After the figure only the passive and "according to" forms can name who made it, unless the group is only the other side of
+    # a comparison ("higher than forecast by analysts").
+    if any(
+        not _COMPARED_AFTER_FIGURE.search(after[: m.start()])
+        for p in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP)
+        for m in p.finditer(after)
+    ):
         keys.add("group")
     which = _WHICH.search(after)
     if which is not None:

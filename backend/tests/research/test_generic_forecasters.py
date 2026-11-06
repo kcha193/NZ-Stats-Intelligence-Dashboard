@@ -212,3 +212,49 @@ def test_our_market_analysts_are_not_credited_to_another_label(issuer):
     # A third-party label on the author's own people's forecast stays an error, as before the fix.
     report = authors("Our market analysts expect growth of 3% in 2029.", "third_party", issuer)
     assert codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+# Review of PR 46 (Codex, P2, round 2): a group after the figure that is only the other side of a comparison is no forecaster.
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "We expect growth of 3% in 2029, higher than forecast by analysts.",
+        "We expect growth of 3% in 2029, above what is expected by analysts.",
+        "We expect growth of 3% in 2029, unlike growth forecast by analysts.",
+        "We expect growth of 3% in 2029, compared with growth expected by analysts.",
+        "We expect growth of 3% in 2029, versus 2% according to analysts.",
+        "We expect growth of 3% in 2029, as strong as forecast by analysts.",
+        "We expect growth of 3% in 2029, exceeding the rate forecast by analysts.",
+        "We expect growth of 3% in 2029, relative to growth projected by investors.",
+    ],
+)
+def test_a_group_on_the_other_side_of_a_comparison_after_the_figure_is_not_the_forecaster(sentence):
+    assert "issuer_mismatch" not in codes(authors(sentence))
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Growth of 3% in 2029 is expected by analysts.",
+        "We expect growth of 3% in 2029, forecast by analysts.",
+        "We expect growth of 3% in 2029, according to analysts.",
+        # "As forecast by analysts" gives the figure to analysts. It is no comparison, and "as" alone must not excuse it.
+        "We expect growth of 3% in 2029, as forecast by analysts.",
+        "Growth will be 3% in 2029, as expected by investors.",
+        # The comparison ends before the group: a comma, a semicolon or distance separates them.
+        "We expect growth of 3% in 2029, higher than 2%, forecast by analysts.",
+        "We expect growth of 3% in 2029, higher than the RBNZ; this is forecast by analysts.",
+        "We expect growth of 3% in 2029, higher than the rate we had last year, as forecast by analysts.",
+    ],
+)
+def test_a_group_after_the_figure_without_a_comparison_still_blocks(sentence):
+    assert "issuer_mismatch" in codes(authors(sentence))
+
+
+def test_a_comparison_after_the_figure_does_not_excuse_a_third_party_label_for_a_group():
+    report = authors(
+        "The IMF forecasts growth of 3% in 2029, as forecast by analysts.",
+        "third_party",
+        "International Monetary Fund",
+    )
+    assert "issuer_mismatch" in codes(report)
