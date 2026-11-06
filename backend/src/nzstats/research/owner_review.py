@@ -276,6 +276,11 @@ def _short_hash(path: Path) -> str:
     return digest.hexdigest()[:12]
 
 
+def _inside(path: Path, root: Path) -> bool:
+    """Whether `path` really lives under `root` once symbolic links are followed."""
+    return path.resolve().is_relative_to(root.resolve())
+
+
 def _file_row(label: str, why: str, path: Path, link: bool) -> str:
     if not path.is_file():
         return f"<tr><td>{html.escape(label)}</td><td colspan=3>not found at <code>{html.escape(str(path))}</code></td></tr>"
@@ -351,9 +356,23 @@ def build_package(
         _file_row(Path(rel).name, why, data_dir / rel, True)
         for rel, why in EXISTING_SHEETS.values()
     ]
+    # Model output is opened only from here, and only once the owner's own gold is saved, valid and bound to this document.
+    gold_done = status.startswith("saved and valid")
     ai_rows = [
-        _file_row(Path(rel).name, why, data_dir / rel, False) for rel, why in AI_WRITTEN.values()
+        _file_row(
+            Path(rel).name,
+            why,
+            data_dir / rel,
+            gold_done and rel in LINKED_AFTER_GOLD and _inside(data_dir / rel, data_dir),
+        )
+        for rel, why in AI_WRITTEN.values()
     ]
+    gold_first = (
+        ""
+        if gold_done
+        else "<p><small>No file here is linked yet. Links appear after your gold file is saved and valid: "
+        "save it, then build this package again.</small></p>"
+    )
 
     package_id = hashlib.sha256(f"{version}:{PACKAGE_VERSION}".encode()).hexdigest()[:16]
     sections = []
@@ -382,7 +401,9 @@ def build_package(
         + "".join(rows)
         + "</table>"
         f"<p>Gold worksheet: {sentences} candidate sentences.</p>"
-        "<h3>Open only after your own marks are finished</h3><table><tr><th>File</th><th>Size</th><th>Modified</th><th>SHA-256 (start)</th></tr>"
+        "<h3>Open only after your own marks are finished</h3>"
+        + gold_first
+        + "<table><tr><th>File</th><th>Size</th><th>Modified</th><th>SHA-256 (start)</th></tr>"
         + "".join(ai_rows)
         + "</table><div style='margin-top:1em'><label>Your name <input id=reviewer autocomplete=off></label> "
         "<label>Date (YYYY-MM-DD) <input id=reviewed_on placeholder='YYYY-MM-DD'></label></div>"

@@ -90,7 +90,8 @@ The 29 October page itself still needs the owner's own check in a browser (autom
   attestation, and the page downloads a file that `load_extension` still checks. Nothing is prefilled or restored from a draft, the page blocks the network,
   and the file is mode 0600. Node tests run the export logic against the same validator.
 - **`research owner-review-package`.** One local index: sheets with size and a short hash (never their content), the gold form, the gold file's status, and 23
-  decisions in six groups. Gold comes first and model output is linked only after it. Output must stay under the data directory.
+  decisions in six groups. Gold comes first. The Phase 4O packet is linked, and no other model output, only in the "after your own marks" table and only
+  once the gold extension is saved, valid and bound to the document (build the package again after saving it). Output must stay under the data directory.
 - **`scripts/openrouter_key_reading.py`.** Owner-run and read-only. One GET to the key metadata endpoint, no inference, no spend. It prints numbers and
   booleans, never the key, and compares the key's usage with the ledger.
 - No threshold changed, no prompt changed, and `verify-4` keeps its label because no stored row has used it.

@@ -4,6 +4,8 @@ import json
 import re
 import shutil
 import subprocess
+from pathlib import Path
+from urllib.parse import quote, unquote
 
 import pytest
 
@@ -189,3 +191,124 @@ def test_an_existing_directory_is_not_re_moded_and_a_symlinked_file_is_refused(s
     build_package(conn, data, out, version)
     assert out.stat().st_mode & 0o777 == 0o755
     assert not (tmp_path / "target.html").exists()
+
+
+# Review of PR 46 (Codex, P2): the Phase 4O packet needs a usable link once, and only once, the owner's own gold is saved.
+PACKET = "phase-4n/run-treasury-20261102/human-review.html"
+
+
+def _with_gold(stored, tmp_path, valid=True):
+    conn, version = stored
+    saved = tmp_path / "data" / "annotations" / f"gold-extension-v{version}.json"
+    saved.parent.mkdir(parents=True, exist_ok=True)
+    body = extension(version=version)
+    if not valid:
+        body = {**body, "text_sha256": "0" * 64}
+    saved.write_text(json.dumps(body))
+
+
+def _after_gold(page):
+    return page[page.index("Open only after your own marks are finished") :]
+
+
+def _links(page):
+    return re.findall(r"<a href='([^']*)'", page)
+
+
+def test_the_constants_that_decide_the_link_are_safe_relative_paths():
+    allowed = {rel for rel, _ in owner_review.AI_WRITTEN.values()}
+    assert owner_review.LINKED_AFTER_GOLD == {PACKET}
+    for rel in owner_review.LINKED_AFTER_GOLD:
+        assert rel in allowed and not rel.startswith("/") and ".." not in Path(rel).parts
+
+
+def test_the_packet_is_linked_after_the_owners_gold_is_saved_and_valid(stored, tmp_path):
+    _with_gold(stored, tmp_path)
+    data, report, page = _build(stored, tmp_path)
+    after = _after_gold(page)
+    href = f"file://{quote(str((data / PACKET).resolve()))}"
+    assert f"<a href='{href}'>human-review.html</a>" in after
+    assert report["gold_status"].startswith("saved and valid")
+    assert SHEET_TEXT not in page and "human-review.html" not in page[: page.index(after)]
+
+
+def test_the_packet_is_not_linked_before_the_owners_gold_is_saved(stored, tmp_path):
+    _, _, page = _build(stored, tmp_path)
+    assert "human-review.html" in _after_gold(page)
+    assert not any("human-review" in link or "phase-4n" in link for link in _links(page))
+
+
+@pytest.mark.parametrize("state", ["invalid", "unbound", "unreadable"])
+def test_a_gold_file_that_is_not_valid_and_bound_unlocks_nothing(stored, tmp_path, state):
+    conn, version = stored
+    if state == "unbound":
+        _with_gold(stored, tmp_path, valid=False)
+    else:
+        saved = tmp_path / "data" / "annotations" / f"gold-extension-v{version}.json"
+        saved.parent.mkdir(parents=True)
+        saved.write_text("{not json" if state == "invalid" else "")
+    _, _, page = _build(stored, tmp_path)
+    assert not any("phase-4n" in link for link in _links(page))
+
+
+def test_a_gold_file_for_another_version_unlocks_nothing(stored, tmp_path):
+    conn, version = stored
+    other = tmp_path / "data" / "annotations" / f"gold-extension-v{version + 1}.json"
+    other.parent.mkdir(parents=True)
+    other.write_text(json.dumps(extension(version=version + 1)))
+    _, _, page = _build(stored, tmp_path)
+    assert not any("phase-4n" in link for link in _links(page))
+
+
+def test_only_the_packet_is_linked_and_the_ai_pack_and_comparison_never_are(stored, tmp_path):
+    _with_gold(stored, tmp_path)
+    data, _, page = _build(stored, tmp_path)
+    after = _after_gold(page)
+    assert len(_links(after)) == 1
+    for rel in ("annotations/phase-4q-feu-2026-10-29.json", "phase-4q/feu-comparison.md"):
+        name = Path(rel).name
+        assert name in after and f">{name}</a>" not in after
+
+
+def test_a_missing_packet_is_reported_even_after_gold_and_gets_no_link(stored, tmp_path):
+    _with_gold(stored, tmp_path)
+    data, _, page = _build(stored, tmp_path, make_sheets=False)
+    after = _after_gold(page)
+    assert "not found at" in after and not _links(after)
+
+
+def test_a_packet_that_is_a_symlink_out_of_the_data_directory_is_not_linked(stored, tmp_path):
+    _with_gold(stored, tmp_path)
+    data = tmp_path / "data"
+    outside = tmp_path / "outside.html"
+    outside.write_text(SHEET_TEXT)
+    target = data / PACKET
+    target.parent.mkdir(parents=True)
+    target.symlink_to(outside)
+    _, _, page = _build(stored, tmp_path, make_sheets=False)
+    assert not _links(_after_gold(page)) and SHEET_TEXT not in page
+
+
+def test_the_packet_link_is_escaped_for_an_awkward_data_directory(stored, tmp_path):
+    conn, version = stored
+    data = tmp_path / "d'a<t>a&\"x y"
+    saved = data / "annotations" / f"gold-extension-v{version}.json"
+    saved.parent.mkdir(parents=True)
+    saved.write_text(json.dumps(extension(version=version)))
+    target = data / PACKET
+    target.parent.mkdir(parents=True)
+    target.write_text(SHEET_TEXT)
+    build_package(conn, data, data / "phase-4r" / "owner-review", version)
+    page = (data / "phase-4r" / "owner-review" / "index.html").read_text()
+    (link,) = _links(_after_gold(page))
+    assert link.startswith("file:///") and not set(link) & set("'<>\" ")
+    assert unquote(link[len("file://") :]) == str(target.resolve())
+    assert "d'a<t>a" not in page and SHEET_TEXT not in page
+
+
+def test_the_page_stays_local_with_the_link_enabled(stored, tmp_path):
+    _with_gold(stored, tmp_path)
+    _, _, page = _build(stored, tmp_path)
+    assert "http://" not in page and "https://" not in page and "<form" not in page
+    assert all(link.startswith("file:///") for link in _links(page))
+    assert "default-src 'none'" in page and "form-action 'none'" in page
