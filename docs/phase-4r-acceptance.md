@@ -91,9 +91,13 @@ The 29 October page itself still needs the owner's own check in a browser (autom
   one marked row per claim ("Add another claim from this sentence"), each with its own row id, and every one is exported and scored as its own item. Nothing
   is prefilled, and names, the date and the attestation are never restored from a draft (only the marks are), the page blocks the network, and the file is
   mode 0600. Node tests run the export logic against the same validator, and a jsdom test drives the page when the frontend dependencies are installed.
-- **`research owner-review-package`.** One local index: sheets with size and a short hash (never their content), the gold form, the gold file's status, and 23
-  decisions in six groups. Gold comes first. The Phase 4O packet is linked, and no other model output, only in the "after your own marks" table and only
-  once the gold extension is saved, valid and bound to the document (build the package again after saving it). Output must stay under the data directory.
+- **`research owner-review-package`.** One local index, **blind until the owner's gold exists**. The server decides once, before any HTML is built, whether the
+  gold extension is saved, valid, bound to this document version (version and text hash) and inside the data directory. Without it the page holds the gold form,
+  the gold file's status and the two gold-scope questions, and nothing else: no model-derived decision, description, file name, size, hash or link, in visible
+  text, markup, script or metadata, and the model-output paths are not read at all (a test builds the page with those files absent, present, symlinked, directories
+  and huge, and the pages are identical). With valid gold it adds the period worksheet and the Phase 4O packet (linked), the AI pack and comparison (listed, never
+  linked) and the other 21 decisions in five groups. A symlink out of the data directory is refused without being sized or hashed. Rebuild after saving the gold file.
+  Output must stay under the data directory.
 - **`scripts/openrouter_key_reading.py`.** Owner-run and read-only. One GET to the key metadata endpoint, no inference, no spend. It prints numbers and
   booleans, never the key, and compares the key's usage with the ledger.
 - No threshold changed, no prompt changed, and `verify-4` keeps its label because no stored row has used it.
@@ -129,18 +133,63 @@ the same generated sentences run through the previous and the new code, expectin
 | 6 | Group labels with modifiers ("Major banks"); a group's comment on the year in other wordings | Fixed |
 | 7 | A group at one named organisation ("analysts at ANZ") with that organisation's own label | Fixed: `group@<org>`, third-party labels only |
 | 8 | The author's own organisation's analysts; an earlier reporter's figure before the claimed group's own forecast | Fixed |
+| 9 | The owner-review index showed model-derived decision sections and the period worksheet before gold existed (only the packet link was gated) | Fixed at the server: see the owner review package above |
 
-**The shared cause.** Most findings had one origin: the Phase 4R attribution wording is several regular expressions that each carry their own copy of the
-vocabulary (`_GROUP_EXPECTS`, `_GROUP_IN_CLAUSE`, `_GROUP_ISSUER`, `since_credit`) and each run over text that is wider than the figure's own assertion. A
-fix to one copy left the others behind, and the next review found the next one. This push removed the clearest duplicate: `_group_credits` now decides
-what counts as a group's attribution for both rejecting and resetting. The robust fix is a small clause segmenter that gives every check the same scope, and
-it is not done here.
+### Convergence review of PR #46
 
-**Known limits** (all fail closed, none newly accepted a misattribution): a group label's modifiers are not compared with the evidence's ("Local analysts"
-for "Analysts expect…", the noun is compared); an organisation this module does not list ("analysts at Acme") is not matched; "ANZ analysts expect…" and
-"expected by our analysts and investors" were accepted before this PR and still are; "expected by market economists" is read as market pricing by the older
-wording; an organisation's forecasting credit earlier in the sentence still blocks a group label, by verify-3's rule. The jsdom tests of the gold form run only
-where the frontend dependencies are installed.
+Thirteen review threads over nine pushes, then one pass that grouped them by cause, not by round, and audited the neighbours instead of waiting for the next review.
+The method: a generated matrix whose answer is known by construction (`tests/research/attribution_matrix.py`), run against the PR baseline `1c021c9`, the previous
+head `905100f` and the fixed tree; each row is classed `correct`, `over_reject` (a true label refused, which fails closed) or `under_reject` (a wrong label
+accepted, a safety defect). 60,188 rows from 8,491 invented sentences, covering several forecasts in one sentence, several organisations, figures and indicators, the
+author against a third party, the author's own analysts, modified group names, passive and "according to" wording, speech verbs, comparisons, relative clauses,
+comments on the year and a reporter's separate figure.
+
+| Cause | Pushes | What was wrong | Correction |
+|---|---|---|---|
+| A. Scope | 2, 3, 4, 8, and 604 latent rows the matrix found | Each check read the sentence from its own start and reset on its own vocabulary, so an earlier assertion's forecaster reached a later figure that named its own | `claimed_scope()`: one cut for every scan of the new wording. A boundary (contrast, semicolon, ", and", ", which", a comparator) cuts only when the claimed side names its forecaster, before the figure or as a "forecast by"/"according to" agent after it. A bare mention, "but only 2% in 2030" and "only if banks cut rates" cut nothing |
+| B. Duplicated vocabulary | 1, 3, 6, 7 | Group wording, speech verbs and comment filters existed in several copies | `_group_credits` (credits), `_without_comments` (one filter for both sides of the figure) and `_names_its_forecaster` (one question for every kind of credit). A group credit after "which" is now read before the figure too, which closed 12 author-label misattributions that `905100f` still accepted |
+| C. A fix reopening an earlier case | 8 (push 7's `group@<org>` broke the author's own analysts), 9 (push 1's link fix left the content open) and the 604 | Each fix was checked against its own sentence only | The historical registry (below) holds every reproducer with its neighbours and both label roles |
+| D. A gate on the wrong layer | 1 and 9 | Links were gated; the content that exposed model output was not | The gate is one server-side decision that selects which page is built |
+| E. Form against validator | 5 | The form allowed one claim per sentence | Fixed in the form. Audit: 1,500 random row sets, the form never accepts a file `load_extension` refuses. It exposed that the validator checked an AI name on the reviewer only, not the annotator; now both |
+
+(Push numbers are the rows of the table above.)
+
+**Evidence.** Rows are (sentence, figure, label) triples.
+
+| | Correct | True label refused | Wrong label accepted | Author label accepted for an outside forecaster |
+|---|---|---|---|---|
+| PR baseline `1c021c9` | 42,259 | 4,804 | 13,125 | 4,715 |
+| `905100f` (before this pass) | 50,855 | 5,408 | 3,925 | 12 |
+| This tree | 51,504 | **4,804** | 3,880 | **0** |
+
+* Against the baseline: **0 rows newly accepted** (the monotonic guarantee), 9,245 newly refused and every one a wrong label, **0 true labels newly refused**. `905100f` had 604.
+* Against `905100f`: 607 newly accepted (604 true labels, plus 3 that are the documented generic-label residual below) and 48 newly refused, all wrong labels
+  (the "which analysts say" shape). The semantic classes of the 604 are: another assertion's group credit reaching a later figure (449), a "which" clause with a
+  figure of its own (106), a comparison with a figure (45), and a reporter's earlier figure (4).
+* The 74-row registry of every historical finding (`test_codex_review_history.py`): baseline 38 correct, 34 wrong labels accepted, 2 true labels refused;
+  `905100f` 69, 0, 5; this tree **72, 0, 2**. The 2 are older-wording limits, identical at the baseline, and the test asserts them exactly.
+* Hard guarantees tested over the whole matrix: an outside forecaster's figure is never accepted under the author's label, a label naming nobody in the sentence is
+  never accepted, nothing crashes. The per-class outcome table is exact, so a row moving in either direction fails a test and has to be read.
+* `claimed_scope` only ever shrinks what is read (a property test), it touches only the new wording, and `verify-4`'s older wording is untouched.
+
+**What did not change, and why (known limits, all fail closed or were already accepted at the baseline).**
+
+* 4,804 true labels are still refused, **the same 4,804 rows the baseline refuses**, all by the older Phase 4I wording, which scans the whole sentence for a credit
+  ("Growth of 3% in 2029 is forecast by the IMF, and analysts at ANZ predict inflation of 2%" refuses the ANZ label for the 2%).
+* 3,880 wrong labels are still accepted, **all of them accepted at the baseline too**, all third-party labels and none the author's: 3,273 by the documented rule that a
+  generic group label ("Analysts", "Banks") answers every group block and only its noun is compared, and 607 by the older rule that a named third party's label passes when
+  that organisation is credited elsewhere in the sentence.
+* "A group label's modifiers are not compared with the evidence's", an unlisted organisation ("analysts at Acme"), "ANZ analysts expect…" and "expected by market
+  economists" are as before.
+
+**Follow-up proposal (not in this PR, which keeps the older wording byte-identical).** A reviewed `verify-5`, with the same method and a fresh independent review:
+(1) apply `claimed_scope` to `third_parties_around`, `_credited` and `reported`, which removes the 4,804 refusals; (2) answer a generic group label only for its own
+noun and, for "analysts at ANZ", only for the organisation, which removes the 3,273; (3) require the credited organisation to be the figure's own, not the sentence's, which
+removes the 607. Each step can only be judged by a differential against `verify-4`, and (2) and (3) change what a third party's label proves, so they need the owner's decision first.
+A clause segmenter that returns assertions (a subject, a verb and its figures) would make (1) to (3) one change, and it is the right size for its own phase.
+
+**Not an architecture rewrite.** The matrix shows the remaining defects live in the older code, and the new wording now shares one scope, one comment filter and one credit
+question. Replacing the regular expressions wholesale would have changed 9,000-odd rows that are currently right for no evidence of gain.
 
 **CI.** All three required GitHub Actions jobs fail in seconds because the account's payment or spending limit stops them from starting
 (annotation: "The job was not started because recent account payments have failed or your spending limit needs to be increased"). No code is at fault. The
@@ -198,15 +247,17 @@ not complete any of them. A person must answer, type their own name and download
 
 ## Verification
 
-Run on the final tree of this branch (head `881ab01` plus documentation), in a clean worktree, Python 3.14.6.
+Run on the final tree of the convergence review (Python 3.14, venv from the main checkout with `PYTHONPATH` at this worktree). The browser and static suites
+were last run at `881ab01` and were **not re-run** in this pass: no frontend, API or snapshot code changed since,.
 
 | Check | Result |
 |---|---|
-| Backend suite | **4,580 passed**, 1 existing warning, 8 min 44 s |
+| Backend suite | **4,932 passed**, 1 existing warning, 6 min 11 s |
 | Ruff lint, format | Clean |
-| Frontend tests, typecheck, build | 546 passed, clean, built |
-| Browser suite, research browser suite | 174 passed. 18 passed, 3 skipped |
-| Static and public isolation | 315 passed, 24 skipped on the rerun. **The first run had 1 failure**: a full-page pixel parity spec (card spending, desktop) that then passed alone and in the full rerun. It is recorded as a visual-timing flake and not hidden. No frontend or API code changed |
+| Frontend tests, typecheck, build | 546 passed, clean, built (frontend diff against main is empty) |
+| Attribution matrix, 60,188 rows, three revisions | 0 newly accepted against the baseline, 0 true labels newly refused, author label never accepted for an outsider (details above) |
+| Browser suite, research browser suite | Last run at `881ab01`: 174 passed. 18 passed, 3 skipped. Not re-run |
+| Static and public isolation | Last run at `881ab01`: 315 passed, 24 skipped on the rerun. **The first run had 1 failure**: a full-page pixel parity spec (card spending, desktop) that then passed alone and in the full rerun. Recorded as a visual-timing flake. Not re-run |
 | Dependency audit, npm | 0 vulnerabilities |
 | Dependency audit, Python | `pypdf` 6.21.2 and `certifi` 2026.7.22 in the **local venv** have fixed releases. The repository already requires `pypdf>=6.21.4`, so CI is not affected. The PDF tests pass on pypdf 6.21.4 and certifi 2026.10.23. The owner should run `pip install -U pypdf certifi` in the venv |
 | Source-permission, verifier and gold tests | Part of the backend suite |

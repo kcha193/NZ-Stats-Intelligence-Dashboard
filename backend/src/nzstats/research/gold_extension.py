@@ -118,8 +118,8 @@ class GoldExtension(_Strict):
     def _reviewed_by_a_person(self) -> GoldExtension:
         if not self.annotator.strip() or not self.reviewed_by.strip():
             raise ValueError("the annotator and reviewer must be named")
-        if _AI_REVIEWER.search(self.reviewed_by):
-            raise ValueError("the reviewer must be a person")
+        if _AI_REVIEWER.search(self.reviewed_by) or _AI_REVIEWER.search(self.annotator):
+            raise ValueError("the annotator and reviewer must be people")
         if self.reviewed_on > datetime.now(UTC).date() + timedelta(
             days=1
         ):  # Auckland is ahead of UTC

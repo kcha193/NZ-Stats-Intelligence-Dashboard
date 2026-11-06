@@ -319,6 +319,12 @@ def test_the_worksheet_is_private_from_the_moment_it_exists(stored, tmp_path):
         {"reviewed_by": "Claude Code"},
         {"reviewed_by": "codex"},
         {"reviewed_by": "GPT reviewer"},
+        # Convergence review of PR 46: the annotator wrote the marks, so an AI name there is as wrong as one on the reviewer. The form
+        # already refuses both; the validator is the authority and also unlocks the owner-review package.
+        {"annotator": "Claude Code"},
+        {"annotator": "codex"},
+        {"annotator": "GPT reviewer"},
+        {"annotator": "OpenAI Team"},
     ],
 )
 def test_review_must_be_by_a_named_person_and_already_done(change):

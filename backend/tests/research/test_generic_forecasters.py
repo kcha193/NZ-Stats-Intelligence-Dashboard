@@ -611,3 +611,210 @@ def test_a_reporter_who_gives_the_claimed_figure_still_blocks_a_group_label(sent
         "issuer_mismatch",
         "issuer_not_in_evidence",
     }
+
+
+# ---- Convergence review of PR 46: the part of the sentence that belongs to the claimed figure's own assertion ------------------------
+# Most Codex findings had one cause: the Phase 4R wording scanned text wider than the claimed figure's assertion, and only some paths
+# cut it. One scope (`claimed_scope`) now serves every scan. A cut is made only at a contrast, a semicolon, ", and" or a comparator, and
+# only when the claim's own side names its forecaster (a credit before the figure, or a "forecast by"/"according to" agent after it).
+# A bare mention, an elliptical "but only 2% in 2030" or a bare "and" cuts nothing: the earlier credit keeps reaching the figure.
+SCOPE_ACCEPTED = [
+    # (sentence, role, issuer, claimed value): each failed before the scope was shared, on a TRUE label.
+    (
+        "Market analysts expect growth of 3% in 2029, but analysts at ANZ expect inflation of 2% in 2029.",
+        "third_party",
+        "ANZ",
+        2,
+    ),
+    (
+        "Analysts predict growth of 3% in 2029, while inflation of 2% in 2029 is forecast by the IMF.",
+        "third_party",
+        "IMF",
+        2,
+    ),
+    (
+        "Banks expect growth of 3% in 2029; inflation of 2% in 2029 is expected by the International Monetary Fund.",
+        "third_party",
+        "International Monetary Fund",
+        2,
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by the major banks, while inflation of 2% in 2029 is expected by our analysts.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    (
+        "Growth of 3% in 2029 is forecast by the major banks, while inflation of 2% in 2029 is forecast by analysts at the Treasury.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    (
+        "Analysts at ANZ predict growth of 3% in 2029, but inflation of 2% in 2029 is forecast by the OECD.",
+        "third_party",
+        "OECD",
+        2,
+    ),
+    (
+        "The major banks predict growth of 3% in 2029, but inflation of 2% in 2029 is forecast by ANZ.",
+        "third_party",
+        "ANZ",
+        2,
+    ),
+    (
+        "The IMF said growth would be 2% in 2029, but analysts at ANZ expect growth of 3% in 2029.",
+        "third_party",
+        "ANZ",
+        3,
+    ),
+    (
+        "Analysts forecast growth of 3% in 2029, compared with 2% forecast by the IMF.",
+        "third_party",
+        "IMF",
+        2,
+    ),
+    (
+        "Analysts at ANZ expect growth of 3% in 2029, compared with 2% forecast by us.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    (
+        "Analysts expect growth of 3% in 2029, and we expect inflation of 2% in 2029.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    # A relative clause with a figure of its own is about that figure, not the claimed one.
+    (
+        "We forecast growth of 3% in 2029, which the major banks say will be 2%.",
+        "author",
+        "The Treasury",
+        3,
+    ),
+    (
+        "The IMF forecasts growth of 3% in 2029, which analysts say will be 2%.",
+        "third_party",
+        "IMF",
+        3,
+    ),
+    # The claimed figure is inside the relative clause: that clause is its own assertion.
+    (
+        "Analysts expect growth of 3% in 2029, which analysts at ANZ say will be 2%.",
+        "third_party",
+        "ANZ",
+        2,
+    ),
+    (
+        "The major banks forecast growth of 3% in 2029, which analysts at ANZ say will be 2%.",
+        "third_party",
+        "ANZ",
+        2,
+    ),
+]
+
+
+@pytest.mark.parametrize(("sentence", "role", "issuer", "value"), SCOPE_ACCEPTED)
+def test_a_true_label_is_not_blamed_for_another_assertions_forecaster(
+    sentence, role, issuer, value
+):
+    report = authors(sentence, role, issuer, value)
+    assert not codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}
+
+
+SCOPE_STILL_BLOCKED = [
+    # The earlier credit may still reach the figure, so the rejection stays.
+    ("Analysts expect growth of 3% in 2029, but only 2% in 2030.", "author", "The Treasury", 2),
+    (
+        "Analysts expect growth of 3% in 2029 but only if banks cut rates, and 2% otherwise.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    ("Analysts expect growth of 3% in 2029 and 4% in 2030.", "author", "The Treasury", 4),
+    (
+        "Analysts expect growth of 3% in 2029, while the IMF notes risks of 2%.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    (
+        "Analysts expect growth of 3% in 2029, although we note the IMF forecast of 2%.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    # The claim's own side names someone else.
+    (
+        "We expect growth of 3% in 2029, but analysts expect inflation of 2% in 2029.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    (
+        "We expect growth of 3% in 2029, while inflation of 2% in 2029 is forecast by analysts.",
+        "author",
+        "The Treasury",
+        2,
+    ),
+    (
+        "The IMF expects growth of 3% in 2029, but analysts at ANZ expect inflation of 2% in 2029.",
+        "third_party",
+        "IMF",
+        2,
+    ),
+    (
+        "Analysts expect growth of 3% in 2029, but ANZ expects inflation of 2% in 2029.",
+        "third_party",
+        "Analysts",
+        2,
+    ),
+    # The clause's own figure is the claimed one, or may be: the credit stays on it.
+    (
+        "We forecast growth of 3% in 2029, which the major banks say will be 3%.",
+        "author",
+        "The Treasury",
+        3,
+    ),
+    (
+        "We forecast growth of 3% in 2029, which the major banks say will be 3.0%.",
+        "author",
+        "The Treasury",
+        3,
+    ),
+    (
+        "We forecast growth of 3% in 2029, which the major banks say will be higher.",
+        "author",
+        "The Treasury",
+        3,
+    ),
+    (
+        "We forecast growth of 3% in 2029, which the major banks say will be between 2% and 3%.",
+        "author",
+        "The Treasury",
+        3,
+    ),
+    (
+        "We forecast growth of 3% in 2029, which the major banks say will be 3 per cent.",
+        "author",
+        "The Treasury",
+        3,
+    ),
+    # The figure inside the clause is the clause subject's, not the author's.
+    ("We expect growth of 3% in 2029, which analysts say will be 2%.", "author", "The Treasury", 2),
+    (
+        "The IMF expects growth of 3% in 2029, which analysts at ANZ say will be 2%.",
+        "third_party",
+        "IMF",
+        2,
+    ),
+]
+
+
+@pytest.mark.parametrize(("sentence", "role", "issuer", "value"), SCOPE_STILL_BLOCKED)
+def test_a_cut_is_never_made_where_the_earlier_credit_may_still_reach_the_figure(
+    sentence, role, issuer, value
+):
+    report = authors(sentence, role, issuer, value)
+    assert codes(report) & {"issuer_mismatch", "issuer_not_in_evidence"}

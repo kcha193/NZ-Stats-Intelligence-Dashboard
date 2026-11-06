@@ -49,15 +49,18 @@ def _node(tmp_path, source):
 
 
 def test_the_package_lists_the_sheets_by_size_and_hash_and_never_shows_their_text(stored, tmp_path):
+    _with_gold(stored, tmp_path)
     _, report, page = _build(stored, tmp_path)
     assert SHEET_TEXT not in page
-    assert report["sheets_found"] == report["sheets_expected"] == 4
+    assert report["sheets_found"] == report["sheets_expected"] == 5
     assert "<code>" in page and "bytes" in page
 
 
 def test_a_missing_sheet_is_reported_not_invented(stored, tmp_path):
+    _with_gold(stored, tmp_path)
     _, report, page = _build(stored, tmp_path, make_sheets=False)
-    assert report["sheets_found"] == 0 and "not found at" in page
+    assert report["sheets_found"] == 1 and report["sheets_expected"] == 5
+    assert page.count("not found at") == 4
 
 
 def test_the_package_is_private(stored, tmp_path):
@@ -80,6 +83,7 @@ def test_the_page_prefills_no_answer_no_name_and_no_approval(stored, tmp_path):
 def test_every_open_decision_the_record_names_is_asked_with_a_default_that_keeps_the_rules(
     stored, tmp_path
 ):
+    _with_gold(stored, tmp_path)
     _, report, page = _build(stored, tmp_path)
     ids = [d.id for _, _, _, decisions in GROUPS for d in decisions]
     assert len(ids) == len(set(ids)) == report["decisions"]
@@ -161,6 +165,7 @@ def test_the_command_writes_the_package_and_prints_statuses_only(capsys, tmp_pat
 
 
 def test_model_output_is_linked_only_after_the_gold_sheet_and_gold_comes_first(stored, tmp_path):
+    _with_gold(stored, tmp_path)
     _, _, page = _build(stored, tmp_path)
     after = page.index("Open only after your own marks are finished")
     assert page.index("human-review.html") > after
@@ -195,6 +200,7 @@ def test_an_existing_directory_is_not_re_moded_and_a_symlinked_file_is_refused(s
 
 # Review of PR 46 (Codex, P2): the Phase 4O packet needs a usable link once, and only once, the owner's own gold is saved.
 PACKET = "phase-4n/run-treasury-20261102/human-review.html"
+PERIODS = "phase-4q/period-review-worksheet.html"
 
 
 def _with_gold(stored, tmp_path, valid=True):
@@ -216,8 +222,11 @@ def _links(page):
 
 
 def test_the_constants_that_decide_the_link_are_safe_relative_paths():
-    allowed = {rel for rel, _ in owner_review.AI_WRITTEN.values()}
-    assert owner_review.LINKED_AFTER_GOLD == {PACKET}
+    allowed = {
+        rel
+        for rel, _ in (*owner_review.EXISTING_SHEETS.values(), *owner_review.AI_WRITTEN.values())
+    }
+    assert owner_review.LINKED_AFTER_GOLD == {PACKET, PERIODS}
     for rel in owner_review.LINKED_AFTER_GOLD:
         assert rel in allowed and not rel.startswith("/") and ".." not in Path(rel).parts
 
@@ -234,8 +243,9 @@ def test_the_packet_is_linked_after_the_owners_gold_is_saved_and_valid(stored, t
 
 def test_the_packet_is_not_linked_before_the_owners_gold_is_saved(stored, tmp_path):
     _, _, page = _build(stored, tmp_path)
-    assert "human-review.html" in _after_gold(page)
-    assert not any("human-review" in link or "phase-4n" in link for link in _links(page))
+    assert (
+        "human-review" not in page and "phase-4n" not in page
+    )  # not even listed: see test_owner_review_blind.py
 
 
 @pytest.mark.parametrize("state", ["invalid", "unbound", "unreadable"])
@@ -260,11 +270,16 @@ def test_a_gold_file_for_another_version_unlocks_nothing(stored, tmp_path):
     assert not any("phase-4n" in link for link in _links(page))
 
 
-def test_only_the_packet_is_linked_and_the_ai_pack_and_comparison_never_are(stored, tmp_path):
+def test_only_the_packet_and_period_worksheet_are_linked_and_the_ai_pack_and_comparison_never_are(
+    stored, tmp_path
+):
     _with_gold(stored, tmp_path)
     data, _, page = _build(stored, tmp_path)
     after = _after_gold(page)
-    assert len(_links(after)) == 1
+    assert sorted(Path(unquote(link)).name for link in _links(after)) == [
+        "human-review.html",
+        "period-review-worksheet.html",
+    ]
     for rel in ("annotations/phase-4q-feu-2026-10-29.json", "phase-4q/feu-comparison.md"):
         name = Path(rel).name
         assert name in after and f">{name}</a>" not in after

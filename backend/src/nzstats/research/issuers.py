@@ -388,7 +388,7 @@ def _group_credits(text: str) -> list[re.Match[str]]:
         words = before.split()
         starts_clause = not words or words[-1][-1] in ",;:("
         if not _COMPARED_WITH.search(before) and (
-            starts_clause or words[-1].lower() in _BEFORE_MARKET | _LEAD_IN
+            starts_clause or words[-1].lower() in _BEFORE_MARKET | _LEAD_IN | {"which"}
         ):
             found.append(m)
     for pattern in (_GROUP_PASSIVE, _ACCORDING_TO_GROUP):
@@ -426,19 +426,36 @@ def reported_more(text: str) -> set[str]:
     return keys
 
 
+def _without_comments(clause: str) -> str:
+    """`clause` without the credits that only comment on the year or the forecast ("which analysts say will be a testing year").
+
+    The one filter for both sides of the figure. A comment is a closed list (`_COMMENT`), and a named reporter's "says will be a
+    challenging year" is the same comment as a group's.
+    """
+    clause = _GROUP_IN_CLAUSE.sub(
+        lambda m: " " if _COMMENT.match(m.group("rest")) else m.group(), clause
+    )
+    for said in _SAID_PATTERNS.values():
+        clause = said.sub(
+            lambda m: " " if _COMMENT.match(_CLAUSE_REST.match(m.string, m.end())[0]) else m[0],
+            clause,
+        )
+    return clause
+
+
 def more_around(before: str, after: str, who: str | None, author: str | None) -> set[str]:
     """`reported_more` for the wording that leads to a figure (since the credited forecaster's last words) and its own "which" clause.
 
     A "which" clause that only comments on the year or the forecast ("which analysts expect to be a testing year") credits nobody.
     """
+    before, after = claimed_scope(before, after)
     if who == "group":
         lead = since_group(before, after)
     elif who in (None, "author"):
         lead = _since_author_and_people(before, author)
     else:
         lead = since_credit(before, who, author)
-    keys = reported_more(lead)
-    after = own_assertion(after)
+    keys = reported_more(_without_comments(lead))
     # After the figure only the passive and "according to" forms can name who made it, unless the group is only the other side of
     # a comparison ("higher than forecast by analysts").
     keys |= {
@@ -450,16 +467,7 @@ def more_around(before: str, after: str, who: str | None, author: str | None) ->
     }
     which = _WHICH.search(after)
     if which is not None:
-        clause = _GROUP_IN_CLAUSE.sub(
-            lambda m: " " if _COMMENT.match(m.group("rest")) else m.group(), after[which.end() :]
-        )
-        # A named reporter's "says will be a challenging year" is the same comment, in the same closed list.
-        for said in _SAID_PATTERNS.values():
-            clause = said.sub(
-                lambda m: " " if _COMMENT.match(_CLAUSE_REST.match(m.string, m.end())[0]) else m[0],
-                clause,
-            )
-        keys |= reported_more(clause)
+        keys |= reported_more(_without_comments(after[which.end() :]))
     # The author's own analysts ("analysts at the Treasury") are the author speaking, for an author label only.
     return keys - {author} - ({f"group@{author}"} if who == "author" else set())
 
@@ -577,6 +585,85 @@ def own_assertion(after: str) -> str:
         if _FIGURE.search(after, m.end()):
             return after[: m.start()]
     return after
+
+
+# ---- The claimed figure's own assertion (convergence review of PR 46) -------------------------------------------------------------
+# Most review findings of the Phase 4R wording had one cause: each check scanned the sentence from its own starting point, and only
+# some cut it where a different assertion begins. `claimed_scope` is that cut, made once, for every scan of the new wording.
+#
+# A cut is a boundary (a contrast, a semicolon, ", and", or the comparator that opens the other side of a comparison) AND proof that
+# the claimed figure's side names its own forecaster: a credit between the boundary and the figure, or a "forecast by" / "according to"
+# agent after the figure. A bare mention, "but only 2% in 2030", a bare "and" and "only if banks cut rates" prove nothing, so nothing
+# is cut and the earlier credit keeps reaching the figure. The scope only ever shrinks what the new wording reads, so it can remove a
+# rejection but never add one, and it never touches the older wording.
+_SCOPE_BOUNDARY = re.compile(
+    r";|,?\s*\b(?:while|whereas|but|then)\b|,\s*(?:and|which)\b|,?\s*\b(?:compared\s+(?:with|to)|versus|vs\.?)(?=\s)",
+    re.IGNORECASE,
+)
+_TAIL_AGENT = re.compile(
+    r"\b(?:(?:expected|forecast|projected|predicted|anticipated|estimated)\s+by|according\s+to)\s+\w",
+    re.IGNORECASE,
+)
+# The author speaking in the first person, which the other credit patterns (organisations, outside groups) do not cover.
+_OWN_CREDIT = re.compile(
+    r"\b(?:we|our\s+(?:\w+\s+){0,2}?(?:analysts|forecasters|economists|staff|officials))\s+"
+    r"(?:(?:still|now|also|currently)\s+)?(?:forecast|project|expect|estimate|anticipate|predict|see|think|believe)\w*",
+    re.IGNORECASE,
+)
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _number(text: str) -> float | None:
+    m = _NUMBER.search(text)
+    return float(m.group().replace(",", "")) if m else None
+
+
+def _tail_agent(trail: str) -> bool:
+    """Does a "forecast by" / "according to" agent follow the figure in its own assertion, outside a comparison?"""
+    return any(
+        not _COMPARED_AFTER_FIGURE.search(trail[: m.start()]) for m in _TAIL_AGENT.finditer(trail)
+    )
+
+
+def _names_its_forecaster(segment: str) -> bool:
+    """Does `segment` credit someone with a figure, by any wording this module reads? One question, asked of every kind of credit."""
+    return bool(
+        reported_more(segment)
+        or reported(segment)
+        or _credited_outside_comparison(segment)
+        or _OWN_CREDIT.search(segment)
+    )
+
+
+def _without_other_figures_clause(trail: str, claimed: str) -> str:
+    """`trail` without a ", which" clause whose figures are all numerically different from the claimed one: it is about those figures.
+
+    "We forecast growth of 3%, which the banks say will be 2%" gives 2% to the banks. "…will be 3%", "…3.0%", "…between 2% and 3%" and
+    "…will be higher" keep the credit on the claimed figure: any figure equal to it, or none at all, leaves the clause as it was.
+    """
+    which = _WHICH.search(trail)
+    figure = _FIGURE.match(claimed)
+    if which is None or figure is None:
+        return trail
+    value = _number(figure.group())
+    others = [_number(m.group()) for m in _FIGURE.finditer(trail, which.end())]
+    if value is None or not others or any(o is None or o == value for o in others):
+        return trail
+    return trail[: which.start()]
+
+
+def claimed_scope(before: str, after: str) -> tuple[str, str]:
+    """(lead, trail): what the sentence says before the claimed figure and from it on, within the figure's own assertion.
+
+    `after` starts at the claimed figure. See the note above for when `before` is cut.
+    """
+    trail = _without_other_figures_clause(own_assertion(after), after)
+    boundaries = list(_SCOPE_BOUNDARY.finditer(before))
+    if boundaries:
+        segment = before[boundaries[-1].end() :]
+        if _names_its_forecaster(segment) or _tail_agent(trail):
+            return segment, trail
+    return before, trail
 
 
 def third_parties_around(before: str, after: str, author: str | None) -> set[str]:
