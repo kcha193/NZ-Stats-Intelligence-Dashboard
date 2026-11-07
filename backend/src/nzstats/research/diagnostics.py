@@ -13,7 +13,9 @@ cited evidence sits, which errors share one root cause, and what changed between
 
 from __future__ import annotations
 
+import dataclasses
 import html
+import json
 import os
 import re
 import sqlite3
@@ -54,6 +56,11 @@ _FOREIGN_MARKER = re.compile(
     r"\b(?:US|A|C|HK|S)\$|\bUSD\b|\bAUD\b|\bCAD\b|\bEUR\b|\bGBP\b|[€£¥]|\bUS\s+dollars?\b"
 )
 _COLLECTIONS = ("drivers", "risks", "forecasts", "facts", "decisions", "guidance", "assumptions")
+# A verifier problem sits on a claim or inside it (`outlook.evidence[0]`). Exactly one top-level claim contains it; the index must
+# match whole, so `facts[1]` never claims a problem on `facts[10]`.
+_CLAIM_PATH = re.compile(
+    r"(outlook|uncertainty|(?:" + "|".join(_COLLECTIONS) + r")\[\d+\])(?:[.\[].*)?", re.DOTALL
+)
 _KIND = {"facts": "fact", "decisions": "decision", "forecasts": "forecast", "guidance": "guidance",
          "assumptions": "assumption"}  # fmt: skip
 NOTICE = (
@@ -89,6 +96,9 @@ class ClaimView:
     evidence: tuple[EvidenceSite, ...]
     text: str | None = None  # only with `with_text`
     quotes: tuple[str, ...] = ()  # only with `with_text`
+    details: tuple[
+        tuple[str, str], ...
+    ] = ()  # the claim's structured fields (not evidence), only with `with_text`
 
 
 @dataclass(frozen=True)
@@ -147,6 +157,7 @@ class Replay:
     clusters: tuple[Cluster, ...]
     claims: tuple[ClaimView, ...]
     notice: str = NOTICE
+    with_text: bool = False  # the one inclusion policy: HTML and JSON both follow it
 
     @property
     def root_causes_baseline(self) -> int:
@@ -163,6 +174,11 @@ class Replay:
         )
         return self.baseline.n_errors - guaranteed
 
+    def redacted(self) -> Replay:
+        """The same replay with every claim text, structured field and quote removed: safe for a terminal or an assistant."""
+        bare = tuple(dataclasses.replace(c, text=None, quotes=(), details=()) for c in self.claims)
+        return dataclasses.replace(self, claims=bare, with_text=False)
+
     def to_json(self) -> dict[str, Any]:
         return {
             "summary_id": self.summary_id, "version_id": self.version_id, "institution": self.institution,
@@ -178,7 +194,8 @@ class Replay:
             "claims": [{"path": c.path, "kind": c.kind, "baseline_errors": list(c.baseline_errors),
                         "proposed_errors": list(c.proposed_errors),
                         "evidence": [vars(e) for e in c.evidence],
-                        **({"text": c.text, "quotes": list(c.quotes)} if c.text is not None else {})}
+                        **({"text": c.text} if self.with_text and c.text is not None else {}),
+                        **({"details": dict(c.details), "quotes": list(c.quotes)} if self.with_text else {})}
                        for c in self.claims],
             "notice": self.notice,
         }  # fmt: skip
@@ -206,6 +223,46 @@ def cascade_clusters(problems: Iterable[tuple[str, str]]) -> tuple[Cluster, ...]
         )
         for path, codes in by_path.items()
         if CASCADE_ROOT in codes
+    )
+
+
+def claim_path(path: str) -> str | None:
+    """The top-level claim that contains a verifier problem path, or None when the path is not inside a claim.
+
+    `outlook.evidence[0]` -> `outlook`; `facts[10].evidence[0]` -> `facts[10]`; `section[2]` (a section warning) -> None.
+    """
+    match = _CLAIM_PATH.fullmatch(path)
+    return match.group(1) if match else None
+
+
+def _claims_with_problems(paths: Iterable[str]) -> set[str]:
+    return {claim for claim in map(claim_path, paths) if claim is not None}
+
+
+def transitions(
+    old: Iterable[tuple[str, str]], new: Iterable[tuple[str, str]], claim_paths: Sequence[str]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(newly accepted, newly rejected) claims, from (problem path, code) errors under two verifiers, in claim order."""
+    failed_old = _claims_with_problems(p for p, _ in old)
+    failed_new = _claims_with_problems(p for p, _ in new)
+    return (
+        tuple(p for p in claim_paths if p in failed_old and p not in failed_new),
+        tuple(p for p in claim_paths if p in failed_new and p not in failed_old),
+    )
+
+
+def _codes_at(problems: Iterable[V.Problem], claim: str) -> tuple[str, ...]:
+    """The sorted codes of the problems on a claim or anywhere inside it."""
+    return tuple(sorted(p.code for p in problems if claim_path(p.path) == claim))
+
+
+def _details(item: Any) -> tuple[tuple[str, str], ...]:
+    """A claim's structured fields as (name, value) pairs. Evidence and `text` are carried separately; empty fields are left out."""
+    dump = item.model_dump(mode="json", exclude={"evidence", "text"})
+    return tuple(
+        (name, value if isinstance(value, str) else json.dumps(value, sort_keys=True))
+        for name, value in dump.items()
+        if value is not None
     )
 
 
@@ -241,8 +298,8 @@ def _site(ref: Any, sections: dict[int, Any]) -> EvidenceSite:
 
 def _result(report: V.VerificationReport, claim_paths: Sequence[str]) -> VersionResult:
     problems = tuple((p.path, p.code, p.severity) for p in (*report.errors, *report.warnings))
-    failed = {p.path for p in report.errors}
-    warned = {p.path for p in report.warnings} - failed
+    failed = _claims_with_problems(p.path for p in report.errors)
+    warned = _claims_with_problems(p.path for p in report.warnings) - failed
     return VersionResult(
         version=report.version, n_errors=len(report.errors), n_warnings=len(report.warnings),
         errors=Counter(p.code for p in report.errors), warnings=Counter(p.code for p in report.warnings),
@@ -314,7 +371,6 @@ def replay_summary(
     )
     digest_ok = row["raw_output"] is not None and _sha(row["raw_output"]) == row["output_sha256"]
     base, prop = _result(old, paths), _result(new, paths)
-    failed_old, failed_new = {p.path for p in old.errors}, {p.path for p in new.errors}
     quotes = {path: [e.quote for e in getattr(item, "evidence", ())] for path, item in claims}
     err_old, err_new = (
         {(p.path, p.code) for p in old.errors},
@@ -322,7 +378,7 @@ def replay_summary(
     )
     roots = {c.path for c in cascade_clusters(err_new)}
     findings = tuple(
-        Finding(path, code, _label(code, path, quotes.get(path, ()), roots, (path, code) not in err_new),
+        Finding(path, code, _label(code, path, quotes.get(claim_path(path) or path, ()), roots, (path, code) not in err_new),
                 (path, code) in err_old, (path, code) in err_new)
         for path, code in sorted(err_old | err_new)
     )  # fmt: skip
@@ -330,21 +386,21 @@ def replay_summary(
     for path, item in claims:
         evidence = tuple(_site(r, sections) for r in getattr(item, "evidence", ()))
         text = getattr(item, "text", None) if with_text else None
+        details = _details(item) if with_text else ()
         views.append(ClaimView(
             path, _kind(path),
-            tuple(sorted(p.code for p in old.errors if p.path == path)),
-            tuple(sorted(p.code for p in new.errors if p.path == path)),
-            tuple(sorted(p.code for p in old.warnings if p.path == path)),
-            tuple(sorted(p.code for p in new.warnings if p.path == path)),
-            evidence, text, tuple(quotes[path]) if with_text else (),
+            _codes_at(old.errors, path), _codes_at(new.errors, path), _codes_at(old.warnings, path), _codes_at(new.warnings, path),
+            evidence, text, tuple(quotes[path]) if with_text else (), details,
         ))  # fmt: skip
+    accepted, rejected = transitions(
+        [(p.path, p.code) for p in old.errors], [(p.path, p.code) for p in new.errors], paths
+    )
     return Replay(
         summary_id=row["id"], version_id=row["version_id"], institution=row["institution"], status=row["status"],
         stored_verifier=stored_label, stored_reproduced=reproduced, output_hash_ok=digest_ok,
         baseline=base, proposed=prop,
-        newly_accepted=tuple(p for p in paths if p in failed_old and p not in failed_new),
-        newly_rejected=tuple(p for p in paths if p in failed_new and p not in failed_old),
-        findings=findings, clusters=cascade_clusters(err_old), claims=tuple(views),
+        newly_accepted=accepted, newly_rejected=rejected,
+        findings=findings, clusters=cascade_clusters(err_old), claims=tuple(views), with_text=with_text,
     )  # fmt: skip
 
 
@@ -357,8 +413,6 @@ def _sha(text: str) -> str:
 def _stored_pairs(
     verification: str | None,
 ) -> tuple[Counter[tuple[str, str]], Counter[tuple[str, str]]] | None:
-    import json
-
     if not verification:
         return None
     try:
@@ -391,6 +445,14 @@ def _site_text(site: EvidenceSite) -> str:
     return f"s{site.section} p{site.page or '-'} chars {site.start}-{site.end} sentence {site.sentence}"
 
 
+def _text_cell(claim: ClaimView) -> str:
+    """The claim's text, structured fields and evidence quotes, every one escaped. Only called when text was asked for."""
+    lines = [_e(claim.text)] if claim.text else []
+    lines += [f"{_e(name)}: {_e(value)}" for name, value in claim.details]
+    lines += [f"&ldquo;{_e(quote)}&rdquo;" for quote in claim.quotes]
+    return "<br>".join(lines)
+
+
 def render_html(replay: Replay) -> str:
     """One self-contained local page: no script, no network resource, nothing but escaped text."""
     rows = [
@@ -420,13 +482,13 @@ def render_html(replay: Replay) -> str:
         f"<tr><td><code>{_e(c.path)}</code></td><td>{_e(c.kind)}</td>"
         f"<td>{_e('; '.join(_site_text(s) for s in c.evidence) or '-')}</td>"
         f"<td>{_e(', '.join(c.baseline_errors) or '-')}</td><td>{_e(', '.join(c.proposed_errors) or '-')}</td>"
-        f"<td>{_e(', '.join(f.label for f in replay.findings if f.path == c.path) or '-')}</td>"
-        + (f"<td>{_e(c.text or '')}<br>{'<br>'.join(_e(q) for q in c.quotes)}</td>" if c.text is not None else "")
+        f"<td>{_e(', '.join(dict.fromkeys(f.label for f in replay.findings if claim_path(f.path) == c.path)) or '-')}</td>"
+        + (f"<td>{_text_cell(c)}</td>" if replay.with_text else "")
         + "</tr>"
         for c in replay.claims
         if c.baseline_errors or c.proposed_errors or c.baseline_warnings or c.proposed_warnings
     )  # fmt: skip
-    has_text = any(c.text is not None for c in replay.claims)
+    has_text = replay.with_text
     cluster_rows = "".join(
         f"<tr><td><code>{_e(c.path)}</code></td><td><code>{_e(c.root)}</code></td>"
         f"<td>{_e(', '.join(c.guaranteed) or '-')}</td><td>{_e(', '.join(c.possible) or '-')}</td></tr>"

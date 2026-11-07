@@ -704,12 +704,9 @@ def _diagnose(
             _emit(str(exc))
             return 2
     if args.json:
-        data = replay.to_json()
-        for claim in data["claims"]:
-            claim.pop("text", None)
-            claim.pop(
-                "quotes", None
-            )  # the terminal never receives claim text, even when the report has it
+        data = (
+            replay.redacted().to_json()
+        )  # the terminal never receives claim text, even when the report has it
         _emit(json.dumps(data, indent=1))
         return 0
     b, p = replay.baseline, replay.proposed

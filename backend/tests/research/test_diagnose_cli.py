@@ -99,3 +99,20 @@ def test_diagnose_refuses_a_report_path_that_would_overwrite_the_database_or_lea
     outside = tmp / "outside.html"
     assert main(["research", "diagnose", str(sid), "--out", str(outside)]) == 2
     assert not outside.exists()
+
+
+def test_json_on_the_terminal_carries_no_claim_text_even_when_the_report_has_it(env, capsys):
+    """Review round 1: the structured claim fields (decision maker, source, qualification) are text too."""
+    tmp_path, sid = env
+    out = tmp_path / "data" / "diag" / "both.html"
+    assert (
+        main(["research", "diagnose", str(sid), "--json", "--out", str(out), "--include-text"]) == 0
+    )
+    printed = capsys.readouterr().out
+    body = json.loads(printed[printed.index("{") :])
+    for claim in body["claims"]:
+        assert not {"text", "quotes", "details"} & set(claim)
+    for needle in (SECRET, "Brent", "Monetary Policy Committee", "decision_maker", "Stats NZ"):
+        assert needle not in printed
+    page = out.read_text()  # the owner-only report still has them, for decisions as well as facts
+    assert "Monetary Policy Committee" in page and "Brent crude averaged" in page

@@ -17,12 +17,14 @@ from nzstats.research.diagnostics import (
     LABELS,
     DiagnosticError,
     cascade_clusters,
+    claim_path,
     open_readonly,
     render_html,
     replay_summary,
+    transitions,
 )
 
-from .diag_support import SECRET, store_verify_4_summary
+from .diag_support import SECRET, ev, output, store_verify_4_summary
 
 
 @pytest.fixture()
@@ -264,3 +266,188 @@ def test_an_unreadable_stored_date_is_a_clear_error_that_does_not_quote_it(conn)
     with pytest.raises(DiagnosticError) as excinfo:
         replay_summary(conn_, sid)
     assert "SECRET" not in str(excinfo.value) and "date" in str(excinfo.value)
+
+
+# --- review round 1, finding 1: a problem on `outlook.evidence[0]` belongs to the claim `outlook` ------------------
+def _citation_only(v):
+    """The fixture with one extra claim whose only fault is a quote that is not in the stored text."""
+    data = output(v)
+    data["outlook"]["evidence"] = [ev(v, 1, "Annual CPI inflation was 9.9% in the quarter")]
+    return data
+
+
+@pytest.mark.parametrize(
+    ("problem_path", "claim"),
+    [
+        ("outlook", "outlook"),
+        ("outlook.evidence[0]", "outlook"),
+        ("uncertainty.evidence[2]", "uncertainty"),
+        ("facts[1]", "facts[1]"),
+        ("facts[1].evidence[0]", "facts[1]"),
+        ("facts[10].evidence[0]", "facts[10]"),  # never confused with facts[1]
+        ("decisions[12]", "decisions[12]"),
+        ("section[2]", None),  # a section warning is not a claim
+        ("facts", None),
+        ("facts[1]x", None),
+        ("facts[x]", None),
+        ("xfacts[1]", None),
+    ],
+)
+def test_a_problem_path_maps_to_exactly_one_containing_claim(problem_path, claim):
+    assert claim_path(problem_path) == claim
+
+
+def test_a_citation_only_error_makes_its_claim_failed_not_clean(conn):
+    conn, sid, report = store_verify_4_summary(conn, _citation_only)
+    assert [(p.path, p.code) for p in report.errors if p.path.startswith("outlook")] == [
+        ("outlook.evidence[0]", "quote_not_found")
+    ]
+    replay = replay_summary(conn, sid)
+    outlook = next(c for c in replay.claims if c.path == "outlook")
+    assert outlook.baseline_errors == outlook.proposed_errors == ("quote_not_found",)
+    for result in (replay.baseline, replay.proposed):
+        assert (
+            result.claims_failed + result.claims_warning + result.claims_clean
+            == result.claims_total
+        )
+        assert result.citation_errors == 1
+    failed_paths = {c.path for c in replay.claims if c.baseline_errors}
+    assert "outlook" in failed_paths and replay.baseline.claims_failed == len(failed_paths)
+
+
+def test_the_original_problem_path_is_kept_for_provenance(conn):
+    conn, sid, _ = store_verify_4_summary(conn, _citation_only)
+    replay = replay_summary(conn, sid)
+    assert ("outlook.evidence[0]", "quote_not_found", "error") in replay.baseline.problems
+    finding = next(f for f in replay.findings if f.code == "quote_not_found")
+    assert finding.path == "outlook.evidence[0]" and finding.in_baseline and finding.in_proposed
+    page = render_html(replay)
+    assert "outlook.evidence[0]" in page
+    row = next(
+        r for r in page.split("<tr>") if "<code>outlook</code>" in r and "quote_not_found" in r
+    )
+    assert (
+        row.count("unsupported_by_stored_evidence") == 1
+    )  # the finding's label shows against its claim
+
+
+def test_mixed_nested_and_direct_errors_count_a_claim_once(conn):
+    def build(v):
+        data = _citation_only(v)
+        data["facts"][1]["evidence"] = [ev(v, 1, "Brent crude averaged US$82 a barrel in November")]
+        return data
+
+    conn, sid, report = store_verify_4_summary(conn, build)
+    assert {"facts[1]", "facts[1].evidence[0]"} <= {p.path for p in report.errors}
+    replay = replay_summary(conn, sid)
+    view = next(c for c in replay.claims if c.path == "facts[1]")
+    assert {"missing_unit", "quote_not_found"} <= set(view.baseline_errors)
+    assert replay.baseline.claims_failed == len({claim_path(p.path) for p in report.errors})
+
+
+def test_acceptance_transitions_follow_the_containing_claim():
+    old = [("outlook.evidence[0]", "quote_not_found"), ("facts[1].evidence[0]", "quote_not_found"),
+           ("facts[10]", "missing_unit")]  # fmt: skip
+    new = [("outlook.evidence[0]", "quote_not_found"), ("facts[10].evidence[1]", "quote_not_found"),
+           ("decisions[0]", "vote_not_in_evidence")]  # fmt: skip
+    paths = ["outlook", "facts[1]", "facts[10]", "decisions[0]"]
+    accepted, rejected = transitions(old, new, paths)
+    assert accepted == ("facts[1]",)  # facts[10] still fails: a different problem, same claim
+    assert rejected == ("decisions[0]",)
+
+
+# --- review round 1, finding 2: text inclusion is one policy, for every claim kind --------------------------------
+def _with_forecast(v):
+    data = output(v)
+    data["forecasts"] = [{"indicator": "cpi_inflation", "indicator_label": "Annual CPI <b>inflation</b>",
+                          "horizon": "year to March 2027", "value": 2.0, "unit": "percent", "direction": "down",
+                          "qualification": "SYNTHETIC-QUALIFIER",
+                          "evidence": [ev(v, 2, "The Committee expects inflation to ease")]}]  # fmt: skip
+    return data
+
+
+def test_decision_and_forecast_evidence_are_collected_with_text(conn):
+    conn, sid, _ = store_verify_4_summary(conn, _with_forecast)
+    replay = replay_summary(conn, sid, with_text=True)
+    by_path = {c.path: c for c in replay.claims}
+    assert replay.with_text is True
+    assert by_path["decisions[1]"].quotes == ("The Committee expects inflation to ease after it agreed to hold "
+                                              "the Official Cash Rate at 2.75 percent",)  # fmt: skip
+    assert by_path["forecasts[0]"].quotes == ("The Committee expects inflation to ease",)
+    decision = dict(by_path["decisions[1]"].details)
+    assert (
+        decision["action"] == "hold" and decision["rate"] == "2.75" and "decision_maker" in decision
+    )
+    assert "evidence" not in decision  # quotes are listed once, in `quotes`
+    forecast = dict(by_path["forecasts[0]"].details)
+    assert (
+        forecast["horizon"] == "year to March 2027"
+        and forecast["qualification"] == "SYNTHETIC-QUALIFIER"
+    )
+    assert dict(by_path["facts[0]"].details)["period"] == "September 2026 quarter"
+
+
+def test_text_enabled_html_shows_decision_and_forecast_evidence(conn):
+    conn, sid, report = store_verify_4_summary(conn, _with_forecast)
+    page = render_html(replay_summary(conn, sid, with_text=True))
+    assert any(p.path == "decisions[1]" for p in report.errors)
+    assert (
+        "The Committee expects inflation to ease after it agreed" in page
+    )  # decisions[1] is failed
+    assert "Monetary Policy Committee" in page and "hold" in page
+    assert render_html(replay_summary(conn, sid)).count("Monetary Policy Committee") == 0
+
+
+def test_html_and_json_apply_the_same_inclusion_rule(conn):
+    conn, sid, _ = store_verify_4_summary(conn, _with_forecast)
+    for with_text in (False, True):
+        replay = replay_summary(conn, sid, with_text=with_text)
+        data = replay.to_json()
+        page = render_html(replay)
+        for kind_path in ("decisions[1]", "facts[1]"):
+            entry = next(c for c in data["claims"] if c["path"] == kind_path)
+            assert ("quotes" in entry and "details" in entry) is with_text
+        assert ("SYNTHETIC-QUALIFIER" in json.dumps(data)) is with_text
+        assert ("Brent crude averaged" in page) is with_text and (
+            "Brent crude averaged" in json.dumps(data)
+        ) is with_text
+    default = json.dumps(replay_summary(conn, sid).to_json())
+    for secret in (
+        SECRET,
+        "Brent",
+        "Monetary Policy Committee",
+        "SYNTHETIC-QUALIFIER",
+        "Annual CPI",
+    ):
+        assert secret not in default
+
+
+def test_a_claim_with_no_quotes_found_still_counts_as_text_enabled(conn):
+    conn, sid, _ = store_verify_4_summary(conn)
+    replay = replay_summary(conn, sid, with_text=True)
+    stripped = dataclasses.replace(replay, claims=tuple(dataclasses.replace(c, text=None, quotes=(), details=())
+                                                        for c in replay.claims))  # fmt: skip
+    assert "<th>Text</th>" in render_html(stripped)
+    assert "text" not in {k for c in replay_summary(conn, sid).to_json()["claims"] for k in c}
+
+
+def test_hostile_structured_fields_and_quotes_are_escaped(conn):
+    conn, sid, _ = store_verify_4_summary(conn, _with_forecast)
+    replay = replay_summary(conn, sid, with_text=True)
+    page = render_html(replay)
+    assert (
+        "<b>inflation</b>" not in page and "&lt;b&gt;inflation&lt;/b&gt;" in page
+    )  # real forecast label
+    hostile = '"><script>alert(1)</script><img src=x onerror=alert(2)>'
+    attack = dataclasses.replace(
+        replay,
+        claims=tuple(dataclasses.replace(c, text=hostile, quotes=(hostile,), details=((hostile, hostile),))
+                     for c in replay.claims),
+    )  # fmt: skip
+    out = render_html(attack)
+    assert (
+        "<script" not in out.lower()
+        and "<img" not in out.lower()
+        and "onerror=alert(2)>" not in out
+    )
+    assert out.count("&lt;script&gt;") >= 3
