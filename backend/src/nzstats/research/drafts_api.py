@@ -46,7 +46,7 @@ from nzstats.research.private_api import (
     _refuse_unless_local_dashboard,
 )
 from nzstats.research.registry import Institution, RegistryError, load_registry
-from nzstats.research.verify import SCOPE, VERIFIER_VERSION
+from nzstats.research.verify import SCOPE, resolve_verifier
 
 log = logging.getLogger(__name__)
 # Phase 4T: the persistent notice, shown wherever a draft is. Its wording is fixed by the owner's brief.
@@ -184,7 +184,7 @@ def _item(d: DraftSummary, reports: list[StoredReport]) -> DraftItemOut:
         licence=inst.licence, licence_url=inst.licence_url,
         provenance=DraftProvenanceOut(provider=r["provider"], model=r["model"], hosted=bool(r["hosted"]),
                                       prompt_version=r["prompt_version"], processing_version=r["processing_version"],
-                                      verifier_version=VERIFIER_VERSION, written_at=to_akl_iso(r["created_at"])),
+                                      verifier_version=resolve_verifier(r["verifier_version"]), written_at=to_akl_iso(r["created_at"])),
         claims=_claims(d), newer_report=_newer_report(d, reports),
     )  # fmt: skip
 

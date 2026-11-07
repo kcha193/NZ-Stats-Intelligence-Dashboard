@@ -41,7 +41,7 @@ from nzstats.research.public import SUMMARY_SELECT, allowed_document_url
 from nzstats.research.registry import ContentPolicy, Institution
 from nzstats.research.summarise import load_sections
 from nzstats.research.summary_store import is_redacted
-from nzstats.research.verify import Problem, VerificationContext, verify
+from nzstats.research.verify import Problem, VerificationContext, resolve_verifier, verify
 
 log = logging.getLogger(__name__)
 ALLOWLIST_FILE = "internal-drafts.json"
@@ -276,7 +276,8 @@ def _assess(
     if row["published_on"] and published is None:
         return "the stored publication date is not valid", None
     report = verify(summary, sections, VerificationContext(
-        published_on=published, institution=row["institution"]))  # fmt: skip
+        published_on=published, institution=row["institution"]),
+        version=resolve_verifier(row["verifier_version"]))  # fmt: skip
     # The document's own stated date or period, set only from its text (never derived from the publication date).
     stated = conn.execute(
         "SELECT reference_period FROM research_publication WHERE id = ?", (row["publication_id"],)

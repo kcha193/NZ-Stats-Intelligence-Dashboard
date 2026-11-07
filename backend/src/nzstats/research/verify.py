@@ -40,7 +40,23 @@ from nzstats.research.contract import (
 )
 from nzstats.research.prompt import INJECTION_PATTERN
 
-VERIFIER_VERSION = "verify-4"
+VERIFIER_VERSION = "verify-5"
+BASELINE_VERIFIER = "verify-4"
+# What each verifier version adds to the one before it. A stored result is always replayed under the version that
+# produced it (`resolve_verifier`), so changing the meaning of a check never rewrites what an older result says.
+_VERSION_FEATURES: dict[str, frozenset[str]] = {
+    "verify-4": frozenset(),
+    "verify-5": frozenset(
+        {"colon_vote", "comparison_period", "foreign_currency"}
+    ),  # Phase 4V, see docs
+}
+
+
+def resolve_verifier(stored: str | None) -> str:
+    """The verifier that re-checks a stored result. An older or unknown label keeps the verify-4 rules it was shown under."""
+    return stored if stored in _VERSION_FEATURES else BASELINE_VERIFIER
+
+
 SCOPE = (
     "Deterministic evidence checks only: quotes, numbers, units, horizons, versions and pages were"
     " matched against the stored text. This is not a check of economic accuracy, completeness or"
@@ -97,6 +113,12 @@ _VOTE_WORD = re.compile(
 )
 _VOTE_PAIR = re.compile(rf"\b{_COUNT}\s*(?:[–—-]|\bto\b)\s*{_COUNT}\b", re.IGNORECASE)
 _MEMBERS = re.compile(rf"\b{_COUNT}\s+(?:[a-z]+\s+)?members?\b", re.IGNORECASE)
+# A vote written "4:3" (verify-5). Stricter than the dash form because a colon also writes times, scores and ratios: both
+# counts are single digits that stand alone (no neighbouring digit, letter, colon or decimal point), and a ratio or clock word
+# beside the pair rules it out. It is still read only inside a sentence that is about a vote.
+_VOTE_COLON = re.compile(r"(?<![\w:])(?<!\d[.,])(\d)[ \t]*:[ \t]*(\d)(?![\w:]|[.,]\d)")
+_NOT_A_VOTE_BEFORE = re.compile(r"\bratio(?:\s+of)?\s*$", re.IGNORECASE)
+_NOT_A_VOTE_AFTER = re.compile(r"\s*(?:ratio\b|[ap]\.?m\b)", re.IGNORECASE)
 # Survey respondents' expectations reported as a result ("a net 40% of respondents expected …") are an outturn.
 _SURVEY_EXPECTATION = re.compile(
     r"\b(?:respondents|firms|businesses|households|consumers)\b[^.;]{0,60}?\bexpect", re.IGNORECASE
@@ -237,6 +259,8 @@ _UNIT_SUFFIX = {
 }  # fmt: skip
 _OF_GDP = re.compile(r"^\s*(?:%|per\s*cent|percent)\s+of\s+(?:nominal\s+)?gdp", re.IGNORECASE)
 _DOLLAR_PREFIX = re.compile(r"(?:\$|nzd\s?|nz\$)\s?$", re.IGNORECASE)
+# A dollar sign that belongs to another currency: "US$82", "A$4.2 billion", "US $4.2 million". NZ$ and a bare $ are New Zealand dollars.
+_FOREIGN_DOLLAR = re.compile(r"\b(?:US|U\.S\.)\s?\$\s?$|\b(?:AU|A|CA|C|HK|SG|S)\$\s?$")
 # A scale word or abbreviation straight after a dollar amount: plain NZD must not match these.
 _MONEY_SCALE = re.compile(
     r"^\s*(?:thousand|k\b|million|mn?\b|billion|bn\b|b\b|trillion|tn\b|t\b)", re.IGNORECASE
@@ -735,128 +759,162 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
     return False
 
 
-def _period_missing(
-    period: str, found: list[tuple[EvidenceRef, _Located]], value_at: list[tuple[_Located, int]]
+def _comparison_stop(loc: _Located, at: int) -> int | None:
+    """Where the figure at `at` ends and the base it is compared with begins (verify-5), or None.
+
+    "3.7% in the September 2026 quarter, up from 3.3% in the June 2026 quarter": a comparison word follows the figure. A gap
+    ("3% above trend in 2029") is not split, because its period may belong to the figure. The caller still requires the figure's own
+    side to support the whole claimed period by itself.
+    """
+    a, b = loc._clause_span(at)
+    marker = next(_COMPARISON.finditer(loc.text, at, b), None)
+    if marker is None or marker.group().lower() in {"above", "below"}:
+        return None
+    return marker.start()
+
+
+def _period_gaps(
+    period: str, wanted: tuple[Any, ...], loc: _Located, at: int, stop: int | None = None
 ) -> list[str]:
-    """Bind each reference period to one value; inherit only unambiguous missing components."""
+    """What stops `period` being bound to the figure at `at`; empty when it is supported. `stop` ends the clause early."""
+    place, line = loc.layout.place(at)
+    table_context = ""
+    if place == "cell":
+        table = loc.layout.table(line, include_sources=False)
+        column = table.years[loc.layout.cell_index(line, at)] if table.years else ""
+        local = f"{column} {loc.layout.row(line).label}"
+        table_context = table.context
+    else:
+        a, b = loc._clause_span(at)
+        b = b if stop is None else stop
+        start, end = a, b
+        # Paired figures may have separate periods without a comma ("... before falling").
+        separators = list(re.finditer(r"\b(?:and|before|after|then)\b", loc.text[a:b]))
+        for i, separator in enumerate(separators):
+            stop = separators[i + 1].start() if i + 1 < len(separators) else b - a
+            tail = loc.text[a + separator.end() : a + stop]
+            remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail)))
+            remainder = re.sub(
+                r"\b(?:in|the|years?|quarters?|months?|calendar|fiscal|financial|to|through|ending|ended|of)\b",
+                "",
+                remainder,
+                flags=re.I,
+            )
+            if (
+                separator.group().lower() == "and"
+                and any(_period_parts(tail)[:3])
+                and not re.search(r"\w", remainder)
+            ):
+                continue  # coordinated dates qualify the same figure, not another assertion
+            if a + separator.end() <= at:
+                start = a + separator.end()
+            elif a + separator.start() > at:
+                end = a + separator.start()
+                break
+        local = loc.with_lines(start, end)
+    parts = _period_parts(local)
+    support = [local]
+    neighbors = []
+    sentence = next(i for i, (a, b) in enumerate(loc.sentences) if a <= at < b)
+    # A temporal introduction applies to coordinated assertions in the same sentence.
+    prefix = re.match(
+        r"\s*(?:in|for|during|over)\b[^,;]*,", loc.with_lines(*loc.sentences[sentence]), re.I
+    )
+    shared_prefix = prefix.group() if prefix else ""
+    remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", shared_prefix)))
+    if _numbers(remainder):
+        shared_prefix = ""  # an earlier numerical assertion is not a shared temporal prefix
+    for i in (sentence - 1, sentence + 1):
+        if not 0 <= i < len(loc.sentences):
+            continue
+        text = loc.with_lines(*loc.sentences[i])
+        remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", text)))
+        # Another numerical assertion has its own period. Only explicit context applying to
+        # the figures can supply an unstated period, never an adjacent independent result.
+        if _numbers(remainder) or not re.search(
+            r"\b(?:all|following|these)\s+(?:figures|results|forecasts)\b"
+            r"|\b(?:figures|results|forecasts)\s+(?:refer|are for)\b",
+            text,
+            re.I,
+        ):
+            continue
+        neighbors.append(text)
+    # The section heading takes precedence over neighboring period-only context.
+    for candidates in ([shared_prefix], [table_context], [loc.heading], neighbors):
+        compatible = [
+            text
+            for text in candidates
+            if all(
+                not a
+                or not b
+                or a == b
+                or (
+                    i == 0
+                    and len(a) == 1
+                    and len(b) == 2
+                    and max(a) == max(b)
+                    and max(b) - min(b) == 1
+                    and _FISCAL.search(_fiscal_text(text))
+                )
+                for i, (a, b) in enumerate(zip(parts, _period_parts(text), strict=True))
+            )
+        ]
+        additions = tuple(
+            set().union(*(_period_parts(text)[i] for text in compatible)) for i in range(4)
+        )
+        if any(not a and b for a, b in zip(parts, additions, strict=True)):
+            support.extend(compatible)
+            parts = tuple(a or b for a, b in zip(parts, additions, strict=True))
+    context = " ".join(support)
+    missing = _unstated_period(period, context)
+    # Multiple candidate periods cannot be combined into a single invented reference period.
+    # A fiscal pair may legitimately be named by its end year (2024/25 -> June 2025 year).
+    for i, (claimed, stated) in enumerate(zip(wanted, parts, strict=True)):
+        fiscal_end = (
+            i == 0
+            and len(claimed) == 1
+            and len(stated) == 2
+            and max(claimed) == max(stated)
+            and max(stated) - min(stated) == 1
+            and _FISCAL.search(_fiscal_text(context))
+            and _FISCAL.search(_fiscal_text(period))
+        )
+        if claimed and stated and claimed != stated and not fiscal_end:
+            missing.append("ambiguous or contradictory period")
+    fiscal = bool(_FISCAL.search(_fiscal_text(context)))
+    if (
+        fiscal
+        and not _FISCAL.search(_fiscal_text(period))
+        or _FISCAL.search(_fiscal_text(period))
+        and _CALENDAR.search(context)
+    ):
+        missing.append("year basis")
+    if place == "text" and _period_only_in_comparison(period, loc, at):
+        missing.append("the period of a comparison")
+    return missing
+
+
+def _period_missing(
+    period: str,
+    found: list[tuple[EvidenceRef, _Located]],
+    value_at: list[tuple[_Located, int]],
+    bind_comparison: bool = False,
+) -> list[str]:
+    """Bind each reference period to one value; inherit only unambiguous missing components.
+
+    `bind_comparison` (verify-5): when the whole clause fails and the figure is followed by a comparison and a second figure with
+    its own period, the figure's side alone is tried. It has to support the whole claimed period on its own.
+    """
     wanted = _period_parts(period)
     if not period.strip():
         return []
     failures = []
     for loc, at in value_at or [(loc, loc.start) for _, loc in found]:
-        place, line = loc.layout.place(at)
-        table_context = ""
-        if place == "cell":
-            table = loc.layout.table(line, include_sources=False)
-            column = table.years[loc.layout.cell_index(line, at)] if table.years else ""
-            local = f"{column} {loc.layout.row(line).label}"
-            table_context = table.context
-        else:
-            a, b = loc._clause_span(at)
-            start, end = a, b
-            # Paired figures may have separate periods without a comma ("... before falling").
-            separators = list(re.finditer(r"\b(?:and|before|after|then)\b", loc.text[a:b]))
-            for i, separator in enumerate(separators):
-                stop = separators[i + 1].start() if i + 1 < len(separators) else b - a
-                tail = loc.text[a + separator.end() : a + stop]
-                remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", tail)))
-                remainder = re.sub(
-                    r"\b(?:in|the|years?|quarters?|months?|calendar|fiscal|financial|to|through|ending|ended|of)\b",
-                    "",
-                    remainder,
-                    flags=re.I,
-                )
-                if (
-                    separator.group().lower() == "and"
-                    and any(_period_parts(tail)[:3])
-                    and not re.search(r"\w", remainder)
-                ):
-                    continue  # coordinated dates qualify the same figure, not another assertion
-                if a + separator.end() <= at:
-                    start = a + separator.end()
-                elif a + separator.start() > at:
-                    end = a + separator.start()
-                    break
-            local = loc.with_lines(start, end)
-        parts = _period_parts(local)
-        support = [local]
-        neighbors = []
-        sentence = next(i for i, (a, b) in enumerate(loc.sentences) if a <= at < b)
-        # A temporal introduction applies to coordinated assertions in the same sentence.
-        prefix = re.match(
-            r"\s*(?:in|for|during|over)\b[^,;]*,", loc.with_lines(*loc.sentences[sentence]), re.I
-        )
-        shared_prefix = prefix.group() if prefix else ""
-        remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", shared_prefix)))
-        if _numbers(remainder):
-            shared_prefix = ""  # an earlier numerical assertion is not a shared temporal prefix
-        for i in (sentence - 1, sentence + 1):
-            if not 0 <= i < len(loc.sentences):
-                continue
-            text = loc.with_lines(*loc.sentences[i])
-            remainder = _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub("", text)))
-            # Another numerical assertion has its own period. Only explicit context applying to
-            # the figures can supply an unstated period, never an adjacent independent result.
-            if _numbers(remainder) or not re.search(
-                r"\b(?:all|following|these)\s+(?:figures|results|forecasts)\b"
-                r"|\b(?:figures|results|forecasts)\s+(?:refer|are for)\b",
-                text,
-                re.I,
-            ):
-                continue
-            neighbors.append(text)
-        # The section heading takes precedence over neighboring period-only context.
-        for candidates in ([shared_prefix], [table_context], [loc.heading], neighbors):
-            compatible = [
-                text
-                for text in candidates
-                if all(
-                    not a
-                    or not b
-                    or a == b
-                    or (
-                        i == 0
-                        and len(a) == 1
-                        and len(b) == 2
-                        and max(a) == max(b)
-                        and max(b) - min(b) == 1
-                        and _FISCAL.search(_fiscal_text(text))
-                    )
-                    for i, (a, b) in enumerate(zip(parts, _period_parts(text), strict=True))
-                )
-            ]
-            additions = tuple(
-                set().union(*(_period_parts(text)[i] for text in compatible)) for i in range(4)
-            )
-            if any(not a and b for a, b in zip(parts, additions, strict=True)):
-                support.extend(compatible)
-                parts = tuple(a or b for a, b in zip(parts, additions, strict=True))
-        context = " ".join(support)
-        missing = _unstated_period(period, context)
-        # Multiple candidate periods cannot be combined into a single invented reference period.
-        # A fiscal pair may legitimately be named by its end year (2024/25 -> June 2025 year).
-        for i, (claimed, stated) in enumerate(zip(wanted, parts, strict=True)):
-            fiscal_end = (
-                i == 0
-                and len(claimed) == 1
-                and len(stated) == 2
-                and max(claimed) == max(stated)
-                and max(stated) - min(stated) == 1
-                and _FISCAL.search(_fiscal_text(context))
-                and _FISCAL.search(_fiscal_text(period))
-            )
-            if claimed and stated and claimed != stated and not fiscal_end:
-                missing.append("ambiguous or contradictory period")
-        fiscal = bool(_FISCAL.search(_fiscal_text(context)))
-        if (
-            fiscal
-            and not _FISCAL.search(_fiscal_text(period))
-            or _FISCAL.search(_fiscal_text(period))
-            and _CALENDAR.search(context)
-        ):
-            missing.append("year basis")
-        if place == "text" and _period_only_in_comparison(period, loc, at):
-            missing.append("the period of a comparison")
+        missing = _period_gaps(period, wanted, loc, at)
+        if missing and bind_comparison and loc.layout.place(at)[0] == "text":
+            stop = _comparison_stop(loc, at)
+            if stop is not None:
+                missing = _period_gaps(period, wanted, loc, at, stop)
         if not missing:
             return []
         failures.append(missing)
@@ -986,13 +1044,24 @@ def _count(token: str) -> int:
     return int(token) if token.isdigit() else _COUNT_WORDS[token.lower()]
 
 
-def _votes(text: str, action: PolicyAction) -> set[tuple[int, int]]:
+def _colon_votes(sentence: str) -> set[tuple[int, int]]:
+    return {
+        (int(m[1]), int(m[2]))
+        for m in _VOTE_COLON.finditer(sentence)
+        if not _NOT_A_VOTE_BEFORE.search(sentence[: m.start()])
+        and not _NOT_A_VOTE_AFTER.match(sentence, m.end())
+    }
+
+
+def _votes(text: str, action: PolicyAction, colon: bool = False) -> set[tuple[int, int]]:
     """Vote counts stated in sentences about a vote: "voted 4–3", "four members preferred …, three …"."""
     out = set()
     for sentence in _SENTENCE_END.split(text):
         if not _VOTE_WORD.search(sentence):
             continue
         out |= {(_count(m[1]), _count(m[2])) for m in _VOTE_PAIR.finditer(sentence)}
+        if colon:
+            out |= _colon_votes(sentence)
         members = list(_MEMBERS.finditer(sentence))
         if len(members) == 2:
             preferences = []
@@ -1129,9 +1198,14 @@ def _completed_period(period: str, year: int, published: date, context: str) -> 
 
 class _Checker:
     def __init__(
-        self, summary: OutlookSummary, sections: Mapping[int, SectionText], ctx: VerificationContext
+        self,
+        summary: OutlookSummary,
+        sections: Mapping[int, SectionText],
+        ctx: VerificationContext,
+        version: str = VERIFIER_VERSION,
     ) -> None:
         self.summary, self.sections, self.ctx = summary, sections, ctx
+        self.features = _VERSION_FEATURES[version]
         self.errors: list[Problem] = []
         self.warnings: list[Problem] = []
         self._layouts: dict[int, _Layout] = {}
@@ -1307,7 +1381,16 @@ class _Checker:
                 # the section may carry on past a quote that stops at the number: "$25" | " billion"
                 beyond = loc.text[loc.start + e : loc.start + e + 30]
                 lead = loc.lead_to(loc.start + s)  # the quote may start after "debt-to-GDP ratio"
-                checked.append(self._unit_matches(unit, quote[:s], quote[e:], beyond, lead))
+                checked.append(
+                    self._unit_matches(
+                        unit,
+                        quote[:s],
+                        quote[e:],
+                        beyond,
+                        lead,
+                        "foreign_currency" in self.features,
+                    )
+                )
         if checked and not any(checked):
             self.error("unit_mismatch", path,
                        f"unit {unit!r} is not what the evidence states next to {value:g}")  # fmt: skip
@@ -1552,7 +1635,9 @@ class _Checker:
             )
 
     @staticmethod
-    def _unit_matches(unit: str, before: str, after: str, beyond: str = "", lead: str = "") -> bool:
+    def _unit_matches(
+        unit: str, before: str, after: str, beyond: str = "", lead: str = "", foreign: bool = False
+    ) -> bool:
         def stated(name: str, text: str = after) -> bool:
             return bool(_UNIT_SUFFIX[name].match(text))
 
@@ -1577,6 +1662,12 @@ class _Checker:
             return stated("percent") and not other_percentish and share
         if unit in ("percentage_points", "basis_points"):
             return stated(unit)
+        if (
+            foreign
+            and unit in ("nzd", "nzd_billion", "nzd_million")
+            and _FOREIGN_DOLLAR.search(before)
+        ):
+            return False  # verify-5: another currency's dollar sign is not a New Zealand dollar
         if unit in ("nzd_billion", "nzd_million"):
             return bool(_DOLLAR_PREFIX.search(before)) and stated(unit)
         if unit == "nzd":  # plain dollars: "$25 billion" is not 25 dollars
@@ -1799,7 +1890,8 @@ class _RecordChecker(_Checker):
                     path,
                     "the decision date is taken from the publication date",
                 )
-        votes = _votes(event_text, d.action) or _votes(support, d.action)
+        colon = "colon_vote" in self.features
+        votes = _votes(event_text, d.action, colon) or _votes(support, d.action, colon)
         if d.vote_for is not None:
             if (d.vote_for, d.vote_against) not in votes:
                 self.error("vote_not_in_evidence", path,
@@ -1828,7 +1920,9 @@ class _RecordChecker(_Checker):
             if place == "cell"
         ]
         near = " ".join([loc.near_text() for _, loc in found] + table_clauses)
-        missing = _period_missing(f.period or "", found, value_at)
+        missing = _period_missing(
+            f.period or "", found, value_at, "comparison_period" in self.features
+        )
         if missing:
             self.error("period_not_supported", path,
                        f"period {f.period!r} is not stated near the quote ({', '.join(missing)})")  # fmt: skip
@@ -1974,10 +2068,15 @@ def verify(
     summary: OutlookSummary,
     sections: Mapping[int, SectionText | str],
     context: VerificationContext | None = None,
+    *,
+    version: str = VERIFIER_VERSION,
 ) -> VerificationReport:
+    """Check `summary` against `sections`. `version` replays an older verifier exactly (see `resolve_verifier`)."""
+    if version not in _VERSION_FEATURES:
+        raise ValueError(f"unknown verifier version {version!r}")
     ctx = context or VerificationContext()
     resolved = {k: v if isinstance(v, SectionText) else SectionText(v) for k, v in sections.items()}
-    c = _RecordChecker(summary, resolved, ctx)
+    c = _RecordChecker(summary, resolved, ctx, version)
     c.statement("outlook", summary.outlook)
     for name in ("drivers", "risks"):
         for i, statement in enumerate(getattr(summary, name)):
@@ -2000,4 +2099,4 @@ def verify(
     for ordinal in ctx.injection_ordinals:
         c.warn("injection_suspected_section", f"section[{ordinal}]",
                "section text resembles instructions to a model")  # fmt: skip
-    return VerificationReport(tuple(c.errors), tuple(c.warnings))
+    return VerificationReport(tuple(c.errors), tuple(c.warnings), version=version)

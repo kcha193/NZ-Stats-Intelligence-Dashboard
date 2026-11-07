@@ -838,7 +838,7 @@ def test_prompt_revision_asks_for_compact_complete_output_and_keeps_every_semant
         "leave the claim out",
     ):
         assert required in system, required
-    assert (CONTRACT_VERSION, VERIFIER_VERSION) == (2, "verify-4")
+    assert (CONTRACT_VERSION, VERIFIER_VERSION) == (2, "verify-5")
 
 
 def test_instructions_no_longer_duplicate_the_numbered_rules():

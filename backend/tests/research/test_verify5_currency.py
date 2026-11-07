@@ -1,0 +1,98 @@
+"""Phase 4V: a foreign-currency amount is never accepted as New Zealand dollars, verifier `verify-5`. Synthetic text only.
+
+Found while investigating the Brent crude `missing_unit` error. The contract has no US-dollar unit, so a model cannot state
+"US$82 a barrel" correctly: `null` gives `missing_unit` and an invented unit gives `unknown_unit`. But `verify-4` ALSO accepted the
+figure when the model called it `nzd`, because it looked only for a dollar sign. That is a false acceptance. Telling a model to copy
+the units shown beside figures (outlook-v6) would make that mislabel more likely, so `verify-5` rejects it.
+"""
+
+from datetime import date
+
+import pytest
+
+from nzstats.research.contract import OutlookSummary, ReportedFact, SectionText
+from nzstats.research.verify import VerificationContext, verify
+
+from .verify_support import PROV, V, ref
+
+
+def codes_for(sentence: str, value: float, unit: str | None, *, version: str) -> set[str]:
+    sections = {0: SectionText(f"SYNTHETIC FIXTURE. {sentence}")}
+    fact = ReportedFact(
+        text="A figure.", source="Stats NZ", value=value, unit=unit, period="October 2026",
+        evidence=[ref(0, sentence.rstrip("."))],
+    )  # fmt: skip
+    summary = OutlookSummary(
+        version_id=V, provenance=PROV, outlook={"text": "The outlook", "evidence": [ref(0, "SYNTHETIC FIXTURE")]},
+        indicators=("gdp",), facts=[fact],
+    )  # fmt: skip
+    ctx = VerificationContext(published_on=date(2026, 10, 29), institution="treasury")
+    return {p.code for p in verify(summary, sections, ctx, version=version).errors}
+
+
+@pytest.mark.parametrize(
+    ("sentence", "value", "unit"),
+    [
+        ("Brent crude averaged US$82 a barrel in October 2026.", 82, "nzd"),
+        ("The Australian deficit was A$4.2 billion in October 2026.", 4.2, "nzd_billion"),
+        ("The deficit was US$4.2 billion in October 2026.", 4.2, "nzd_billion"),
+        ("Exports were worth C$4.2 million in October 2026.", 4.2, "nzd_million"),
+        ("Exports were worth HK$4.2 million in October 2026.", 4.2, "nzd_million"),
+        ("Exports were worth US $4.2 million in October 2026.", 4.2, "nzd_million"),
+    ],
+)
+def test_a_dollar_sign_amount_in_another_currency_claimed_as_nzd_was_a_false_acceptance(
+    sentence, value, unit
+):
+    assert "unit_mismatch" not in codes_for(sentence, value, unit, version="verify-4")
+    assert "unit_mismatch" in codes_for(sentence, value, unit, version="verify-5")
+
+
+@pytest.mark.parametrize(
+    ("sentence", "value", "unit"),
+    [
+        ("Brent crude averaged USD 82 a barrel in October 2026.", 82, "nzd"),
+        ("Brent crude averaged 82 US dollars a barrel in October 2026.", 82, "nzd"),
+        ("Exports to Europe were worth €4.2 million in October 2026.", 4.2, "nzd_million"),
+        ("Exports to the UK were worth £4.2 million in October 2026.", 4.2, "nzd_million"),
+        ("Exports were worth CAD 4.2 million in October 2026.", 4.2, "nzd_million"),
+        ("Exports were worth 4.2 million US dollars in October 2026.", 4.2, "nzd_million"),
+    ],
+)
+def test_other_currency_markers_were_already_rejected_and_stay_rejected(sentence, value, unit):
+    for version in ("verify-4", "verify-5"):
+        assert "unit_mismatch" in codes_for(sentence, value, unit, version=version)
+
+
+@pytest.mark.parametrize(
+    ("sentence", "value", "unit"),
+    [
+        ("The deficit was $4.2 billion in October 2026.", 4.2, "nzd_billion"),
+        ("The deficit was NZ$4.2 billion in October 2026.", 4.2, "nzd_billion"),
+        ("The deficit was NZD 4.2 billion in October 2026.", 4.2, "nzd_billion"),
+        ("Exports were worth $4.2 million in October 2026.", 4.2, "nzd_million"),
+        ("The median wage was $1,250 in October 2026.", 1250, "nzd"),
+        ("The median wage was NZ$1,250 in October 2026.", 1250, "nzd"),
+        (
+            "Exports of US$3 million fell, while the deficit was $4.2 billion in October 2026.",
+            4.2,
+            "nzd_billion",
+        ),
+        ("A $4.2 billion deficit was recorded in October 2026.", 4.2, "nzd_billion"),
+        ("The deficit measured in $4.2 billion terms in October 2026.", 4.2, "nzd_billion"),
+    ],
+)
+def test_new_zealand_dollar_amounts_are_still_accepted(sentence, value, unit):
+    assert codes_for(sentence, value, unit, version="verify-5") == codes_for(
+        sentence, value, unit, version="verify-4"
+    )
+    assert "unit_mismatch" not in codes_for(sentence, value, unit, version="verify-5")
+
+
+@pytest.mark.parametrize("unit", [None, "usd", "usd_per_barrel"])
+def test_a_us_dollar_figure_still_has_no_valid_unit_so_it_is_still_rejected(unit):
+    # The conservative failure is kept and documented: the contract needs a reviewed US-dollar unit before this can pass.
+    sentence = "Brent crude averaged US$82 a barrel in October 2026."
+    expected = {"missing_unit"} if unit is None else {"unknown_unit"}
+    for version in ("verify-4", "verify-5"):
+        assert codes_for(sentence, 82, unit, version=version) == expected

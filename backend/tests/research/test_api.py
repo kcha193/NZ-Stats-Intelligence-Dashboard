@@ -202,7 +202,7 @@ def test_detail_has_provenance_versions_and_forecasts(make):
     assert detail["item"]["id"] == a
     assert detail["provenance"] == {
         "provider": "fake", "model": "fake-1", "hosted": False, "prompt_version": "outlook-v2",
-        "processing_version": "3b-1", "verifier_version": "verify-4", "created_at": "2026-10-26T14:00:00+13:00",
+        "processing_version": "3b-1", "verifier_version": "verify-5", "created_at": "2026-10-26T14:00:00+13:00",
     }  # fmt: skip
     assert detail["versions"] == [
         {"version_no": 1, "fetched_at": "2026-10-26T14:00:00+13:00", "current": True}

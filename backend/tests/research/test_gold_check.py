@@ -553,7 +553,9 @@ def test_a_decision_probe_catches_a_changed_rate_and_vote(stored):
     assert by_name["wrong_rate"].caught is True and by_name["wrong_vote"].caught is True
 
 
-def test_a_colon_vote_is_measured_as_a_false_rejection_rather_than_hidden(conn):
+def test_a_colon_vote_is_no_longer_a_false_rejection_under_verify_5(conn):
+    # Phase 4Q recorded this as a false rejection (`vote_not_in_evidence`); verify-5 reads the colon form. The verify-4
+    # behaviour is pinned in test_verify5_vote_notation.
     text = (
         "The Synthetic Bank's committee voted 5:2 to hold the OCR at 3.25% on 28 October 2026. " * 2
     )
@@ -567,9 +569,9 @@ def test_a_colon_vote_is_measured_as_a_false_rejection_rather_than_hidden(conn):
     report = probe_pack(
         conn, built(text_sha256=digest, content_sha256=digest, items=[item], relative_dates=[])
     )
-    assert report.false_rejections == 1
+    assert report.false_rejections == 0
     (baseline,) = [r for r in report.results if r.mutation == "baseline"]
-    assert baseline.codes == ("vote_not_in_evidence",)
+    assert baseline.codes == ()
 
 
 def test_a_corruption_is_not_credited_when_the_true_claim_was_already_rejected(stored):

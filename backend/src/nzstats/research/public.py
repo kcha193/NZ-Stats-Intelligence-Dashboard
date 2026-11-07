@@ -25,14 +25,14 @@ from nzstats.research.prompt import injection_findings
 from nzstats.research.registry import Institution, PublicDisplay
 from nzstats.research.safety import HostPolicy, UnsafeUrl
 from nzstats.research.summarise import load_sections
-from nzstats.research.verify import VerificationContext, verify
+from nzstats.research.verify import VerificationContext, resolve_verifier, verify
 
 log = logging.getLogger(__name__)
 
 _LATEST_DECISION = "SELECT {col} FROM research_summary_publication d WHERE d.summary_id = s.id ORDER BY d.id DESC LIMIT 1"
 SUMMARY_SELECT = (
     "SELECT s.id, s.version_id, s.status, s.review_status, s.reviewed_at, s.output_json, s.provider, s.model,"
-    " s.hosted, s.prompt_version, s.processing_version, s.created_at,"
+    " s.hosted, s.prompt_version, s.processing_version, s.verifier_version, s.created_at,"
     f" ({_LATEST_DECISION.format(col='decision')}) AS decision,"
     f" ({_LATEST_DECISION.format(col='decided_at')}) AS decided_at,"
     " v.version_no, v.title, v.fetched_at, v.format, v.page_count, v.superseded_at, v.acquisition, v.purged_at,"
@@ -145,7 +145,8 @@ def current_evidence(
     published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
     injected = tuple(injection_findings(sections))
     report = verify(summary, sections, VerificationContext(
-        published_on=published, injection_ordinals=injected, institution=row["institution"]))  # fmt: skip
+        published_on=published, injection_ordinals=injected, institution=row["institution"]),
+        version=resolve_verifier(row["verifier_version"]))  # fmt: skip
     if not report.passed:
         return f"the current evidence checks now fail ({len(report.errors)} errors)", None, 0
     if injected:

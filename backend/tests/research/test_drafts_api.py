@@ -7,6 +7,7 @@ import pytest
 from nzstats.research.drafts_api import draft_bind_refusal, internal_drafts_router
 from nzstats.research.private_api import CLIENT_HEADER
 
+from . import public_support
 from .llm_support import SECTIONS, draft, seed_version
 from .public_support import store_summary
 from .support import institution
@@ -18,7 +19,12 @@ PRIVATE_TEXT = ("RAW MODEL OUTPUT", "raw_output", "parameters", "temperature", "
 
 
 @pytest.fixture()
-def drafts(make, tmp_path):
+def drafts(make, tmp_path, request, monkeypatch):
+    stored = getattr(
+        request, "param", None
+    )  # `indirect` parametrization: the verifier label the row is stored with
+    if stored:
+        monkeypatch.setattr(public_support, "VERIFIER_VERSION", stored)
     build, conn = make
     v = seed_version(conn)
     out = draft(v)
@@ -77,7 +83,7 @@ def test_a_draft_says_what_it_is_and_marks_every_claim(drafts):
     assert item["approved_for_publication"] is False
     assert "failed" in item["label"] and "Not an official statistic" in item["label"]
     assert item["counts"] == {"clean": 2, "warning": 0, "failed": 1}
-    assert item["provenance"]["verifier_version"] == "verify-4"
+    assert item["provenance"]["verifier_version"] == "verify-5"
     by_path = {c["path"]: c for c in item["claims"]}
     assert set(by_path) == {"outlook", "forecasts[0]", "forecasts[1]"}
     failed = by_path["forecasts[0]"]
@@ -85,6 +91,18 @@ def test_a_draft_says_what_it_is_and_marks_every_claim(drafts):
     assert failed["problems"][0]["code"] and failed["problems"][0]["severity"] == "error"
     assert failed["evidence"][0]["quote"]
     assert by_path["outlook"]["status"] == "clean" and by_path["outlook"]["problems"] == []
+
+
+@pytest.mark.parametrize("drafts", ["verify-4"], indirect=True)
+def test_a_draft_reports_the_verifier_it_was_stored_with_not_the_current_one(drafts):
+    client, sid, _ = drafts
+    (item,) = client().get(FEED, headers=LOCAL).json()["items"]
+    assert item["id"] == sid and item["provenance"]["verifier_version"] == "verify-4"
+    assert item["counts"] == {
+        "clean": 2,
+        "warning": 0,
+        "failed": 1,
+    }  # the findings are the stored verifier's
 
 
 def test_the_response_is_an_allowlist(drafts):
