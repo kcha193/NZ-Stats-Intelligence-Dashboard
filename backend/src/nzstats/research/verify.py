@@ -774,13 +774,22 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
     return False
 
 
+# A quantity written in words ("four percent", "twenty", "a dozen") is a figure the digit count cannot see. Period words ("quarter", "half",
+# "first") are not counting words, so they are not listed.
+_SPELLED_QUANTITY = re.compile(
+    r"\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen"
+    r"|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|dozen)\b",
+    re.IGNORECASE,
+)
+
+
 def _comparison_stop(loc: _Located, at: int) -> int | None:
     """Where the figure at `at` ends and the base it is compared with begins (verify-5), or None.
 
     "3.7% in the September 2026 quarter, up from 3.3% in the June 2026 quarter": a comparison word follows the figure. Not split:
     - a gap ("3% above trend in 2029"), whose period may belong to the figure;
-    - a figure whose side holds another figure ("imports rose 4% in June with exports at 6.3% compared with ..."), because a period
-      on that side may belong to the other figure.
+    - a figure whose side holds another figure, in digits or words ("imports rose 4% in June with exports at 6.3% compared with ...",
+      "imports rose four percent in June with ..."), because a period on that side may belong to the other figure.
     The caller still requires the figure's own side to support the whole claimed period by itself.
     """
     a, b = loc._clause_span(at)
@@ -790,7 +799,8 @@ def _comparison_stop(loc: _Located, at: int) -> int | None:
     side = _QUARTER_LABEL.sub(
         "", _MONTH.sub("", _YEAR.sub("", _DURATION.sub("", loc.text[a : marker.start()])))
     )
-    return marker.start() if len(_number_spans(side)) == 1 else None
+    quantities = len(_number_spans(side)) + len(_SPELLED_QUANTITY.findall(side))
+    return marker.start() if quantities == 1 else None
 
 
 def _period_gaps(

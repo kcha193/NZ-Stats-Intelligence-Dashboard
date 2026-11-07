@@ -189,3 +189,28 @@ def test_a_list_of_figures_before_a_comparison_is_unchanged():
         assert codes_for(sentence, value, period, version="verify-5") == codes_for(
             sentence, value, period, version="verify-4"
         )
+
+
+# --- review round 1, finding 5: a quantity written in words is another figure on the same side -------------------------
+@pytest.mark.parametrize(
+    "other",
+    [
+        "four percent",
+        "four per cent",
+        "twenty percent",
+        "Two",
+        "a dozen",
+        "one hundred and five",
+        "forty-five percent",
+    ],
+)
+def test_a_spelled_out_quantity_on_the_same_side_stops_the_period_being_borrowed(other):
+    sentence = f"Imports rose {other} in June with exports at 6.3% compared with 5.9% in September."
+    for period in ("June", "September"):
+        v4, v5 = (codes_for(sentence, 6.3, period, version=v) for v in ("verify-4", "verify-5"))
+        assert v5 == v4  # verify-5 must not accept what verify-4 refused
+    assert "period_not_supported" in codes_for(sentence, 6.3, "June", version="verify-5")
+
+
+def test_the_digit_form_of_the_same_sentence_was_already_refused_and_stays_so():
+    assert "period_not_supported" in codes_for(OTHER_FIGURE, 6.3, "June", version="verify-5")
