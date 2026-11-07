@@ -53,6 +53,7 @@ from nzstats.research.summarise import (
 )
 from nzstats.research.summary_store import lifetime_spent, version_attempts
 from nzstats.research.verify import BASELINE_VERIFIER
+from nzstats.store.backup_bundle import create_bundle, restore_bundle
 
 MODEL = "anthropic/claude-opus-5.5"
 CANONICAL_MODEL = "anthropic/claude-opus-5.5-20260921"
@@ -76,6 +77,8 @@ class PilotPlan:
     freeze_format: int
     prior_attempts: int
     approvals: frozenset[str] = frozenset({"gold_bound"})
+    # Phase 4W: the verifier a freeze records and a run grades and stamps with. The Phase 4N and 4S plans keep verify-4.
+    verifier: str = BASELINE_VERIFIER
 
     @property
     def experiment_id(self) -> str:
@@ -221,6 +224,20 @@ def file_sha256(path: Path) -> str:
     return result.hexdigest()
 
 
+def verified_backup(conn: sqlite3.Connection, data_dir: Path, output: Path, now: datetime) -> None:
+    """A fresh backup bundle that restores to an identical database, or a refusal. Run before any paid request."""
+    backup = create_bundle(conn, data_dir / "raw", output / "backup", now=now)
+    restored = restore_bundle(output / "backup", output / "restore")
+    if (
+        not backup.ok
+        or not restored.ok
+        or file_sha256(output / "backup/nzstats.db") != file_sha256(output / "restore/nzstats.db")
+    ):
+        raise PilotRefused("fresh backup/restore verification failed")
+    for path in output.rglob("*"):
+        os.chmod(path, 0o700 if path.is_dir() else 0o600)
+
+
 def _bytes(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
 
@@ -358,7 +375,7 @@ def freeze(
         "prompt_version": experiment.prompt_version,
         "processing_version": PROCESSING_VERSION,
         # The Phase 4S experiment was frozen, approved and run under verify-4. A later verifier is a new experiment with a new freeze.
-        "verifier_version": BASELINE_VERIFIER,
+        "verifier_version": plan.verifier,
         "contract_version": 2,
         "documents": documents,
     }
@@ -506,6 +523,7 @@ def execute(
     backup_check: Callable[[sqlite3.Connection, Path, Path, datetime], None],
     client: httpx.Client | None = None,
     now_fn: Callable[[], datetime] = utc_now,
+    plan: PilotPlan | None = None,
 ) -> list[SummariseResult]:
     """Admit the entire frozen scope first; execute serially without retries or output approval."""
     try:
@@ -513,8 +531,9 @@ def execute(
             raise PilotRefused("unknown approval format")
         approval = type(approval).model_validate_json(approval.model_dump_json())
         kind = approval_kind(approval)
-        plan = PLANS.get(approval.experiment)
-        if plan is None or kind not in plan.approvals:
+        # An explicit plan (Phase 4W, derived from an operator-run policy) must name exactly the approval's experiment.
+        plan = plan if plan is not None else PLANS.get(approval.experiment)
+        if plan is None or plan.experiment_id != approval.experiment or kind not in plan.approvals:
             raise PilotRefused("approval names no reviewed experiment for its format")
         experiment = plan.experiment
         now = now_fn()
@@ -546,7 +565,7 @@ def execute(
             ROUTE,
             experiment.prompt_version,
             PROCESSING_VERSION,
-            BASELINE_VERIFIER,
+            plan.verifier,
             2,
         )
         actual = tuple(
@@ -643,7 +662,7 @@ def execute(
             pricing=settings.pricing,
             limits=settings.limits,
             version_ids=tuple(frames),
-            verifier=BASELINE_VERIFIER,
+            verifier=plan.verifier,
             dry_run=True,
             hosted_consents=grants,
             now_fn=now_fn,
@@ -689,7 +708,7 @@ def execute(
             pricing=settings.pricing,
             limits=settings.limits,
             version_ids=tuple(frames),
-            verifier=BASELINE_VERIFIER,
+            verifier=plan.verifier,
             hosted_consents=grants,
             now_fn=now_fn,
         )

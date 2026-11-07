@@ -97,7 +97,13 @@ FIRST_PILOT = "phase-4m"
 LIFETIME_USD = 5.0  # every OpenRouter experiment shares this; history keeps counting against it
 # Reviewed code must raise these to add an experiment. Both count immutable reservation facts, so
 # a retagged run row can neither add attempts nor restore a version's consumed slot.
-LIFETIME_ATTEMPTS = 4
+# Phase 4W: the ceiling for operator-run policy scopes is 8 (4 -> 8). The first four attempts are history
+# (US$0.6267107880 spent) and stay counted. Every scope that existed before Phase 4W keeps the original ceiling of 4
+# (`LEGACY_LIFETIME_ATTEMPTS`) for ever: the Phase 4N scope still has one unused slot (it used 1 of 2), and a higher
+# ceiling would have silently reopened it. A scope named `policy-...` is the only one that can use attempts 5 to 8.
+LEGACY_LIFETIME_ATTEMPTS = 4
+LIFETIME_ATTEMPTS = 8
+POLICY_PREFIX = "policy-"
 LIFETIME_ATTEMPTS_PER_VERSION = 2
 
 
@@ -159,10 +165,12 @@ def openrouter_refusal(
     ).fetchone()
     if pilot[3] or pilot[4] >= LIFETIME_ATTEMPTS_PER_VERSION:
         return "attempt_consumed"
-    if (
-        pilot[1] + pending_attempts >= scope.max_attempts
-        or pilot[0] + pending_attempts >= LIFETIME_ATTEMPTS
-    ):
+    ceiling = (
+        LIFETIME_ATTEMPTS
+        if scope.experiment.startswith(POLICY_PREFIX)
+        else LEGACY_LIFETIME_ATTEMPTS
+    )
+    if pilot[1] + pending_attempts >= scope.max_attempts or pilot[0] + pending_attempts >= ceiling:
         return "lifetime_attempts_exhausted"
     pending = pending_usd + amount_usd
     if (

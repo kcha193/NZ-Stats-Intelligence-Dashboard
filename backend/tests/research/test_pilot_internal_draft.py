@@ -256,7 +256,13 @@ def test_attempt_and_spending_limits_are_unchanged_for_internal_runs(tmp_path):
     assert [
         tuple(r) for r in conn.execute("SELECT * FROM research_llm_reservation ORDER BY id")
     ] == before
-    assert (ss.LIFETIME_ATTEMPTS, ss.LIFETIME_USD, ss.LIFETIME_ATTEMPTS_PER_VERSION) == (4, 5.0, 2)
+    # Phase 4W: policy scopes alone see 8; every earlier scope, including this one, keeps the original ceiling of 4.
+    assert (ss.LEGACY_LIFETIME_ATTEMPTS, ss.LIFETIME_USD, ss.LIFETIME_ATTEMPTS_PER_VERSION) == (
+        4,
+        5.0,
+        2,
+    )
+    assert ss.LIFETIME_ATTEMPTS == 8
 
 
 def test_a_fifth_lifetime_attempt_is_refused_for_an_internal_run_too(tmp_path):

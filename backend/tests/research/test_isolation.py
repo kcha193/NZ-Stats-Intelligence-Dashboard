@@ -14,6 +14,7 @@ STATS_NZ_PACKAGES = (
 RESEARCH_MAY_IMPORT = (
     "nzstats.research", "nzstats.sources.fetcher", "nzstats.sources.artifacts", "nzstats.store.db",
     "nzstats.store.repo", "nzstats.domain", "nzstats.clock", "nzstats.config",
+    "nzstats.store.backup_bundle",  # Phase 4W: the verified backup that must precede any paid request
 )  # fmt: skip
 
 
