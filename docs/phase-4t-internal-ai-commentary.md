@@ -55,12 +55,13 @@ Then `nzstats serve --host 127.0.0.1 --internal-drafts`. Only `"enabled": true` 
 |---|---|
 | Complete, schema-valid output | status `verified` or `failed_verification`, and `output_json` still parses |
 | Output unchanged | `sha256(raw_output)` equals the stored `output_sha256` |
+| Normal finish | the stored `finish_reason` is `stop`, whatever the status mapping says |
 | Provider identity and request integrity | OpenRouter: hosted, a reviewed route, the four privacy terms in the stored parameters, the serving provider and a `gen-` response id recorded, and a billed call recorded as `ok`. A local model (`openai_compatible`, not hosted) is also accepted. Anything else is refused, including the test `fake` provider and direct hosted providers |
 | Not rejected or withdrawn | `review_status != rejected`, and not in `withdrawn` |
 | Current source | current version, not purged, not a duplicate |
 | Source permissions | registry entry, `full_text`, the approval that let it in still holds, an https address on an allowed host |
 | Safety | no section reads like instructions to a model |
-| One per document | the newest summary of a version that passes. Older ones are reported as superseded |
+| One per document | the newest summary of a version holds the slot even when it is refused (withdrawn, rejected, failed integrity), so an older output never resurfaces in its place |
 
 `invalid_output` and `provider_error` (malformed, truncated, refused, route-unverified, usage-unverified) never appear as commentary. Each report only counts them.
 `research summary ID` prints `internal draft: yes`, or the reason not.
@@ -93,7 +94,7 @@ On the draft page:
 
 - a "claims failed the automated checks" panel, with reasons in view and links to each claim
 - a filter for only the claims with warnings or failures
-- "AI interpretation" above model text, and "Statement in the official report" above quoted evidence
+- "AI interpretation" above model text. Quoted evidence is called "Statement in the official report" only when the checks raised nothing about the claim, and otherwise "Quote cited by the AI, not confirmed by the automated checks", because the quote comes from the model
 - third-party forecasts labelled "Third party, not the report's author"
 - the document date
 - reasons open by default on failed claims
@@ -163,6 +164,12 @@ None of this needs a 130-sentence gold exercise. Inference stays off because the
 
 This PR implements none of it, adds no unattended paid inference and does not raise any limit.
 
+## Known limits
+
+- The hash binds `raw_output`. The page shows `output_json`, which the pipeline derived from it in the same transaction. Both columns are immutable under migration 006's triggers, so the gate does not re-derive one from the other.
+- The local-model path accepts `openai_compatible` with `hosted = 0`. The adapter counts a base URL as hosted only when its host is not loopback, so a loopback proxy to a remote model would count as local. Only the operator configures that. It still needs a normal finish and every other rule.
+- "No automated issue detected" is narrow. The checks test where a quote, number, unit and horizon sit in the document, not whether the economics is right.
+
 ## Protections (unchanged and retested)
 
 Off by default. Loopback binds only, with no override. Requests need a loopback `Host`, a same-origin `Origin` and `Sec-Fetch-Site`, and the dashboard header.
@@ -179,11 +186,13 @@ The RBNZ report has 1 unusable attempt, counted and not shown. Database changes:
 
 | Check | Result |
 |---|---|
-| Backend suite | see PR |
+| Backend suite | **5,080 passed**, 0 failed (after the review fixes; 5,072 on the reviewed commit) |
 | Ruff lint, format | clean |
-| Frontend `npm test` | 49 files, 554 passed |
+| Frontend `npm test` | 49 files, **555 passed** |
+| Browser suites (Playwright, `e2e_static.sh`) | **Not run.** No public, static or snapshot code changed. The `netlify.test.ts` unit check passes. The draft UI was checked in jsdom only, not in a browser |
 | Typecheck, build | clean |
 | oxlint | no new warnings |
+| Independent review | **Codex could not run.** It refused every model available on this machine (`gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-5.4`) with "not supported when using Codex with a ChatGPT account", and no review took place. A fresh Claude security reviewer (same vendor) reviewed the diff and found no blocker. It found five medium defects. Fixed: an older summary could resurface when the newest was refused, model quotes on failed claims were labelled as the report's statement, no finish-reason recheck, and weak local-path evidence. The fifth is recorded under Known limits. The fixes are pinned by tests and mutation checks |
 | CI | the GitHub Actions billing block (Phase 4R and 4S) is outside this change |
 
 ## Rollback

@@ -196,31 +196,81 @@ def test_a_withdrawn_summary_is_not_shown_in_either_mode(conn):
     assert ids(conn, REG, named) == []
     assert why_not_draft(conn, REG, named, sid) == "the owner withdrew it"
     hosted = store_hosted(conn, seed_version(conn, doc="b"))
+    assert ids(conn, REG, auto()) == [hosted]  # control: shown until withdrawn
     assert ids(conn, REG, auto(hosted)) == []
+    assert why_not_draft(conn, REG, auto(hosted), hosted) == "the owner withdrew it"
+
+
+ROUTE = "the stored request does not show the reviewed route and privacy settings"
+IDENTITY = "the response's serving provider or identity was not recorded"
+FINISH = "the response did not record a normal finish"
+UNREVIEWED = "the provider is not a reviewed route for automatic drafts"
+CALL = "no completed, billed call is recorded for this output"
+WITHOUT = lambda key: {k: v for k, v in ROUTE_PARAMETERS.items() if k != key}  # noqa: E731
 
 
 @pytest.mark.parametrize(
-    "change",
+    ("change", "reason"),
     [
-        {"parameters": {**ROUTE_PARAMETERS, "zdr": False}},
-        {"parameters": {**ROUTE_PARAMETERS, "allow_fallbacks": True}},
-        {"parameters": {**ROUTE_PARAMETERS, "data_collection": "allow"}},
-        {"parameters": {**ROUTE_PARAMETERS, "provider_only": "azure/eu"}},
-        {"parameters": {**ROUTE_PARAMETERS, "serving_provider": "Azure"}},
-        {"parameters": {k: v for k, v in ROUTE_PARAMETERS.items() if k != "response_id"}},
-        {"parameters": {k: v for k, v in ROUTE_PARAMETERS.items() if k != "serving_provider"}},
-        {"model": "openai/gpt-unknown"},
-        {"usage": None},
-        {"usage": "provider_error"},
-        {"provider": "fake", "hosted": False, "parameters": {}},
-        {"provider": "anthropic", "parameters": {}},
-        {"provider": "openrouter", "hosted": False},
+        ({"parameters": {**ROUTE_PARAMETERS, "zdr": False}}, ROUTE),
+        ({"parameters": {**ROUTE_PARAMETERS, "allow_fallbacks": True}}, ROUTE),
+        ({"parameters": {**ROUTE_PARAMETERS, "data_collection": "allow"}}, ROUTE),
+        ({"parameters": WITHOUT("require_parameters")}, ROUTE),
+        ({"parameters": {**ROUTE_PARAMETERS, "provider_only": "azure/eu"}}, ROUTE),
+        ({"model": "openai/gpt-unknown"}, ROUTE),
+        ({"parameters": {**ROUTE_PARAMETERS, "serving_provider": "Azure"}}, IDENTITY),
+        ({"parameters": WITHOUT("response_id")}, IDENTITY),
+        ({"parameters": WITHOUT("serving_provider")}, IDENTITY),
+        ({"parameters": {**ROUTE_PARAMETERS, "finish_reason": "length"}}, FINISH),
+        ({"parameters": WITHOUT("finish_reason")}, FINISH),
+        ({"usage": None}, CALL),
+        ({"usage": "provider_error"}, CALL),
+        (
+            {"provider": "fake", "hosted": False, "parameters": {"finish_reason": "stop"}},
+            UNREVIEWED,
+        ),
+        ({"provider": "anthropic", "parameters": {"finish_reason": "stop"}}, UNREVIEWED),
+        (
+            {"provider": "openai_compatible", "parameters": {"finish_reason": "stop"}},
+            UNREVIEWED,
+        ),  # hosted
+        ({"provider": "openrouter", "hosted": False}, UNREVIEWED),
     ],
 )
-def test_auto_display_needs_a_verified_provider_identity_and_request_integrity(conn, change):
+def test_auto_display_needs_a_verified_provider_identity_and_request_integrity(
+    conn, change, reason
+):
     sid = store_hosted(conn, seed_version(conn), **change)
     assert ids(conn, REG, auto()) == []
-    assert why_not_draft(conn, REG, auto(), sid) is not None
+    assert why_not_draft(conn, REG, auto(), sid) == reason
+
+
+def test_a_local_model_run_on_this_machine_is_shown_only_with_a_normal_finish(conn):
+    ok = store_hosted(conn, seed_version(conn), provider="openai_compatible", hosted=False,
+                      model="local-model", parameters={"finish_reason": "stop"})  # fmt: skip
+    cut = store_hosted(conn, seed_version(conn, doc="b"), provider="openai_compatible", hosted=False,
+                       model="local-model", parameters={"finish_reason": "length"})  # fmt: skip
+    assert ids(conn, REG, auto()) == [ok]
+    assert why_not_draft(conn, REG, auto(), cut) == FINISH
+
+
+@pytest.mark.parametrize("refusal", ["withdrawn", "rejected", "integrity"])
+def test_an_older_summary_never_resurfaces_when_the_newest_is_refused(conn, refusal):
+    v = seed_version(conn)
+    older = store_hosted(conn, v)
+    newer = store_hosted(
+        conn, v, review="rejected" if refusal == "rejected" else None,
+        parameters=WITHOUT("response_id") if refusal == "integrity" else None,
+    )  # fmt: skip
+    config = auto(newer) if refusal == "withdrawn" else auto()
+    assert ids(conn, REG, config) == []
+    assert (
+        why_not_draft(conn, REG, config, older)
+        == f"superseded by summary {newer} of the same document version"
+    )
+    assert ids(conn, REG, auto()) == (
+        [] if refusal != "withdrawn" else [newer]
+    )  # control: unwithdrawn shows
 
 
 def test_a_stored_output_that_no_longer_matches_its_hash_is_not_shown(conn):

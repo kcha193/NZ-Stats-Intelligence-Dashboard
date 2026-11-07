@@ -61,13 +61,18 @@ function Interpretation({ text }: { text: string }) {
   );
 }
 
-/** What the report itself says: the quoted evidence a claim cites. */
-function Quoted({ refs }: { refs: DraftClaim["evidence"] }) {
-  if (refs.length === 0) return <p className="mt-2 text-xs font-medium text-destructive">No evidence cited from the report</p>;
+/**
+ * The evidence a claim cites. The quote comes from the model, so it is called the report's statement only when the
+ * automated checks raised nothing about the claim; otherwise it may be misquoted or invented.
+ */
+function Quoted({ claim }: { claim: DraftClaim }) {
+  if (claim.evidence.length === 0) return <p className="mt-2 text-xs font-medium text-destructive">No evidence cited from the report</p>;
   return (
     <div className="mt-2">
-      <p className="text-xs font-medium text-muted-foreground">Statement in the official report</p>
-      <Evidence refs={refs} />
+      <p className={`text-xs font-medium ${claim.status === "clean" ? "text-muted-foreground" : "text-destructive"}`}>
+        {claim.status === "clean" ? "Statement in the official report" : "Quote cited by the AI, not confirmed by the automated checks"}
+      </p>
+      <Evidence refs={claim.evidence} />
     </div>
   );
 }
@@ -83,7 +88,7 @@ function Statements({ title, claims }: { title: string; claims: DraftClaim[] }) 
             <Status claim={c} />
             <Interpretation text={c.text} />
             {c.scenario && <p className="mt-1 text-sm text-muted-foreground">Scenario: {c.scenario}</p>}
-            <Quoted refs={c.evidence} />
+            <Quoted claim={c} />
           </li>
         ))}
       </ul>
@@ -102,7 +107,7 @@ function ForecastRow({ c }: { c: DraftClaim }) {
       <td className="py-2.5 pr-4"><Status claim={c} /></td>
       <td className="py-2.5 text-muted-foreground">
         {c.qualification ?? "None stated"}
-        <Quoted refs={c.evidence} />
+        <Quoted claim={c} />
       </td>
     </tr>
   );
@@ -223,7 +228,7 @@ function View({ d }: { d: DraftItem }) {
                 <Status claim={c} />
                 <Interpretation text={c.text} />
                 <p className="mt-1 text-sm text-muted-foreground">Source: {c.source ?? "Not stated"}. Period: {c.period ?? "Not stated"}. Value: {valueText(c.value, c.unit)}.{c.measure ? ` Measure: ${c.measure}.` : ""}</p>
-                <Quoted refs={c.evidence} />
+                <Quoted claim={c} />
               </li>
             ))}
           </ul>
@@ -238,7 +243,7 @@ function View({ d }: { d: DraftItem }) {
               <li key={c.path} id={anchor(c.path)}>
                 <Status claim={c} />
                 <Interpretation text={`${c.issuer}: ${c.action}, ${c.rate}%, ${formatCivilDate(c.decided_on)}${c.vote_for !== null ? `, vote ${c.vote_for}–${c.vote_against}` : ""}.`} />
-                <Quoted refs={c.evidence} />
+                <Quoted claim={c} />
               </li>
             ))}
           </ul>

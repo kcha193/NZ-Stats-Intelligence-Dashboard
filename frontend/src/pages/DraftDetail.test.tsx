@@ -314,6 +314,16 @@ describe("Phase 4T internal AI experience", () => {
     expect(screen.getByText("Not the official series. Official Stats NZ figures are on the dashboard pages.")).toBeInTheDocument();
   });
 
+  it("never calls a failed or warned claim's quote the report's own statement", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": draft });
+    open();
+    const table = await screen.findByRole("table", { name: "Forecast claims in this draft" });
+    expect(within(table).getByText("Quote cited by the AI, not confirmed by the automated checks")).toBeInTheDocument();
+    expect(within(table).queryByText("Statement in the official report")).not.toBeInTheDocument();
+    const figures = screen.getByRole("region", { name: "Figures as the document reports them" });
+    expect(within(figures).queryByText("Statement in the official report")).not.toBeInTheDocument();
+  });
+
   it("can show only the claims with issues", async () => {
     mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": draft });
     open();

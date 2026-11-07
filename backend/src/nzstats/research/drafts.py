@@ -200,6 +200,9 @@ def _integrity_refusal(conn: sqlite3.Connection, row: Mapping[str, Any]) -> str 
         return "the stored request parameters are not readable"
     if not isinstance(params, dict):
         return "the stored request parameters are not readable"
+    # A truncated or refused response is stored as a provider error today; this does not rely on that mapping.
+    if params.get("finish_reason") != "stop":
+        return "the response did not record a normal finish"
     if row["provider"] in LOCAL_PROVIDERS and not row["hosted"]:
         return None
     if row["provider"] != "openrouter" or not row["hosted"]:
@@ -289,7 +292,8 @@ def _assess(
 def _auto_assessed(
     conn: sqlite3.Connection, registry: Mapping[str, Institution], allowlist: DraftAllowlist
 ) -> list[tuple[Mapping[str, Any], str | None, DraftSummary | None]]:
-    """Every summary with output, newest first; per document version only the newest shown one survives."""
+    """Every summary with output. The newest one of each document version holds its slot even when it is refused
+    (withdrawn, rejected, failed integrity), so an older output never resurfaces in its place."""
     marks = ",".join("?" * len(SHOWABLE_STATUSES))
     rows = conn.execute(
         f"{SUMMARY_SELECT} WHERE s.status IN ({marks}) ORDER BY p.published_on DESC, s.id DESC",
@@ -303,8 +307,7 @@ def _auto_assessed(
             out.append((row, f"superseded by summary {newer} of the same document version", None))
             continue
         reason, draft = _assess(conn, row, None, registry, allowlist)
-        if draft is not None:
-            shown[row["version_id"]] = draft.id
+        shown[row["version_id"]] = int(row["id"])
         out.append((row, reason, draft))
     order = {int(r["id"]): i for i, r in enumerate(rows)}
     return sorted(out, key=lambda item: order[int(item[0]["id"])])
