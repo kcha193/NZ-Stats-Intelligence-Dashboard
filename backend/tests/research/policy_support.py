@@ -123,7 +123,7 @@ def world(
             content_policy="full_text", now=NOW,
         )  # fmt: skip
         pub, _ = store.upsert_publication(
-            conn, inst, doc_key=f"treasury:example.org/{doc}", url=f"https://example.org/{doc}",
+            conn, inst, doc_key=f"treasury:research.example.org/{doc}", url=f"https://research.example.org/{doc}",
             title=f"Fortnightly Economic Update {doc}", series=series, categories=["economic_outlook"],
             published_on=published_on, published_at=None, precision="day",
             content_status="extracted", now=NOW,
@@ -143,7 +143,7 @@ def world(
                 "INSERT INTO research_manual_import(institution_id,url,publication_id,version_id,outcome,"
                 "file_format,content_sha256,text_sha256,imported_by,note,licence_snapshot,imported_at)"
                 " VALUES (?,?,?,?,'new','pdf',?,?,?,?,?,?)",
-                (inst, f"https://example.org/{doc}", pub, version, sha, "t", "Synthetic Owner",
+                (inst, f"https://research.example.org/{doc}", pub, version, sha, "t", "Synthetic Owner",
                  "synthetic provenance note", json.dumps(snapshot), NOW.isoformat()),
             )  # fmt: skip
     return conn, reg, data, version

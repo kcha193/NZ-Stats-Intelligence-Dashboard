@@ -274,7 +274,7 @@ def test_the_same_content_under_a_new_version_row_is_still_attempted(tmp_path):
         conn
     ):  # the same bytes arrive again as a different publication and version row
         pub, _ = store.upsert_publication(
-            conn, row["institution_id"], doc_key="treasury:example.org/renamed", url="https://example.org/renamed",
+            conn, row["institution_id"], doc_key="treasury:research.example.org/renamed", url="https://research.example.org/renamed",
             title="Renamed", series="FEU", categories=[], published_on="2026-11-12", published_at=None,
             precision="day", content_status="extracted", now=NOW,
         )  # fmt: skip
