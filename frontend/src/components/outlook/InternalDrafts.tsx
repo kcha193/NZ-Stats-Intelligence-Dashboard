@@ -82,7 +82,7 @@ function reportStatus(r: DraftReport) {
   if (r.draft_id !== null) {
     return <Link className="underline underline-offset-4" to={`/economic-outlook/draft/${r.draft_id}`}>Read the AI draft</Link>;
   }
-  return r.validation === "unusable_response" ? "The AI response was unusable, so nothing is shown" : "No AI commentary";
+  return r.validation === "unusable_response" ? "The AI response was unusable, so nothing is shown" : "No AI commentary. An AI request runs only when an operator starts one.";
 }
 
 /** The newest report from Treasury and from the Reserve Bank, with its AI commentary when there is one. */
@@ -116,13 +116,18 @@ function LatestCommentary({ items, reports }: { items: DraftItem[]; reports: Dra
                   </div>
                 )}
                 <p className="mt-3 text-sm">{draft.claims.length} claims: {draftCounts(draft)}.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Automated checks: {draft.provenance.verifier_version}, prompt {draft.provenance.prompt_version}. Checks look for support in the document, not for economic accuracy.
+                </p>
                 <p className="mt-auto pt-3 text-sm font-medium">
                   <Link className="text-accent-ink underline underline-offset-4" to={`/economic-outlook/draft/${draft.id}`}>Read the full draft and its checks</Link>
                 </p>
               </>
             ) : (
               <p className="mt-3 text-sm">
-                {latest.validation === "unusable_response" ? "The AI response for this report was unusable, so nothing is shown." : "No AI commentary for this report yet."}
+                {latest.validation === "unusable_response"
+                  ? "The AI response for this report was unusable, so nothing is shown."
+                  : "No AI commentary for this report yet. An AI request runs only when an operator starts one; opening this page never starts one."}
               </p>
             )}
           </article>
@@ -183,6 +188,7 @@ function DraftRows({ items }: { items: DraftItem[] }) {
       {items.map((d) => (
         <li key={d.id} className="py-4">
           <p className="flex flex-wrap items-center gap-2 text-sm">
+            {d.newer_report && <span className="inline-block rounded-full border border-rule-strong/40 px-2 py-0.5 text-xs font-medium">Historical</span>}
             <ValidationBadge category={d.validation} />
             <span className="text-muted-foreground">Not independently reviewed</span>
           </p>
@@ -218,7 +224,7 @@ function DraftList({ items }: { items: DraftItem[] }) {
       )}
       {earlier.length > 0 && (
         <section aria-label="Earlier reports" className="mt-4">
-          <h3 className="text-sm font-semibold">Earlier reports</h3>
+          <h3 className="text-sm font-semibold">Earlier reports: historical commentary</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">The institution has published a newer report since.</p>
           <DraftRows items={earlier} />
         </section>

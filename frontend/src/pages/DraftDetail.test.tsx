@@ -283,6 +283,7 @@ describe("Phase 4T internal AI experience", () => {
     expect(t).toHaveTextContent("Published 2 Nov 2026. Document date: 29 October 2026");
     expect(t).toHaveTextContent("Failed automated checks");
     expect(t).toHaveTextContent("AI interpretation");
+    expect(t).toHaveTextContent("Automated checks: verify-3, prompt outlook-v4");
     expect(within(t).getByRole("link", { name: "Read the full draft and its checks" })).toHaveAttribute("href", "/economic-outlook/draft/9");
     const r = screen.getByRole("article", { name: "Latest Reserve Bank commentary" });
     expect(r).toHaveTextContent("The AI response for this report was unusable, so nothing is shown.");
@@ -293,7 +294,21 @@ describe("Phase 4T internal AI experience", () => {
     mockApi({ "/api/capabilities": on, "/api/internal/drafts": { ...feed, items: [treasury, { ...draft, newer_report: newer }] } });
     renderWithProviders(<InternalDrafts />);
     expect(await screen.findByRole("region", { name: "Current reports" })).toHaveTextContent("Treasury Update (synthetic)");
-    expect(screen.getByRole("region", { name: "Earlier reports" })).toHaveTextContent("Example Update (synthetic)");
+    const earlier = screen.getByRole("region", { name: "Earlier reports" });
+    expect(earlier).toHaveTextContent("Example Update (synthetic)");
+    expect(earlier).toHaveTextContent("Earlier reports: historical commentary");
+    expect(within(earlier).getByText("Historical")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Current reports" })).queryByText("Historical")).not.toBeInTheDocument();
+  });
+
+  it("explains missing AI commentary and says opening the page never requests any", async () => {
+    const none = { ...feed, items: [], reports: [{ ...feed.reports[0], draft_id: null, validation: null }] };
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": none });
+    renderWithProviders(<InternalDrafts />);
+    const t = await screen.findByRole("article", { name: "Latest Treasury commentary" });
+    expect(t).toHaveTextContent("No AI commentary for this report yet.");
+    expect(t).toHaveTextContent("An AI request runs only when an operator starts one; opening this page never starts one.");
+    expect(within(t).queryByRole("link", { name: "Read the full draft and its checks" })).not.toBeInTheDocument();
   });
 
   it("puts every failed claim and its reason in view without a click", async () => {

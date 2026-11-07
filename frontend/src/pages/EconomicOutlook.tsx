@@ -39,7 +39,7 @@ export default function EconomicOutlook() {
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Institutional research</dt>
-            <dd>AI summaries, checked against each document and approved by a person</dd>
+            <dd>Internal AI drafts on this machine, checked by automated rules only and not reviewed by a person. Summaries a person has approved appear only in the separate publishing workflow below.</dd>
           </div>
         </dl>
       </header>

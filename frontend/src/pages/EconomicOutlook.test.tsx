@@ -46,6 +46,18 @@ describe("Economic outlook, nothing published (the real default)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("does not say every AI summary was approved by a person", async () => {
+    mockApi({ "/api/overview": withCpi });
+    renderWithProviders(<EconomicOutlook />);
+    await screen.findByRole("heading", { level: 1, name: "Economic outlook" });
+    const term = screen.getAllByText("Institutional research").find((el) => el.tagName === "DT");
+    const copy = term?.parentElement?.textContent ?? "";
+    expect(copy).not.toContain("checked against each document and approved by a person");
+    expect(copy).toContain("Internal AI drafts");
+    expect(copy).toContain("not reviewed by a person");
+    expect(copy).toContain("separate publishing workflow");
+  });
+
   it("never prints an em or en dash in its own copy", async () => {
     mockApi({ "/api/overview": withCpi });
     const { container } = renderWithProviders(<EconomicOutlook />);
