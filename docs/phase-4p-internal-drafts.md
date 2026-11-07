@@ -18,6 +18,9 @@ Phase 4Q adds a "Reports held" list in the same mode: each current report's titl
 first, whether or not a summary exists. A draft says when its institution has published a newer report. The list carries no
 document text. See `phase-4q-treasury-feu-refresh.md`.
 
+Phase 4T adds an opt-in automatic mode, a withdrawal list and validation categories. The named list below keeps its meaning when
+`auto_display` is absent. See `phase-4t-internal-ai-commentary.md`.
+
 ## The gate
 
 `research/drafts.py` is the one gate, and `research/drafts_api.py` the only routes. A summary is shown only when all of these

@@ -265,8 +265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_serve.add_argument(
         "--internal-drafts",
         action="store_true",
-        help="also show the summaries named in data/internal-drafts.json, including ones that failed checks"
-        " (loopback binds only)",
+        help="also show internal AI drafts, including ones that failed checks: those named in"
+        " data/internal-drafts.json, or every eligible one when that file sets auto_display (loopback binds only)",
     )
     sub.add_parser("health", help="print source health as JSON")
     p_status = sub.add_parser(

@@ -7,6 +7,9 @@ export type DraftProblem = { code: string; severity: "error" | "warning"; messag
 
 export type DraftClaimStatus = "clean" | "warning" | "failed";
 
+/** What the automated checks found (Phase 4T). Validation categories, not certainty: none of them means "verified". */
+export type ValidationCategory = "no_automated_issue" | "automated_warning" | "failed_automated_checks" | "unusable_response";
+
 export type DraftClaim = {
   path: string;
   status: DraftClaimStatus;
@@ -41,12 +44,14 @@ export type DraftItem = {
   approved_for_publication: false;
   human_reviewed: boolean;
   checks_passed: boolean;
+  validation: Exclude<ValidationCategory, "unusable_response">;
   errors: number;
   warnings: number;
   counts: Record<DraftClaimStatus, number>;
   institution: string;
   institution_name: string;
   document: { title: string; url: string; published_on: string | null; fetched_at: string; version_no: number; format: string; page_count: number | null };
+  document_date: string | null;
   licence: string;
   licence_url: string | null;
   provenance: { provider: string; model: string; hosted: boolean; prompt_version: string; processing_version: string; verifier_version: string; written_at: string; checks_scope: string };
@@ -63,6 +68,7 @@ export type DraftReport = {
   published_on: string | null;
   newest: boolean;
   draft_id: number | null;
+  validation: ValidationCategory | null;
 };
 
-export type DraftFeed = { items: DraftItem[]; reports: DraftReport[]; notice: string };
+export type DraftFeed = { mode: "named" | "automatic"; items: DraftItem[]; reports: DraftReport[]; notice: string };

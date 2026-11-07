@@ -9,7 +9,15 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from nzstats.research.pilot import PLANS, Approval, PilotRefused, execute, file_sha256, freeze
+from nzstats.research.pilot import (
+    PLANS,
+    PilotRefused,
+    evaluation_record,
+    execute,
+    file_sha256,
+    freeze,
+    load_approval,
+)
 from nzstats.research.registry import load_registry
 from nzstats.store.backup_bundle import create_bundle, restore_bundle
 from pydantic import ValidationError
@@ -68,7 +76,8 @@ def main() -> int:
                 "Local proposal frozen; no transmission or approval. Review local freeze.json."
             )
         elif args.action == "execute" and args.frozen and args.approval:
-            approval = Approval.model_validate_json(args.approval.read_bytes())
+            # Either the gold-bound format or a Phase 4T internal-draft authorisation (gold optional).
+            approval = load_approval(args.approval.read_bytes())
             execute(
                 conn,
                 load_registry(),
@@ -79,8 +88,10 @@ def main() -> int:
                 os.environ.get("NZSTATS_LLM_API_KEY", ""),
                 backup_check=verified_backup,
             )
+            evaluation = evaluation_record(approval)["human_evaluation"]
             print(
                 "Pilot attempt recorded locally; output remains unreviewed. No automatic retry."
+                f" Human evaluation: {evaluation.replace('_', ' ')}."
             )
         else:
             parser.error(
