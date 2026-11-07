@@ -30,7 +30,7 @@ from nzstats.research.api import _date, _is_loopback, _read_only
 from nzstats.research.contract import EvidenceRef, IssuerRole, Statement
 from nzstats.research.private import PrivateSummary, private_summaries
 from nzstats.research.registry import Institution, RegistryError, load_registry
-from nzstats.research.verify import SCOPE, VERIFIER_VERSION
+from nzstats.research.verify import SCOPE, resolve_verifier
 
 log = logging.getLogger(__name__)
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -178,7 +178,7 @@ def _item(p: PrivateSummary) -> PrivateItemOut:
         document=PrivateDocumentOut(title=r["title"], url=r["canonical_url"], published_on=r["published_on"],
                                     fetched_at=to_akl_iso(r["fetched_at"]), version_no=r["version_no"],
                                     format=r["format"], page_count=r["page_count"]),
-        review=PrivateReviewOut(human_reviewed_on=_date(r["reviewed_at"]), verifier_version=VERIFIER_VERSION,
+        review=PrivateReviewOut(human_reviewed_on=_date(r["reviewed_at"]), verifier_version=resolve_verifier(r["verifier_version"]),
                                 warnings=p.warnings),
         provenance=PrivateProvenanceOut(provider=r["provider"], model=r["model"], hosted=bool(r["hosted"]),
                                         prompt_version=r["prompt_version"],

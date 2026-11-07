@@ -78,7 +78,7 @@ def test_the_feed_labels_every_block_and_never_mixes_in_official_statistics(prev
     assert item["document"]["published_on"] == "2026-08-13" and item["document"]["url"].startswith(
         "https://"
     )
-    assert item["review"]["human_reviewed_on"] and item["review"]["verifier_version"] == "verify-4"
+    assert item["review"]["human_reviewed_on"] and item["review"]["verifier_version"] == "verify-5"
     kinds = [(b["kind"], b.get("issuer"), b.get("value")) for b in item["blocks"]]
     assert ("institutional_view", None, None) in kinds
     assert ("forecast", "Example Research", 2.8) in kinds

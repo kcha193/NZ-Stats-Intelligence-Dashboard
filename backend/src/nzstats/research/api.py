@@ -48,7 +48,7 @@ from nzstats.research.macro_outcomes import gdp_actuals, unemployment_actuals
 from nzstats.research.outcomes import CpiActuals
 from nzstats.research.public import PublicSummary, public_summaries, topics
 from nzstats.research.registry import Institution, PublicDisplay, RegistryError, load_registry
-from nzstats.research.verify import VERIFIER_VERSION
+from nzstats.research.verify import resolve_verifier
 
 log = logging.getLogger(__name__)
 ENABLE_ENV = "NZSTATS_PUBLIC_RESEARCH"
@@ -172,7 +172,7 @@ class _View:
             n_forecasts=len(self.own_forecasts()) if self.ai else 0,
             processing=ProcessingOut(
                 human_reviewed_on=_date(r["reviewed_at"]), published_here_on=_date(r["decided_at"]),
-                verifier_version=VERIFIER_VERSION, warnings=self.p.warnings,
+                verifier_version=resolve_verifier(r["verifier_version"]), warnings=self.p.warnings,
             ),
         )  # fmt: skip
 
@@ -294,7 +294,7 @@ def research_router(
             provenance=ProvenanceOut(
                 provider=r["provider"], model=r["model"], hosted=bool(r["hosted"]),
                 prompt_version=r["prompt_version"], processing_version=r["processing_version"],
-                verifier_version=VERIFIER_VERSION, created_at=to_akl_iso(r["created_at"]),
+                verifier_version=resolve_verifier(r["verifier_version"]), created_at=to_akl_iso(r["created_at"]),
             ),
             versions=versions,
         )  # fmt: skip

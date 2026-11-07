@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 from datetime import date
 from pathlib import Path
 
@@ -57,7 +58,7 @@ from nzstats.research.quality import version_quality
 from nzstats.research.readiness import assess, pipeline_state
 from nzstats.research.registry import Institution, RegistryError, load_registry
 from nzstats.research.summarise import summarise_versions
-from nzstats.research.verify import SCOPE, VerificationContext
+from nzstats.research.verify import SCOPE, VERIFIER_VERSION, VerificationContext, resolve_verifier
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.store.db import connect, migrate
 
@@ -167,6 +168,21 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     )
     p_score.add_argument("--extension", required=True, help="reviewed JSON (keep it under data/)")
     p_score.add_argument("--json", action="store_true", help="the full report as JSON")
+    p_diag = rsub.add_parser(
+        "diagnose",
+        help="replay one stored summary under two verifier versions, read-only; prints codes and counts only (4V; calls no model)",
+    )
+    p_diag.add_argument("summary", type=_positive_int, help="stored summary id")
+    p_diag.add_argument(
+        "--baseline", help="verifier to compare from (default: the one the summary was stored with)"
+    )
+    p_diag.add_argument("--proposed", help="verifier to compare to (default: the current one)")
+    p_diag.add_argument(
+        "--out", help="write a local HTML report here (owner-only; keep it under data/)"
+    )
+    p_diag.add_argument("--include-text", action="store_true",
+                        help="put claim text and quotes in the HTML report (never printed to the terminal)")  # fmt: skip
+    p_diag.add_argument("--json", action="store_true", help="the replay as JSON (no source text)")
     p_qual = rsub.add_parser(
         "quality", help="extraction quality of stored document versions (Phase 3D-A)"
     )
@@ -619,7 +635,7 @@ def _score_gold(
     try:
         extension = load_extension(Path(args.extension))
         rows = conn.execute(
-            "SELECT s.id, s.output_json, p.published_on, i.key AS institution FROM research_summary s"
+            "SELECT s.id, s.output_json, s.verifier_version, p.published_on, i.key AS institution FROM research_summary s"
             " JOIN research_document_version v ON v.id = s.version_id"
             " JOIN research_publication p ON p.id = v.publication_id"
             " JOIN research_institution i ON i.id = p.institution_id"
@@ -633,7 +649,7 @@ def _score_gold(
                     published_on=date.fromisoformat(row["published_on"]) if row["published_on"] else None,
                     institution=row["institution"],
                 ),
-                summary_id=row["id"],
+                summary_id=row["id"], verifier=resolve_verifier(row["verifier_version"]),
             )
             for row in rows
         ]  # fmt: skip
@@ -652,13 +668,72 @@ def _score_gold(
         _emit(f"version {extension.version_id}: no stored summary to score")
     for report in reports:
         _emit(
-            f"version {report.version_id}, summary {report.summary_id}: verifier {'passed' if report.passed else 'rejected the summary'}; gold {report.gold_counts}"
+            f"version {report.version_id}, summary {report.summary_id}: verifier {report.verifier} {'passed' if report.passed else 'rejected the summary'}; gold {report.gold_counts}"
         )
         for name, view in report.views.items():
             _emit(f"  {name}: claims {view.claims}, precision {view.precision.text}, recall {view.recall.text},"
                   f" numbers {view.numerical_accuracy.text}, periods {view.period_exact.text},"
                   f" issuers {view.issuer_accuracy.text}, unmatched {view.unmatched}, repeated {view.duplicates},"
                   f" expected rejections emitted {view.expected_rejections}, ambiguous {view.ambiguous}")  # fmt: skip
+    return 0
+
+
+def _diagnose(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    from nzstats.research import diagnostics as D
+
+    if not settings.db_path.exists():
+        _emit("refused: there is no database to read")
+        return 2
+    conn = D.open_readonly(settings.db_path)
+    try:
+        replay = D.replay_summary(
+            conn, args.summary, baseline=args.baseline, proposed=args.proposed or VERIFIER_VERSION,
+            with_text=bool(args.out and args.include_text),
+        )  # fmt: skip
+    except (D.DiagnosticError, sqlite3.Error) as exc:
+        _emit(f"refused: {exc if isinstance(exc, D.DiagnosticError) else type(exc).__name__}")
+        return 2
+    finally:
+        conn.close()
+    if args.out:
+        try:
+            D.write_report(Path(args.out), D.render_html(replay), root=settings.data_dir)
+        except D.DiagnosticError as exc:
+            _emit(str(exc))
+            return 2
+    if args.json:
+        data = (
+            replay.redacted().to_json()
+        )  # the terminal never receives claim text, even when the report has it
+        _emit(json.dumps(data, indent=1))
+        return 0
+    b, p = replay.baseline, replay.proposed
+    _emit(f"summary {replay.summary_id} (document version {replay.version_id}, {replay.institution}): status {replay.status},"
+          f" stored verifier {replay.stored_verifier or 'none'}, stored verification reproduced"
+          f" {'yes' if replay.stored_reproduced else 'NO'}, output hash intact {'yes' if replay.output_hash_ok else 'NO'}")  # fmt: skip
+    for r in (b, p):
+        _emit(f"{r.version}: {r.n_errors} errors, {r.n_warnings} warnings; claims failed {r.claims_failed},"
+              f" warning {r.claims_warning}, clean {r.claims_clean} of {r.claims_total}; citation errors {r.citation_errors}")  # fmt: skip
+    _emit(
+        f"independent root causes in {b.version}: {replay.root_causes_baseline} of {b.n_errors} errors"
+    )
+    _emit(f"newly accepted: {', '.join(replay.newly_accepted) or 'none'}")
+    _emit(f"newly rejected: {', '.join(replay.newly_rejected) or 'none'}")
+    for code in sorted(set(b.errors) | set(p.errors)):
+        _emit(f"  {code}: {b.errors.get(code, 0)} -> {p.errors.get(code, 0)}")
+    for f in replay.findings:
+        _emit(f"  {f.path} {f.code}: {f.label}")
+    for c in replay.clusters:
+        _emit(
+            f"  cluster {c.path}: root {c.root}, guaranteed cascade {len(c.guaranteed)}, possible {len(c.possible)}"
+        )
+    _emit(
+        "a new assessment, not a replacement of the stored result; it does not test the economics"
+    )
+    if args.out:
+        _emit(f"report written: {args.out}")
     return 0
 
 
@@ -878,4 +953,4 @@ def _cpi_reconcile(
 _SUMMARY_COMMANDS = {"cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
-                     "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "owner-review-package": _owner_review_package, "score-gold": _score_gold}  # fmt: skip
+                     "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "owner-review-package": _owner_review_package, "score-gold": _score_gold, "diagnose": _diagnose}  # fmt: skip

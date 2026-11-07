@@ -52,7 +52,7 @@ from nzstats.research.summarise import (
     summarise_versions,
 )
 from nzstats.research.summary_store import lifetime_spent, version_attempts
-from nzstats.research.verify import VERIFIER_VERSION
+from nzstats.research.verify import BASELINE_VERIFIER
 
 MODEL = "anthropic/claude-opus-5.5"
 CANONICAL_MODEL = "anthropic/claude-opus-5.5-20260921"
@@ -357,7 +357,8 @@ def freeze(
         "provider_id": ROUTE,
         "prompt_version": experiment.prompt_version,
         "processing_version": PROCESSING_VERSION,
-        "verifier_version": VERIFIER_VERSION,
+        # The Phase 4S experiment was frozen, approved and run under verify-4. A later verifier is a new experiment with a new freeze.
+        "verifier_version": BASELINE_VERIFIER,
         "contract_version": 2,
         "documents": documents,
     }
@@ -545,7 +546,7 @@ def execute(
             ROUTE,
             experiment.prompt_version,
             PROCESSING_VERSION,
-            VERIFIER_VERSION,
+            BASELINE_VERIFIER,
             2,
         )
         actual = tuple(
@@ -642,6 +643,7 @@ def execute(
             pricing=settings.pricing,
             limits=settings.limits,
             version_ids=tuple(frames),
+            verifier=BASELINE_VERIFIER,
             dry_run=True,
             hosted_consents=grants,
             now_fn=now_fn,
@@ -687,6 +689,7 @@ def execute(
             pricing=settings.pricing,
             limits=settings.limits,
             version_ids=tuple(frames),
+            verifier=BASELINE_VERIFIER,
             hosted_consents=grants,
             now_fn=now_fn,
         )

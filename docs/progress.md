@@ -7,6 +7,18 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4V: economic accuracy remediation without further inference, 7 November 2026
+
+Full record: [phase-4v-economic-accuracy.md](phase-4v-economic-accuracy.md). Policy proposal only: [phase-4v-future-inference-policy.md](phase-4v-future-inference-policy.md). Baseline main `e9ba52c`.
+**No OpenRouter request, crawl, scheduler, deployment, approval, permission, ledger or limit change, and no merge.** Ledger unchanged: US$0.6267107880 spent, US$4.3732892120 remaining, 4 of 4 attempts.
+
+- **`verify-5`:** reads a `4:3` vote (the confirmed Phase 4U defect), checks a figure beside a comparison on its own side when that side holds only that figure, and rejects another currency's dollar sign claimed as NZ dollars (a verify-4 false acceptance). `verify-4` is kept and replayable. Stored rows are re-checked by the verifier that produced them, so summary 4 still shows its `verify-4` findings.
+- **Replay of summary 4 (`nzstats research diagnose 4`, read-only):** 13 errors become 11, warnings stay 25, claims failed stay 7 of 24, no claim newly accepted. Not evidence that the economics are right.
+- **Corrects Phase 4U:** the Brent error is a contract limitation (no US-dollar unit exists), not only a model omission. The five decision errors are one root cause with 3 guaranteed cascades.
+- **Scorecard (46 constructed examples):** false rejections 7 of 22 become 3; false acceptances 2 of 19 become 0. Constructed pairs only.
+- **`outlook-v6`:** prepared, registered, not adopted, untested on a real model.
+- **Verdict:** GO WITH CONDITIONS (see the record).
+
 ## Phase 4U: Treasury version 3 outcome and diagnosis, 7 November 2026
 
 Full record: [phase-4u-treasury-v3-outcome.md](phase-4u-treasury-v3-outcome.md). Baseline main `8fbcb36` (PR #48 merged). Local evidence: ignored `data/phase-4u/`.

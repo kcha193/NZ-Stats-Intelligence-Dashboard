@@ -38,6 +38,7 @@ def check(
     institution: str | None = "treasury",
     published_on: date | None = date(2026, 10, 15),
     contract_version: int = CONTRACT_VERSION,
+    verifier: str | None = None,
     **items,
 ) -> VerificationReport:
     s = OutlookSummary(
@@ -46,7 +47,9 @@ def check(
         indicators=items.pop("indicators", ("gdp", "cpi_inflation", "ocr", "migration")), **items,
     )  # fmt: skip
     ctx = VerificationContext(published_on=published_on, institution=institution)
-    return verify(s, sections, ctx)
+    return (
+        verify(s, sections, ctx) if verifier is None else verify(s, sections, ctx, version=verifier)
+    )
 
 
 def codes(report: VerificationReport) -> set[str]:
