@@ -118,6 +118,8 @@ The initial GitHub Codex review identified three P2 defects. All regressions use
 
 Tests: `backend/tests/research/test_policy_review_regressions.py`, plus the existing policy, hosted-consent, pilot, purge, reservation and migration/rollback suites. The historical US$0.6267107880 ledger rows remain identical in regression fixtures; no lifetime or policy ceiling is raised by remediation. Current-head review and check results are reported on PR #51.
 
+The next GitHub review found one further P2: a new import or duplicate attribution during live validation or backup could invalidate the policy's current-version check. Policy hosted consent now rechecks `current_version_id`, `superseded_at` and `duplicate_of_id` under the same reservation write lock and before transmission. Sixteen regressions cover a real new version and each independent predicate at validation, backup, reservation and after reservation; three compatibility cases preserve legacy consent for explicitly authorised historical versions. Before reservation these changes consume nothing; after reservation they block transmission and audit the consumed attempt at zero cost.
+
 ## Verdict: GO WITH CONDITIONS
 
 Go for merging the code: nothing is enabled and no call is authorised. Conditions before the first paid request: the owner grants Treasury hosted-LLM permission in the registry after a documented review (every dry run refuses until then); runs `nzstats migrate`; accepts that `outlook-v6` and `verify-5` are untested on a real model and that the per-call headroom is thin (US$0.4247 of US$0.50); and runs the first policy in a real terminal. Not GO for unattended or automatic use, which is out of scope by design.

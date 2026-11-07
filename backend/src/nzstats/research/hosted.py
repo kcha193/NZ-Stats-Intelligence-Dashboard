@@ -91,10 +91,18 @@ def consent_refusal(
         ):
             return refusal
     row = conn.execute(
-        "SELECT content_sha256, text_sha256, purged_at FROM research_document_version WHERE id=?",
+        "SELECT v.content_sha256, v.text_sha256, v.purged_at, v.superseded_at,"
+        " p.current_version_id, p.duplicate_of_id FROM research_document_version v"
+        " JOIN research_publication p ON p.id=v.publication_id WHERE v.id=?",
         (request.version_id,),
     ).fetchone()
     if row is None or row["purged_at"]:
+        return refusal
+    if grant.experiment.startswith(POLICY_PREFIX) and (
+        row["current_version_id"] != request.version_id
+        or row["superseded_at"] is not None
+        or row["duplicate_of_id"] is not None
+    ):
         return refusal
     sections = {
         r["ordinal"]: SectionText(r["text"], r["page_start"], r["page_end"], r["heading"])

@@ -17,6 +17,10 @@ from nzstats.store.db import connect
 
 from .llm_support import NOW, seed_version
 from .policy_support import policy_dict, registry, world, write_policy
+from .test_hosted import consent
+from .test_hosted import run as run_legacy
+from .test_openrouter import envelope
+from .test_openrouter import provider as openrouter_provider
 from .test_pilot_treasury_v3 import spend
 from .test_policy_run import KEY, Env, good_output
 
@@ -419,3 +423,87 @@ def test_execution_at_policy_expiry_boundary(tmp_path, delta):
         with pytest.raises(pol.PolicyRefused):
             execute(env, now_fn=lambda: clock[0], backup_check=backup)
         assert not env.posts and env.attempts() == 0
+
+
+def make_version_ineligible(env, change):
+    if change == "new_import":
+        conn, _, _, version = world(
+            tmp_path=env.data.parent, sections=("Synthetic replacement report",)
+        )
+        assert version != env.version
+        conn.close()
+    elif change == "superseded":
+        env.conn.execute(
+            "UPDATE research_document_version SET superseded_at=? WHERE id=?",
+            (NOW.isoformat(), env.version),
+        )
+    elif change == "current_pointer":
+        env.conn.execute(
+            "UPDATE research_publication SET current_version_id=NULL WHERE current_version_id=?",
+            (env.version,),
+        )
+    else:
+        target = seed_version(
+            env.conn, sections=("Synthetic canonical report",), key="treasury", doc="canonical"
+        )
+        env.conn.execute(
+            "UPDATE research_publication SET duplicate_of_id=(SELECT publication_id FROM research_document_version WHERE id=?)"
+            " WHERE current_version_id=?",
+            (target, env.version),
+        )
+
+
+@pytest.mark.parametrize("change", ["new_import", "superseded", "current_pointer", "duplicate"])
+@pytest.mark.parametrize(
+    "stage", ["provider_validation", "backup", "reservation", "after_reservation"]
+)
+def test_policy_source_eligibility_is_rechecked_before_reservation_and_transmission(
+    tmp_path, monkeypatch, change, stage
+):
+    env = Env(tmp_path)
+    original_response, original_reserve = env.respond, ss.reserve
+
+    def respond(req):
+        response = original_response(req)
+        if stage == "provider_validation" and req.url.path.endswith("zdr"):
+            make_version_ineligible(env, change)
+        return response
+
+    def backup(conn, data_dir, output, now):
+        pilot.verified_backup(conn, data_dir, output, now)
+        if stage == "backup":
+            make_version_ineligible(env, change)
+
+    def reserve(*args, **kwargs):
+        if stage == "reservation":
+            make_version_ineligible(env, change)
+        held = original_reserve(*args, **kwargs)
+        if stage == "after_reservation":
+            make_version_ineligible(env, change)
+        return held
+
+    env.client = httpx.Client(transport=httpx.MockTransport(respond))
+    monkeypatch.setattr(ss, "reserve", reserve)
+    if stage == "after_reservation":
+        outcome = execute(env, now_fn=lambda: NOW, backup_check=backup)
+        event = next(e for e in env.events() if e["event"] == "executed")
+        assert outcome.cost_usd == event["cost_usd"] == 0 and env.attempts() == 1
+    else:
+        with pytest.raises(pol.PolicyRefused):
+            execute(env, now_fn=lambda: NOW, backup_check=backup)
+        assert env.attempts() == 0 and env.events()[-1]["event"] == "refused"
+    assert not env.posts
+
+
+@pytest.mark.parametrize("change", ["superseded", "current_pointer", "duplicate"])
+def test_policy_current_version_requirement_does_not_change_legacy_consent(tmp_path, change):
+    env = Env(tmp_path)
+    env.version = seed_version(env.conn)
+    posts = []
+    provider = openrouter_provider(
+        lambda req: posts.append(req) or httpx.Response(200, json=envelope())
+    )
+    grant = consent(env.conn, provider, env.version)
+    make_version_ineligible(env, change)
+    result = run_legacy(env.conn, provider, (grant,), version_ids=(env.version,))
+    assert len(posts) == 1 and not result.refusals
