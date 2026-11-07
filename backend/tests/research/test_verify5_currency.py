@@ -210,3 +210,37 @@ def test_claiming_the_converted_amount_as_new_zealand_dollars_is_still_rejected(
 )
 def test_a_currency_label_on_the_claimed_amount_is_still_rejected(sentence):
     assert "unit_mismatch" in codes_for(sentence, 4.2, "nzd_billion", version="verify-5")
+
+
+# --- review round 1, finding 8: a country adjective after an explicit NZ amount is not a currency label -------------------
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Investment was NZ$4.2 billion (US investors) in October 2026.",
+        "Investment was NZ$4.2 billion (US-based investors) in October 2026.",
+        "Investment was NZD 4.2 billion from US firms in October 2026.",
+        "Investment was NZ$4.2 billion US investment in October 2026.",
+    ],
+)
+def test_a_us_country_qualifier_after_an_explicit_nz_amount_is_not_a_currency_label(sentence):
+    assert "unit_mismatch" not in codes_for(sentence, 4.2, "nzd_billion", version="verify-4")
+    assert codes_for(sentence, 4.2, "nzd_billion", version="verify-5") == codes_for(
+        sentence, 4.2, "nzd_billion", version="verify-4"
+    )
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Investment was NZ$4.2 billion USD in October 2026.",
+        "Investment was NZ$4.2 billion (US dollars) in October 2026.",
+        "Investment was NZ$4.2 billion (US$) in October 2026.",
+        "Investment was NZ$4.2 billion AUD in October 2026.",
+        "Investment was $4.2 billion US in October 2026.",  # a bare dollar sign stays ambiguous, so stays conservative
+        "Investment was $4.2 billion (US investors) in October 2026.",
+    ],
+)
+def test_an_unambiguous_foreign_label_still_rejects_and_a_bare_dollar_sign_stays_conservative(
+    sentence,
+):
+    assert "unit_mismatch" in codes_for(sentence, 4.2, "nzd_billion", version="verify-5")

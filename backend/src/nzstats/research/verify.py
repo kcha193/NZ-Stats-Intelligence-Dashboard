@@ -276,6 +276,13 @@ _FOREIGN_AFTER = re.compile(
     r"(?!\s*\$\s*\d)(?!\s*\d[\d,.]*\s*(?:thousand|million|billion|trillion|bn|mn|[mbk])\b)",
     re.IGNORECASE,
 )
+# A bare "US" ("(US investors)", "US firms") is a country word more often than a currency label. After an explicit NZ$ or NZD it does not
+# count; "USD", "US$", "US dollars" and the other codes still do. After a bare dollar sign it stays a conservative rejection.
+_NZ_EXPLICIT_BEFORE = re.compile(r"(?:nz\$|nzd\s?)\s?$", re.IGNORECASE)
+_BARE_US_AFTER = re.compile(
+    r"\s*(?:(?:thousand|million|billion|trillion|bn|mn|[mbk])\b\s*)?\(?\s*US(?![\w-])(?!\s*\$)(?!\s+dollars?\b)",
+    re.IGNORECASE,
+)
 # A scale word or abbreviation straight after a dollar amount: plain NZD must not match these.
 _MONEY_SCALE = re.compile(
     r"^\s*(?:thousand|k\b|million|mn?\b|billion|bn\b|b\b|trillion|tn\b|t\b)", re.IGNORECASE
@@ -1729,12 +1736,16 @@ class _Checker:
             return stated("percent") and not other_percentish and share
         if unit in ("percentage_points", "basis_points"):
             return stated(unit)
+        explicit_nz = bool(_NZ_EXPLICIT_BEFORE.search(before))
         if (
             foreign
             and unit in ("nzd", "nzd_billion", "nzd_million")
             and (
                 _FOREIGN_DOLLAR.search(before)
-                or any(_FOREIGN_AFTER.match(t) for t in (after, beyond))
+                or any(
+                    _FOREIGN_AFTER.match(t) and not (explicit_nz and _BARE_US_AFTER.match(t))
+                    for t in (after, beyond)
+                )
             )
         ):
             return False  # verify-5: another currency's dollar sign is not a New Zealand dollar
