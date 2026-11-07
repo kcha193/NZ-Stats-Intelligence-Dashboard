@@ -23,8 +23,9 @@ from nzstats.research.diagnostics import (
     replay_summary,
     transitions,
 )
+from nzstats.research.evaluate import REF_CODES
 
-from .diag_support import SECRET, ev, output, store_verify_4_summary
+from .diag_support import BRENT, CPI, SECRET, SECTIONS, ev, output, store_verify_4_summary
 
 
 @pytest.fixture()
@@ -451,3 +452,44 @@ def test_hostile_structured_fields_and_quotes_are_escaped(conn):
         and "onerror=alert(2)>" not in out
     )
     assert out.count("&lt;script&gt;") >= 3
+
+
+# --- review round 1, finding 4: evidence is located the way the verifier locates it -----------------------------------
+def _wrapped_sections():
+    """The CPI sentence as a PDF extraction leaves it: broken across lines, with a doubled space."""
+    wrapped = CPI.replace("in the September", "in the\nSeptember").replace("up from", "up  from")
+    return (SECTIONS[0], f"SYNTHETIC FIXTURE. {wrapped} {BRENT}", SECTIONS[2])
+
+
+def test_evidence_across_a_line_break_is_located_by_the_verifiers_rules(conn):
+    conn, sid, report = store_verify_4_summary(conn, sections=_wrapped_sections())
+    assert not any(
+        p.code in REF_CODES for p in report.errors
+    )  # the verifier itself finds the quote
+    replay = replay_summary(conn, sid)
+    (site,) = next(c for c in replay.claims if c.path == "facts[0]").evidence
+    assert site.start is not None and site.end is not None and site.sentence == 1
+    assert (site.end - site.start) == len(
+        CPI.rstrip(".").replace("up from", "up from")
+    )  # normalised length
+    assert "quote not located" not in render_html(replay)
+    assert all(e.start is not None for c in replay.claims for e in c.evidence)
+
+
+def test_offsets_are_in_the_text_the_checks_read(conn):
+    from nzstats.research.summarise import load_sections
+    from nzstats.research.verify import _norm
+
+    conn, sid, _ = store_verify_4_summary(conn, sections=_wrapped_sections())
+    replay = replay_summary(conn, sid, with_text=True)
+    claim = next(c for c in replay.claims if c.path == "facts[0]")
+    (site,) = claim.evidence
+    section = load_sections(conn, replay.version_id)[site.section]
+    assert _norm(section.text)[site.start : site.end] == claim.quotes[0]
+
+
+def test_a_quote_the_verifier_cannot_find_is_still_reported_as_not_located(conn):
+    conn, sid, _ = store_verify_4_summary(conn, _citation_only)
+    outlook = next(c for c in replay_summary(conn, sid).claims if c.path == "outlook")
+    (site,) = outlook.evidence
+    assert (site.start, site.end, site.sentence) == (None, None, None)

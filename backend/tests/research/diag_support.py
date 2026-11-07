@@ -55,11 +55,11 @@ def output(v: int) -> dict:
     }  # fmt: skip
 
 
-def store_verify_4_summary(conn: sqlite3.Connection, build=output):
+def store_verify_4_summary(conn: sqlite3.Connection, build=output, sections=SECTIONS):
     """One summary stored as verify-4 graded it, as summary 4 is stored: (connection, summary id, verify-4 report).
 
     `build(version_id)` returns the stored output as a dict; tests pass a variant to reproduce one shape at a time."""
-    version_id = seed_version(conn, SECTIONS, key="rbnz", published_on="2026-10-28")
+    version_id = seed_version(conn, sections, key="rbnz", published_on="2026-10-28")
     prov = ModelProvenance(provider="openrouter", model="m", prompt_version="outlook-v5", processing_version="3b-1",
                            parameters={}, input_text_sha256="b" * 64, created_at=NOW)  # fmt: skip
     summary = assemble(

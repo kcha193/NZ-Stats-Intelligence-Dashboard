@@ -285,15 +285,21 @@ def _claims(summary: OutlookSummary) -> list[tuple[str, Any]]:
     return out
 
 
-def _site(ref: Any, sections: dict[int, Any]) -> EvidenceSite:
+def _site(ref: Any, sections: dict[int, Any], layouts: dict[int, V._Layout]) -> EvidenceSite:
+    """Where the verifier finds the quote: offsets and sentence in the section text as the checks read it.
+
+    The match is the verifier's own (`V._locate`: whitespace and line breaks collapsed, a split sign rejoined), so a quote that spans
+    a PDF line break is located too. Offsets count characters of that normalised text, which equals the stored text when it has no
+    line breaks or repeated spaces.
+    """
     section = sections.get(ref.section_ordinal)
-    start = section.text.find(ref.quote) if section is not None else -1
-    if start < 0:
+    if section is None:
         return EvidenceSite(ref.section_ordinal, ref.page, None, None, None)
-    sentence = next(
-        (i for i, (a, b) in enumerate(V._sentences(section.text)) if a <= start < b), None
-    )
-    return EvidenceSite(ref.section_ordinal, ref.page, start, start + len(ref.quote), sentence)
+    layout = layouts.setdefault(ref.section_ordinal, V._Layout(section.text))
+    located, _ = V._locate(ref.quote, section, layout)
+    if located is None:
+        return EvidenceSite(ref.section_ordinal, ref.page, None, None, None)
+    return EvidenceSite(ref.section_ordinal, ref.page, located.start, located.end, located.first)
 
 
 def _result(report: V.VerificationReport, claim_paths: Sequence[str]) -> VersionResult:
@@ -383,8 +389,9 @@ def replay_summary(
         for path, code in sorted(err_old | err_new)
     )  # fmt: skip
     views = []
+    layouts: dict[int, V._Layout] = {}
     for path, item in claims:
-        evidence = tuple(_site(r, sections) for r in getattr(item, "evidence", ()))
+        evidence = tuple(_site(r, sections, layouts) for r in getattr(item, "evidence", ()))
         text = getattr(item, "text", None) if with_text else None
         details = _details(item) if with_text else ()
         views.append(ClaimView(
@@ -515,7 +522,7 @@ def render_html(replay: Replay) -> str:
         f"{by_code}</table><h2>Root-cause clusters</h2><table><tr><th>Claim</th><th>Root</th><th>Guaranteed cascade</th>"
         f"<th>Possible cascade</th></tr>{cluster_rows}</table>"
         f"<h2>Findings</h2><table><tr><th>Claim</th><th>Code</th><th>Label</th><th>In baseline</th><th>In proposed</th></tr>"
-        f"{finding_rows}</table><h2>Claims with a problem</h2><table><tr><th>Claim</th><th>Kind</th><th>Evidence location</th>"
+        f"{finding_rows}</table><h2>Claims with a problem</h2><p>Character offsets count the section text with line breaks and repeated spaces collapsed, as the checks read it.</p><table><tr><th>Claim</th><th>Kind</th><th>Evidence location</th>"
         f"<th>Baseline errors</th><th>Proposed errors</th><th>Labels</th>{'<th>Text</th>' if has_text else ''}</tr>"
         f"{claim_rows}</table></body></html>"
     )
