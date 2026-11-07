@@ -26,6 +26,19 @@ SYNTHETIC_PAGE = f"{BASE}/information-releases/SYNTHETIC-ect-october/"
 SYNTHETIC_ZIP = f"{BASE}/assets/Uploads/SYNTHETIC/electronic-card-transactions-october-2026.zip"
 
 
+# Headline metrics the dashboard page requires (core and actual-total ones included).
+REQUIRED_HEADLINE_METRICS = frozenset(
+    {
+        "ect.m.sa.retail.value",
+        "ect.m.sa.core.value",
+        "ect.m.sa.total.value",
+        "ect.m.actual.total.value",
+        "ect.m.actual.total.count",
+        "ect.m.actual.total.average",
+    }
+)
+
+
 def seed_synthetic_october(rt, site):
     """Extend September monthly rows unchanged; retain September quarterly rows.
 
@@ -96,7 +109,14 @@ def reconcile_archive(raw: bytes, payload: dict, reference: str) -> int:
         "fuel": "1GS7",
         "non_retail": "1GS8",
     }
+    series_keys = [s["series"]["key"] for s in payload["series"]]
+    assert len(series_keys) == len(set(series_keys)), "duplicate series keys"
     dashboard = {s["series"]["key"]: s for s in payload["series"]}
+    metric_keys = [m["series_key"] for m in payload["analysis"]["headline_metrics"]]
+    assert len(metric_keys) == len(set(metric_keys)), "duplicate headline metric keys"
+    # ElectronicCardTransactions.tsx dereferences these unconditionally; extras are allowed.
+    missing = REQUIRED_HEADLINE_METRICS - set(metric_keys)
+    assert not missing, f"missing required headline metrics: {sorted(missing)}"
     metrics = {m["series_key"]: m for m in payload["analysis"]["headline_metrics"]}
     assert metrics["ect.m.sa.retail.value"]["period"] == reference
     checked = 0
@@ -133,6 +153,11 @@ def reconcile_archive(raw: bytes, payload: dict, reference: str) -> int:
             assert data["series"]["adjustment"] == (
                 "seasonally_adjusted" if ".sa." in key else "none"
             )
+            # The frontend selects points.at(-1) as the latest observation, so the
+            # served order itself must be unique and ascending before any lookup.
+            sequence = [p["period"] for p in data["points"]]
+            assert len(sequence) == len(set(sequence)), ("duplicate periods", key)
+            assert sequence == sorted(sequence), ("points not chronological", key)
             points = {p["period"]: p for p in data["points"]}
             assert points.keys() == source.keys(), key
             for period, value in source.items():

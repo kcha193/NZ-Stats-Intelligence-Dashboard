@@ -204,6 +204,78 @@ def test_independent_reconciliation_rejects_wrong_dashboard(rt, site, october, d
         reconcile_archive(raw, payload, "2026-10")
 
 
+def _october_payload(rt, october):
+    _, raw = october
+    assert ingest_release(rt, OCTOBER_KEY, now_fn=lambda: OCTOBER_TIME).outcome == "ingested"
+    payload = build_ect_dashboard(rt.conn).model_dump(mode="json")
+    assert reconcile_archive(raw, payload, "2026-10") > 1000
+    return raw, copy.deepcopy(payload)
+
+
+@pytest.mark.parametrize(
+    "removed",
+    [
+        "ect.m.sa.core.value",
+        "ect.m.sa.total.value",
+        "ect.m.actual.total.value",
+        "ect.m.actual.total.count",
+        "ect.m.actual.total.average",
+    ],
+)
+def test_oracle_requires_every_headline_metric(rt, site, october, removed):
+    raw, payload = _october_payload(rt, october)
+    metrics = payload["analysis"]["headline_metrics"]
+    payload["analysis"]["headline_metrics"] = [m for m in metrics if m["series_key"] != removed]
+    with pytest.raises(AssertionError, match="missing required headline metrics"):
+        reconcile_archive(raw, payload, "2026-10")
+
+
+def test_oracle_rejects_retail_only_headline_metrics(rt, site, october):
+    raw, payload = _october_payload(rt, october)
+    metrics = payload["analysis"]["headline_metrics"]
+    payload["analysis"]["headline_metrics"] = metrics[:1]
+    with pytest.raises(AssertionError, match="missing required headline metrics"):
+        reconcile_archive(raw, payload, "2026-10")
+
+
+def test_oracle_rejects_duplicate_headline_metric(rt, site, october):
+    raw, payload = _october_payload(rt, october)
+    payload["analysis"]["headline_metrics"].append(payload["analysis"]["headline_metrics"][0])
+    with pytest.raises(AssertionError, match="duplicate headline metric"):
+        reconcile_archive(raw, payload, "2026-10")
+
+
+def test_oracle_allows_optional_extra_headline_metric(rt, site, october):
+    raw, payload = _october_payload(rt, october)
+    durables = next(s for s in payload["series"] if s["series"]["key"] == "ect.m.sa.durables.value")
+    prior, current = durables["points"][-2], durables["points"][-1]
+    extra = copy.deepcopy(payload["analysis"]["headline_metrics"][0])
+    extra["series_key"] = durables["series"]["key"]
+    extra["period"], extra["value"] = current["period"], current["value"]
+    extra["change_prior"] = {
+        "comparison_period": prior["period"],
+        "absolute": current["value"] - prior["value"],
+        "percent": (current["value"] / prior["value"] - 1) * 100,
+    }
+    payload["analysis"]["headline_metrics"].append(extra)
+    assert reconcile_archive(raw, payload, "2026-10") > 1000
+
+
+@pytest.mark.parametrize("key", ["ect.m.sa.retail.value", "ect.q.sa.retail.value"])
+@pytest.mark.parametrize("damage", ["reversed", "duplicate", "misplaced"])
+def test_oracle_rejects_unordered_or_duplicate_points(rt, site, october, key, damage):
+    raw, payload = _october_payload(rt, october)
+    points = next(s for s in payload["series"] if s["series"]["key"] == key)["points"]
+    if damage == "reversed":
+        points.reverse()
+    elif damage == "duplicate":
+        points.append(copy.deepcopy(points[-1]))
+    else:  # latest observation moved away from the end
+        points.insert(0, points.pop())
+    with pytest.raises(AssertionError, match="duplicate periods|not chronological"):
+        reconcile_archive(raw, payload, "2026-10")
+
+
 def test_september_oracle_matches_official_headlines(rt, site):
     from decimal import Decimal
 
