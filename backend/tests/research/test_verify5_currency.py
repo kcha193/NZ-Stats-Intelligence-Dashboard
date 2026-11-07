@@ -131,3 +131,82 @@ def test_more_spellings_of_another_currency_are_rejected_as_nzd(sentence):
 )
 def test_the_new_spellings_do_not_reject_new_zealand_amounts(sentence):
     assert "unit_mismatch" not in codes_for(sentence, 4.2, "nzd_billion", version="verify-5")
+
+
+# --- review round 1, finding 3: a converted amount beside a New Zealand figure is not that figure's currency label -----
+def codes_quoting(sentence: str, quote: str, value: float, unit: str, *, version: str) -> set[str]:
+    sections = {0: SectionText(f"SYNTHETIC FIXTURE. {sentence}")}
+    fact = ReportedFact(
+        text="A figure.", source="Stats NZ", value=value, unit=unit, period="October 2026",
+        evidence=[ref(0, quote)],
+    )  # fmt: skip
+    summary = OutlookSummary(
+        version_id=V, provenance=PROV, outlook={"text": "The outlook", "evidence": [ref(0, "SYNTHETIC FIXTURE")]},
+        indicators=("gdp",), facts=[fact],
+    )  # fmt: skip
+    ctx = VerificationContext(published_on=date(2026, 10, 29), institution="treasury")
+    return {p.code for p in verify(summary, sections, ctx, version=version).errors}
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The deficit was NZ$4.2 billion (US$2.5 billion) in October 2026.",
+        "The deficit was NZ$4.2 billion (USD 2.5 billion) in October 2026.",
+        "The deficit was NZ$4.2 billion (US 2.5 billion) in October 2026.",
+        "The deficit was $4.2 billion (US$2.5 billion) in October 2026.",
+        "The deficit was NZ$4.2 billion, or US$2.5 billion, in October 2026.",
+        "The deficit was NZ$4.2 billion (about US$2.5 billion) in October 2026.",
+    ],
+)
+def test_a_converted_amount_after_the_new_zealand_figure_is_not_its_currency(sentence):
+    assert "unit_mismatch" not in codes_for(sentence, 4.2, "nzd_billion", version="verify-4")
+    assert codes_for(sentence, 4.2, "nzd_billion", version="verify-5") == codes_for(
+        sentence, 4.2, "nzd_billion", version="verify-4"
+    )
+
+
+def test_the_same_holds_when_the_quote_ends_before_the_parenthesis():
+    sentence = "The deficit was NZ$4.2 billion (US$2.5 billion) in October 2026."
+    quote = "The deficit was NZ$4.2 billion"
+    for version in ("verify-4", "verify-5"):
+        assert "unit_mismatch" not in codes_quoting(
+            sentence, quote, 4.2, "nzd_billion", version=version
+        )
+
+
+@pytest.mark.parametrize(
+    ("sentence", "quote", "value"),
+    [
+        (
+            "The deficit was NZ$4.2 billion (US$2.5 billion) in October 2026.",
+            "(US$2.5 billion)",
+            2.5,
+        ),
+        (
+            "The deficit was NZ$4.2 billion (USD 2.5 billion) in October 2026.",
+            "(USD 2.5 billion)",
+            2.5,
+        ),
+    ],
+)
+def test_claiming_the_converted_amount_as_new_zealand_dollars_is_still_rejected(
+    sentence, quote, value
+):
+    assert "unit_mismatch" in codes_quoting(
+        sentence, quote, value, "nzd_billion", version="verify-5"
+    )
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The deficit was $4.2 billion (US$) in October 2026.",
+        "The deficit was $4.2 billion US$ in October 2026.",
+        "The deficit was $4.2 billion USD, or NZ$7 billion, in October 2026.",
+        "The deficit was $4.2 billion (USD) in October 2026.",
+        "The deficit was $4.2 billion US, up on last year, in October 2026.",
+    ],
+)
+def test_a_currency_label_on_the_claimed_amount_is_still_rejected(sentence):
+    assert "unit_mismatch" in codes_for(sentence, 4.2, "nzd_billion", version="verify-5")

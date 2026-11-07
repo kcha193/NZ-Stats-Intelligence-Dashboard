@@ -269,8 +269,11 @@ _DOLLAR_PREFIX = re.compile(r"(?:\$|nzd\s?|nz\$)\s?$", re.IGNORECASE)
 _FOREIGN_DOLLAR = re.compile(
     r"\b(?:US|U\.S\.)\s?\$\s?$|\b(?:AUS|AU|CAN|CA|CAD|HK|SG|NT|MEX|[ACRS])\$\s?$", re.IGNORECASE
 )
+# A currency code that is followed by an amount ("(US$2.5 billion)", "(USD 2.5 billion)") introduces a converted figure beside the
+# claimed one; only a code that labels the claimed amount ("$4.2 billion USD", "(US dollars)", "(US$)") makes it foreign.
 _FOREIGN_AFTER = re.compile(
-    r"\s*(?:(?:thousand|million|billion|trillion|bn|mn|[mbk])\b\s*)?\(?\s*(?:US|USD|AUD|CAD|EUR|GBP|JPY|CNY)(?![\w-])",
+    r"\s*(?:(?:thousand|million|billion|trillion|bn|mn|[mbk])\b\s*)?\(?\s*(?:US|USD|AUD|CAD|EUR|GBP|JPY|CNY)(?![\w-])"
+    r"(?!\s*\$\s*\d)(?!\s*\d[\d,.]*\s*(?:thousand|million|billion|trillion|bn|mn|[mbk])\b)",
     re.IGNORECASE,
 )
 # A scale word or abbreviation straight after a dollar amount: plain NZD must not match these.
