@@ -193,6 +193,8 @@ class Replay:
                           "possible": list(c.possible)} for c in self.clusters],
             "claims": [{"path": c.path, "kind": c.kind, "baseline_errors": list(c.baseline_errors),
                         "proposed_errors": list(c.proposed_errors),
+                        "baseline_warnings": list(c.baseline_warnings),
+                        "proposed_warnings": list(c.proposed_warnings),
                         "evidence": [vars(e) for e in c.evidence],
                         **({"text": c.text} if self.with_text and c.text is not None else {}),
                         **({"details": dict(c.details), "quotes": list(c.quotes)} if self.with_text else {})}
@@ -481,6 +483,12 @@ def render_html(replay: Replay) -> str:
         )  # fmt: skip
     )
     codes = sorted(set(replay.baseline.errors) | set(replay.proposed.errors))
+    warning_codes = sorted(set(replay.baseline.warnings) | set(replay.proposed.warnings))
+    by_warning = "".join(
+        f"<tr><td><code>{_e(c)}</code></td><td>{replay.baseline.warnings.get(c, 0)}</td>"
+        f"<td>{replay.proposed.warnings.get(c, 0)}</td></tr>"
+        for c in warning_codes
+    )
     by_code = "".join(
         f"<tr><td><code>{_e(c)}</code></td><td>{replay.baseline.errors.get(c, 0)}</td>"
         f"<td>{replay.proposed.errors.get(c, 0)}</td></tr>" for c in codes
@@ -489,6 +497,7 @@ def render_html(replay: Replay) -> str:
         f"<tr><td><code>{_e(c.path)}</code></td><td>{_e(c.kind)}</td>"
         f"<td>{_e('; '.join(_site_text(s) for s in c.evidence) or '-')}</td>"
         f"<td>{_e(', '.join(c.baseline_errors) or '-')}</td><td>{_e(', '.join(c.proposed_errors) or '-')}</td>"
+        f"<td>{_e(', '.join(c.baseline_warnings) or '-')}</td><td>{_e(', '.join(c.proposed_warnings) or '-')}</td>"
         f"<td>{_e(', '.join(dict.fromkeys(f.label for f in replay.findings if claim_path(f.path) == c.path)) or '-')}</td>"
         + (f"<td>{_text_cell(c)}</td>" if replay.with_text else "")
         + "</tr>"
@@ -519,11 +528,12 @@ def render_html(replay: Replay) -> str:
         f"Claims newly rejected: {_e(', '.join(replay.newly_rejected) or 'none')}. "
         f"Independent root causes in the baseline: {_e(replay.root_causes_baseline)} of {_e(replay.baseline.n_errors)} errors.</p>"
         f"<h2>Error codes</h2><table><tr><th>Code</th><th>{_e(replay.baseline.version)}</th><th>{_e(replay.proposed.version)}</th></tr>"
-        f"{by_code}</table><h2>Root-cause clusters</h2><table><tr><th>Claim</th><th>Root</th><th>Guaranteed cascade</th>"
+        f"{by_code}</table><h2>Warning codes</h2><table><tr><th>Code</th><th>{_e(replay.baseline.version)}</th>"
+        f"<th>{_e(replay.proposed.version)}</th></tr>{by_warning}</table><h2>Root-cause clusters</h2><table><tr><th>Claim</th><th>Root</th><th>Guaranteed cascade</th>"
         f"<th>Possible cascade</th></tr>{cluster_rows}</table>"
         f"<h2>Findings</h2><table><tr><th>Claim</th><th>Code</th><th>Label</th><th>In baseline</th><th>In proposed</th></tr>"
         f"{finding_rows}</table><h2>Claims with a problem</h2><p>Character offsets count the section text with line breaks and repeated spaces collapsed, as the checks read it.</p><table><tr><th>Claim</th><th>Kind</th><th>Evidence location</th>"
-        f"<th>Baseline errors</th><th>Proposed errors</th><th>Labels</th>{'<th>Text</th>' if has_text else ''}</tr>"
+        f"<th>Baseline errors</th><th>Proposed errors</th><th>Baseline warnings</th><th>Proposed warnings</th><th>Labels</th>{'<th>Text</th>' if has_text else ''}</tr>"
         f"{claim_rows}</table></body></html>"
     )
 

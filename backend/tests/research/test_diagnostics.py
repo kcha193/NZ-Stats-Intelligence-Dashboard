@@ -493,3 +493,36 @@ def test_a_quote_the_verifier_cannot_find_is_still_reported_as_not_located(conn)
     outlook = next(c for c in replay_summary(conn, sid).claims if c.path == "outlook")
     (site,) = outlook.evidence
     assert (site.start, site.end, site.sentence) == (None, None, None)
+
+
+# --- review round 1, finding 6: the warnings a claim carries are reported, not only its errors ------------------------
+def _with_unlisted_indicator(v):
+    data = _with_forecast(v)
+    data["forecasts"][0]["indicator"] = "gdp"  # not in `indicators`: a warning on forecasts[0]
+    return data
+
+
+def test_claim_warnings_are_in_the_json_and_the_html(conn):
+    conn, sid, report = store_verify_4_summary(conn, _with_unlisted_indicator)
+    assert ("forecasts[0]", "indicator_not_listed") in {(p.path, p.code) for p in report.warnings}
+    replay = replay_summary(conn, sid)
+    view = next(c for c in replay.claims if c.path == "forecasts[0]")
+    assert (
+        "indicator_not_listed" in view.baseline_warnings
+        and "indicator_not_listed" in view.proposed_warnings
+    )
+    entry = next(c for c in replay.to_json()["claims"] if c["path"] == "forecasts[0]")
+    assert "indicator_not_listed" in entry["baseline_warnings"] + entry["proposed_warnings"]
+    page = render_html(replay)
+    row = next(
+        r for r in page.split("<tr>") if "<code>forecasts[0]</code></td><td>forecast</td>" in r
+    )
+    assert "indicator_not_listed" in row  # the warning-only claim row explains itself
+    assert "<h2>Warning codes</h2>" in page and page.count("indicator_not_listed") >= 2
+
+
+def test_the_warning_counts_in_the_summary_are_explained_by_claim_warnings(conn):
+    conn, sid, _ = store_verify_4_summary(conn, _with_unlisted_indicator)
+    replay = replay_summary(conn, sid)
+    listed = sum(len(c.proposed_warnings) for c in replay.claims)
+    assert listed == replay.proposed.n_warnings  # no claim-level warning is left unexplained
