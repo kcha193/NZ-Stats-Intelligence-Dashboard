@@ -102,7 +102,7 @@ def test_a_full_confirmed_run_through_the_cli_makes_one_request(cli, capsys, mon
     monkeypatch.setattr(policy_cli, "_ask", lambda prompt: code)
     assert run("run-policy", str(cli.path), "--version", str(cli.version), "--confirm", code) == 0
     out = capsys.readouterr().out
-    assert "One request made" in out and "unreviewed internal draft" in out and KEY not in out
+    assert "One request reserved" in out and "unreviewed internal draft" in out and KEY not in out
     assert len(cli.posts) == 1
     assert (
         run("run-policy", str(cli.path), "--version", str(cli.version), "--dry-run") == 2

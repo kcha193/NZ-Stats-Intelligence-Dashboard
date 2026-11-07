@@ -102,13 +102,14 @@ def world(
     import_record=True,
     raw_ok=True,
     snapshot_licence=None,
+    raw_bytes=None,
 ):
     """(conn, registry, data_dir, version_id) with the raw file stored under its own hash."""
     data = tmp_path / "data"
     conn = connect(data / "nzstats.db")
     migrate(conn)
     reg = reg or registry()
-    raw = ("\n".join(sections) + doc).encode()
+    raw = raw_bytes if raw_bytes is not None else ("\n".join(sections) + doc).encode()
     sha = hashlib.sha256(raw).hexdigest()
     if raw_ok:
         path = data / "raw" / sha[:2] / sha

@@ -524,6 +524,7 @@ def execute(
     client: httpx.Client | None = None,
     now_fn: Callable[[], datetime] = utc_now,
     plan: PilotPlan | None = None,
+    run_started: Callable[[int], None] | None = None,
 ) -> list[SummariseResult]:
     """Admit the entire frozen scope first; execute serially without retries or output approval."""
     try:
@@ -711,6 +712,7 @@ def execute(
             verifier=plan.verifier,
             hosted_consents=grants,
             now_fn=now_fn,
+            run_started=run_started,
         )
         _write(output / "result.json", _bytes(asdict(result)))
         return [result]

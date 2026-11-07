@@ -117,12 +117,17 @@ def _execute(settings, registry, policy_path: Path, version: int, confirm: str, 
     finally:
         conn.close()
     _out(
-        f"One request made. Outcome: {result.outcome}; automated checks: {result.errors} errors,"
+        f"One request reserved. Outcome: {result.outcome}; automated checks: {result.errors} errors,"
         f" {result.warnings} warnings; cost US${result.cost_usd:.4f}."
     )
-    _out(
-        "The result is an unreviewed internal draft. It is shown only through the internal-draft gate, with its checks."
-    )
+    if result.summary_id is None:
+        _out(
+            "No output was retained. The reservation and its cost remain in the audit and lifetime ledger."
+        )
+    else:
+        _out(
+            "The result is an unreviewed internal draft. It is shown only through the internal-draft gate, with its checks."
+        )
     _out("No automatic retry. This document version cannot be run again under any policy.")
     return 0
 

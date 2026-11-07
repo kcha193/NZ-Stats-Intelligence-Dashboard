@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -93,6 +93,10 @@ class AttemptConsumed(Exception):
     """This document version already used its one permitted hosted attempt."""
 
 
+class ConsentRefused(Exception):
+    """Execution-time hosted consent was withdrawn before reservation."""
+
+
 FIRST_PILOT = "phase-4m"
 LIFETIME_USD = 5.0  # every OpenRouter experiment shares this; history keeps counting against it
 # Reviewed code must raise these to add an experiment. Both count immutable reservation facts, so
@@ -156,6 +160,19 @@ def openrouter_refusal(
 ) -> str | None:
     """Read-only pilot refusal reason; reserving callers must hold the database write lock."""
     scope = scope or PilotScope()
+    if scope.experiment.startswith(POLICY_PREFIX):
+        # Phase 4W has no legacy second attempt. Check every scope and equivalent source bytes
+        # under the same write lock as reservation, including held and abandoned attempts.
+        attempted = conn.execute(
+            "SELECT 1 FROM research_llm_reservation x"
+            " JOIN research_document_version prior ON prior.id=x.version_id"
+            " JOIN research_document_version target ON target.id=?"
+            " WHERE x.provider='openrouter'"
+            " AND (x.version_id=target.id OR prior.content_sha256=target.content_sha256) LIMIT 1",
+            (version_id,),
+        ).fetchone()
+        if attempted is not None:
+            return "attempt_consumed"
     in_scope = f"COALESCE(json_extract(r.limits, '$.experiment'), '{FIRST_PILOT}') = ?"
     cost = "CASE WHEN x.state='settled' THEN x.actual_usd ELSE x.reserved_usd END"
     pilot = conn.execute(
@@ -199,6 +216,7 @@ def reserve(
     now: datetime,
     expires_at: datetime,
     scope: PilotScope | None = None,
+    consent_check: Callable[[], str | None] | None = None,
 ) -> int | None:
     """Hold `amount_usd`, or return None for global exhaustion. Raise AttemptConsumed for a used version.
 
@@ -207,6 +225,8 @@ def reserve(
     """
     conn.execute("BEGIN IMMEDIATE")
     try:
+        if consent_check is not None and consent_check() is not None:
+            raise ConsentRefused
         if provider == "openrouter":
             # Lifetime limits: failures, interruptions, prompt/model changes and elapsed
             # billing windows never reset this pilot. Same write lock as the budget check.

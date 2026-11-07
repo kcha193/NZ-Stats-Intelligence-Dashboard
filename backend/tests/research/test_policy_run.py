@@ -96,7 +96,12 @@ class Env:
 def fill(env, n, cost, *, policy_scopes=False):
     """`n` settled historical-style attempts on their own document versions (the ledger needs real version rows)."""
     for i in range(n):
-        version = seed_version(env.conn, key="treasury", doc=f"fill{i}-{cost}")
+        version = seed_version(
+            env.conn,
+            sections=(f"SYNTHETIC distinct report {i}",),
+            key="treasury",
+            doc=f"fill{i}-{cost}",
+        )
         spend(env.conn, version, f"policy-{i:016d}" if policy_scopes else f"e{i}", cost=cost)
 
 

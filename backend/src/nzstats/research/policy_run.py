@@ -54,7 +54,7 @@ log = logging.getLogger(__name__)
 FREEZE_FORMAT = 4  # a policy freeze: format 2 and 3 freezes belong to the Phase 4N and 4S plans and cannot run here
 AUDIT_TABLE = "research_policy_event"
 NO_REQUEST_OUTCOMES = frozenset(
-    {"attempt_consumed", "exists", "budget_exhausted", "input_too_long", "purged"}
+    {"attempt_consumed", "exists", "budget_exhausted", "input_too_long", "consent_refused"}
 )
 PROMPT_TIMEOUT = timedelta(
     minutes=10
@@ -399,17 +399,32 @@ def execute_policy(
     approval = _approval(policy, sha, plan, pf, doc, work / "freeze", now)
     error: BaseException | None = None
     results: list = []
+    run_id: int | None = None
+
+    def remember_run(started_id: int) -> None:
+        nonlocal run_id
+        run_id = started_id
+
     try:
         results = pilot.execute(
             conn, dict(registry), data_dir, work / "freeze", approval, work / "run", api_key,
             backup_check=backup_check, client=client, now_fn=now_fn, plan=plan,
+            run_started=remember_run,
         )  # fmt: skip
     except (
         BaseException
     ) as exc:  # recorded below, then re-raised: an interrupted call must still be audited
         error = exc
     outcome = _audit_after(
-        conn, policy, sha, pf, operator, now_fn(), error, results[0] if results else None
+        conn,
+        policy,
+        sha,
+        pf,
+        operator,
+        now_fn(),
+        error,
+        results[0] if results else None,
+        run_id=run_id,
     )
     if error is not None:
         raise error
@@ -450,7 +465,7 @@ def _approval(
         experiment_spend_limit_usd=plan.experiment.scope.max_usd,
         approved_by=policy.issued_by,
         approved_at=now,
-        expires_at=now + timedelta(hours=1),
+        expires_at=min(now + timedelta(hours=1), policy.expires_at),
         frozen_sha256=pilot.file_sha256(freeze_dir / "freeze.json"),
         model=pilot.MODEL,
         provider_id=pilot.ROUTE,
@@ -483,6 +498,8 @@ def _audit_after(
     now: datetime,
     error: BaseException | None,
     result: SummariseResult | None = None,
+    *,
+    run_id: int | None = None,
 ) -> tuple[str, int | None, float, int, int] | None:
     """Append what happened. A reservation made by THIS run is an `executed` row whatever the outcome; otherwise a refusal.
 
@@ -497,28 +514,27 @@ def _audit_after(
         )  # fmt: skip
 
     item = result.items[0] if result is not None and result.items else None
-    # "exists" and "attempt_consumed" both mean another process used this version first: this one made no request.
-    if result is not None and (item is None or item.outcome in NO_REQUEST_OUTCOMES):
-        refused(
-            "attempt_consumed"
-            if item and item.outcome in ("exists", "attempt_consumed")
-            else (item.outcome if item else "no_item")
-        )
-        return None
+    run_id = result.run_id if result is not None else run_id
     scope = pol.scope_name(sha)
     res = conn.execute(
         "SELECT x.id, x.run_id, x.state, x.reserved_usd, x.actual_usd FROM research_llm_reservation x"
         " JOIN research_llm_run r ON r.id = x.run_id WHERE x.provider='openrouter' AND x.version_id=?"
-        " AND (? IS NULL OR x.run_id = ?) AND json_extract(r.limits, '$.experiment') = ? ORDER BY x.id DESC LIMIT 1",
+        " AND x.run_id = ? AND json_extract(r.limits, '$.experiment') = ? ORDER BY x.id DESC LIMIT 1",
         (
             pf.version_id,
-            result.run_id if result else None,
-            result.run_id if result else None,
+            run_id,
             scope,
         ),
     ).fetchone()
     if res is None:  # no reservation of ours: nothing was requested
-        code = "pilot_refused" if isinstance(error, pilot.PilotRefused) else "execution_failed"
+        if item and item.outcome in ("exists", "attempt_consumed"):
+            code = "attempt_consumed"
+        elif item and item.outcome in NO_REQUEST_OUTCOMES:
+            code = item.outcome
+        elif result is not None and item is None:
+            code = "no_item"
+        else:
+            code = "pilot_refused" if isinstance(error, pilot.PilotRefused) else "execution_failed"
         refused(code, str(error) if isinstance(error, pilot.PilotRefused) else "")
         return None
     summary = conn.execute(
@@ -538,7 +554,7 @@ def _audit_after(
     if summary and summary["verification"]:
         report = json.loads(summary["verification"])
         errors, warnings = len(report.get("errors", [])), len(report.get("warnings", []))
-    outcome = summary["status"] if summary else "interrupted"
+    outcome = summary["status"] if summary else (item.outcome if item else "interrupted")
     try:
         pol.record_event(
             conn, "executed", policy, sha, operator=operator, now=now, content_sha256=pf.content_sha256,

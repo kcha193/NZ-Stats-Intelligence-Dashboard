@@ -47,7 +47,13 @@ def test_a_policy_scope_can_use_the_new_attempts_and_stops_at_eight(tmp_path):
     new = seed_version(conn, key="treasury", doc="v4")
     assert ss.openrouter_refusal(conn, new, 0.05, scope=scope) is None
     for i in range(4):  # four policy attempts on four new versions: 4 legacy + 4 policy = 8
-        version = new if i == 0 else seed_version(conn, key="treasury", doc=f"w{i}")
+        version = (
+            new
+            if i == 0
+            else seed_version(
+                conn, sections=(f"SYNTHETIC distinct report {i}",), key="treasury", doc=f"w{i}"
+            )
+        )
         rid = ss.start_run(
             conn, provider="openrouter", model=pilot.MODEL, hosted=True, prompt_version="outlook-v6",
             processing_version="3b-1", limits={"experiment": scope.experiment}, dry_run=False,
@@ -60,7 +66,9 @@ def test_a_policy_scope_can_use_the_new_attempts_and_stops_at_eight(tmp_path):
         )  # fmt: skip
         assert held is not None
         ss.settle(conn, held, actual_usd=0.01, basis="reported", now=NOW)
-    last = seed_version(conn, key="treasury", doc="v9")
+    last = seed_version(
+        conn, sections=("SYNTHETIC ninth distinct report",), key="treasury", doc="v9"
+    )
     assert ss.openrouter_refusal(conn, last, 0.05, scope=scope) == "lifetime_attempts_exhausted"
     wider = ss.PilotScope("policy-fedcba9876543210", max_attempts=4, max_usd=2.0)
     assert ss.openrouter_refusal(conn, last, 0.05, scope=wider) == "lifetime_attempts_exhausted"

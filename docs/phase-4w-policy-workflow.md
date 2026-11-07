@@ -82,7 +82,7 @@ Non-interactive `--confirm` prints `Refused: ... Nothing was requested or reserv
 - The third-party tripwire is a regex over explicit notices, not a legal review; the operator's typed confirmation is the assertion that the document's own notices were read.
 - `verify-5` is checked on constructed sentences and one stored summary; `outlook-v6` has never met a real model. Expect failed checks to remain possible.
 - Per-call headroom is thin (US$0.4247 of US$0.50).
-- Codex review could not run (model refused on this ChatGPT account); the independent review was done by a Claude agent.
+- Initial local Codex review could not run (model refused on this ChatGPT account); the initial independent review was done by a Claude agent. GitHub Codex subsequently reviewed PR #51; remediation is recorded below.
 - GitHub Actions billing block is an environment problem, separate from the local results.
 
 ## Owner activation guide
@@ -102,9 +102,21 @@ Nothing runs until you do all of these. None is done by this PR.
 
 - Backend: full suite passes; ruff check and format clean. New: `test_policy.py`, `test_policy_run.py`, `test_policy_cli.py`, `test_policy_isolation.py`, `test_policy_plumbing.py`, migration 014 and rollback tests. Guards were mutation-checked (a broken gate fails a named test).
 - Frontend: 557 unit tests, typecheck and build pass. Browser: research config 18 passed; static-isolation 315 passed (24 skipped by design). The main Playwright run had 6 tablet/mobile failures on pages this phase did not touch, after stalls of about 17 minutes; the same specs passed on rerun with two workers (114 of 114). Treated as an environment stall, not proof of a fix.
-- **Codex review: not obtained.** Codex refuses its default model on this ChatGPT account.
+- **Initial local Codex review: not obtained.** The subsequent GitHub Codex review identified the three defects recorded below.
 - **Independent Claude review (adversarial, read-only): no way found to spend extra money or bypass the gates.** Two medium defects found and fixed with tests: (1) revocation, expiry or a new attempt while the prompt was open did not stop the run (now re-checked after the prompt, with a 10-minute limit); (2) two concurrent runs on one version could audit the winner's reservation under the loser and raise after a paid call (now audited by the run's own id, one `executed` row, the loser records `attempt_consumed`). Also fixed: registry-level policy ceilings, `--sections ""`, refusals for unknown versions, SIGHUP/SIGTERM audited as interruptions, `policy-revoke` on an unmigrated database, terminal control characters in titles. Not changed: `key_reading` still reports `8 - n` attempts left, which overstates what legacy scopes may use.
 - Residual: a SIGKILL after reservation leaves a reservation with no audit row; the ledger still blocks reuse and `policy-audit` flags it. There is no reconcile command.
+
+### PR #51 review remediation (7 November 2026)
+
+The initial GitHub Codex review identified three P2 defects. All regressions use temporary databases, synthetic documents, controlled clocks and mocked providers; no paid request or production migration is part of remediation.
+
+| Root cause | Correction | Regression evidence |
+|---|---|---|
+| Read-only policy preflight could race; the atomic reservation still allowed the legacy second attempt. | Policy scopes reject any prior OpenRouter reservation for the version or equivalent content inside `BEGIN IMMEDIATE`, across all scopes and reservation states. Legacy second attempts and the original four-attempt ceiling remain unchanged. | Separate processes confirm simultaneously under identical/different policies and version rows; exactly one mock transmission and reservation. Held, settled and abandoned reservations in legacy and policy scopes block equivalent content. |
+| Generated consent could outlive policy expiry; revocation during provider validation/backup was not rechecked. | Approval expiry is `min(now + 1 hour, policy.expires_at)`. Hosted consent checks revocation and expiry again under the reservation write lock and immediately before transmission. | Expiry/revocation during validation, backup, reservation contention and after reservation; one microsecond either side of expiry. Loss of authority after reservation consumes the attempt with zero transmitted requests and zero cost. |
+| `purged` was treated as no request, and exception auditing could fall back to a rival's reservation. | Auditing first selects this run's own reservation using a run ID captured at creation, including interrupted/result-write failures. Purged replies retain the settled actual cost and an `executed/purged` event without output. CLI reports a reservation and explicitly says when no output was retained. | In-flight purge through the real purge path and CLI; missing output, interrupted requests, result-file failure, rival-run isolation and exact historical ledger preservation. |
+
+Tests: `backend/tests/research/test_policy_review_regressions.py`, plus the existing policy, hosted-consent, pilot, purge, reservation and migration/rollback suites. The historical US$0.6267107880 ledger rows remain identical in regression fixtures; no lifetime or policy ceiling is raised by remediation. Current-head review and check results are reported on PR #51.
 
 ## Verdict: GO WITH CONDITIONS
 
