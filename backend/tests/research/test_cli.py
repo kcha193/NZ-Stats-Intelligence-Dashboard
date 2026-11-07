@@ -1,5 +1,6 @@
 import json
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -204,6 +205,39 @@ def test_a_bad_llm_configuration_is_a_clear_error(tmp_path, monkeypatch, capsys)
     assert main(["research", "summarise"]) == 2
     out = capsys.readouterr().out
     assert "NZSTATS_LLM_MODEL" in out and "sk-secret-value" not in out
+
+
+@pytest.mark.parametrize(
+    "provider_env",
+    [
+        {"NZSTATS_LLM_PROVIDER": "anthropic", "NZSTATS_LLM_API_KEY": "sk-synthetic-never-printed"},
+        {
+            "NZSTATS_LLM_PROVIDER": "openai_compatible",
+            "NZSTATS_LLM_BASE_URL": "https://x.example/v1",
+        },
+    ],
+)
+def test_summarise_never_sends_text_to_a_hosted_provider_even_when_the_source_permits_it(
+    llm_env, monkeypatch, capsys, provider_env
+):
+    """Phase 4X: an institution-wide `hosted` permission must not open the generic path, which has its own retries and caps
+    and no per-version consent. Hosted processing runs only through `research run-policy` (or a consent-bound pilot)."""
+    conn, _, fake, _ = llm_env
+    hosted = LLM_REGISTRY.replace('llm_processing = "local_only"', 'llm_processing = "hosted"')
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    registry = Path(path).parents[1] / "research.toml"
+    registry.write_text(textwrap.dedent(hosted), encoding="utf-8")
+    monkeypatch.delenv("NZSTATS_LLM_BASE_URL", raising=False)
+    for name, value in provider_env.items():
+        monkeypatch.setenv(name, value)
+    built = []
+    monkeypatch.setattr("nzstats.research.cli.build_llm_provider", lambda s: built.append(s))
+    for argv in (["research", "summarise", "example"], ["research", "summarise", "--dry-run"]):
+        assert main(argv) == 2
+    out = capsys.readouterr().out
+    assert "hosted" in out and "run-policy" in out and "sk-synthetic" not in out
+    assert built == [] and fake.calls == []
+    assert conn.execute("SELECT count(*) FROM research_llm_run").fetchone()[0] == 0
 
 
 def test_summarise_then_list_inspect_and_approve(llm_env, capsys):

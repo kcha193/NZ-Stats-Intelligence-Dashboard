@@ -52,6 +52,7 @@ from nzstats.research.providers import (
     LlmConfigError,
     LlmSettings,
     build_provider,
+    is_hosted,
     load_llm_settings,
 )
 from nzstats.research.public import why_not_public
@@ -394,6 +395,11 @@ def _summarise(
         _emit("no LLM provider is configured; set NZSTATS_LLM_PROVIDER and the related variables"
               " (docs/data-sources/research.md)")  # fmt: skip
         return 1
+    # Phase 4X: a source-wide `hosted` permission must not open this path, which has its own retries and caps.
+    if is_hosted(llm):
+        _emit("refused: `research summarise` never sends text to a hosted provider; hosted processing runs only"
+              " through `research run-policy`. Nothing was requested.")  # fmt: skip
+        return 2
     if args.key and args.key not in registry:
         _emit(f"unknown institution {args.key!r}; see `nzstats research sources`")
         return 2

@@ -419,8 +419,8 @@ before summarising it.
 4. **Limited ingestion.** `scripts/run.sh research ingest treasury --limit 2`, then `research status` and
    `research quality`. Stop on `blocked`, or on any version graded `poor`.
 5. **LLM permission** (decision 3): `llm_processing = "local_only"` first, with `llm_processing_note`. A hosted model
-   needs `hosted` **and** explicit permission for paid calls; set `NZSTATS_LLM_MAX_RUN_USD` and run `research summarise
-   treasury --dry-run` to see the worst case before any real call.
+   needs `hosted` **and** explicit permission for paid calls. Since Phase 4X `research summarise` refuses every hosted
+   provider; hosted processing runs only through `research run-policy` ([phase-4w-policy-workflow.md](../phase-4w-policy-workflow.md)).
 6. **Summarise and verify.** `research summarise treasury --limit 2`; read each with `research summary ID`.
 7. **Annotate and evaluate.** Annotate the same documents by hand in `data/annotations/treasury.json` (format below;
    never commit it: it is derived from the documents) and run `research evaluate --annotations …`. Record the metrics,
