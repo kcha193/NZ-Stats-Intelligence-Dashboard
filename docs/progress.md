@@ -1,11 +1,22 @@
 # Progress and verification record
 
-Last updated 2026-11-07. **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-07. **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4W: repeatable internal AI economic intelligence, 7 November 2026
+
+Full record: [phase-4w-policy-workflow.md](phase-4w-policy-workflow.md). Baseline main `b1db034`. **No OpenRouter request, permission change, crawl, deployment or merge; synthetic documents and a mocked provider only.**
+Ledger unchanged: US$0.6267107880 spent, US$4.3732892120 remaining, 4 of 8 attempts.
+
+- **`run-policy`:** an operator-run policy (Treasury FEU, one call per document version, at most 4 calls, US$0.50 per call, US$2 aggregate, 30 days) with an offline `--dry-run` and an explicit `--confirm` that needs a real terminal and a retyped code. It reuses `pilot.freeze` and `pilot.execute`; the approval is built from verified facts, never read from the file.
+- **Ceiling:** 8 attempts for `policy-*` scopes only. A test on the real ledger shape showed a global raise would have reopened the Phase 4N scope's unused slot, so every earlier scope keeps 4.
+- **Audit:** migration 014, append-only, no text columns, one executed row per content hash. `outlook-v6` and `verify-5` pinned by hash per policy.
+- **Dashboard:** honest header, Historical labels, checks provenance, missing-commentary explanation.
+- **Not done by design:** Treasury has no hosted-LLM permission in the registry, so every dry run refuses until the owner grants one. Codex review could not run (model refused); a Claude agent reviewed instead.
 
 ## Phase 4V: economic accuracy remediation without further inference, 7 November 2026
 

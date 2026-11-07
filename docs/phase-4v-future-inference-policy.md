@@ -1,5 +1,7 @@
 # Future operator-controlled inference: policy proposal
 
+> **Implemented in Phase 4W** ([phase-4w-policy-workflow.md](phase-4w-policy-workflow.md)), with differences: no signature (the file is local limits only, never evidence), the confirmation code binds the exact request, one audit table instead of two, and the ceiling is 8 attempts for `policy-*` scopes only. Nothing is enabled.
+
 7 November 2026. **A proposal for review. Nothing here is implemented, enabled or authorised.** Phase 4V changes no limit, ledger row, permission or provider code.
 The lifetime limit of 4 attempts (`LIFETIME_ATTEMPTS`) stays exactly as it is, and the US$0.6267107880 already spent (remaining US$4.3732892120 of the US$5.00 cap) is history that no
 future policy may reset, reuse or edit. This describes what a separately reviewed change would have to build before any further paid request is allowed.
