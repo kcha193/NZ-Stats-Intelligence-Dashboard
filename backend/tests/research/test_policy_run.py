@@ -7,6 +7,7 @@ each refusal below must happen before any money is reserved or any request is se
 import json
 import sqlite3
 from dataclasses import replace
+from datetime import timedelta
 
 import httpx
 import pytest
@@ -456,3 +457,181 @@ def test_a_dashboard_open_or_a_dry_run_never_calls_the_provider(tmp_path):
     env.pre()
     draft_summaries(env.conn, env.reg, AUTO)
     assert env.posts == [] and env.gets == []
+
+
+# --- independent review findings (Phase 4W) -------------------------------------------------------------------------------
+def go_with(env, *, ask, now_fn=lambda: NOW, confirm=None):
+    confirm = confirm or env.pre().confirm_code
+    return run.execute_policy(
+        env.conn, env.reg, env.data, env.path, env.version, confirm=confirm, interactive=True, ask=ask,
+        api_key=KEY, client=env.client, now_fn=now_fn, operator="synthetic-operator",
+    )  # fmt: skip
+
+
+def test_a_revocation_while_the_prompt_is_open_still_stops_the_run(tmp_path):
+    env = Env(tmp_path, content=json.dumps(good_output(1)))
+    code = env.pre().confirm_code
+
+    def ask(prompt):
+        pol.record_event(
+            env.conn, "revoked", env.policy, env.sha, operator="o", now=NOW, detail="withdrawn"
+        )
+        return code
+
+    assert refused(lambda: go_with(env, ask=ask)) == "policy_revoked"
+    assert not env.posts and env.attempts() == 0
+
+
+def test_a_policy_that_expires_while_the_prompt_is_open_still_stops_the_run(tmp_path):
+    env = Env(tmp_path)
+    code = env.pre().confirm_code
+    clock = [NOW]
+
+    def ask(prompt):
+        clock[0] = env.policy.expires_at
+        return code
+
+    assert refused(lambda: go_with(env, ask=ask, now_fn=lambda: clock[0])) in (
+        "policy_expired",
+        "confirmation_expired",
+    )
+    assert not env.posts and env.attempts() == 0
+
+
+def test_a_confirmation_typed_long_after_the_dry_run_is_refused(tmp_path):
+    env = Env(tmp_path)
+    code = env.pre().confirm_code
+    clock = [NOW]
+
+    def ask(prompt):
+        clock[0] = NOW + run.PROMPT_TIMEOUT + timedelta(seconds=1)
+        return code
+
+    assert refused(lambda: go_with(env, ask=ask, now_fn=lambda: clock[0])) == "confirmation_expired"
+    assert not env.posts
+
+
+def test_a_source_change_while_the_prompt_is_open_still_stops_the_run(tmp_path):
+    env = Env(tmp_path)
+    code = env.pre().confirm_code
+
+    def ask(prompt):
+        spend(
+            env.conn, env.version, None
+        )  # another process used this version while the prompt was open
+        return code
+
+    assert refused(lambda: go_with(env, ask=ask)) == "version_attempted"
+    assert not env.posts
+
+
+def test_two_processes_on_one_version_audit_exactly_one_execution_and_no_traceback(tmp_path):
+    """The loser must not claim the winner's reservation, and the winner's real outcome must still be audited."""
+    env = Env(tmp_path, content=json.dumps(good_output(1)))
+    rival = {}
+
+    def backup_with_rival(conn, data_dir, output, now):
+        pilot.verified_backup(conn, data_dir, output, now)
+        if not rival:  # the winner starts and finishes while the loser is between its backup and its reservation
+            rival["outcome"] = env.go(confirm=env.pre().confirm_code)
+
+    code = env.pre().confirm_code
+    assert (
+        refused(
+            lambda: run.execute_policy(
+                env.conn,
+                env.reg,
+                env.data,
+                env.path,
+                env.version,
+                confirm=code,
+                interactive=True,
+                ask=lambda p: code,
+                api_key=KEY,
+                client=env.client,
+                now_fn=lambda: NOW,
+                operator="loser",
+                backup_check=backup_with_rival,
+            )  # fmt: skip
+        )
+        == "attempt_consumed"
+    )
+    assert len(env.posts) == 1 and env.attempts() == 1
+    executed = [e for e in env.events() if e["event"] == "executed"]
+    assert (
+        len(executed) == 1
+        and executed[0]["operator"] == "synthetic-operator"
+        and executed[0]["cost_usd"] > 0
+    )
+    assert [e["refusal_code"] for e in env.events() if e["event"] == "refused"] == [
+        "attempt_consumed"
+    ]
+
+
+def test_an_unknown_version_refusal_is_still_logged(tmp_path):
+    env = Env(tmp_path)
+    with pytest.raises(pol.PolicyRefused):
+        run.execute_policy(
+            env.conn, env.reg, env.data, env.path, 999, confirm="x", interactive=True, ask=lambda p: "x",
+            api_key=KEY, client=env.client, now_fn=lambda: NOW, operator="o",
+        )  # fmt: skip
+    (event,) = env.events()
+    assert (
+        event["event"] == "refused"
+        and event["version_id"] is None
+        and event["refusal_code"] == "version_not_found"
+    )
+
+
+def test_a_frozen_request_that_differs_from_the_dry_run_is_refused(tmp_path, monkeypatch):
+    env = Env(tmp_path)
+    real = pilot.freeze
+
+    def changed(*a, **k):
+        manifest = real(*a, **k)
+        manifest["documents"][0]["request_sha256"] = "0" * 64
+        return manifest
+
+    monkeypatch.setattr(pilot, "freeze", changed)
+    assert refused(lambda: env.go()) == "request_changed"
+    assert not env.posts and env.attempts() == 0
+
+
+def test_a_frozen_worst_case_over_the_per_call_cap_is_refused_even_if_the_preflight_passed(
+    tmp_path, monkeypatch
+):
+    env = Env(tmp_path)
+    real = pilot.freeze
+
+    def dearer(*a, **k):
+        manifest = real(*a, **k)
+        manifest["documents"][0]["worst_case_usd"] = 0.51
+        return manifest
+
+    monkeypatch.setattr(pilot, "freeze", dearer)
+    assert refused(lambda: env.go()) == "per_call_cap_exceeded"
+    assert not env.posts
+
+
+def test_execute_refuses_a_plan_that_is_not_the_approvals_experiment(tmp_path):
+    env = Env(tmp_path)
+    pf = env.pre()
+    plan = run.plan_for(env.policy, env.sha, env.version)
+    run.register_policy_experiment(plan.experiment)
+    manifest = pilot.freeze(env.conn, env.reg, {env.version: pf.ordinals}, env.data / "f", plan)
+    approval = run._approval(
+        env.policy, env.sha, plan, pf, manifest["documents"][0], env.data / "f", NOW
+    )
+    other = run.plan_for(env.policy, "f" * 64, env.version)
+    with pytest.raises(pilot.PilotRefused):
+        pilot.execute(env.conn, env.reg, env.data, env.data / "f", approval, env.data / "r", KEY,
+                      backup_check=pilot.verified_backup, client=env.client, now_fn=lambda: NOW, plan=other)  # fmt: skip
+    assert not env.posts
+
+
+def test_terminal_control_characters_in_a_title_never_reach_the_report_or_the_prompt(tmp_path):
+    env = Env(tmp_path)
+    pf = env.pre()
+    hostile = replace(pf, source=replace(pf.source, title="Update\x1b[2J\x1b[Hforged line\x07"))
+    for text in (run.render_preflight(hostile), run._prompt_text(hostile)):
+        assert "\x1b" not in text and "\x07" not in text and "Update" in text

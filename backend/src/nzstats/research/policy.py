@@ -33,20 +33,19 @@ from nzstats.research.hosted import section_inventory_sha256
 from nzstats.research.prompt import RULES_SHA256
 from nzstats.research.registry import ContentPolicy, Institution
 from nzstats.research.summary_store import (
-    LEGACY_LIFETIME_ATTEMPTS,
     LIFETIME_ATTEMPTS,
     LIFETIME_USD,
+    POLICY_MAX_ATTEMPTS,
+    POLICY_MAX_USD,
     POLICY_PREFIX,
     lifetime_spent,
     version_attempts,
 )
 
 # --- ceilings (code constants: a file can only be stricter) -----------------------------------------------------------
-POLICY_MAX_CALLS = (
-    LIFETIME_ATTEMPTS - LEGACY_LIFETIME_ATTEMPTS
-)  # 4: the four attempts that are history stay spent
+POLICY_MAX_CALLS = POLICY_MAX_ATTEMPTS  # 4
 POLICY_MAX_PER_CALL_USD = 0.50
-POLICY_MAX_AGGREGATE_USD = 2.0
+POLICY_MAX_AGGREGATE_USD = POLICY_MAX_USD
 POLICY_MAX_DAYS = 30
 POLICY_INSTITUTION = "treasury"
 POLICY_SERIES = "FEU"  # the Fortnightly Economic Update, as the manual import stores it

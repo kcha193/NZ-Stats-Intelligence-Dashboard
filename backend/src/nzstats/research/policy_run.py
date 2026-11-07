@@ -16,6 +16,8 @@ import hashlib
 import hmac
 import json
 import logging
+import re
+import secrets
 import sqlite3
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -44,12 +46,19 @@ from nzstats.research.policy import (
 )
 from nzstats.research.prompt import input_sha256
 from nzstats.research.registry import Institution
-from nzstats.research.summary_store import PilotScope, version_attempts
+from nzstats.research.summarise import SummariseResult
+from nzstats.research.summary_store import PilotScope
 
 log = logging.getLogger(__name__)
 
 FREEZE_FORMAT = 4  # a policy freeze: format 2 and 3 freezes belong to the Phase 4N and 4S plans and cannot run here
 AUDIT_TABLE = "research_policy_event"
+NO_REQUEST_OUTCOMES = frozenset(
+    {"attempt_consumed", "exists", "budget_exhausted", "input_too_long", "purged"}
+)
+PROMPT_TIMEOUT = timedelta(
+    minutes=10
+)  # the confirmation is for the request shown, not for whenever it is typed
 
 
 def experiment_for(policy: InferencePolicy, sha: str) -> Experiment:
@@ -233,8 +242,8 @@ def render_preflight(pf: Preflight) -> str:
     pages = f"pages {first}-{last}" if first is not None else "pages unknown"
     lines = [
         "Policy dry run. Read-only and offline: nothing was requested, reserved or changed.",
-        f"Policy:        {p.policy_id}  (hash {pf.sha[:8]}, issued by {p.issued_by}, valid to {p.expires_at.date()})",
-        f"Document:      {s.title or 'unknown'}  (version id {pf.version_id}, version no {s.version_no},"
+        f"Policy:        {p.policy_id}  (hash {pf.sha[:8]}, issued by {_clean(p.issued_by)}, valid to {p.expires_at.date()})",
+        f"Document:      {_clean(s.title) or 'unknown'}  (version id {pf.version_id}, version no {s.version_no},"
         f" published {s.published_on or 'unknown'})",
         f"Source:        {p.institution} / {p.series}, content {s.content_sha256[:12] or 'unknown'}",
         f"Sections:      ordinals {list(s.ordinals)}  ({pages}); excluded by rights tripwire: {list(s.excluded)}",
@@ -270,11 +279,19 @@ class RunOutcome:
     run_dir: Path
 
 
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _clean(text: object) -> str:
+    """Document titles and names are metadata from outside: no terminal control characters reach the report or prompt."""
+    return _CONTROL.sub("", str(text))
+
+
 def _prompt_text(pf: Preflight) -> str:
     first, last = pf.page_range
     p = pf.policy
     return (
-        f"\nYou are about to send ONE request: {pf.source.title}, sections {list(pf.ordinals)}"
+        f"\nYou are about to send ONE request: {_clean(pf.source.title)}, sections {list(pf.ordinals)}"
         f" (pages {first}-{last}), to {p.route.model} via {p.route.provider_id}, zero data retention.\n"
         f"Worst case US${pf.worst_case_usd:.4f}; there is no automatic retry, and a failed or unusable reply uses the attempt.\n"
         "Typing the code confirms that you read the dry run and the document's own copyright and licence notices,"
@@ -296,8 +313,11 @@ def _refuse(
     """Log a refusal (it consumes nothing) and raise it. The log never blocks the refusal itself."""
     try:
         if pol.audit_ready(conn):
+            known = conn.execute(
+                "SELECT 1 FROM research_document_version WHERE id=?", (version_id,)
+            ).fetchone()
             pol.record_event(
-                conn, "refused", policy, sha, operator=operator, now=now, version_id=version_id,
+                conn, "refused", policy, sha, operator=operator, now=now, version_id=version_id if known else None,
                 refusal_code=codes[0], detail=",".join(codes)[:200],
             )  # fmt: skip
     except sqlite3.Error:
@@ -337,8 +357,9 @@ def execute_policy(
 
     if not interactive:
         refuse("not_interactive")
+    asked_at = now_fn()
     pf = preflight(
-        conn, registry, policy, sha, version_id, data_dir, now=now_fn(), ordinals=ordinals
+        conn, registry, policy, sha, version_id, data_dir, now=asked_at, ordinals=ordinals
     )
     if not pf.eligible:
         refuse(*pf.refusal_codes)
@@ -350,13 +371,20 @@ def execute_policy(
     answer = ask(_prompt_text(pf))
     if not hmac.compare_digest(answer.strip().lower().encode(), pf.confirm_code.encode()):
         refuse("not_confirmed")
-
+    # The prompt can sit open: revocation, expiry, a new attempt or a source change meanwhile must still stop the run.
     now = now_fn()
+    if now - asked_at > PROMPT_TIMEOUT:
+        refuse("confirmation_expired")
+    again = preflight(conn, registry, policy, sha, version_id, data_dir, now=now, ordinals=ordinals)
+    if not again.eligible:
+        refuse(*again.refusal_codes)
+    if again.confirm_code != pf.confirm_code:
+        refuse("request_changed")
     plan = plan_for(policy, sha, version_id)
     register_policy_experiment(plan.experiment)
     root = data_dir / "policy-runs"
     root.mkdir(mode=0o700, exist_ok=True)
-    work = root / f"{sha[:12]}-v{version_id}-{now:%Y%m%dT%H%M%S}"
+    work = root / f"{sha[:12]}-v{version_id}-{now:%Y%m%dT%H%M%S}-{secrets.token_hex(3)}"
     try:
         manifest = pilot.freeze(
             conn, dict(registry), {version_id: pf.ordinals}, work / "freeze", plan
@@ -364,12 +392,15 @@ def execute_policy(
         (doc,) = manifest["documents"]
         if doc["request_sha256"] != pf.request_sha256 or doc["content_sha256"] != pf.content_sha256:
             refuse("request_changed")
+        if doc["worst_case_usd"] > policy.per_call_usd + 1e-9:
+            refuse("per_call_cap_exceeded")
     except pilot.PilotRefused:
         refuse("freeze_refused")
     approval = _approval(policy, sha, plan, pf, doc, work / "freeze", now)
     error: BaseException | None = None
+    results: list = []
     try:
-        pilot.execute(
+        results = pilot.execute(
             conn, dict(registry), data_dir, work / "freeze", approval, work / "run", api_key,
             backup_check=backup_check, client=client, now_fn=now_fn, plan=plan,
         )  # fmt: skip
@@ -377,10 +408,13 @@ def execute_policy(
         BaseException
     ) as exc:  # recorded below, then re-raised: an interrupted call must still be audited
         error = exc
-    outcome = _audit_after(conn, policy, sha, pf, operator, now_fn(), error)
+    outcome = _audit_after(
+        conn, policy, sha, pf, operator, now_fn(), error, results[0] if results else None
+    )
     if error is not None:
         raise error
-    assert outcome is not None
+    if outcome is None:  # another process consumed the version first: this one made no request
+        raise PolicyRefused("attempt_consumed")
     return RunOutcome(outcome[0], outcome[1], outcome[2], outcome[3], outcome[4], work / "run")
 
 
@@ -448,21 +482,45 @@ def _audit_after(
     operator: str,
     now: datetime,
     error: BaseException | None,
+    result: SummariseResult | None = None,
 ) -> tuple[str, int | None, float, int, int] | None:
-    """Append what happened. If the ledger shows an attempt it is an `executed` row, whatever the outcome; else a refusal."""
-    common = {"version_id": pf.version_id}
-    if version_attempts(conn, pf.version_id) == 0:
-        code = "pilot_refused" if isinstance(error, pilot.PilotRefused) else "execution_failed"
+    """Append what happened. A reservation made by THIS run is an `executed` row whatever the outcome; otherwise a refusal.
+
+    The run is identified by its own run id (from the pipeline result), never by "the latest reservation for the version":
+    when another process wins the version, this one made no request and must not claim the winner's row.
+    """
+
+    def refused(code: str, detail: str = "") -> None:
         pol.record_event(
-            conn, "refused", policy, sha, operator=operator, now=now, refusal_code=code,
-            detail=(str(error) if isinstance(error, pilot.PilotRefused) else "")[:200], **common,
+            conn, "refused", policy, sha, operator=operator, now=now, refusal_code=code, detail=detail[:200],
+            version_id=pf.version_id,
         )  # fmt: skip
+
+    item = result.items[0] if result is not None and result.items else None
+    # "exists" and "attempt_consumed" both mean another process used this version first: this one made no request.
+    if result is not None and (item is None or item.outcome in NO_REQUEST_OUTCOMES):
+        refused(
+            "attempt_consumed"
+            if item and item.outcome in ("exists", "attempt_consumed")
+            else (item.outcome if item else "no_item")
+        )
         return None
+    scope = pol.scope_name(sha)
     res = conn.execute(
-        "SELECT id, run_id, state, reserved_usd, actual_usd FROM research_llm_reservation"
-        " WHERE provider='openrouter' AND version_id=? ORDER BY id DESC LIMIT 1",
-        (pf.version_id,),
+        "SELECT x.id, x.run_id, x.state, x.reserved_usd, x.actual_usd FROM research_llm_reservation x"
+        " JOIN research_llm_run r ON r.id = x.run_id WHERE x.provider='openrouter' AND x.version_id=?"
+        " AND (? IS NULL OR x.run_id = ?) AND json_extract(r.limits, '$.experiment') = ? ORDER BY x.id DESC LIMIT 1",
+        (
+            pf.version_id,
+            result.run_id if result else None,
+            result.run_id if result else None,
+            scope,
+        ),
     ).fetchone()
+    if res is None:  # no reservation of ours: nothing was requested
+        code = "pilot_refused" if isinstance(error, pilot.PilotRefused) else "execution_failed"
+        refused(code, str(error) if isinstance(error, pilot.PilotRefused) else "")
+        return None
     summary = conn.execute(
         "SELECT id, status, verification FROM research_summary WHERE run_id=? AND version_id=? ORDER BY id DESC LIMIT 1",
         (res["run_id"], pf.version_id),
@@ -481,14 +539,24 @@ def _audit_after(
         report = json.loads(summary["verification"])
         errors, warnings = len(report.get("errors", [])), len(report.get("warnings", []))
     outcome = summary["status"] if summary else "interrupted"
-    pol.record_event(
-        conn, "executed", policy, sha, operator=operator, now=now, content_sha256=pf.content_sha256,
-        request_sha256=pf.request_sha256, model=pilot.MODEL, provider_id=pilot.ROUTE, prompt_version=policy.prompt_version,
-        prompt_sha256=policy.prompt_sha256, verifier_version=policy.verifier_version,
-        verifier_sha256=policy.verifier_sha256, attempt_no=pol.policy_usage(conn, sha)[0],
-        outcome=outcome, summary_id=summary["id"] if summary else None, run_id=res["run_id"],
-        reserved_usd=float(res["reserved_usd"]), cost_usd=cost,
-        input_tokens=usage["input_tokens"] if usage else None, output_tokens=usage["output_tokens"] if usage else None,
-        errors=errors, warnings=warnings, **common,
-    )  # fmt: skip
+    try:
+        pol.record_event(
+            conn, "executed", policy, sha, operator=operator, now=now, content_sha256=pf.content_sha256,
+            request_sha256=pf.request_sha256, model=pilot.MODEL, provider_id=pilot.ROUTE,
+            prompt_version=policy.prompt_version, prompt_sha256=policy.prompt_sha256,
+            verifier_version=policy.verifier_version, verifier_sha256=policy.verifier_sha256,
+            attempt_no=pol.policy_usage(conn, sha)[0], outcome=outcome,
+            summary_id=summary["id"] if summary else None, run_id=res["run_id"],
+            reserved_usd=float(res["reserved_usd"]), cost_usd=cost,
+            input_tokens=usage["input_tokens"] if usage else None,
+            output_tokens=usage["output_tokens"] if usage else None,
+            errors=errors, warnings=warnings, version_id=pf.version_id,
+        )  # fmt: skip
+    except sqlite3.IntegrityError:
+        # An executed row for this content already exists. The ledger (authoritative) holds this run's cost; say so.
+        log.exception("audit conflict for run %s", res["run_id"])
+        refused(
+            "audit_conflict",
+            "an executed row already exists for this content; see the reservation ledger",
+        )
     return outcome, (summary["id"] if summary else None), cost, errors, warnings

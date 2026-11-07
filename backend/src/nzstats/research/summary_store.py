@@ -104,6 +104,10 @@ LIFETIME_USD = 5.0  # every OpenRouter experiment shares this; history keeps cou
 LEGACY_LIFETIME_ATTEMPTS = 4
 LIFETIME_ATTEMPTS = 8
 POLICY_PREFIX = "policy-"
+POLICY_MAX_ATTEMPTS = (
+    LIFETIME_ATTEMPTS - LEGACY_LIFETIME_ATTEMPTS
+)  # the four attempts that are history stay spent
+POLICY_MAX_USD = 2.0
 LIFETIME_ATTEMPTS_PER_VERSION = 2
 
 

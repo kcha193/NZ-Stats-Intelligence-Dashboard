@@ -31,7 +31,12 @@ from nzstats.research.providers import (
     _count,
     _status_error,
 )
-from nzstats.research.summary_store import POLICY_PREFIX, PilotScope
+from nzstats.research.summary_store import (
+    POLICY_MAX_ATTEMPTS,
+    POLICY_MAX_USD,
+    POLICY_PREFIX,
+    PilotScope,
+)
 
 log = logging.getLogger(__name__)
 
@@ -100,6 +105,8 @@ def register_policy_experiment(experiment: Experiment) -> None:
         not name.startswith(POLICY_PREFIX)
         or name in EXPERIMENTS
         or experiment.prompt_version not in RULES_SHA256
+        or not 1 <= experiment.scope.max_attempts <= POLICY_MAX_ATTEMPTS
+        or not 0 < experiment.scope.max_usd <= POLICY_MAX_USD
     ):
         raise ValueError("not a registrable policy experiment")
     _POLICY_EXPERIMENTS[name] = experiment

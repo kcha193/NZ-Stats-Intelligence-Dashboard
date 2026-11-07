@@ -187,3 +187,12 @@ def test_migration_is_additive_and_leaves_legacy_ledger_rows_untouched(tmp_path)
     after = conn.execute("SELECT * FROM research_llm_reservation ORDER BY id").fetchall()
     assert [tuple(r) for r in before] == [tuple(r) for r in after]
     assert timedelta(0) == timedelta(0)  # no clock dependence
+
+
+@pytest.mark.parametrize("attempts,usd", [(5, 0.5), (0, 0.5), (1, 2.01), (1, 0)])
+def test_a_policy_experiment_cannot_be_registered_wider_than_the_code_ceilings(attempts, usd):
+    scope = ss.PilotScope("policy-cccccccccccccccc", max_attempts=attempts, max_usd=usd)
+    with pytest.raises(ValueError):
+        openrouter.register_policy_experiment(
+            openrouter.Experiment(scope, "outlook-v6", "low", 12_000, 300.0)
+        )

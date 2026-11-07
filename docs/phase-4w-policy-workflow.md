@@ -98,6 +98,14 @@ Nothing runs until you do all of these. None is done by this PR.
 7. Set `NZSTATS_LLM_API_KEY` to the dedicated key (US$5 lifetime limit, usage equal to the ledger), then in a terminal: `... --confirm CODE`, and retype the code.
 8. Open the Economic Outlook page: the result appears as an unreviewed internal draft with its checks.
 
-## Verdict
+## Test and review evidence
 
-See the PR description for the final verdict and the test and review evidence.
+- Backend: full suite passes; ruff check and format clean. New: `test_policy.py`, `test_policy_run.py`, `test_policy_cli.py`, `test_policy_isolation.py`, `test_policy_plumbing.py`, migration 014 and rollback tests. Guards were mutation-checked (a broken gate fails a named test).
+- Frontend: 557 unit tests, typecheck and build pass. Browser: research config 18 passed; static-isolation 315 passed (24 skipped by design). The main Playwright run had 6 tablet/mobile failures on pages this phase did not touch, after stalls of about 17 minutes; the same specs passed on rerun with two workers (114 of 114). Treated as an environment stall, not proof of a fix.
+- **Codex review: not obtained.** Codex refuses its default model on this ChatGPT account.
+- **Independent Claude review (adversarial, read-only): no way found to spend extra money or bypass the gates.** Two medium defects found and fixed with tests: (1) revocation, expiry or a new attempt while the prompt was open did not stop the run (now re-checked after the prompt, with a 10-minute limit); (2) two concurrent runs on one version could audit the winner's reservation under the loser and raise after a paid call (now audited by the run's own id, one `executed` row, the loser records `attempt_consumed`). Also fixed: registry-level policy ceilings, `--sections ""`, refusals for unknown versions, SIGHUP/SIGTERM audited as interruptions, `policy-revoke` on an unmigrated database, terminal control characters in titles. Not changed: `key_reading` still reports `8 - n` attempts left, which overstates what legacy scopes may use.
+- Residual: a SIGKILL after reservation leaves a reservation with no audit row; the ledger still blocks reuse and `policy-audit` flags it. There is no reconcile command.
+
+## Verdict: GO WITH CONDITIONS
+
+Go for merging the code: nothing is enabled and no call is authorised. Conditions before the first paid request: the owner grants Treasury hosted-LLM permission in the registry after a documented review (every dry run refuses until then); runs `nzstats migrate`; accepts that `outlook-v6` and `verify-5` are untested on a real model and that the per-call headroom is thin (US$0.4247 of US$0.50); and runs the first policy in a real terminal. Not GO for unattended or automatic use, which is out of scope by design.

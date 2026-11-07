@@ -183,3 +183,34 @@ def test_a_database_without_the_audit_table_is_refused_with_the_migrate_hint(cli
     assert run("run-policy", str(cli.path), "--version", str(cli.version), "--dry-run") == 2
     assert "database_not_migrated" in capsys.readouterr().out
     assert run("policy-audit") == 0 and "run `nzstats migrate`" in capsys.readouterr().out
+
+
+def test_an_empty_sections_flag_is_refused_not_read_as_all_sections(cli, capsys, monkeypatch):
+    no_network(monkeypatch)
+    assert (
+        run(
+            "run-policy",
+            str(cli.path),
+            "--version",
+            str(cli.version),
+            "--sections",
+            "",
+            "--dry-run",
+        )
+        == 2
+    )
+    assert "section_scope_invalid" in capsys.readouterr().out
+
+
+def test_policy_revoke_without_a_migrated_database_is_a_clean_refusal(cli, capsys):
+    import sqlite3
+
+    conn = sqlite3.connect(cli.data / "nzstats.db")
+    conn.executescript(
+        "DROP TRIGGER research_policy_event_no_delete; DROP TRIGGER research_policy_event_immutable;"
+        "DROP INDEX research_policy_event_content_once; DROP INDEX research_policy_event_policy;"
+        "DROP TABLE research_policy_event;"
+    )
+    conn.close()
+    assert run("policy-revoke", str(cli.path), "--reason", "x") == 2
+    assert "database_not_migrated" in capsys.readouterr().out

@@ -11,6 +11,8 @@ import argparse
 import getpass
 import json
 import os
+import re
+import signal
 import sqlite3
 import sys
 from datetime import timedelta
@@ -27,13 +29,21 @@ from nzstats.research.summary_store import LIFETIME_ATTEMPTS, LIFETIME_USD, life
 API_KEY_ENV = "NZSTATS_LLM_API_KEY"
 
 
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
 def _out(text: str = "") -> None:
+    """Print lines with non-ASCII escaped and terminal control characters removed (a title is import metadata)."""
     for line in str(text).split("\n"):
-        print(line.encode("ascii", "backslashreplace").decode())
+        print(_CONTROL.sub("", line.encode("ascii", "backslashreplace").decode()))
+
+
+def _terminate(signum, frame):  # noqa: ARG001
+    raise KeyboardInterrupt  # a closed terminal or SIGTERM unwinds through execute_policy, which audits the interruption
 
 
 def _ordinals(text: str | None) -> tuple[int, ...] | None:
-    if not text:
+    if text is None:
         return None
     try:
         values = tuple(int(part) for part in text.split(","))
@@ -97,6 +107,8 @@ def _execute(settings, registry, policy_path: Path, version: int, confirm: str, 
     conn = sqlite3.connect(str(settings.db_path), timeout=30, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
+    for sig in (signal.SIGHUP, signal.SIGTERM):
+        signal.signal(sig, _terminate)
     try:
         result = run.execute_policy(
             conn, registry, settings.data_dir, policy_path, version, confirm=confirm, interactive=interactive,
@@ -228,10 +240,22 @@ def policy_audit(
 def policy_revoke(
     args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
 ) -> int:
+    try:
+        return _revoke(args, settings)
+    except pol.PolicyRefused as exc:
+        _out(f"Refused: {exc.code}. Nothing was changed.")
+        return 2
+
+
+def _revoke(args: argparse.Namespace, settings: Settings) -> int:
     policy, sha = pol.load_policy(_path(settings, args.policy), settings.data_dir)
+    if not settings.db_path.exists():
+        raise pol.PolicyRefused("database_missing")
     conn = sqlite3.connect(str(settings.db_path), timeout=30, isolation_level=None)
     conn.row_factory = sqlite3.Row
     try:
+        if not pol.audit_ready(conn):
+            raise pol.PolicyRefused("database_not_migrated")
         pol.record_event(
             conn,
             "revoked",
