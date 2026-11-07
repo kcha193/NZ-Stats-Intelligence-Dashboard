@@ -153,6 +153,6 @@ def test_the_phase_4s_pilot_runs_the_pipeline_under_its_frozen_verifier():
 
     from nzstats.research import pilot
 
-    assert (
-        inspect.getsource(pilot).count("verifier=BASELINE_VERIFIER") == 2
-    )  # the dry run and the real run
+    # Phase 4W: the pipeline grades with the plan's verifier (the dry run and the real run); Phase 4N and 4S plans keep verify-4.
+    assert inspect.getsource(pilot).count("verifier=plan.verifier") == 2
+    assert {p.verifier for p in pilot.PLANS.values()} == {"verify-4"}

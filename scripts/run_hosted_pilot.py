@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 from nzstats.research.pilot import (
@@ -17,26 +16,10 @@ from nzstats.research.pilot import (
     file_sha256,
     freeze,
     load_approval,
+    verified_backup,
 )
 from nzstats.research.registry import load_registry
-from nzstats.store.backup_bundle import create_bundle, restore_bundle
 from pydantic import ValidationError
-
-
-def verified_backup(
-    conn: sqlite3.Connection, data_dir: Path, output: Path, now: datetime
-) -> None:
-    backup = create_bundle(conn, data_dir / "raw", output / "backup", now=now)
-    restored = restore_bundle(output / "backup", output / "restore")
-    if (
-        not backup.ok
-        or not restored.ok
-        or file_sha256(output / "backup/nzstats.db")
-        != file_sha256(output / "restore/nzstats.db")
-    ):
-        raise PilotRefused("fresh backup/restore verification failed")
-    for path in output.rglob("*"):
-        os.chmod(path, 0o700 if path.is_dir() else 0o600)
 
 
 def main() -> int:

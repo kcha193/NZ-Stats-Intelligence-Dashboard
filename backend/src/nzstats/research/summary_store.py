@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -93,11 +93,25 @@ class AttemptConsumed(Exception):
     """This document version already used its one permitted hosted attempt."""
 
 
+class ConsentRefused(Exception):
+    """Execution-time hosted consent was withdrawn before reservation."""
+
+
 FIRST_PILOT = "phase-4m"
 LIFETIME_USD = 5.0  # every OpenRouter experiment shares this; history keeps counting against it
 # Reviewed code must raise these to add an experiment. Both count immutable reservation facts, so
 # a retagged run row can neither add attempts nor restore a version's consumed slot.
-LIFETIME_ATTEMPTS = 4
+# Phase 4W: the ceiling for operator-run policy scopes is 8 (4 -> 8). The first four attempts are history
+# (US$0.6267107880 spent) and stay counted. Every scope that existed before Phase 4W keeps the original ceiling of 4
+# (`LEGACY_LIFETIME_ATTEMPTS`) for ever: the Phase 4N scope still has one unused slot (it used 1 of 2), and a higher
+# ceiling would have silently reopened it. A scope named `policy-...` is the only one that can use attempts 5 to 8.
+LEGACY_LIFETIME_ATTEMPTS = 4
+LIFETIME_ATTEMPTS = 8
+POLICY_PREFIX = "policy-"
+POLICY_MAX_ATTEMPTS = (
+    LIFETIME_ATTEMPTS - LEGACY_LIFETIME_ATTEMPTS
+)  # the four attempts that are history stay spent
+POLICY_MAX_USD = 2.0
 LIFETIME_ATTEMPTS_PER_VERSION = 2
 
 
@@ -146,6 +160,19 @@ def openrouter_refusal(
 ) -> str | None:
     """Read-only pilot refusal reason; reserving callers must hold the database write lock."""
     scope = scope or PilotScope()
+    if scope.experiment.startswith(POLICY_PREFIX):
+        # Phase 4W has no legacy second attempt. Check every scope and equivalent source bytes
+        # under the same write lock as reservation, including held and abandoned attempts.
+        attempted = conn.execute(
+            "SELECT 1 FROM research_llm_reservation x"
+            " JOIN research_document_version prior ON prior.id=x.version_id"
+            " JOIN research_document_version target ON target.id=?"
+            " WHERE x.provider='openrouter'"
+            " AND (x.version_id=target.id OR prior.content_sha256=target.content_sha256) LIMIT 1",
+            (version_id,),
+        ).fetchone()
+        if attempted is not None:
+            return "attempt_consumed"
     in_scope = f"COALESCE(json_extract(r.limits, '$.experiment'), '{FIRST_PILOT}') = ?"
     cost = "CASE WHEN x.state='settled' THEN x.actual_usd ELSE x.reserved_usd END"
     pilot = conn.execute(
@@ -159,10 +186,12 @@ def openrouter_refusal(
     ).fetchone()
     if pilot[3] or pilot[4] >= LIFETIME_ATTEMPTS_PER_VERSION:
         return "attempt_consumed"
-    if (
-        pilot[1] + pending_attempts >= scope.max_attempts
-        or pilot[0] + pending_attempts >= LIFETIME_ATTEMPTS
-    ):
+    ceiling = (
+        LIFETIME_ATTEMPTS
+        if scope.experiment.startswith(POLICY_PREFIX)
+        else LEGACY_LIFETIME_ATTEMPTS
+    )
+    if pilot[1] + pending_attempts >= scope.max_attempts or pilot[0] + pending_attempts >= ceiling:
         return "lifetime_attempts_exhausted"
     pending = pending_usd + amount_usd
     if (
@@ -187,6 +216,7 @@ def reserve(
     now: datetime,
     expires_at: datetime,
     scope: PilotScope | None = None,
+    consent_check: Callable[[], str | None] | None = None,
 ) -> int | None:
     """Hold `amount_usd`, or return None for global exhaustion. Raise AttemptConsumed for a used version.
 
@@ -195,6 +225,8 @@ def reserve(
     """
     conn.execute("BEGIN IMMEDIATE")
     try:
+        if consent_check is not None and consent_check() is not None:
+            raise ConsentRefused
         if provider == "openrouter":
             # Lifetime limits: failures, interruptions, prompt/model changes and elapsed
             # billing windows never reset this pilot. Same write lock as the budget check.

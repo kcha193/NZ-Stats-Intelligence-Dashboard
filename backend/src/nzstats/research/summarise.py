@@ -204,6 +204,7 @@ def summarise_versions(
     clock: Callable[[], float] = time.monotonic,
     hosted_consents: Sequence[HostedConsent] = (),
     verifier: str = VERIFIER_VERSION,
+    run_started: Callable[[int], None] | None = None,
 ) -> SummariseResult:
     if isinstance(provider, DisabledProvider) or provider.name == "disabled":
         raise ProviderDisabled("no LLM provider is configured")
@@ -245,6 +246,8 @@ def summarise_versions(
                     **({"experiment": scope.experiment} if scope else {})},
             dry_run=False, now=started,
         )  # fmt: skip
+        if run_started is not None:
+            run_started(result.run_id)
         # A reservation held past its own deadline belongs to a process that is gone.
         ss.abandon_stale(conn, now=started)
     stopped = False
@@ -412,9 +415,13 @@ def _process(
                 period_cap_usd=limits.max_period_usd,
                 since=now_fn() - timedelta(days=PERIOD_DAYS), now=now_fn(),
                 expires_at=now_fn() + stale_after(limits), scope=scope,
+                consent_check=consent_check,
             )  # fmt: skip
         except ss.AttemptConsumed:
             item.outcome = "attempt_consumed"
+            return False
+        except ss.ConsentRefused:
+            item.outcome = "consent_refused"
             return False
         if held is None:
             budget_stop = True

@@ -287,3 +287,22 @@ def test_migration_010_is_additive_and_its_rollback_restores_the_original_trigge
     assert 10 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
     assert migrate(conn) >= 10
     assert _schema(conn, research=True).keys() == original.keys()
+
+
+ROLLBACK_014 = REPO / "scripts" / "rollback" / "014_research_policy_audit_down.sql"
+
+
+def test_migration_014_is_additive_and_its_rollback_removes_only_its_objects(tmp_path):
+    from .llm_support import seed_version
+
+    conn = connect(tmp_path / "w.db")
+    migrate(conn)
+    version = seed_version(conn)
+    conn.executescript(ROLLBACK_014.read_text(encoding="utf-8"))
+    after = {**_schema(conn, research=False), **_schema(conn, research=True)}
+    assert not {k for k in after if "policy_event" in k}
+    assert "research_llm_reservation" in after and "research_summary" in after
+    assert conn.execute("SELECT id FROM research_document_version").fetchone()[0] == version
+    assert 14 not in {r[0] for r in conn.execute("SELECT version FROM schema_version")}
+    assert migrate(conn) >= 14
+    assert "research_policy_event" in _schema(conn, research=True)

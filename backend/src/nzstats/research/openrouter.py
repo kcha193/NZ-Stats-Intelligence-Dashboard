@@ -31,7 +31,12 @@ from nzstats.research.providers import (
     _count,
     _status_error,
 )
-from nzstats.research.summary_store import PilotScope
+from nzstats.research.summary_store import (
+    POLICY_MAX_ATTEMPTS,
+    POLICY_MAX_USD,
+    POLICY_PREFIX,
+    PilotScope,
+)
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +93,28 @@ TREASURY_V3_PILOT = Experiment(
 )
 EXPERIMENTS = {e.scope.experiment: e for e in (SECOND_PILOT, TREASURY_V3_PILOT)}
 
+# Phase 4W: an operator-run policy (`research/policy_run.py`) derives one experiment per policy hash at run time. They live
+# apart from the reviewed table above so `EXPERIMENTS` never lists an unreviewed or prepared prompt (the v6 tests check it).
+_POLICY_EXPERIMENTS: dict[str, Experiment] = {}
+
+
+def register_policy_experiment(experiment: Experiment) -> None:
+    """Make a policy-derived experiment known to this process. Only the `policy-` namespace and registered prompts."""
+    name = experiment.scope.experiment
+    if (
+        not name.startswith(POLICY_PREFIX)
+        or name in EXPERIMENTS
+        or experiment.prompt_version not in RULES_SHA256
+        or not 1 <= experiment.scope.max_attempts <= POLICY_MAX_ATTEMPTS
+        or not 0 < experiment.scope.max_usd <= POLICY_MAX_USD
+    ):
+        raise ValueError("not a registrable policy experiment")
+    _POLICY_EXPERIMENTS[name] = experiment
+
+
+def experiment_named(name: str) -> Experiment | None:
+    return EXPERIMENTS.get(name) or _POLICY_EXPERIMENTS.get(name)
+
 
 def validate_settings(settings: LlmSettings) -> Route:
     route = next(
@@ -129,7 +156,7 @@ def validate_settings(settings: LlmSettings) -> Route:
             "NZSTATS_OPENROUTER_REASONING_EFFORT must be an explicit reviewed effort (low or medium)"
         )
     if settings.openrouter_experiment is not None:
-        experiment = EXPERIMENTS.get(settings.openrouter_experiment)
+        experiment = experiment_named(settings.openrouter_experiment)
         if (
             experiment is None
             or experiment.prompt_version not in RULES_SHA256
@@ -210,13 +237,13 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     @property
     def pilot_scope(self) -> PilotScope:
         experiment = self._settings.openrouter_experiment
-        return EXPERIMENTS[experiment].scope if experiment else PilotScope()
+        return experiment_named(experiment).scope if experiment else PilotScope()
 
     @property
     def prompt_version(self) -> str:
         """An experiment keeps the prompt it was reviewed and consented with."""
         experiment = self._settings.openrouter_experiment
-        return EXPERIMENTS[experiment].prompt_version if experiment else PROMPT_VERSION
+        return experiment_named(experiment).prompt_version if experiment else PROMPT_VERSION
 
     def validate_run(self, pricing: Pricing, limits: LlmLimits) -> None:
         """The reservation must cover exactly the adapter's actual output/timeout caps."""
