@@ -1,11 +1,26 @@
 # Progress and verification record
 
-Last updated 2026-11-07. **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-08. **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4X: operational activation and first new-report readiness, 7 to 8 November 2026
+
+Full record: [phase-4x-operational-readiness.md](phase-4x-operational-readiness.md). Baseline main `b5bf3c1`. Private evidence: ignored `data/phase-4x/`.
+**No OpenRouter request or probe, no report acquisition, no historical change or deployment. The only permission change is the owner-approved Treasury entry (8 November); the user separately authorised commit, push and one PR on 8 November.**
+Ledger unchanged: 4 of 8 attempts, US$0.6267107880 spent, US$4.3732892120 left, 0 policy events.
+
+- **Migration 014 was present at baseline.** An earlier on-open `serve` start (22:32:59 NZDT) is the likely origin; no contemporaneous post-v3, pre-014 backup was found. A verified bundle (database plus 48 raw files) restored into a new directory and matched live on 33 of 33 tables. A rollback rehearsal on a separate copy showed 014's structure is additive and lost nothing; it cannot independently prove what happened in the earlier real migration. `nzstats migrate` was then a no-op.
+- **Rights (7 November, historical):** proposal of exactly two registry lines; Treasury was `denied` then.
+- **Rights (8 November):** the owner approved the two lines (dated 2026-11-08) and the per-report checks; applied and submitted for review together with the guard (not merged); nothing else in the registry changed. This is not a blanket third-party rights grant: explicit notices stay excluded by code, and source credits need the operator's check and terminal confirmation for each real report. The generic `summarise` guard is in the same commit and must land with it.
+- **8 November preflight:** under the live approved registry, real v3 and v1 refuse `version_attempted` only. The ledger is unchanged (4 settled, US$0.6267107880, 0 policy events) and the live database is identical to before. No request, reservation or `--confirm`.
+- **Gap fixed:** an institution-wide `hosted` would also have opened the generic `research summarise` path to direct hosted providers (retries, own caps, no ledger). It now refuses every hosted provider; regression test watched failing first.
+- **Policy** `treasury-feu-phase-4x` (hash `6bc867b3`, 0600, valid to 7 December) prepared. It authorises nothing and stays valid after the proposed change.
+- **Real version 3** refuses `llm_processing_denied` and `version_attempted`, and still `version_attempted` under the proposal. Synthetic acceptance covers a new report (one mocked request), a re-save, a re-import and the real ledger shape (4 more calls, then refused).
+- **Verdict:** GO WITH CONDITIONS for the next real FEU; NO-GO for a paid request now (no new report held).
 
 ## Phase 4W: repeatable internal AI economic intelligence, 7 November 2026
 

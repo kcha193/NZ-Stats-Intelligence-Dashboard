@@ -11,7 +11,8 @@
 #   llm_processing  denied (default: never sent to a language model) | local_only (a model on this machine only)
 #                   | hosted (a hosted LLM provider too). Sending text to a hosted model is processing by a third
 #                   party: set it only after reading that the terms allow it, and record what they say in
-#                   llm_processing_note. Requires an approved full_text source. Phase 3B; none is set.
+#                   llm_processing_note. Requires an approved full_text source. Phase 3B. Only Treasury is set:
+#                   hosted, approved by the owner 2026-11-08 for `research run-policy` only (Phase 4X).
 #   public_display  none (default: nothing shown) | link_only (title, date, link) | summary (plus the AI
 #                   interpretation and forecasts, no verbatim text) | excerpt (plus short verified quotes). What anyone
 #                   may see on this site: a third decision, separate from fetching and LLM processing. Any level but
@@ -69,6 +70,8 @@ manual_import = "approved"
 manual_import_approved_by = "Kevin Chang"
 manual_import_approved_on = "2026-10-31"
 manual_import_note = "Copyright and licensing page read in a browser by the owner on 2026-10-31: Crown copyright material is licensed for re-use under CC BY 4.0 unless indicated otherwise for specific items or collections; credit the Treasury. Material marked 'Copyright Held by Non-Crown Party' and government logos and emblems are excluded. The 15 October 2026 FEU PDF has no item-specific notice, so the site default applies. This covers storing a browser-saved copy with attribution."
+llm_processing = "hosted"
+llm_processing_note = "Hosted processing confirmed by Kevin Chang on 2026-11-08 for operator-run `research run-policy` requests only (docs/phase-4x-operational-readiness.md). Basis: the Treasury copyright and licensing page, read by the owner in a browser on 2026-10-31, licenses Crown copyright material under CC BY 4.0 unless indicated otherwise for specific items or collections, with credit to the Treasury; material marked 'Copyright Held by Non-Crown Party' and government logos and emblems are excluded. The owner reads CC BY 4.0 as permitting the text of a manually imported Fortnightly Economic Update to be sent to OpenRouter for anthropic/claude-opus-5.5 on google-vertex/europe only, with zero data retention and data collection denied, to produce unreviewed internal commentary. Per document: sections with an item-specific or third-party notice are excluded, and the operator confirms that document's own notices at the terminal. Not covered: automated acquisition, public or private display, publication, RBNZ."
 licence = "Crown copyright, Creative Commons Attribution 4.0 International unless indicated; third-party material and logos excluded."
 licence_url = "https://www.treasury.govt.nz/copyright-and-licensing"
 verified_on = "2026-10-31"

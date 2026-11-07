@@ -273,11 +273,17 @@ def _approved_full_text(tmp_path: Path, llm: str):
     return load_registry(_write(tmp_path, body.replace("metadata_only", "full_text")))["ex"]
 
 
-def test_llm_processing_defaults_to_denied_for_every_shipped_source():
-    assert {i.llm_processing for i in load_registry().values()} == {LlmProcessing.DENIED}
-    inst = load_registry()["treasury"]
-    assert inst.llm_refusal(hosted=False) == "llm processing denied for this source"
-    assert inst.llm_refusal(hosted=True) == "llm processing denied for this source"
+def test_only_treasury_has_llm_processing_and_every_other_shipped_source_is_denied():
+    """Phase 4X: the owner approved hosted processing for Treasury on 2026-11-08 (`research run-policy` only)."""
+    reg = load_registry()
+    assert {
+        k: i.llm_processing for k, i in reg.items() if i.llm_processing is not LlmProcessing.DENIED
+    } == {"treasury": LlmProcessing.HOSTED}
+    assert reg["treasury"].llm_refusal(hosted=True, acquisition="manual") is None
+    assert "2026-11-08" in reg["treasury"].llm_processing_note
+    rbnz = reg["rbnz"]
+    assert rbnz.llm_refusal(hosted=False) == "llm processing denied for this source"
+    assert rbnz.llm_refusal(hosted=True) == "llm processing denied for this source"
 
 
 def test_local_only_permits_local_models_but_never_a_hosted_provider(tmp_path):
