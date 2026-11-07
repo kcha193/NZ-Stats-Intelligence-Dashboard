@@ -7,30 +7,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { groupItems, PAGE_SIZE, type GroupBy, type Sort } from "@/lib/research";
 import { ResearchEntry } from "./ResearchEntry";
 
-/** Shown when nothing is published: what has to be true before a summary appears here. */
-export function UnpublishedResearch({ compact = false }: { compact?: boolean }) {
-  const gates = [
-    ["The source allows it", "Its terms have been read and its display permission recorded, separately from fetching and AI processing."],
-    ["The evidence checks pass", "Every quote, number, unit and horizon in the summary is found in the stored document."],
-    ["A person approves it", "A reviewer confirms the summary reflects its evidence, then approves it for publication."],
-  ];
+/**
+ * Shown when no research is published here. Phase 4AA: it no longer lists the publication conditions (which include a
+ * person's approval): the owner's AI analysis needs none of them and appears on the local dashboard instead.
+ */
+export function UnpublishedResearch() {
   return (
     <div className="rounded-md border border-dashed bg-surface-sunken p-5 sm:p-6">
-      <p className="font-display text-lg font-semibold tracking-tight">No institutional research is published here yet</p>
+      <p className="font-display text-lg font-semibold tracking-tight">No AI economic analysis is shown here</p>
       <p className="mt-1.5 max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-        Summaries of bank, Treasury and Reserve Bank commentary appear only when all three conditions hold. None does yet,
-        so nothing is shown rather than anything unchecked.
+        AI analysis of Treasury and Reserve Bank reports appears on the local dashboard when internal AI analysis is switched
+        on. It is off in this view, so nothing is shown in its place.
       </p>
-      {!compact && (
-        <ol className="mt-5 grid gap-4 sm:grid-cols-3">
-          {gates.map(([title, body], i) => (
-            <li key={title} className="border-t border-rule-strong/30 pt-3">
-              <p className="text-sm font-medium"><span className="sr-only">Condition {i + 1}: </span>{title}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-            </li>
-          ))}
-        </ol>
-      )}
     </div>
   );
 }
@@ -47,8 +35,9 @@ function Field({ label, children }: { label: string; children: (id: string) => R
 
 const control = "h-9 w-full min-w-0 rounded-md border bg-background px-2.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ink";
 
-/** Section B: published research summaries, with search, filters, sort and grouping. */
-export function ResearchFeed() {
+/** Section B: published research summaries, with search, filters, sort and grouping. `hideWhenEmpty`: render nothing
+ * rather than the empty state (the internal view, which has its own). */
+export function ResearchFeed({ hideWhenEmpty = false }: { hideWhenEmpty?: boolean }) {
   const [text, setText] = useState("");
   const q = useDeferredValue(text.trim());
   const [institution, setInstitution] = useState("");
@@ -61,12 +50,14 @@ export function ResearchFeed() {
   const filtered = Boolean(q || institution || topic);
   const reset = (fn: () => void) => () => { fn(); setPage(0); };
 
+  const empty = !query.data || (query.data.total === 0 && !filtered && query.data.institutions.length === 0);
+  if (hideWhenEmpty && !query.isError && (query.isLoading || empty)) return null;
   let body: ReactNode;
   if (query.isLoading) {
     body = <div role="status" aria-label="Loading research" className="space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>;
   } else if (query.isError) {
     body = <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
-  } else if (!query.data || (query.data.total === 0 && !filtered && query.data.institutions.length === 0)) {
+  } else if (empty || !query.data) {
     return (
       <section aria-labelledby="research-title">
         <h2 id="research-title" className="type-section">Institutional research</h2>

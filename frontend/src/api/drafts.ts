@@ -1,6 +1,6 @@
 /**
- * Internal draft responses, hand-written because these routes are mounted only by `nzstats serve --internal-drafts` and
- * are not in the published API that `schema.d.ts` is generated from. They mirror `research/drafts_api.py`.
+ * Internal draft responses, hand-written because these routes are mounted only by `nzstats serve` on loopback (with
+ * `--internal-drafts`, or the owner's auto_display opt-in) and are not in the published API that `schema.d.ts` is generated from. They mirror `research/drafts_api.py`.
  */
 
 export type DraftProblem = { code: string; severity: "error" | "warning"; message: string };
@@ -69,6 +69,8 @@ export type DraftReport = {
   newest: boolean;
   draft_id: number | null;
   validation: ValidationCategory | null;
+  /** A parsed AI summary exists for this report, but the draft gate shows none of it (Phase 4AA). */
+  withheld: boolean;
 };
 
 export type DraftFeed = { mode: "named" | "automatic"; items: DraftItem[]; reports: DraftReport[]; notice: string };

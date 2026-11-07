@@ -50,7 +50,7 @@ Enable it in ignored `data/internal-drafts.json`:
  "withdrawn": [{"summary_id": 3, "withdrawn_by": "<name>", "withdrawn_on": "2026-11-07", "note": "<why>"}]}
 ```
 
-Then `nzstats serve --host 127.0.0.1 --internal-drafts`. Only `"enabled": true` turns it on. A typo or unknown key shows nothing. `withdrawn` applies in both modes.
+Then `nzstats serve --host 127.0.0.1 --internal-drafts` (since Phase 4AA, a loopback start without the flag also shows them). Only `"enabled": true` turns it on. A typo or unknown key shows nothing. `withdrawn` applies in both modes.
 
 `drafts.py` stays the one gate. In auto mode a summary is shown only when all of these hold, rechecked on every request:
 
@@ -216,5 +216,5 @@ The Treasury version 3 experiment (`phase-4s-treasury-v3`, run 3) ran once. This
 
 ## Rollback
 
-Remove `auto_display` from `data/internal-drafts.json`, or stop passing `--internal-drafts`. There is no migration and no database write.
+Remove `auto_display` from `data/internal-drafts.json`, or stop passing `--internal-drafts` (since Phase 4AA: pass `--no-internal-drafts`). There is no migration and no database write.
 The gold-bound `Approval` format still works for the experiment.

@@ -2,9 +2,8 @@ import { useOverview } from "@/api/hooks";
 import { useState } from "react";
 import { ForecastComparison } from "@/components/outlook/ForecastComparison";
 import { ForecastTrack } from "@/components/outlook/ForecastTrack";
-import { InternalDrafts } from "@/components/outlook/InternalDrafts";
+import { EconomicIntelligence } from "@/components/outlook/InternalDrafts";
 import { Pulse } from "@/components/outlook/Pulse";
-import { ResearchFeed } from "@/components/outlook/ResearchFeed";
 import { QueryBoundary } from "@/components/QueryBoundary";
 import { ROUTE_META } from "@/seo/routes";
 import { useDocumentTitle } from "@/seo/useDocumentTitle";
@@ -39,13 +38,12 @@ export default function EconomicOutlook() {
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Institutional research</dt>
-            <dd>Internal AI drafts on this machine, checked by automated rules only and not reviewed by a person. Summaries a person has approved appear only in the separate publishing workflow below.</dd>
+            <dd>AI analysis of Treasury and Reserve Bank reports, for internal use on the local dashboard. Checked automatically against each document, not independently reviewed.</dd>
           </div>
         </dl>
       </header>
       <QueryBoundary query={overview}>{(d) => <Pulse overview={d} />}</QueryBoundary>
-      <InternalDrafts />
-      <ResearchFeed />
+      <EconomicIntelligence />
       <ForecastComparison cpi={cpi} indicator={indicator} onIndicatorChange={setIndicator} />
       <ForecastTrack indicator={indicator} />
       <section aria-labelledby="reading-title" className="-mx-4 bg-surface-sunken px-4 py-10 lg:-mx-8 lg:px-8">

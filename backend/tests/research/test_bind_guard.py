@@ -5,6 +5,8 @@ non-loopback address unless the operator states, with `NZSTATS_RESEARCH_ALLOW_NO
 (a loopback-only published port, a private network, an authenticating proxy) limits who can connect.
 """
 
+import json
+
 import pytest
 
 from nzstats.cli import main
@@ -122,3 +124,76 @@ def test_internal_drafts_are_mounted_and_advertised_only_when_asked_for(served):
     assert off.state.capabilities.get("internal_drafts") is False
     assert on.state.capabilities.get("internal_drafts") is True
     assert "/api/private/research/items" not in _paths(on)  # it grants nothing else
+
+
+# --- Phase 4AA: the owner's auto_display opt-in turns internal drafts on for a normal loopback start ------------
+OPT_IN = {
+    "auto_display": {
+        "enabled": True,
+        "enabled_by": "Test Owner",
+        "enabled_on": "2026-11-08",
+        "note": "synthetic",
+    }
+}
+
+
+def _owner_file(tmp_path, content) -> None:
+    data = tmp_path / "data"
+    data.mkdir(parents=True, exist_ok=True)
+    text = content if isinstance(content, str) else json.dumps(content)
+    (data / "internal-drafts.json").write_text(text)
+
+
+def _drafts_on(app) -> bool:
+    on = app.state.capabilities.get("internal_drafts")
+    assert on is ("/api/internal/drafts" in _paths(app))  # advertised exactly when mounted
+    return on
+
+
+def test_a_normal_loopback_start_shows_drafts_when_the_owner_opted_in(served, tmp_path):
+    _owner_file(tmp_path, OPT_IN)
+    assert main(["serve", "--no-scheduler", "--host", "127.0.0.1"]) == 0
+    ((app, _),) = served
+    assert _drafts_on(app) is True
+    assert "/api/private/research/items" not in _paths(app)  # it grants nothing else
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        None,  # no file: no opt-in
+        {"drafts": []},  # the named list without auto_display
+        {
+            "auto_display": {**OPT_IN["auto_display"], "enabled": False}
+        },  # only an explicit true counts
+        "{not json",
+    ],
+)
+def test_without_an_explicit_owner_opt_in_a_normal_start_shows_no_drafts(served, tmp_path, content):
+    if content is not None:
+        _owner_file(tmp_path, content)
+    assert main(["serve", "--no-scheduler", "--host", "127.0.0.1"]) == 0
+    ((app, _),) = served
+    assert _drafts_on(app) is False
+
+
+def test_the_owner_can_switch_drafts_off_for_one_start(served, tmp_path):
+    _owner_file(tmp_path, OPT_IN)
+    assert main(["serve", "--no-scheduler", "--no-internal-drafts", "--host", "127.0.0.1"]) == 0
+    ((app, _),) = served
+    assert _drafts_on(app) is False
+
+
+def test_on_and_off_together_is_a_usage_error(served):
+    with pytest.raises(SystemExit) as exc:
+        main(["serve", "--internal-drafts", "--no-internal-drafts"])
+    assert exc.value.code == 2 and served == []
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.20"])
+def test_the_opt_in_never_turns_drafts_on_for_a_non_loopback_bind(served, tmp_path, host):
+    """The container binds 0.0.0.0: it starts as before, with no drafts, rather than refusing."""
+    _owner_file(tmp_path, OPT_IN)
+    assert main(["serve", "--refresh", "scheduler", "--host", host]) == 0
+    ((app, kw),) = served
+    assert kw["host"] == host and _drafts_on(app) is False

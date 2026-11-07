@@ -14,7 +14,8 @@ test("the economic outlook shows official indicators and explains that no resear
   await expect(pulse).toContainText("Consumer prices were 4.1% higher than a year earlier");
   await expect(pulse).toContainText("Retail card spending was $");
   await expect(pulse).toContainText("Net migration added 20,350 people");
-  await expect(page.getByText("No institutional research is published here yet")).toBeVisible();
+  await expect(page.getByText("No AI economic analysis is shown here")).toBeVisible();
+  await expect(page.getByText(/A person approves it/)).toHaveCount(0); // Phase 4AA: no approval checklist
   await expect(page.getByText(/No forecasts are published here yet/)).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -27,6 +28,9 @@ test("the research API is not reachable in the default deployment", async ({ req
     expect(res.status(), path).toBe(404);
     expect(await res.json()).toEqual({ detail: "not found" });
   }
+  // Phase 4AA: with no owner opt-in in the data directory, a normal start mounts no internal analysis either.
+  const drafts = await request.get("/api/internal/drafts", { headers: { "X-NZStats-Client": "dashboard" } });
+  expect(drafts.status()).toBe(404);
 });
 
 test("Outlook is a primary destination reachable from every page", async ({ page }, testInfo) => {

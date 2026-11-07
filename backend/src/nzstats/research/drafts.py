@@ -353,6 +353,7 @@ class StoredReport:
     unusable_attempts: int = (
         0  # responses on the current version that are never shown (malformed, refused, ...)
     )
+    usable_attempts: int = 0  # parsed outputs on the current version, shown or withheld by the gate
 
 
 def _civil_date(text: str | None) -> date | None:
@@ -369,13 +370,16 @@ def stored_reports(
 ) -> list[StoredReport]:
     """Current, held, non-duplicate reports, latest publication date first; undated ones last and never newest."""
     unusable = ",".join("?" * len(UNUSABLE_STATUSES))
+    usable = ",".join("?" * len(SHOWABLE_STATUSES))
     rows = conn.execute(
         "SELECT p.id, i.key, p.title, p.canonical_url, p.series, p.published_on, v.acquisition,"
         f" (SELECT COUNT(*) FROM research_summary s WHERE s.version_id = v.id AND s.status IN ({unusable}))"
-        " AS unusable FROM research_publication p JOIN research_institution i ON i.id = p.institution_id"
+        " AS unusable,"
+        f" (SELECT COUNT(*) FROM research_summary s WHERE s.version_id = v.id AND s.status IN ({usable}))"
+        " AS usable FROM research_publication p JOIN research_institution i ON i.id = p.institution_id"
         " JOIN research_document_version v ON v.id = p.current_version_id"
         " WHERE p.duplicate_of_id IS NULL AND v.purged_at IS NULL AND v.superseded_at IS NULL",
-        UNUSABLE_STATUSES,
+        UNUSABLE_STATUSES + SHOWABLE_STATUSES,
     ).fetchall()
     held = []
     for row in rows:
@@ -395,7 +399,8 @@ def stored_reports(
     held.sort(key=lambda h: (h[2] is None, -(h[2].toordinal() if h[2] else 0), -int(h[0]["id"])))
     out = [
         StoredReport(int(row["id"]), inst, row["title"], row["canonical_url"], row["series"], published,
-                     published is not None and published == latest[inst.key], int(row["unusable"]))
+                     published is not None and published == latest[inst.key], int(row["unusable"]),
+                     int(row["usable"]))
         for row, inst, published in held
     ]  # fmt: skip
     return out

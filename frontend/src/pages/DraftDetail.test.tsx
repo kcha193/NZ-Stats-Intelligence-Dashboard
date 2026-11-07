@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DraftItem, DraftReport } from "@/api/drafts";
-import { InternalDrafts } from "@/components/outlook/InternalDrafts";
+import { EconomicIntelligence } from "@/components/outlook/InternalDrafts";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import DraftDetail from "./DraftDetail";
 
@@ -45,9 +45,9 @@ const draft: DraftItem = {
 };
 const reports: DraftReport[] = [
   { institution: "example", institution_name: "Example Research (synthetic)", title: "Example Update, later (synthetic)", url: "https://research.example.org/later",
-    series: "Update", published_on: "2026-11-02", newest: true, draft_id: null, validation: null },
+    series: "Update", published_on: "2026-11-02", newest: true, draft_id: null, validation: null, withheld: false },
   { institution: "example", institution_name: "Example Research (synthetic)", title: "Example Update (synthetic)", url: "https://research.example.org/update",
-    series: "Update", published_on: "2026-10-19", newest: false, draft_id: 7, validation: "failed_automated_checks" },
+    series: "Update", published_on: "2026-10-19", newest: false, draft_id: 7, validation: "failed_automated_checks", withheld: false },
 ];
 const newer = { title: "Example Update, later (synthetic)", published_on: "2026-11-02" };
 const open = (id = 7) =>
@@ -99,7 +99,7 @@ describe("draft detail", () => {
     expect(screen.getByText(/failed with 1 error and 1 warning/)).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "Processing and review" })).getByText("Failed automated checks")).toBeInTheDocument();
     expect(screen.getByText("Not independently reviewed")).toBeInTheDocument();
-    expect(screen.getByText("Not published")).toBeInTheDocument();
+    expect(screen.getByText("Internal use only")).toBeInTheDocument();
   });
 
   it("says when the institution has published a newer report than the one this draft covers", async () => {
@@ -142,91 +142,185 @@ describe("draft detail", () => {
   });
 });
 
-describe("internal drafts on the outlook", () => {
+describe("AI Economic Intelligence on the outlook (Phase 4AA)", () => {
+  const NOTICE = "AI-generated analysis for internal use. Claims are checked automatically against source documents but may contain errors. Not independently reviewed.";
+  const treasury: DraftItem = { ...draft, id: 9, institution: "treasury", institution_name: "The Treasury (synthetic)",
+    document: { ...draft.document, title: "Treasury Update (synthetic)", url: "https://research.example.org/t", published_on: "2026-11-02" },
+    document_date: "29 October 2026",
+    claims: [
+      ...draft.claims,
+      { ...base, kind: "institutional_view", role: "driver", text: "Household spending is recovering (synthetic).", path: "drivers[0]", status: "clean", problems: [] },
+      { ...base, kind: "institutional_view", role: "risk", text: "Export prices could fall (synthetic).", path: "risks[0]", status: "failed",
+        problems: [{ code: "quote_not_found", severity: "error", message: "risks[0]: quote not found in the document" }] },
+    ] };
+  const feed = {
+    mode: "automatic",
+    items: [treasury],
+    reports: [
+      { institution: "treasury", institution_name: "The Treasury (synthetic)", title: "Treasury Update (synthetic)", url: "https://research.example.org/t",
+        series: null, published_on: "2026-11-02", newest: true, draft_id: 9, validation: "failed_automated_checks", withheld: false },
+      { institution: "rbnz", institution_name: "Reserve Bank (synthetic)", title: "Bank Statement (synthetic)", url: "https://research.example.org/r",
+        series: null, published_on: "2026-10-08", newest: true, draft_id: null, validation: "unusable_response", withheld: false },
+    ],
+    notice: NOTICE,
+  };
+  const show = (body: unknown, caps = on) => mockApi({ "/api/capabilities": caps, "/api/internal/drafts": body });
+  const section = () => screen.findByRole("region", { name: "AI Economic Intelligence" });
+
+  it("shows unreviewed commentary that failed its checks, with the internal-use notice", async () => {
+    show(feed);
+    renderWithProviders(<EconomicIntelligence />);
+    const s = await section();
+    expect(within(s).getByRole("note")).toHaveTextContent(NOTICE);
+    const summary = within(s).getByRole("article", { name: "Executive summary" });
+    expect(summary).toHaveTextContent("The Treasury (synthetic), published 2 Nov 2026. Document date: 29 October 2026");
+    expect(summary).toHaveTextContent("Failed automated checks");
+    expect(summary).toHaveTextContent("AI interpretation of the report");
+    expect(within(summary).getByRole("link", { name: /Treasury Update \(synthetic\)/ })).toHaveAttribute("href", "https://research.example.org/t");
+    expect(within(summary).getByRole("link", { name: /Read the full analysis/ })).toHaveAttribute("href", "/economic-outlook/draft/9");
+  });
+
+  it("never asks for a person's approval or shows the publication checklist", async () => {
+    show(feed);
+    const { container } = renderWithProviders(<EconomicIntelligence />);
+    await section();
+    for (const text of ["A person approves it", "No institutional research is published here yet", "Human reviewed", "Approved", "Verified"]) {
+      expect(container).not.toHaveTextContent(new RegExp(`\\b${text}\\b`));
+    }
+    expect(container.textContent).not.toMatch(/[–—]/);
+  });
+
+  it("separates drivers and risks, reported figures and institutional forecasts, each with its check result", async () => {
+    show(feed);
+    renderWithProviders(<EconomicIntelligence />);
+    await section();
+    const drivers = screen.getByRole("region", { name: "Key economic drivers and risks" });
+    expect(within(within(drivers).getByRole("region", { name: "Key drivers" })).getByText("No automated issue detected")).toBeInTheDocument();
+    const risks = within(drivers).getByRole("region", { name: "Risks" });
+    expect(risks).toHaveTextContent("Export prices could fall (synthetic).");
+    expect(within(risks).getByText("Failed automated checks")).toBeInTheDocument();
+    const facts = screen.getByRole("region", { name: "Reported economic facts and institutional forecasts" });
+    expect(facts).toHaveTextContent("not the official Stats NZ series");
+    expect(within(facts).getByRole("region", { name: "Reported figures" })).toHaveTextContent("Source: Stats NZ. Period: September 2026. Value: 3.7%.");
+    const table = within(facts).getByRole("table", { name: "Institutional forecasts" });
+    expect(within(table).getByText("IMF")).toBeInTheDocument();
+    expect(within(table).getByText("Third party, cited by the report")).toBeInTheDocument();
+    expect(within(table).getByText("Failed automated checks")).toBeInTheDocument();
+  });
+
+  it("leads with the latest Treasury and Reserve Bank commentary", async () => {
+    show(feed);
+    renderWithProviders(<EconomicIntelligence />);
+    const t = await screen.findByRole("article", { name: "Latest Treasury commentary" });
+    expect(t).toHaveTextContent("Published 2 Nov 2026. Document date: 29 October 2026");
+    expect(t).toHaveTextContent("Failed automated checks");
+    expect(t).toHaveTextContent("Automated checks: verify-3, prompt outlook-v4");
+    expect(within(t).getByRole("link", { name: "Read the full analysis and its checks" })).toHaveAttribute("href", "/economic-outlook/draft/9");
+    const r = screen.getByRole("article", { name: "Latest Reserve Bank commentary" });
+    expect(r).toHaveTextContent("The AI response for this report was unusable, so nothing is shown.");
+    expect(within(r).queryByText("AI interpretation")).not.toBeInTheDocument();
+  });
+
+  it("does not repeat the executive summary's outlook in its institution card", async () => {
+    show(feed);
+    renderWithProviders(<EconomicIntelligence />);
+    const t = await screen.findByRole("article", { name: "Latest Treasury commentary" });
+    expect(within(t).queryByText("AI interpretation")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Growth is expected to recover/)).toHaveLength(1); // once, in the executive summary
+  });
+
+  it("keeps every failed claim and its reason reachable in the verification details", async () => {
+    show(feed);
+    renderWithProviders(<EconomicIntelligence />);
+    await section();
+    const checks = screen.getByRole("list", { name: "Automated checks by analysis" });
+    expect(checks).toHaveTextContent("1 error and 1 warning across 5 claims. Checks verify-3, prompt outlook-v4, model example/model (hosted).");
+    expect(within(checks).getByText("3 claims with a failed check or warning")).toBeInTheDocument();
+    expect(within(checks).getByText("risks[0]: quote not found in the document")).toBeInTheDocument();
+    expect(within(checks).getByRole("link", { name: "Evidence quotes and every claim" })).toHaveAttribute("href", "/economic-outlook/draft/9");
+  });
+
+  it("puts earlier reports under historical commentary", async () => {
+    show({ ...feed, items: [treasury, { ...draft, newer_report: newer }] });
+    renderWithProviders(<EconomicIntelligence />);
+    const history = await screen.findByRole("region", { name: "Historical commentary" });
+    expect(history).toHaveTextContent("Example Update (synthetic)");
+    expect(within(history).getByText("Historical")).toBeInTheDocument();
+    expect(within(history).getByText(/This draft covers an earlier report\./)).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Executive summary" })).toHaveTextContent("Treasury Update (synthetic)");
+  });
+
   it("names the newest report by publication date and keeps earlier reports reachable", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [{ ...draft, newer_report: newer }], reports } });
-    renderWithProviders(<InternalDrafts />);
+    show({ ...feed, items: [{ ...draft, newer_report: newer }], reports });
+    renderWithProviders(<EconomicIntelligence />);
     const held = await screen.findByRole("region", { name: "Reports held" });
     const [latest, earlier] = within(held).getAllByRole("listitem");
     expect(latest).toHaveTextContent("Newest");
     expect(latest).toHaveTextContent("published 2 Nov 2026");
-    expect(latest).toHaveTextContent("No AI commentary");
-    expect(latest).not.toHaveTextContent(/No AI summary/i);
-    expect(within(latest).getByRole("link", { name: /Example Update, later/ })).toHaveAttribute("href", "https://research.example.org/later");
-    expect(earlier).not.toHaveTextContent("Newest");
+    expect(latest).toHaveTextContent("No AI analysis for this report yet");
     expect(earlier).toHaveTextContent("published 19 Oct 2026");
-    expect(within(earlier).getByRole("link", { name: /Example Update \(synthetic\)/ })).toHaveAttribute("href", "https://research.example.org/update");
-    expect(within(earlier).getByRole("link", { name: "Read the AI draft" })).toHaveAttribute("href", "/economic-outlook/draft/7");
-  });
-
-  it("does not claim a report was never summarised just because no draft can be shown", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [], reports: reports.slice(0, 1) } });
-    renderWithProviders(<InternalDrafts />);
-    const held = await screen.findByRole("region", { name: "Reports held" });
-    expect(held).toHaveTextContent("No AI commentary");
-    expect(held).not.toHaveTextContent(/No AI summary/i);
-    expect(within(held).queryByRole("link", { name: "Read the AI draft" })).not.toBeInTheDocument();
-  });
-
-  it("says a listed draft covers an earlier report when a newer one is held", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [{ ...draft, newer_report: newer }], reports } });
-    renderWithProviders(<InternalDrafts />);
-    const drafts = await screen.findByRole("region", { name: "Internal drafts" });
-    expect(within(drafts).getByText(/This draft covers an earlier report\./)).toBeInTheDocument();
-  });
-
-  it("shows held reports when no draft has been named", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [], reports: reports.slice(0, 1) } });
-    renderWithProviders(<InternalDrafts />);
-    expect(await screen.findByRole("region", { name: "Reports held" })).toHaveTextContent("Example Update, later (synthetic)");
-    expect(screen.queryByText(/These AI summaries may have failed/)).not.toBeInTheDocument();
+    expect(within(earlier).getByRole("link", { name: "Read the AI analysis" })).toHaveAttribute("href", "/economic-outlook/draft/7");
   });
 
   it("does not call a report undated by its import date", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [], reports: [{ ...reports[0], published_on: null, newest: false }] } });
-    renderWithProviders(<InternalDrafts />);
+    show({ ...feed, items: [], reports: [{ ...reports[0], published_on: null, newest: false }] });
+    renderWithProviders(<EconomicIntelligence />);
     const held = await screen.findByRole("region", { name: "Reports held" });
     expect(held).toHaveTextContent("publication date not stated");
     expect(held).not.toHaveTextContent("Newest");
   });
 
-  it("sends no draft request and renders nothing while the switch is off", async () => {
-    const fn = mockApi({ "/api/capabilities": off, "/api/internal/drafts": { items: [draft] } });
-    renderWithProviders(<InternalDrafts />);
-    await vi.waitFor(() => expect(fn.mock.calls.some(([u]) => String(u).includes("/api/capabilities"))).toBe(true));
-    expect(screen.queryByRole("region", { name: "Internal drafts" })).not.toBeInTheDocument();
+  it.each([
+    ["no document imported", { ...feed, items: [], reports: [] }, "No document has been imported"],
+    ["no commentary generated", { ...feed, items: [], reports: [{ ...feed.reports[0], draft_id: null, validation: null }] }, "No AI analysis has been generated"],
+    ["an unusable response", { ...feed, items: [], reports: [feed.reports[1]] }, "An AI response was unusable"],
+    ["commentary withheld by the gate", { ...feed, items: [], reports: [{ ...feed.reports[0], draft_id: null, validation: null, withheld: true }] }, "AI analysis is withheld"],
+    ["automatic display off", { ...feed, mode: "named", items: [], reports: [] }, "Automatic display is off"],
+  ])("explains an empty view: %s", async (_name, body, reason) => {
+    show(body);
+    const { container } = renderWithProviders(<EconomicIntelligence />);
+    expect(await screen.findByText("No AI analysis to show yet")).toBeInTheDocument();
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/approves|published here yet/);
+  });
+
+  it("says opening the page never starts an AI request", async () => {
+    show({ ...feed, items: [], reports: [{ ...feed.reports[0], draft_id: null, validation: null }] });
+    renderWithProviders(<EconomicIntelligence />);
+    const t = await screen.findByRole("article", { name: "Latest Treasury commentary" });
+    expect(t).toHaveTextContent("An AI request runs only when an operator starts one; opening this page never starts one.");
+  });
+
+  it("shows the published-research view, and asks for no draft, while the switch is off", async () => {
+    const fn = show({ items: [draft] }, off);
+    renderWithProviders(<EconomicIntelligence />);
+    expect(await screen.findByText("No AI economic analysis is shown here")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "AI Economic Intelligence" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/A person approves it/)).not.toBeInTheDocument();
     expect(draftCalls(fn)).toEqual([]);
   });
 
-  it("renders nothing when the server cannot say whether the switch is on", async () => {
+  it("asks for no draft when the server cannot say whether the switch is on", async () => {
     const fn = mockApi({});
-    renderWithProviders(<InternalDrafts />);
-    await vi.waitFor(() => expect(fn).toHaveBeenCalled());
-    expect(screen.queryByRole("region", { name: "Internal drafts" })).not.toBeInTheDocument();
+    renderWithProviders(<EconomicIntelligence />);
+    expect(await screen.findByText("No AI economic analysis is shown here")).toBeInTheDocument();
     expect(draftCalls(fn)).toEqual([]);
   });
 
-  it("renders nothing and asks for nothing on the static site", async () => {
+  it("asks for no draft on the static site", async () => {
     vi.stubEnv("VITE_DATA_MODE", "static");
-    const fn = mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [draft] } });
-    renderWithProviders(<InternalDrafts />);
+    const fn = show({ items: [draft] });
+    renderWithProviders(<EconomicIntelligence />);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(fn).not.toHaveBeenCalled();
-    expect(screen.queryByRole("region", { name: "Internal drafts" })).not.toBeInTheDocument();
+    expect(draftCalls(fn)).toEqual([]);
+    expect(screen.queryByRole("region", { name: "AI Economic Intelligence" })).not.toBeInTheDocument();
     vi.unstubAllEnvs();
   });
 
-  it("renders nothing when no draft is listed", async () => {
-    const fn = mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [] } });
-    renderWithProviders(<InternalDrafts />);
-    await vi.waitFor(() => expect(draftCalls(fn).length).toBe(1));
-    expect(screen.queryByRole("region", { name: "Internal drafts" })).not.toBeInTheDocument();
-  });
-
   it("identifies itself to the server as the local dashboard", async () => {
-    const fn = mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [draft] } });
-    renderWithProviders(<InternalDrafts />);
-    await screen.findByRole("region", { name: "Internal drafts" });
+    const fn = show(feed);
+    renderWithProviders(<EconomicIntelligence />);
+    await section();
     const [, init] = draftCalls(fn)[0];
     expect(init.headers["X-NZStats-Client"]).toBe("dashboard");
   });
@@ -236,81 +330,18 @@ describe("internal drafts on the outlook", () => {
       String(input).includes("/api/capabilities")
         ? new Response(JSON.stringify(on), { status: 200 })
         : new Response(JSON.stringify({ detail: "refused" }), { status: 403 })));
-    renderWithProviders(<InternalDrafts />);
+    renderWithProviders(<EconomicIntelligence />);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
-  it("lists a draft with its warning, counts and a link to its page", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { items: [draft] } });
-    renderWithProviders(<InternalDrafts />);
-    const section = await screen.findByRole("region", { name: "Internal drafts" });
-    expect(within(section).getByText(/Only on this machine/)).toBeInTheDocument();
-    expect(within(section).getByText("Failed automated checks")).toBeInTheDocument();
-    expect(within(section).getByText(/1 with no automated issue detected, 1 with an automated warning, 1 failed/)).toBeInTheDocument();
-    expect(within(section).getByRole("link", { name: "Example Update (synthetic)" })).toHaveAttribute("href", "/economic-outlook/draft/7");
-  });
-});
-
-describe("Phase 4T internal AI experience", () => {
-  const NOTICE = "AI-generated research draft. Automated checks may miss errors. Not independently reviewed.";
-  const treasury = { ...draft, id: 9, institution: "treasury", institution_name: "The Treasury (synthetic)",
-    document: { ...draft.document, title: "Treasury Update (synthetic)", url: "https://research.example.org/t" }, document_date: "29 October 2026" };
-  const feed = {
-    mode: "automatic",
-    items: [treasury],
-    reports: [
-      { institution: "treasury", institution_name: "The Treasury (synthetic)", title: "Treasury Update (synthetic)", url: "https://research.example.org/t",
-        series: null, published_on: "2026-11-02", newest: true, draft_id: 9, validation: "failed_automated_checks" },
-      { institution: "rbnz", institution_name: "Reserve Bank (synthetic)", title: "Bank Statement (synthetic)", url: "https://research.example.org/r",
-        series: null, published_on: "2026-10-08", newest: true, draft_id: null, validation: "unusable_response" },
-    ],
-    notice: NOTICE,
-  };
-
-  it("shows the persistent notice on the outlook and on each draft", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": feed, "/api/internal/drafts/7": draft });
-    renderWithProviders(<InternalDrafts />);
-    expect(await screen.findByText(NOTICE)).toBeInTheDocument();
+  it("shows the same notice on each analysis page", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": draft });
     open();
     expect(await screen.findByRole("alert")).toHaveTextContent(NOTICE);
   });
+});
 
-  it("leads with the latest Treasury and Reserve Bank commentary", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": feed });
-    renderWithProviders(<InternalDrafts />);
-    const t = await screen.findByRole("article", { name: "Latest Treasury commentary" });
-    expect(t).toHaveTextContent("Treasury Update (synthetic)");
-    expect(t).toHaveTextContent("Published 2 Nov 2026. Document date: 29 October 2026");
-    expect(t).toHaveTextContent("Failed automated checks");
-    expect(t).toHaveTextContent("AI interpretation");
-    expect(t).toHaveTextContent("Automated checks: verify-3, prompt outlook-v4");
-    expect(within(t).getByRole("link", { name: "Read the full draft and its checks" })).toHaveAttribute("href", "/economic-outlook/draft/9");
-    const r = screen.getByRole("article", { name: "Latest Reserve Bank commentary" });
-    expect(r).toHaveTextContent("The AI response for this report was unusable, so nothing is shown.");
-    expect(within(r).queryByText("AI interpretation")).not.toBeInTheDocument();
-  });
-
-  it("separates current reports from earlier ones", async () => {
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { ...feed, items: [treasury, { ...draft, newer_report: newer }] } });
-    renderWithProviders(<InternalDrafts />);
-    expect(await screen.findByRole("region", { name: "Current reports" })).toHaveTextContent("Treasury Update (synthetic)");
-    const earlier = screen.getByRole("region", { name: "Earlier reports" });
-    expect(earlier).toHaveTextContent("Example Update (synthetic)");
-    expect(earlier).toHaveTextContent("Earlier reports: historical commentary");
-    expect(within(earlier).getByText("Historical")).toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: "Current reports" })).queryByText("Historical")).not.toBeInTheDocument();
-  });
-
-  it("explains missing AI commentary and says opening the page never requests any", async () => {
-    const none = { ...feed, items: [], reports: [{ ...feed.reports[0], draft_id: null, validation: null }] };
-    mockApi({ "/api/capabilities": on, "/api/internal/drafts": none });
-    renderWithProviders(<InternalDrafts />);
-    const t = await screen.findByRole("article", { name: "Latest Treasury commentary" });
-    expect(t).toHaveTextContent("No AI commentary for this report yet.");
-    expect(t).toHaveTextContent("An AI request runs only when an operator starts one; opening this page never starts one.");
-    expect(within(t).queryByRole("link", { name: "Read the full draft and its checks" })).not.toBeInTheDocument();
-  });
-
+describe("Phase 4T draft page", () => {
   it("puts every failed claim and its reason in view without a click", async () => {
     mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": draft });
     open();
