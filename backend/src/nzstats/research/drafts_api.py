@@ -28,6 +28,7 @@ from nzstats.research.drafts import (
     DraftAllowlistError,
     DraftSummary,
     StoredReport,
+    ValidationCategory,
     _civil_date,
     claim_paths,
     draft_summaries,
@@ -48,9 +49,13 @@ from nzstats.research.registry import Institution, RegistryError, load_registry
 from nzstats.research.verify import SCOPE, VERIFIER_VERSION
 
 log = logging.getLogger(__name__)
+# Phase 4T: the persistent notice, shown wherever a draft is. Its wording is fixed by the owner's brief.
+NOTICE = (
+    "AI-generated research draft. Automated checks may miss errors. Not independently reviewed."
+)
 DRAFT_LABEL = (
-    "Internal draft. AI summary of institutional commentary that may have failed the automated checks, and no person"
-    " has approved it. Treat every line as unconfirmed. Not an official statistic."
+    f"{NOTICE} It may have failed the automated checks and no person has approved it. Treat every line as"
+    " unconfirmed. Not an official statistic."
 )
 RegistryLoader = Callable[[], Mapping[str, Institution]]
 
@@ -96,12 +101,16 @@ class DraftItemOut(_Out):
     approved_for_publication: Literal[False] = False
     human_reviewed: bool
     checks_passed: bool
+    validation: ValidationCategory
     errors: int
     warnings: int
     counts: DraftCountsOut
     institution: str
     institution_name: str
     document: PrivateDocumentOut
+    document_date: (
+        str | None
+    )  # the date or period the document states for itself; None when it states none
     licence: str
     licence_url: str | None
     provenance: DraftProvenanceOut
@@ -118,12 +127,16 @@ class StoredReportOut(_Out):
     published_on: date | None
     newest: bool
     draft_id: int | None
+    validation: (
+        ValidationCategory | None
+    )  # its draft's category, "unusable_response", or None (no attempt)
 
 
 class DraftFeedOut(_Out):
+    mode: Literal["named", "automatic"]
     items: list[DraftItemOut]
     reports: list[StoredReportOut]
-    notice: str = DRAFT_LABEL
+    notice: str = NOTICE
 
 
 def _claims(d: DraftSummary) -> list[DraftClaimOut]:
@@ -162,7 +175,8 @@ def _item(d: DraftSummary, reports: list[StoredReport]) -> DraftItemOut:
     r, inst = d.row, d.institution
     errors = sum(p.severity == "error" for c in d.claims for p in c.problems)
     return DraftItemOut(
-        id=d.id, human_reviewed=r["review_status"] == "approved", checks_passed=d.passed, errors=errors,
+        id=d.id, human_reviewed=r["review_status"] == "approved", checks_passed=d.passed,
+        validation=d.category, errors=errors, document_date=r["reference_period"],
         warnings=d.warnings, counts=DraftCountsOut(**d.counts), institution=inst.key, institution_name=inst.name,
         document=PrivateDocumentOut(title=r["title"], url=r["canonical_url"], published_on=r["published_on"],
                                     fetched_at=to_akl_iso(r["fetched_at"]), version_no=r["version_no"],
@@ -176,13 +190,14 @@ def _item(d: DraftSummary, reports: list[StoredReport]) -> DraftItemOut:
 
 
 def _report(report: StoredReport, drafts: list[DraftSummary]) -> StoredReportOut:
-    draft_id = next(
-        (d.id for d in drafts if d.row["publication_id"] == report.publication_id), None
+    draft = next((d for d in drafts if d.row["publication_id"] == report.publication_id), None)
+    validation: ValidationCategory | None = (
+        draft.category if draft else "unusable_response" if report.unusable_attempts else None
     )
     return StoredReportOut(
         institution=report.institution.key, institution_name=report.institution.name, title=report.title,
         url=report.url, series=report.series, published_on=report.published_on, newest=report.newest,
-        draft_id=draft_id,
+        draft_id=draft.id if draft else None, validation=validation,
     )  # fmt: skip
 
 
@@ -215,10 +230,11 @@ def internal_drafts_router(
             allowlist = load_allowlist(path)
         except (RegistryError, DraftAllowlistError, OSError) as exc:
             log.warning("internal drafts show nothing: %s", exc)
-            return DraftFeedOut(items=[], reports=[])
+            return DraftFeedOut(mode="named", items=[], reports=[])
         drafts = draft_summaries(c, reg, allowlist)
         reports = stored_reports(c, reg)
-        return DraftFeedOut(items=[_item(d, reports) for d in drafts],
+        return DraftFeedOut(mode="automatic" if allowlist.auto else "named",
+                            items=[_item(d, reports) for d in drafts],
                             reports=[_report(r, drafts) for r in reports])  # fmt: skip
 
     deps = [Depends(gate)]

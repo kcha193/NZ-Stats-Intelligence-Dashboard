@@ -1,8 +1,14 @@
 """Explicit local frozen-request pilot. No ingestion, migration, display or implicit consent.
 
 Freeze is offline and creates a proposal, never an approval. Execution needs a separately
-signed, expiring approval binding that proposal, gold, exact section rights and account controls.
+signed, expiring approval binding that proposal, exact section rights and account controls.
 All sensitive artifacts stay in the caller's private data directory; stdout contains metadata only.
+
+Two approval formats exist. `Approval` (Phase 4M to 4S) binds human gold as a precondition. Phase 4T adds
+`InternalDraftApproval`, which separates the two: mandatory hosted-processing authorisation (document scope, source
+rights, provider, privacy settings, request and body hashes, expiry, spend limit) and an optional human evaluation.
+Only a plan that lists "internal_draft" accepts it; the Phase 4N plan does not. A run without gold is recorded as
+"not_evaluated", never as a passed evaluation.
 """
 
 from __future__ import annotations
@@ -69,6 +75,7 @@ class PilotPlan:
     versions: Mapping[int, str]
     freeze_format: int
     prior_attempts: int
+    approvals: frozenset[str] = frozenset({"gold_bound"})
 
     @property
     def experiment_id(self) -> str:
@@ -77,7 +84,11 @@ class PilotPlan:
 
 SECOND_PLAN = PilotPlan(SECOND_PILOT, MappingProxyType(PILOT_VERSIONS), FREEZE_FORMAT, 1)
 # Phase 4S: Treasury version 3 has no attempt yet. Format 3 keeps format 2 freezes from running it.
-TREASURY_V3_PLAN = PilotPlan(TREASURY_V3_PILOT, MappingProxyType({3: "treasury"}), 3, 0)
+# Phase 4T: it also accepts an internal-draft authorisation, where human gold is optional.
+TREASURY_V3_PLAN = PilotPlan(
+    TREASURY_V3_PILOT, MappingProxyType({3: "treasury"}), 3, 0,
+    frozenset({"gold_bound", "internal_draft"}),
+)  # fmt: skip
 PLANS = {p.experiment_id: p for p in (SECOND_PLAN, TREASURY_V3_PLAN)}
 
 
@@ -116,6 +127,90 @@ class Approval(_Strict):
     account_controls_evidence: str = Field(min_length=1)
     dedicated_key_confirmed: Literal[True]
     rights: tuple[DocumentRights, ...]
+
+
+Hex64 = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class GoldEvaluation(_Strict):
+    """An optional human evaluation: when named, the gold file is still bound by its hash."""
+
+    gold_path: Path
+    gold_sha256: str = Hex64
+    gold_review: str = Field(min_length=1)
+
+
+class PrivacyTerms(_Strict):
+    """The provider routing terms every hosted request carries. Each is fixed: none may be relaxed."""
+
+    zdr: Literal[True]
+    data_collection: Literal["deny"]
+    allow_fallbacks: Literal[False]
+    require_parameters: Literal[True]
+
+
+class DocumentAuthorisation(_Strict):
+    version_id: StrictInt
+    request_sha256: str = Hex64
+    body_sha256: str = Hex64
+    sections: tuple[SectionRight, ...] = Field(min_length=1)
+
+
+class InternalDraftApproval(_Strict):
+    """Phase 4T: mandatory hosted-processing authorisation for an internal draft; human evaluation optional.
+
+    It authorises sending the frozen request once, to produce an unreviewed internal draft. It grants no review,
+    private or public display, and no other experiment.
+    """
+
+    state: Literal["authorised"]
+    purpose: Literal["internal_draft"]
+    experiment: str = Field(min_length=1)
+    experiment_spend_limit_usd: float
+    approved_by: str = Field(min_length=1)
+    approved_at: datetime
+    expires_at: datetime
+    frozen_sha256: str = Hex64
+    model: Literal["anthropic/claude-opus-5.5"]
+    provider_id: Literal["google-vertex/europe"]
+    privacy: PrivacyTerms
+    provider_review: str = Field(min_length=1)
+    account_controls_evidence: str = Field(min_length=1)
+    dedicated_key_confirmed: Literal[True]
+    documents: tuple[DocumentAuthorisation, ...] = Field(min_length=1)
+    evaluation: GoldEvaluation | None = None
+
+    @property
+    def rights(self) -> tuple[DocumentRights, ...]:
+        return tuple(
+            DocumentRights(version_id=d.version_id, sections=d.sections) for d in self.documents
+        )
+
+
+AnyApproval = Approval | InternalDraftApproval
+
+
+def load_approval(body: bytes) -> AnyApproval:
+    """An approval file, by its declared purpose: only a document that says internal_draft is read as one."""
+    raw = json.loads(body)
+    if isinstance(raw, dict) and "purpose" in raw:
+        return InternalDraftApproval.model_validate_json(body)
+    return Approval.model_validate_json(body)
+
+
+def approval_kind(approval: AnyApproval) -> str:
+    return "internal_draft" if type(approval) is InternalDraftApproval else "gold_bound"
+
+
+def evaluation_record(approval: AnyApproval) -> dict:
+    """What human evaluation this run has: gold bound for later scoring, or none. Never "passed"."""
+    gold = approval.gold_sha256 if type(approval) is Approval else (
+        approval.evaluation.gold_sha256 if approval.evaluation else None
+    )  # fmt: skip
+    return {
+        "human_evaluation": "gold_bound_not_yet_scored" if gold else "not_evaluated",
+        "gold_sha256": gold,
+    }
 
 
 def file_sha256(path: Path) -> str:
@@ -403,7 +498,7 @@ def execute(
     registry: Mapping[str, Institution],
     data_dir: Path,
     frozen: Path,
-    approval: Approval,
+    approval: AnyApproval,
     output: Path,
     api_key: str,
     *,
@@ -413,12 +508,20 @@ def execute(
 ) -> list[SummariseResult]:
     """Admit the entire frozen scope first; execute serially without retries or output approval."""
     try:
-        approval = Approval.model_validate_json(approval.model_dump_json())
+        if type(approval) not in (Approval, InternalDraftApproval):
+            raise PilotRefused("unknown approval format")
+        approval = type(approval).model_validate_json(approval.model_dump_json())
+        kind = approval_kind(approval)
         plan = PLANS.get(approval.experiment)
-        if plan is None:
-            raise PilotRefused("approval names no reviewed experiment")
+        if plan is None or kind not in plan.approvals:
+            raise PilotRefused("approval names no reviewed experiment for its format")
         experiment = plan.experiment
         now = now_fn()
+        gold = (
+            (approval.gold_path, approval.gold_sha256) if type(approval) is Approval
+            else (approval.evaluation.gold_path, approval.evaluation.gold_sha256) if approval.evaluation
+            else None
+        )  # fmt: skip
         if (
             approval.approved_at.tzinfo is None
             or approval.expires_at.tzinfo is None
@@ -426,7 +529,7 @@ def execute(
             or approval.expires_at - approval.approved_at > timedelta(days=1)
             or approval.experiment_spend_limit_usd != experiment.scope.max_usd
             or file_sha256(frozen / "freeze.json") != approval.frozen_sha256
-            or file_sha256(approval.gold_path) != approval.gold_sha256
+            or (gold is not None and file_sha256(gold[0]) != gold[1])
         ):
             raise PilotRefused("approval time, frozen scope or reviewed gold mismatched")
         manifest = json.loads((frozen / "freeze.json").read_bytes())
@@ -487,6 +590,17 @@ def execute(
                 or file_sha256(frozen / f"v{version}-request.json") != frame["body_sha256"]
             ):
                 raise PilotRefused("rights, section scope or frozen body mismatched")
+            if type(approval) is InternalDraftApproval:
+                doc = next(d for d in approval.documents if d.version_id == version)
+                sent = json.loads((frozen / f"v{version}-request.json").read_bytes()).get(
+                    "provider"
+                )
+                if (
+                    doc.request_sha256 != frame["request_sha256"]
+                    or doc.body_sha256 != frame["body_sha256"]
+                    or sent != {"only": [approval.provider_id], **approval.privacy.model_dump()}
+                ):
+                    raise PilotRefused("authorised request, body or privacy terms mismatched")
             raw = data_dir / "raw" / frame["content_sha256"][:2] / frame["content_sha256"]
             if raw.is_symlink() or file_sha256(raw) != frame["content_sha256"]:
                 raise PilotRefused("original raw document changed")
@@ -563,6 +677,7 @@ def execute(
         output.mkdir(mode=0o700, parents=True, exist_ok=False)
         _write(output / "preflight.json", _bytes(remote))
         _write(output / "approval.json", approval.model_dump_json().encode())
+        _write(output / "evaluation.json", _bytes(evaluation_record(approval)))
         backup_check(conn, data_dir, output, now)
         # One pipeline call preserves existing run/global/rolling reservations and consent rechecks.
         result = summarise_versions(

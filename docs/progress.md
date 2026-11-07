@@ -1,11 +1,22 @@
 # Progress and verification record
 
-Last updated 2026-11-07. **Phase 4S (below) prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-07. **Phase 4T (below) made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4T: internal AI commentary without mandatory human review, 7 November 2026
+
+Full record: [phase-4t-internal-ai-commentary.md](phase-4t-internal-ai-commentary.md). Baseline main `6b37ebb` (PR #47 merged).
+**No OpenRouter request, crawl, scheduler, deployment, approval or merge.** Internal drafts only. Public, private, snapshot, source permissions, verifier and ledger unchanged.
+
+- **Auto display:** `auto_display` in ignored `data/internal-drafts.json` shows every eligible summary without a per-summary entry. It needs complete, schema-valid output, an unchanged hash, a reviewed route with its privacy terms and a recorded billed call, and a current, held, quotable source. Not rejected, not withdrawn (`withdrawn`), no injection. Unusable responses are only counted.
+- **Categories:** no automated issue, automated warning, failed automated checks, unusable response. `verify-4` unchanged. No confidence figures.
+- **Pilot:** `InternalDraftApproval` binds scope, rights, route, privacy terms, request and body hashes, expiry and the US$0.50 limit. Gold is optional and recorded as `not_evaluated` when absent. Only the version 3 plan accepts it. Ledger: 3 of 4 attempts, US$0.508 of US$5, untouched.
+- **UX:** the fixed notice, latest Treasury and Reserve Bank cards, current and earlier reports, a failed-claims panel with reasons, an issues filter, interpretation and quoted statements labelled apart.
+- **Real DB (read-only):** auto mode would show one draft, summary 3, failed checks with 7 of 18 claims failed. The RBNZ report shows 1 unusable attempt.
 
 ## Phase 4S: validation readiness and Treasury version 3 pilot preparation, 7 November 2026
 

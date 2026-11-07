@@ -134,7 +134,7 @@ def test_the_feed_lists_stored_reports_with_only_their_public_details(drafts, ma
     assert r.status_code == 200 and r.json()["items"] == []
     newest, earlier = r.json()["reports"]
     assert set(newest) == {"institution", "institution_name", "title", "url", "series", "published_on",
-                           "newest", "draft_id"}  # fmt: skip
+                           "newest", "draft_id", "validation"}  # fmt: skip
     assert (newest["title"], newest["published_on"], newest["newest"], newest["draft_id"]) == (
         "Synthetic outlook newer", "2026-11-02", True, None)  # fmt: skip
     assert (earlier["published_on"], earlier["newest"]) == ("2026-08-13", False)

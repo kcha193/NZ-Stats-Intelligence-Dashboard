@@ -85,6 +85,20 @@ def test_snapshot_is_byte_identical_with_research_rows_present(full_dir, copy_of
     assert b"SYNTHETIC FIXTURE research" not in blob and b"anz.co.nz" not in blob
 
 
+def test_automatic_internal_drafts_never_reach_a_snapshot(full_dir, copy_of, tmp_path):
+    """Phase 4T: switching automatic drafts on in the local configuration changes no snapshot byte."""
+    with_drafts = copy_of(full_dir)
+    seed_research(with_drafts)
+    (with_drafts / "internal-drafts.json").write_text(json.dumps({"auto_display": {
+        "enabled": True, "enabled_by": "Test Owner", "enabled_on": "2026-11-07", "note": TEXT}}))  # fmt: skip
+    plain = export_snapshot(full_dir, tmp_path / "plain", now=EXPORT_NOW, allow_fixtures=True)
+    mixed = export_snapshot(with_drafts, tmp_path / "mixed", now=EXPORT_NOW, allow_fixtures=True)
+    assert plain["snapshot_id"] == mixed["snapshot_id"]
+    assert _files(tmp_path / "plain") == _files(tmp_path / "mixed")
+    blob = b"".join(_files(tmp_path / "mixed").values())
+    assert b"SYNTHETIC FIXTURE research" not in blob and b"Test Owner" not in blob
+
+
 @pytest.mark.parametrize("path", ["/api/health", "/api/overview", "/api/releases", "/api/cpi"])
 def test_stats_nz_api_answers_are_unchanged_by_research_rows(full_dir, copy_of, path):
     def answer(data_dir: Path):
