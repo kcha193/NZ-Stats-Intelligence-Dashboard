@@ -17,6 +17,7 @@ from pathlib import Path
 
 from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
+from nzstats.research import policy as pol
 from nzstats.research import purge
 from nzstats.research import summary_store as ss
 from nzstats.research.contract import OutlookSummary, Provider
@@ -68,6 +69,45 @@ def _positive_int(text: str) -> int:
     if number < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
     return number
+
+
+def _add_policy_parsers(rsub: argparse._SubParsersAction) -> None:
+    """Argument parsing only: the handlers (and the provider they can reach) load when a policy command runs."""
+    p_run = rsub.add_parser(
+        "run-policy",
+        help="preflight (--dry-run) or explicitly execute ONE paid request under an operator policy (4W)",
+    )
+    p_run.add_argument("policy", help="the policy file (private, under data/)")
+    p_run.add_argument(
+        "--version", type=_positive_int, required=True, help="the document version id"
+    )
+    p_run.add_argument(
+        "--sections", help="comma-separated section ordinals (default: every section not flagged)"
+    )
+    mode = p_run.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
+        "--dry-run", action="store_true", help="show the preflight; offline and read-only"
+    )
+    mode.add_argument("--confirm", metavar="HASH8", help="the confirmation code a dry run printed")
+    p_init = rsub.add_parser(
+        "policy-init",
+        help="write a new private policy file with the pins filled in; authorises nothing (4W)",
+    )
+    p_init.add_argument("out", help="a new file name under data/")
+    p_init.add_argument("--issued-by", required=True)
+    p_init.add_argument("--policy-id", required=True)
+    p_init.add_argument("--days", type=_positive_int, default=pol.POLICY_MAX_DAYS)
+    p_init.add_argument("--per-call-usd", type=float, default=pol.POLICY_MAX_PER_CALL_USD)
+    p_init.add_argument("--aggregate-usd", type=float, default=pol.POLICY_MAX_AGGREGATE_USD)
+    p_init.add_argument("--max-calls", type=_positive_int, default=pol.POLICY_MAX_CALLS)
+    rsub.add_parser(
+        "policy-audit", help="list policy events, usage and the lifetime ledger; read-only (4W)"
+    )
+    p_rev = rsub.add_parser(
+        "policy-revoke", help="permanently revoke a policy (appended to the audit) (4W)"
+    )
+    p_rev.add_argument("policy")
+    p_rev.add_argument("--reason", required=True)
 
 
 def add_research_parser(sub: argparse._SubParsersAction) -> None:
@@ -197,6 +237,7 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
     p_sum.add_argument(
         "--dry-run", action="store_true", help="estimate cost; call and write nothing"
     )
+    _add_policy_parsers(rsub)
     p_list = rsub.add_parser("summaries", help="list stored summaries")
     p_list.add_argument("--status", choices=("verified", "failed_verification", "invalid_output",
                                              "provider_error"))  # fmt: skip
@@ -950,7 +991,20 @@ def _cpi_reconcile(
     return 0 if result.ok else 1
 
 
-_SUMMARY_COMMANDS = {"cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
+def _policy_command(name: str):
+    """A Phase 4W handler, imported only when its command runs: `serve`, the scheduler and the API never load it."""
+
+    def handler(args, settings, registry):
+        from nzstats.research import policy_cli
+
+        return getattr(policy_cli, name)(args, settings, registry)
+
+    return handler
+
+
+_SUMMARY_COMMANDS = {"run-policy": _policy_command("run_policy"), "policy-init": _policy_command("policy_init"),
+                     "policy-audit": _policy_command("policy_audit"), "policy-revoke": _policy_command("policy_revoke"),
+                     "cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
                      "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "owner-review-package": _owner_review_package, "score-gold": _score_gold, "diagnose": _diagnose}  # fmt: skip

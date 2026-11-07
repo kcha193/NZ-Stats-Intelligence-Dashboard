@@ -117,15 +117,6 @@ class Preflight:
         return self.policy.verifier_version
 
 
-def _audit_ready(conn: sqlite3.Connection) -> bool:
-    return (
-        conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (AUDIT_TABLE,)
-        ).fetchone()
-        is not None
-    )
-
-
 def _confirm_code(sha: str, version_id: int, source: SourceAssessment, request_sha: str) -> str:
     scope = ",".join(map(str, source.ordinals))
     parts = [
@@ -186,7 +177,7 @@ def preflight(
             worst = settings.pricing.cost(
                 input_token_bound(request), settings.limits.max_output_tokens
             )
-    audit_ready = _audit_ready(conn)
+    audit_ready = pol.audit_ready(conn)
     capacity = (
         pol.capacity_checks(conn, policy, sha, worst)
         if audit_ready
@@ -304,7 +295,7 @@ def _refuse(
 ) -> None:
     """Log a refusal (it consumes nothing) and raise it. The log never blocks the refusal itself."""
     try:
-        if _audit_ready(conn):
+        if pol.audit_ready(conn):
             pol.record_event(
                 conn, "refused", policy, sha, operator=operator, now=now, version_id=version_id,
                 refusal_code=codes[0], detail=",".join(codes)[:200],
@@ -337,7 +328,7 @@ def execute_policy(
 ) -> RunOutcome:
     """One explicit, interactive, confirmed paid request for one document version, or a refusal that reserves nothing."""
     operator = operator or getpass.getuser()
-    if not _audit_ready(conn):
+    if not pol.audit_ready(conn):
         raise PolicyRefused("database_not_migrated")
     policy, sha = pol.load_policy(policy_path, data_dir)
 

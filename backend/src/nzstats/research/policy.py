@@ -278,7 +278,21 @@ def content_attempted(
     return row is not None
 
 
+def audit_ready(conn: sqlite3.Connection) -> bool:
+    """Whether migration 014 is applied. A dry run on an older database reports it instead of failing."""
+    return (
+        conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_policy_event'"
+        ).fetchone()
+        is not None
+    )
+
+
 def _executed_content(conn: sqlite3.Connection, content_sha256: str) -> bool:
+    if not audit_ready(conn):
+        return (
+            False  # the missing table is its own refusal (`database_not_migrated`), never a crash
+        )
     return (
         conn.execute(
             "SELECT 1 FROM research_policy_event WHERE event='executed' AND content_sha256=?",
