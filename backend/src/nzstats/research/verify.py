@@ -783,6 +783,45 @@ _SPELLED_QUANTITY = re.compile(
 )
 
 
+# What may be removed from a figure's side before counting its figures: only text that names a period, never a measured quantity.
+# "the 12 months to June 2029" is a period; "4 months in June" and "2025 persons" are quantities and stay.
+_PERIOD_DURATION = re.compile(
+    r"\b\d+\s+(?:weeks?|months?|quarters?|years?)(?=\s+(?:to|ended|ending|until)\b)", re.IGNORECASE
+)
+_MONTH_BEFORE = re.compile(
+    r"\b(?:"
+    + "|".join((*_MONTHS, *(m[:3] for m in _MONTHS), "sept"))
+    + r")\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?$",
+    re.IGNORECASE,
+)
+_PERIOD_PREPOSITION_BEFORE = re.compile(
+    r"\b(?:in|during|for|by|since|until|through|over|to|from|year|quarter)\s+(?:the\s+)?(?:(?:calendar|fiscal|financial)\s+)?$",
+    re.IGNORECASE,
+)
+_PERIOD_YEAR_FOLLOWED_BY = re.compile(
+    r"\s*(?:$|[,;:.)]|(?:and|with|but|while|as|when|quarter|half)\b)", re.IGNORECASE
+)
+
+
+def _without_period_labels(text: str) -> str:
+    """`text` with the words that only name a period removed, so what is left holds the quantities that make assertions.
+
+    A year goes only after a month name, or after a period preposition and before a clause boundary or connector (never "of 2025
+    persons"). A duration goes only in "12 months to ...". Anything else that looks like a number stays and is counted.
+    """
+    text = _PERIOD_DURATION.sub("", text)
+
+    def year(m: re.Match[str]) -> str:
+        before, after = text[: m.start()], text[m.end() :]
+        if _MONTH_BEFORE.search(before) or (
+            _PERIOD_PREPOSITION_BEFORE.search(before) and _PERIOD_YEAR_FOLLOWED_BY.match(after)
+        ):
+            return ""
+        return m.group()
+
+    return _QUARTER_LABEL.sub("", _MONTH.sub("", _YEAR.sub(year, text)))
+
+
 def _comparison_stop(loc: _Located, at: int) -> int | None:
     """Where the figure at `at` ends and the base it is compared with begins (verify-5), or None.
 
@@ -796,9 +835,7 @@ def _comparison_stop(loc: _Located, at: int) -> int | None:
     marker = next(_COMPARISON.finditer(loc.text, at, b), None)
     if marker is None or marker.group().lower() in {"above", "below"}:
         return None
-    side = _QUARTER_LABEL.sub(
-        "", _MONTH.sub("", _YEAR.sub("", _DURATION.sub("", loc.text[a : marker.start()])))
-    )
+    side = _without_period_labels(loc.text[a : marker.start()])
     quantities = len(_number_spans(side)) + len(_SPELLED_QUANTITY.findall(side))
     return marker.start() if quantities == 1 else None
 

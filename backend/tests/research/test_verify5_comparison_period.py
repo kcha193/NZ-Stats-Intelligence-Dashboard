@@ -214,3 +214,39 @@ def test_a_spelled_out_quantity_on_the_same_side_stops_the_period_being_borrowed
 
 def test_the_digit_form_of_the_same_sentence_was_already_refused_and_stays_so():
     assert "period_not_supported" in codes_for(OTHER_FIGURE, 6.3, "June", version="verify-5")
+
+
+# --- review round 1, finding 7: a measured quantity is not a period label ----------------------------------------------
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Contracts lasted 4 months in June with exports at 6.3% compared with 5.9% in September.",
+        "Contracts lasted 12 weeks in June with exports at 6.3% compared with 5.9% in September.",
+        "Arrivals of 2025 persons in June with exports at 6.3% compared with 5.9% in September.",
+        "Arrivals were 2025 persons in June with exports at 6.3% compared with 5.9% in September.",
+    ],
+)
+def test_a_duration_or_count_on_the_same_side_stops_the_period_being_borrowed(sentence):
+    v4, v5 = (codes_for(sentence, 6.3, "June", version=v) for v in ("verify-4", "verify-5"))
+    assert v4 == {"period_not_supported"} and v5 == v4
+
+
+@pytest.mark.parametrize(
+    ("sentence", "period"),
+    [
+        ("Annual CPI inflation was 3.7% in 2026, up from 3.3% in 2025.", "2026"),
+        (
+            "Annual CPI inflation was 3.7% in the 12 months to June 2026, up from 3.3% in the 12 months to March 2026.",
+            "12 months to June 2026",
+        ),
+        (
+            "Annual CPI inflation was 3.7% in the year to March 2027, up from 3.3% in the year to March 2026.",
+            "year to March 2027",
+        ),
+        ("Annual CPI inflation was 3.7% in 2026/27, up from 3.3% in 2025/26.", "2026/27"),
+    ],
+)
+def test_period_expressions_are_still_ignored_when_counting_figures(sentence, period):
+    # the shapes the split exists for: verify-4 refuses them, verify-5 accepts the figure with its own period
+    assert codes_for(sentence, 3.7, period, version="verify-4") == {"period_not_supported"}
+    assert codes_for(sentence, 3.7, period, version="verify-5") == set()
