@@ -33,7 +33,7 @@ from nzstats.research.evaluate import (
 )
 from nzstats.research.prompt import injection_findings
 from nzstats.research.summarise import load_sections
-from nzstats.research.verify import UNITS, VerificationContext, verify
+from nzstats.research.verify import UNITS, VerificationContext, resolve_verifier, verify
 
 
 class AnnotationError(ValueError):
@@ -210,7 +210,9 @@ def evaluate_stored(
                     injection_ordinals=tuple(injection_findings(sections)),
                     institution=r["institution"],
                 )
-                result = verify(summary, sections, ctx)
+                result = verify(
+                    summary, sections, ctx, version=resolve_verifier(r["verifier_version"])
+                )
             report.models.append(score(str(r["id"]), str(r["version_id"]), summary, result,
                                        _gold(gold[r["version_id"]]), in_tok, out_tok, estimated, latency))  # fmt: skip
         aggregate(report, PRICE_POINTS)

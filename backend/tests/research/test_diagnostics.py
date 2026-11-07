@@ -200,3 +200,67 @@ def test_cascade_clusters_are_computed_from_codes_alone():
     assert (
         cascade_clusters([("decisions[0]", "decision_rate_not_supported")]) == ()
     )  # a cascade code with no root is its own cause
+
+
+# --- found by the independent review: the report path must never become a way to overwrite a file ---------------------
+def test_a_report_is_written_inside_the_data_directory_owner_only(tmp_path):
+    from nzstats.research.diagnostics import write_report
+
+    root = tmp_path / "data"
+    target = root / "diag" / "r.html"
+    write_report(target, "<title>Offline diagnostic, summary 1</title>", root=root)
+    assert (
+        target.read_text().startswith("<title>Offline") and (target.stat().st_mode & 0o777) == 0o600
+    )
+    write_report(
+        target, "<title>Offline diagnostic, summary 2</title>", root=root
+    )  # replacing a previous report is fine
+    assert "summary 2" in target.read_text()
+
+
+@pytest.mark.parametrize("name", ["../outside.html", "nzstats.db", "notes.txt", "x"])
+def test_a_report_path_outside_the_directory_or_not_html_is_refused(tmp_path, name):
+    from nzstats.research.diagnostics import write_report
+
+    root = tmp_path / "data"
+    root.mkdir()
+    victim = (root / name).resolve()
+    with pytest.raises(DiagnosticError, match="refused"):
+        write_report(root / name, "x", root=root)
+    assert not victim.exists()
+
+
+def test_a_report_never_follows_a_symlink_or_replaces_a_file_that_is_not_a_report(tmp_path):
+    from nzstats.research.diagnostics import write_report
+
+    root = tmp_path / "data"
+    root.mkdir()
+    precious = root / "precious.html"
+    precious.write_text("KEEP ME")
+    with pytest.raises(DiagnosticError, match="refused"):
+        write_report(
+            precious, "<title>Offline diagnostic</title>", root=root
+        )  # an existing file that is not our report
+    assert precious.read_text() == "KEEP ME"
+    link = root / "link.html"
+    link.symlink_to(precious)
+    with pytest.raises(DiagnosticError, match="refused"):
+        write_report(link, "<title>Offline diagnostic</title>", root=root)
+    assert precious.read_text() == "KEEP ME"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (root / "dir").symlink_to(elsewhere, target_is_directory=True)
+    with pytest.raises(DiagnosticError, match="refused"):
+        write_report(root / "dir" / "r.html", "x", root=root)
+    assert list(elsewhere.iterdir()) == []
+
+
+def test_an_unreadable_stored_date_is_a_clear_error_that_does_not_quote_it(conn):
+    from nzstats.research.contract import ModelProvenance  # noqa: F401  (builds the same stored shape as the fixture)
+
+    conn_, sid, _ = store_verify_4_summary(conn)
+    with conn_:
+        conn_.execute("UPDATE research_publication SET published_on = 'NOT-A-DATE-SECRET'")
+    with pytest.raises(DiagnosticError) as excinfo:
+        replay_summary(conn_, sid)
+    assert "SECRET" not in str(excinfo.value) and "date" in str(excinfo.value)

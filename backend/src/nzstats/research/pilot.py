@@ -643,6 +643,7 @@ def execute(
             pricing=settings.pricing,
             limits=settings.limits,
             version_ids=tuple(frames),
+            verifier=BASELINE_VERIFIER,
             dry_run=True,
             hosted_consents=grants,
             now_fn=now_fn,
@@ -688,6 +689,7 @@ def execute(
             pricing=settings.pricing,
             limits=settings.limits,
             version_ids=tuple(frames),
+            verifier=BASELINE_VERIFIER,
             hosted_consents=grants,
             now_fn=now_fn,
         )

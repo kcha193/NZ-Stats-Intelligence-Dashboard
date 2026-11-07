@@ -297,7 +297,10 @@ def replay_summary(
     except ValueError as exc:
         raise DiagnosticError(f"the stored output does not parse ({type(exc).__name__})") from exc
     sections = load_sections(conn, row["version_id"])
-    published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
+    try:
+        published = date.fromisoformat(row["published_on"]) if row["published_on"] else None
+    except ValueError as exc:
+        raise DiagnosticError("the stored publication date is not a valid date") from exc
     ctx = V.VerificationContext(published_on=published, institution=row["institution"],
                                 injection_ordinals=tuple(injection_findings(sections)))  # fmt: skip
     claims = _claims(summary)
@@ -456,10 +459,40 @@ def render_html(replay: Replay) -> str:
     )
 
 
-def write_report(path: Path, page: str) -> None:
-    """Write the page owner-only. The caller picks a path under the ignored data directory."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+_REPORT_MARK = "<title>Offline diagnostic"
+
+
+def write_report(path: Path, page: str, *, root: Path) -> None:
+    """Write the page owner-only, and only ever as a report of this module's own making.
+
+    The path must be an `.html` file inside `root` (the data directory) and reach it without following a symlink. An existing file
+    is replaced only when it is itself one of these reports, so this can never overwrite the database or any other file.
+    """
+    root_real = Path(os.path.realpath(root))
+    target = Path(os.path.abspath(path))
+    parent_real = Path(os.path.realpath(target.parent))
+    inside = os.path.commonpath([root_real, parent_real]) == str(root_real)
+    if not inside or target.suffix != ".html" or target.is_symlink() or target.parent.is_symlink():
+        raise DiagnosticError(
+            "refused: the report must be a new .html file inside the data directory"
+        )
+    current = root_real
+    current.mkdir(parents=True, exist_ok=True)  # the data directory itself
+    for part in parent_real.relative_to(
+        root_real
+    ).parts:  # already resolved, so no link can be on the way
+        current = current / part
+        current.mkdir(exist_ok=True)
+    if target.exists():
+        if (
+            not target.is_file()
+            or _REPORT_MARK not in target.read_text(encoding="utf-8", errors="ignore")[:4000]
+        ):
+            raise DiagnosticError(
+                "refused: that file exists and is not an earlier diagnostic report"
+            )
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(target, flags, 0o600)
+    os.fchmod(fd, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         handle.write(page)
-    os.chmod(path, 0o600)

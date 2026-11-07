@@ -100,3 +100,46 @@ def test_a_colon_vote_is_read_only_when_enabled():
     sentence, _ = voted("4:3")
     assert _votes(sentence, PolicyAction.HOLD, colon=False) == set()
     assert _votes(sentence, PolicyAction.HOLD, colon=True) == {(4, 3)}
+
+
+# --- found by the independent review: the pair must sit right after the vote word, not anywhere in a vote sentence ------
+STRAY = [
+    "The Committee voted to hold the Official Cash Rate at 2.75 percent, with growth of 2:3",
+    "Table 2: 5 of the 7 members preferred hold",
+    "Resolution 1: 4 members preferred a hold",
+    "The Committee voted to hold the OCR after a 3:2 split of opinion in the staff paper",
+    "The Committee voted to hold, citing aspect 1:2 of the mandate",
+    "The Committee voted to hold the OCR; inflation is 6:3 per cent of target",
+    "The Committee voted to hold the OCR, 6:3 times the usual rate",
+]
+
+
+@pytest.mark.parametrize("text", STRAY)
+def test_a_colon_pair_that_is_not_the_votes_own_is_never_read_as_one(text):
+    assert _votes(text, PolicyAction.HOLD, colon=True) == set()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The Committee voted 4:3 to hold the OCR",
+        "The Committee voted by 4:3 to hold the OCR",
+        "The vote was 4:3 to hold the OCR",
+        "The Committee decided by a vote of 4:3",
+        "The Committee voted in favour 4 : 3",
+    ],
+)
+def test_a_colon_pair_straight_after_the_vote_word_is_read(text):
+    assert _votes(text, PolicyAction.HOLD, colon=True) == {(4, 3)}
+
+
+def test_a_fabricated_vote_from_a_stray_colon_pair_is_still_rejected():
+    sentence = "The Monetary Policy Committee today voted to hold the Official Cash Rate at 2.75 percent, with growth of 2:3."
+    quote = sentence.rstrip(".")
+    assert "vote_not_in_evidence" in codes(run(sentence, quote, (2, 3)))
+
+
+def test_a_decision_with_no_vote_is_not_newly_rejected_by_a_stray_colon_pair():
+    sentence = "The Monetary Policy Committee today voted to hold the Official Cash Rate at 2.75 percent, with growth of 2:3."
+    quote = sentence.rstrip(".")
+    assert codes(run(sentence, quote, None)) == set()

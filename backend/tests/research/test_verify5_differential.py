@@ -57,7 +57,7 @@ ALL = [(c, k) for c in CASES for k in c.candidates]
 
 
 def test_the_corpus_is_the_one_the_other_suites_use():
-    assert len(CASES) == 13 and len(ALL) >= 50
+    assert len(CASES) == 13 and len(ALL) == 52
 
 
 @pytest.mark.parametrize(("case", "candidate"), ALL, ids=[f"{c.id}:{k.id}" for c, k in ALL])

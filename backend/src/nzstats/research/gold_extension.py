@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from nzstats.research import gold_sheet, issuers
 from nzstats.research.contract import Direction, IssuerRole, OutlookSummary
 from nzstats.research.summarise import load_sections
-from nzstats.research.verify import _YEAR, VerificationContext, verify
+from nzstats.research.verify import _YEAR, VERIFIER_VERSION, VerificationContext, verify
 
 Category = Literal["accepted_eligible", "expected_rejection", "ambiguous", "third_party_forecast"]
 CATEGORIES: tuple[str, ...] = (
@@ -180,13 +180,14 @@ class ExtensionReport:
     summary_id: int | None = (
         None  # which stored summary this scores, so a result joins back to its run
     )
+    verifier: str = VERIFIER_VERSION  # the verifier that produced `passed` and the rejections
 
     @property
     def expected_rejections_emitted(self) -> int:
         return self.views["raw"].expected_rejections
 
     def to_json(self) -> dict[str, object]:
-        return {"version_id": self.version_id, "summary_id": self.summary_id, "passed": self.passed, "gold_counts": self.gold_counts,
+        return {"version_id": self.version_id, "summary_id": self.summary_id, "verifier": self.verifier, "passed": self.passed, "gold_counts": self.gold_counts,
                 "views": {name: view.to_json(VIEW_LABELS[name]) for name, view in self.views.items()}}  # fmt: skip
 
 
@@ -453,6 +454,7 @@ def score_extension(
     extension: GoldExtension,
     context: VerificationContext,
     summary_id: int | None = None,
+    verifier: str = VERIFIER_VERSION,
 ) -> ExtensionReport:
     """One summary against one reviewed extension, rerunning the verifier. Reads and changes no stored status."""
     row = conn.execute(
@@ -464,7 +466,7 @@ def score_extension(
         or summary.version_id != extension.version_id
     ):
         raise GoldExtensionError("the gold extension was not written for this document version")
-    report = verify(summary, load_sections(conn, extension.version_id), context)
+    report = verify(summary, load_sections(conn, extension.version_id), context, version=verifier)
     failed = {p.path.split(".")[0] for p in report.errors}
     claims = _emitted(summary, failed)
     counts = {c: sum(i.category == c for i in extension.items) for c in CATEGORIES}
@@ -473,7 +475,7 @@ def score_extension(
         "raw": _score(claims, extension.items),
         "clean_claims_hypothetical": _score([c for c in claims if not c.failed], extension.items),
     }
-    return ExtensionReport(extension.version_id, report.passed, counts, views, summary_id)
+    return ExtensionReport(extension.version_id, report.passed, counts, views, summary_id, verifier)
 
 
 def write_worksheet(conn: sqlite3.Connection, version_id: int, out: Path) -> int:

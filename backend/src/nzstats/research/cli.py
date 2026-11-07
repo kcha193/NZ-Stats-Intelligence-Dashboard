@@ -58,7 +58,7 @@ from nzstats.research.quality import version_quality
 from nzstats.research.readiness import assess, pipeline_state
 from nzstats.research.registry import Institution, RegistryError, load_registry
 from nzstats.research.summarise import summarise_versions
-from nzstats.research.verify import SCOPE, VERIFIER_VERSION, VerificationContext
+from nzstats.research.verify import SCOPE, VERIFIER_VERSION, VerificationContext, resolve_verifier
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.store.db import connect, migrate
 
@@ -635,7 +635,7 @@ def _score_gold(
     try:
         extension = load_extension(Path(args.extension))
         rows = conn.execute(
-            "SELECT s.id, s.output_json, p.published_on, i.key AS institution FROM research_summary s"
+            "SELECT s.id, s.output_json, s.verifier_version, p.published_on, i.key AS institution FROM research_summary s"
             " JOIN research_document_version v ON v.id = s.version_id"
             " JOIN research_publication p ON p.id = v.publication_id"
             " JOIN research_institution i ON i.id = p.institution_id"
@@ -649,7 +649,7 @@ def _score_gold(
                     published_on=date.fromisoformat(row["published_on"]) if row["published_on"] else None,
                     institution=row["institution"],
                 ),
-                summary_id=row["id"],
+                summary_id=row["id"], verifier=resolve_verifier(row["verifier_version"]),
             )
             for row in rows
         ]  # fmt: skip
@@ -668,7 +668,7 @@ def _score_gold(
         _emit(f"version {extension.version_id}: no stored summary to score")
     for report in reports:
         _emit(
-            f"version {report.version_id}, summary {report.summary_id}: verifier {'passed' if report.passed else 'rejected the summary'}; gold {report.gold_counts}"
+            f"version {report.version_id}, summary {report.summary_id}: verifier {report.verifier} {'passed' if report.passed else 'rejected the summary'}; gold {report.gold_counts}"
         )
         for name, view in report.views.items():
             _emit(f"  {name}: claims {view.claims}, precision {view.precision.text}, recall {view.recall.text},"
@@ -698,7 +698,11 @@ def _diagnose(
     finally:
         conn.close()
     if args.out:
-        D.write_report(Path(args.out), D.render_html(replay))
+        try:
+            D.write_report(Path(args.out), D.render_html(replay), root=settings.data_dir)
+        except D.DiagnosticError as exc:
+            _emit(str(exc))
+            return 2
     if args.json:
         data = replay.to_json()
         for claim in data["claims"]:

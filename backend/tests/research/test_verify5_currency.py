@@ -96,3 +96,38 @@ def test_a_us_dollar_figure_still_has_no_valid_unit_so_it_is_still_rejected(unit
     expected = {"missing_unit"} if unit is None else {"unknown_unit"}
     for version in ("verify-4", "verify-5"):
         assert codes_for(sentence, 82, unit, version=version) == expected
+
+
+# --- found by the independent review: more spellings of another currency ----------------------------------------------
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The deficit was us$4.2 billion in October 2026.",
+        "The deficit was Aus$4.2 billion in October 2026.",
+        "The deficit was Can$4.2 billion in October 2026.",
+        "The deficit was CAD$4.2 billion in October 2026.",
+        "The deficit was NT$4.2 billion in October 2026.",
+        "The deficit was Mex$4.2 billion in October 2026.",
+        "The deficit was R$4.2 billion in October 2026.",
+        "The deficit was $4.2 billion USD in October 2026.",
+        "The deficit was $4.2 billion US in October 2026.",
+        "The deficit was $4.2 billion AUD in October 2026.",
+        "The deficit was $4.2 billion (US dollars) in October 2026.",
+    ],
+)
+def test_more_spellings_of_another_currency_are_rejected_as_nzd(sentence):
+    assert "unit_mismatch" in codes_for(sentence, 4.2, "nzd_billion", version="verify-5")
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The deficit was $4.2 billion in October 2026.",
+        "The deficit was $4.2 billion, up from last year, in October 2026.",
+        "A $4.2 billion deficit was recorded in October 2026.",
+        "The deficit was NZ$4.2 billion in October 2026.",
+        "The deficit was $4.2 billion NZD in October 2026.",
+    ],
+)
+def test_the_new_spellings_do_not_reject_new_zealand_amounts(sentence):
+    assert "unit_mismatch" not in codes_for(sentence, 4.2, "nzd_billion", version="verify-5")

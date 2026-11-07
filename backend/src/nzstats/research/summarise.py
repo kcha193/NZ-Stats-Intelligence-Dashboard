@@ -203,6 +203,7 @@ def summarise_versions(
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
     hosted_consents: Sequence[HostedConsent] = (),
+    verifier: str = VERIFIER_VERSION,
 ) -> SummariseResult:
     if isinstance(provider, DisabledProvider) or provider.name == "disabled":
         raise ProviderDisabled("no LLM provider is configured")
@@ -339,7 +340,7 @@ def summarise_versions(
             else:
                 stopped = _process(conn, provider, request, sections, key, parameters, item, result,
                                    pricing=pricing, limits=limits, worst=worst, now_fn=now_fn,
-                                   sleep=sleep, clock=clock, scope=scope,
+                                   sleep=sleep, clock=clock, scope=scope, verifier=verifier,
                                    consent_check=(lambda req=request: consent_refusal(
                                        conn, req, provider, hosted_consents, now_fn()))
                                    if provider.name == "openrouter" else None)  # fmt: skip
@@ -393,6 +394,7 @@ def _process(
     clock: Callable[[], float],
     scope: ss.PilotScope | None = None,
     consent_check: Callable[[], str | None] | None = None,
+    verifier: str = VERIFIER_VERSION,
 ) -> bool:
     """Call, parse, verify and store one document. True when the run budget stops the run."""
     calls: list[_Call] = []
@@ -507,13 +509,13 @@ def _process(
         if response.stop_reason is not None:
             parameters["finish_reason"] = response.stop_reason
         status, error_class, output_json, verification, claims = _interpret(
-            response.text, response.model, request, sections, key, parameters, now_fn()
+            response.text, response.model, request, sections, key, parameters, now_fn(), verifier
         )
     try:
         with transaction(conn):
             summary_id = ss.insert_summary(
                 conn, key, run_id=result.run_id or 0, attempt=attempt, hosted=provider.hosted,
-                verifier_version=VERIFIER_VERSION, parameters=parameters, raw_output=raw,
+                verifier_version=verifier, parameters=parameters, raw_output=raw,
                 output_json=output_json, status=status, error_class=error_class,
                 verification=verification, now=now_fn(),
             )  # fmt: skip
@@ -548,6 +550,7 @@ def _interpret(
     key: ss.SummaryKey,
     parameters: Mapping[str, str | int | float | bool],
     now: datetime,
+    verifier: str = VERIFIER_VERSION,
 ) -> tuple[str, str | None, str | None, dict | None, tuple]:
     """(status, error_class, output_json, verification, claims) for one model output."""
     try:
@@ -568,6 +571,6 @@ def _interpret(
     published = date.fromisoformat(request.published_on) if request.published_on else None
     report = verify(summary, sections, VerificationContext(
         published_on=published, injection_ordinals=tuple(injection_findings(sections)),
-        institution=request.institution))  # fmt: skip
+        institution=request.institution), version=verifier)  # fmt: skip
     status = "verified" if report.passed else "failed_verification"
     return status, None, summary.model_dump_json(), report.to_json(), summary.forecasts

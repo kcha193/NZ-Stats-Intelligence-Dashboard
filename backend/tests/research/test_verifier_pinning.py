@@ -10,7 +10,13 @@ import pytest
 from nzstats.research import drafts, public
 from nzstats.research.contract import OutlookSummary
 from nzstats.research.drafts import draft_summaries
-from nzstats.research.verify import BASELINE_VERIFIER, VERIFIER_VERSION, resolve_verifier, verify
+from nzstats.research.verify import (
+    BASELINE_VERIFIER,
+    VERIFIER_VERSION,
+    VerificationContext,
+    resolve_verifier,
+    verify,
+)
 
 from . import test_drafts_auto as auto_support
 from .llm_support import seed_version
@@ -83,3 +89,70 @@ def test_the_public_gate_replays_a_row_under_its_own_verifier(conn, monkeypatch,
     store_summary(conn, seed_version(conn))
     public.public_summaries(conn, registry())
     assert spy and set(spy) == {used}
+
+
+# --- found by the independent review: every other place that re-grades or grades a stored summary ---------------------------
+def test_real_model_evaluation_re_scores_a_row_under_its_own_verifier(conn, monkeypatch, tmp_path):
+    from nzstats.research import pilot_eval
+
+    from . import public_support
+    from .test_pilot_eval import GOLD, annotations, usage
+
+    seen: list[str] = []
+    real = pilot_eval.verify
+
+    def spied(*args, version=VERIFIER_VERSION, **kwargs):
+        seen.append(version)
+        return real(*args, version=version, **kwargs)
+
+    monkeypatch.setattr(pilot_eval, "verify", spied)
+    monkeypatch.setattr(public_support, "VERIFIER_VERSION", "verify-4")
+    version = seed_version(conn)
+    sid = store_summary(conn, version, review=None, publish=False)
+    usage(conn, sid, version, cost=0.01, latency=1000)
+    pilot_eval.evaluate_stored(conn, annotations(tmp_path, {"version_id": version, **GOLD}))
+    assert seen == ["verify-4"]
+
+
+def test_gold_scoring_labels_the_verifier_and_replays_the_one_it_is_given(conn):
+    from nzstats.research.gold_extension import score_extension
+
+    from .test_gold_extension import PAGE, GoldExtension, extension, fact, summary
+
+    seed_version(conn, (PAGE,), published_on="2026-11-02")
+    ext = GoldExtension.model_validate(extension())
+    ctx = VerificationContext(published_on=None, institution="treasury")
+    old = score_extension(conn, summary([fact()]), ext, ctx, verifier="verify-4")
+    new = score_extension(conn, summary([fact()]), ext, ctx)
+    assert (old.verifier, new.verifier) == ("verify-4", VERIFIER_VERSION)
+    assert old.to_json()["verifier"] == "verify-4"
+
+
+def test_summarise_stamps_and_grades_with_the_verifier_it_is_told_to_use(conn):
+    import json
+
+    from nzstats.research.contract import LlmLimits
+    from nzstats.research.providers import FakeProvider
+    from nzstats.research.summarise import summarise_versions
+
+    from .llm_support import NOW, draft_json
+    from .test_summarise import PRICING, Sleeps
+    from .test_summarise import registry as summarise_registry
+
+    seed_version(conn)
+    summarise_versions(
+        conn, summarise_registry(), FakeProvider(lambda req: draft_json(req.version_id)), pricing=PRICING,
+        limits=LlmLimits(), sleep=Sleeps(), now_fn=lambda: NOW, verifier="verify-4",
+    )  # fmt: skip
+    (row,) = conn.execute("SELECT verifier_version, verification FROM research_summary").fetchall()
+    assert row[0] == "verify-4" and json.loads(row[1])["version"] == "verify-4"
+
+
+def test_the_phase_4s_pilot_runs_the_pipeline_under_its_frozen_verifier():
+    import inspect
+
+    from nzstats.research import pilot
+
+    assert (
+        inspect.getsource(pilot).count("verifier=BASELINE_VERIFIER") == 2
+    )  # the dry run and the real run

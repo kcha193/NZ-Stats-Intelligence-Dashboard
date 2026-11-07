@@ -5,8 +5,9 @@ quarter" made the claimed September period "ambiguous or contradictory" and reje
 `period_not_supported` errors have this shape (one month, then "from" and a second figure with another month).
 
 `verify-5` adds one accepting path and nothing else. When the first attempt fails and the figure is followed by a comparison
-word and a second figure, and BOTH sides state a period, the figure's own side is checked alone. It must support the whole
-claimed period by itself. The comparison-period rule still applies afterwards, so a period that only the base states is refused.
+word (not "above" or "below"), the figure's own side is checked alone. That side must hold only this one figure and must support
+the whole claimed period by itself. The comparison-period rule still applies afterwards, so a period that only the base states
+is refused.
 """
 
 from datetime import date

@@ -113,10 +113,14 @@ _VOTE_WORD = re.compile(
 )
 _VOTE_PAIR = re.compile(rf"\b{_COUNT}\s*(?:[–—-]|\bto\b)\s*{_COUNT}\b", re.IGNORECASE)
 _MEMBERS = re.compile(rf"\b{_COUNT}\s+(?:[a-z]+\s+)?members?\b", re.IGNORECASE)
-# A vote written "4:3" (verify-5). Stricter than the dash form because a colon also writes times, scores and ratios: both
-# counts are single digits that stand alone (no neighbouring digit, letter, colon or decimal point), and a ratio or clock word
-# beside the pair rules it out. It is still read only inside a sentence that is about a vote.
-_VOTE_COLON = re.compile(r"(?<![\w:])(?<!\d[.,])(\d)[ \t]*:[ \t]*(\d)(?![\w:]|[.,]\d)")
+# A vote written "4:3" (verify-5). Stricter than the dash form because a colon also writes times, scores, ratios and list labels:
+# the pair must follow a vote word within two plain words ("voted 4:3", "the vote was 4:3", "by a vote of 4:3"; not "voted at 4:3"),
+# both counts are single digits that stand alone (no neighbouring digit, letter, colon or decimal point), and a ratio or clock
+# word beside the pair rules it out. It is still read only inside a sentence that is about a vote.
+_VOTE_COLON = re.compile(
+    r"\bvot(?:e|ed|es|ing)\b(?:[ \t]+(?!at\b)[A-Za-z']+){0,2}[ \t]+(\d)[ \t]*:[ \t]*(\d)(?![\w:]|[.,]\d)",
+    re.IGNORECASE,
+)
 _NOT_A_VOTE_BEFORE = re.compile(r"\bratio(?:\s+of)?\s*$", re.IGNORECASE)
 _NOT_A_VOTE_AFTER = re.compile(r"\s*(?:ratio\b|[ap]\.?m\b)", re.IGNORECASE)
 # Survey respondents' expectations reported as a result ("a net 40% of respondents expected …") are an outturn.
@@ -259,8 +263,16 @@ _UNIT_SUFFIX = {
 }  # fmt: skip
 _OF_GDP = re.compile(r"^\s*(?:%|per\s*cent|percent)\s+of\s+(?:nominal\s+)?gdp", re.IGNORECASE)
 _DOLLAR_PREFIX = re.compile(r"(?:\$|nzd\s?|nz\$)\s?$", re.IGNORECASE)
-# A dollar sign that belongs to another currency: "US$82", "A$4.2 billion", "US $4.2 million". NZ$ and a bare $ are New Zealand dollars.
-_FOREIGN_DOLLAR = re.compile(r"\b(?:US|U\.S\.)\s?\$\s?$|\b(?:AU|A|CA|C|HK|SG|S)\$\s?$")
+# A dollar sign that belongs to another currency, before the number ("US$82", "us$82", "Aus$4.2 billion", "NT$4.2 billion") or named after
+# the amount ("$82 billion USD", "$82 billion (US dollars)"). NZ$ and a bare $ are New Zealand dollars. A lone "A $4 billion" is an
+# article, so a single-letter prefix needs no space.
+_FOREIGN_DOLLAR = re.compile(
+    r"\b(?:US|U\.S\.)\s?\$\s?$|\b(?:AUS|AU|CAN|CA|CAD|HK|SG|NT|MEX|[ACRS])\$\s?$", re.IGNORECASE
+)
+_FOREIGN_AFTER = re.compile(
+    r"\s*(?:(?:thousand|million|billion|trillion|bn|mn|[mbk])\b\s*)?\(?\s*(?:US|USD|AUD|CAD|EUR|GBP|JPY|CNY)(?![\w-])",
+    re.IGNORECASE,
+)
 # A scale word or abbreviation straight after a dollar amount: plain NZD must not match these.
 _MONEY_SCALE = re.compile(
     r"^\s*(?:thousand|k\b|million|mn?\b|billion|bn\b|b\b|trillion|tn\b|t\b)", re.IGNORECASE
@@ -1670,7 +1682,10 @@ class _Checker:
         if (
             foreign
             and unit in ("nzd", "nzd_billion", "nzd_million")
-            and _FOREIGN_DOLLAR.search(before)
+            and (
+                _FOREIGN_DOLLAR.search(before)
+                or any(_FOREIGN_AFTER.match(t) for t in (after, beyond))
+            )
         ):
             return False  # verify-5: another currency's dollar sign is not a New Zealand dollar
         if unit in ("nzd_billion", "nzd_million"):

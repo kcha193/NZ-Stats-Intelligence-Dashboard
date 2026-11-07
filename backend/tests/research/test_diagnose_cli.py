@@ -86,3 +86,16 @@ def test_diagnose_does_not_create_a_database_that_is_not_there(tmp_path, monkeyp
     monkeypatch.setenv("NZSTATS_DATA_DIR", str(tmp_path / "empty"))
     assert main(["research", "diagnose", "1"]) == 2
     assert not (tmp_path / "empty" / "nzstats.db").exists()
+
+
+def test_diagnose_refuses_a_report_path_that_would_overwrite_the_database_or_leave_the_data_directory(
+    env, capsys, tmp_path
+):
+    tmp, sid = env
+    db = tmp / "data" / "nzstats.db"
+    before = db.read_bytes()
+    assert main(["research", "diagnose", str(sid), "--out", str(db)]) == 2
+    assert "refused" in capsys.readouterr().out and db.read_bytes() == before
+    outside = tmp / "outside.html"
+    assert main(["research", "diagnose", str(sid), "--out", str(outside)]) == 2
+    assert not outside.exists()
