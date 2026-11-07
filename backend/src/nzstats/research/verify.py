@@ -762,15 +762,20 @@ def _period_only_in_comparison(period: str, loc: _Located, at: int) -> bool:
 def _comparison_stop(loc: _Located, at: int) -> int | None:
     """Where the figure at `at` ends and the base it is compared with begins (verify-5), or None.
 
-    "3.7% in the September 2026 quarter, up from 3.3% in the June 2026 quarter": a comparison word follows the figure. A gap
-    ("3% above trend in 2029") is not split, because its period may belong to the figure. The caller still requires the figure's own
-    side to support the whole claimed period by itself.
+    "3.7% in the September 2026 quarter, up from 3.3% in the June 2026 quarter": a comparison word follows the figure. Not split:
+    - a gap ("3% above trend in 2029"), whose period may belong to the figure;
+    - a figure whose side holds another figure ("imports rose 4% in June with exports at 6.3% compared with ..."), because a period
+      on that side may belong to the other figure.
+    The caller still requires the figure's own side to support the whole claimed period by itself.
     """
     a, b = loc._clause_span(at)
     marker = next(_COMPARISON.finditer(loc.text, at, b), None)
     if marker is None or marker.group().lower() in {"above", "below"}:
         return None
-    return marker.start()
+    side = _QUARTER_LABEL.sub(
+        "", _MONTH.sub("", _YEAR.sub("", _DURATION.sub("", loc.text[a : marker.start()])))
+    )
+    return marker.start() if len(_number_spans(side)) == 1 else None
 
 
 def _period_gaps(

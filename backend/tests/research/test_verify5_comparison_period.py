@@ -20,6 +20,7 @@ from .verify_support import PROV, V, ref
 
 SEP = "September 2026 quarter"
 JUN = "June 2026 quarter"
+M = "March 2026 quarter"
 
 
 def codes_for(
@@ -164,3 +165,26 @@ def test_a_comparison_with_a_bare_period_and_no_second_figure_is_unchanged():
     assert codes_for(sentence, 3.7, SEP, version="verify-5") == codes_for(
         sentence, 3.7, SEP, version="verify-4"
     )
+
+
+# --- found by the Phase 4Q period-grounding suite: the other figure's period must not be borrowed ---------------------
+OTHER_FIGURE = "Imports rose 4% in June with exports at 6.3% compared with 5.9% in September."
+
+
+@pytest.mark.parametrize(
+    ("value", "period"), [(6.3, "June"), (4, "June"), (5.9, "June"), (6.3, "September")]
+)
+def test_a_period_belonging_to_another_figure_on_the_same_side_is_never_borrowed(value, period):
+    assert codes_for(OTHER_FIGURE, value, period, version="verify-5") == codes_for(
+        OTHER_FIGURE, value, period, version="verify-4"
+    )
+    if (value, period) == (6.3, "June"):
+        assert "period_not_supported" in codes_for(OTHER_FIGURE, value, period, version="verify-5")
+
+
+def test_a_list_of_figures_before_a_comparison_is_unchanged():
+    sentence = f"Unemployment was 5.1% in the {M}, 5.3% in the {JUN}, up from 5.0% in the {SEP}."
+    for value, period in ((5.3, JUN), (5.1, M), (5.0, SEP)):
+        assert codes_for(sentence, value, period, version="verify-5") == codes_for(
+            sentence, value, period, version="verify-4"
+        )

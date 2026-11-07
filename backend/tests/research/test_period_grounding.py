@@ -19,11 +19,16 @@ def errors(
     *,
     unit: str = "percent",
     quote: str | None = None,
+    verifier: str | None = None,
 ):
     quoted = quote or sentence.rstrip(".")
     claim = ReportedFact(text="Synthetic figure.", source="Synthetic Statistics", value=value, unit=unit, period=period,
                          evidence=[ref(0, quoted)])  # fmt: skip
-    return codes(check({0: SectionText(sentence)}, outlook_ref=ref(0, quoted), facts=[claim]))
+    return codes(
+        check(
+            {0: SectionText(sentence)}, outlook_ref=ref(0, quoted), facts=[claim], verifier=verifier
+        )
+    )
 
 
 UP_FROM = "Output rose 6.3% in the September quarter, up from 5.9% in the June quarter."
@@ -75,18 +80,40 @@ def test_a_figure_cannot_take_another_period(sentence, value, period):
 
 
 @pytest.mark.parametrize(
-    ("sentence", "value", "period"),
+    ("sentence", "value", "period", "unit"),
     [
-        (UP_FROM, 6.3, "September quarter"),
-        (UP_FROM, 5.9, "June quarter"),
-        (BARE_FROM, 6.3, "September quarter"),
-        (ROLLING, 41200, "12 months to August"),
+        (UP_FROM, 6.3, "September quarter", "percent"),
+        (UP_FROM, 5.9, "June quarter", "percent"),
+        (BARE_FROM, 6.3, "September quarter", "percent"),
+        (ROLLING, 41200, "12 months to August", "persons"),
     ],
 )
-def test_known_limit_a_true_period_beside_a_comparison_stays_rejected(sentence, value, period):
-    # Fails closed, as verify-3 did. Accepting these needs its own reviewed design: see docs/phase-4q-evidence-grounding.md.
-    unit = "persons" if value == 41200 else "percent"
-    assert "period_not_supported" in errors(sentence, value, period, unit=unit)
+def test_verify_4_known_limit_a_true_period_beside_a_comparison_was_rejected(
+    sentence, value, period, unit
+):
+    # The Phase 4Q limit, kept as the verify-4 baseline. verify-5 changes the first, third and fourth (next test).
+    assert "period_not_supported" in errors(sentence, value, period, unit=unit, verifier="verify-4")
+
+
+@pytest.mark.parametrize(
+    ("sentence", "value", "period", "unit"),
+    [
+        (UP_FROM, 6.3, "September quarter", "percent"),
+        (BARE_FROM, 6.3, "September quarter", "percent"),
+        (ROLLING, 41200, "12 months to August", "persons"),
+    ],
+)
+def test_verify_5_accepts_the_figure_whose_own_side_states_its_period(
+    sentence, value, period, unit
+):
+    assert "period_not_supported" not in errors(
+        sentence, value, period, unit=unit, verifier="verify-5"
+    )
+
+
+def test_verify_5_still_rejects_the_base_figure_beside_its_comparison():
+    # Not fixed on purpose: the base figure's own side is the second half of the clause, so verify-4's reading stands.
+    assert "period_not_supported" in errors(UP_FROM, 5.9, "June quarter", verifier="verify-5")
 
 
 def test_a_comparison_cannot_supply_a_horizon_or_lend_it_to_a_heading():
