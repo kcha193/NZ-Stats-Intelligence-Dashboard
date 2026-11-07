@@ -2,6 +2,10 @@
 
 7 November 2026, Pacific/Auckland. Baseline: main `61214c7` (PR #46 merged 6 Nov 21:15 UTC).
 
+> **Outcome (added in Phase 4U, the text below is unchanged):** the experiment described here ran once on 7 November 2026 after Phase 4T and the owner's
+> approval. Summary 4 was complete and schema-valid and then failed `verify-4` with 13 errors; actual cost US$0.1182479760. The "worst case US$0.3901" below was
+> the reserved maximum, not the spend. See [phase-4u-treasury-v3-outcome.md](phase-4u-treasury-v3-outcome.md).
+
 **No OpenRouter request, crawl, scheduler, deployment, approval or merge happened. Nothing was published.** This record holds metadata only: counts, codes, hashes.
 Report text, the frozen request body, model output and gold stay in ignored `data/`. No report text, annotation or key was read into the hosted session
 (the freeze body was inspected by parameter names and message sizes only).

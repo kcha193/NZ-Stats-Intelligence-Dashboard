@@ -1,11 +1,22 @@
 # Progress and verification record
 
-Last updated 2026-11-07. **Phase 4T (below) made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-07. **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4U: Treasury version 3 outcome and diagnosis, 7 November 2026
+
+Full record: [phase-4u-treasury-v3-outcome.md](phase-4u-treasury-v3-outcome.md). Baseline main `8fbcb36` (PR #48 merged). Local evidence: ignored `data/phase-4u/`.
+**No OpenRouter request, crawl, scheduler, deployment, approval or merge. Documentation only.**
+
+- **Outcome:** the one authorised request ran (run 3, summary 4, version 3, `outlook-v5`, `verify-4`). Complete schema-valid JSON, `finish_reason` `stop`, 3,421 output tokens, no retry. Status `failed_verification`, 13 errors, 25 warnings, on 7 of 24 claims. Unreviewed internal draft. **Successful execution, failed economic verification. Nothing is independently validated.**
+- **Ledger:** this call US$0.1182479760. Lifetime US$0.6267107880 of US$5.00, **remaining US$4.3732892120** (not US$4.49). Attempts 4 of 4, none left. Limits unchanged.
+- **Diagnosis (local, read-only, rule-computed; the report was not read into the hosted session):** stored verification reproduces exactly. Of 13 errors: 1 confirmed verifier false rejection (OCR vote written `4:3`; the verifier reads a dash or "to", not a colon; fixing it alone leaves 12 errors), 1 possible false positive, 1 genuine model omission (unit), 10 ambiguous conservative failures needing the owner's read.
+- **Private review page:** `data/phase-4u/summary-4-review.html` (mode 0600) with each claim, citation, source context and proposed class.
+- **Next:** Phase 4V offline: owner read, vote-colon failing-first test, candidate verifier tests only if confirmed, prompt `outlook-v6` drafted and replayed without inference. Any new request needs a separately reviewed change.
 
 ## Phase 4T: internal AI commentary without mandatory human review, 7 November 2026
 

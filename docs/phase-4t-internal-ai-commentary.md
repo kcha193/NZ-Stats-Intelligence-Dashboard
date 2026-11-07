@@ -2,6 +2,9 @@
 
 7 November 2026, Pacific/Auckland. Baseline: main `6b37ebb` (PR #47 merged).
 
+> **Outcome (added in Phase 4U; the sections below are the pre-run record and are unchanged):** the one authorised real inference described in section H ran on
+> 7 November 2026. It was a successful execution and a failed economic verification: see [Outcome of the authorised run](#outcome-of-the-authorised-run-added-in-phase-4u).
+
 **No OpenRouter request, crawl, scheduler, deployment, approval or merge happened.** This record holds metadata only. No report text, model output,
 gold or key was read into the hosted session. The real-database check below printed ids, categories and counts.
 
@@ -194,6 +197,22 @@ The RBNZ report has 1 unusable attempt, counted and not shown. Database changes:
 | oxlint | no new warnings |
 | Independent review | **Codex could not run.** It refused every model available on this machine (`gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-5.4`) with "not supported when using Codex with a ChatGPT account", and no review took place. A fresh Claude security reviewer (same vendor) reviewed the diff and found no blocker. It found five medium defects. Fixed: an older summary could resurface when the newest was refused, model quotes on failed claims were labelled as the report's statement, no finish-reason recheck, and weak local-path evidence. The fifth is recorded under Known limits. The fixes are pinned by tests and mutation checks |
 | CI | the GitHub Actions billing block (Phase 4R and 4S) is outside this change |
+
+## Outcome of the authorised run (added in Phase 4U)
+
+The Treasury version 3 experiment (`phase-4s-treasury-v3`, run 3) ran once. This is recorded from the local database, read-only. Full record, ledger and error analysis:
+[phase-4u-treasury-v3-outcome.md](phase-4u-treasury-v3-outcome.md).
+
+- **Execution: succeeded.** Summary 4, version 3, `anthropic/claude-opus-5.5` via `google-vertex/europe`, low effort. Usage outcome `ok`, `finish_reason` `stop`, complete schema-valid JSON,
+  10,041 input and 3,421 output tokens, no retry, no fallback.
+- **Economic verification: failed.** Status `failed_verification` under `verify-4`: 13 errors, 25 warnings, on 7 of 24 claims. The 13 errors split into: 3 `period_not_supported`, 3 `forecast_as_fact`,
+  1 `missing_unit` and 6 on the one decision (5 from a single cause, 1 vote-notation false rejection).
+- **Cost:** US$0.1182479760 for this call. Lifetime spend US$0.6267107880 of US$5.00; **remaining US$4.3732892120** (the earlier US$4.49 was the pre-run figure). Attempts 4 of 4: none left.
+  Limits and caps are unchanged.
+- **Display:** with `auto_display` on, the internal draft list shows summary 4 as "failed automated checks", unreviewed. It is not human-reviewed, and nothing in it is independently validated.
+  The automated checks do not test the economics.
+- Section H's last line ("That uses the fourth and last lifetime attempt") has now happened. Any further request needs the separately reviewed code change described under
+  "Future commentary updates"; nothing in this outcome authorises one.
 
 ## Rollback
 
