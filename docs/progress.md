@@ -7,6 +7,18 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AA: internal AI Economic Intelligence without human approval, 8 November 2026
+
+Full record: [phase-4aa-internal-ai-intelligence.md](phase-4aa-internal-ai-intelligence.md). Baseline main `b73e488`.
+**No OpenRouter request, crawl, permission, ledger or historical change, and no deployment.**
+
+- One "AI Economic Intelligence" section replaces the internal draft list and the empty published-research section; the
+  three-condition checklist ("A person approves it") is gone from every view. Failed checks stay visible with their reasons.
+- A loopback `scripts/run.sh` start shows it when `data/internal-drafts.json` sets `auto_display`; `--no-internal-drafts` opts out.
+  Non-loopback binds, the container, the static site and snapshots are unchanged.
+- Empty state names its reason; held reports gain a content-free `withheld` flag. New owner notice wording.
+- Verification: see the record. Real data (copy, offline): two Treasury analyses shown with failed checks, RBNZ unusable, usage rows unchanged.
+
 ## Phase 4Y: ECT release acceptance readiness, 8 November 2026
 
 Full record and live runbook: [phase-4y-ect-live-acceptance.md](phase-4y-ect-live-acceptance.md).

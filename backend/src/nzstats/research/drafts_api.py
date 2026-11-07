@@ -1,4 +1,5 @@
-"""Internal draft routes: read-only, mounted only by `nzstats serve --internal-drafts`, loopback binds only.
+"""Internal draft routes: read-only, loopback binds only. `nzstats serve` mounts them with `--internal-drafts`, or
+without a flag when the owner's list sets `auto_display` (Phase 4AA); `--no-internal-drafts` keeps them off.
 
 Requests must come from the local dashboard, with the same checks as the private preview. Every item comes from
 `drafts.draft_summaries`, the one draft gate, re-checked on each request over a read-only connection. An unreadable
@@ -16,6 +17,7 @@ import logging
 import sqlite3
 from collections.abc import Callable, Mapping
 from datetime import date
+from pathlib import Path as FilePath
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
@@ -50,8 +52,10 @@ from nzstats.research.verify import SCOPE, resolve_verifier
 
 log = logging.getLogger(__name__)
 # Phase 4T: the persistent notice, shown wherever a draft is. Its wording is fixed by the owner's brief.
+# Phase 4AA: reworded by the owner for internal use.
 NOTICE = (
-    "AI-generated research draft. Automated checks may miss errors. Not independently reviewed."
+    "AI-generated analysis for internal use. Claims are checked automatically against source documents but may"
+    " contain errors. Not independently reviewed."
 )
 DRAFT_LABEL = (
     f"{NOTICE} It may have failed the automated checks and no person has approved it. Treat every line as"
@@ -130,6 +134,7 @@ class StoredReportOut(_Out):
     validation: (
         ValidationCategory | None
     )  # its draft's category, "unusable_response", or None (no attempt)
+    withheld: bool = False  # Phase 4AA: a parsed summary exists but the draft gate shows none of it
 
 
 class DraftFeedOut(_Out):
@@ -198,6 +203,7 @@ def _report(report: StoredReport, drafts: list[DraftSummary]) -> StoredReportOut
         institution=report.institution.key, institution_name=report.institution.name, title=report.title,
         url=report.url, series=report.series, published_on=report.published_on, newest=report.newest,
         draft_id=draft.id if draft else None, validation=validation,
+        withheld=draft is None and report.usable_attempts > 0,
     )  # fmt: skip
 
 
@@ -209,6 +215,19 @@ def draft_bind_refusal(host: str) -> str | None:
         f"refusing to serve internal drafts on {host!r}: they are for this machine only and have no login."
         " Listen on 127.0.0.1 (`nzstats serve --host 127.0.0.1 --internal-drafts`)"
     )
+
+
+def owner_opted_in(data_dir: FilePath) -> bool:
+    """Whether the owner's list explicitly sets `auto_display` (Phase 4AA: what a normal loopback start follows).
+
+    A missing file, a named list without `auto_display`, or a malformed file is not an opt-in. This only decides
+    whether the gate is mounted; every summary still passes `drafts.draft_summaries` on each request.
+    """
+    try:
+        return load_allowlist(data_dir / ALLOWLIST_FILE).auto
+    except DraftAllowlistError:
+        log.warning("internal drafts stay off: the owner's internal draft list is not valid")
+        return False
 
 
 def internal_drafts_router(

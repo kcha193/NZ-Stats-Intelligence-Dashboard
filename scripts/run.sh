@@ -5,6 +5,9 @@
 #   scripts/run.sh                  serve; opening the dashboard checks stats.govt.nz once for missing releases
 #                                   (on-open refresh: no scheduler, bounded, 10 s throttle)
 #   scripts/run.sh --offline        serve stored data only; makes no requests to stats.govt.nz (= --no-scheduler)
+#   scripts/run.sh --no-internal-drafts   serve without AI analysis this time. Without the flag, AI analysis (internal
+#                                   drafts) shows when data/internal-drafts.json sets auto_display. Opening the page
+#                                   never starts an AI request.
 #   scripts/run.sh --rebuild        force reinstall of dependencies and a fresh UI build
 #   scripts/run.sh --port 9000      any other flags are passed to `nzstats serve`
 #

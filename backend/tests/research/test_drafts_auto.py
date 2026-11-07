@@ -7,6 +7,8 @@ every failed claim marked. Nothing here reaches the public or private gates.
 
 import hashlib
 import json
+import sqlite3
+from contextlib import closing
 
 import pytest
 
@@ -329,7 +331,8 @@ def test_the_output_hash_is_the_raw_outputs(conn):
 LOCAL = {"host": "127.0.0.1:8000", "x-nzstats-client": "dashboard"}
 FEED = "/api/internal/drafts"
 NOTICE = (
-    "AI-generated research draft. Automated checks may miss errors. Not independently reviewed."
+    "AI-generated analysis for internal use. Claims are checked automatically against source documents but may"
+    " contain errors. Not independently reviewed."
 )
 
 
@@ -410,3 +413,55 @@ def test_automatic_mode_is_read_only(auto_client):
     client, sid = auto_client
     for method in ("post", "put", "delete"):
         assert getattr(client, method)(f"{FEED}/{sid}", headers=LOCAL).status_code in (404, 405)
+
+
+def test_opening_the_dashboard_never_starts_a_model_request(auto_client, monkeypatch):
+    """Phase 4AA: reading drafts sends nothing to a provider and records no usage, whatever the drafts show."""
+    from nzstats.research import providers
+
+    def refuse(*_a, **_k):
+        raise AssertionError("a model request was started by a read")
+
+    for cls in (
+        providers.OpenAICompatibleProvider,
+        *providers.OpenAICompatibleProvider.__subclasses__(),
+    ):
+        monkeypatch.setattr(cls, "__init__", refuse)
+        monkeypatch.setattr(cls, "summarise", refuse)
+    client, sid = auto_client
+    db_path = client.app.state.settings.db_path
+
+    def usage_rows() -> int:
+        with closing(sqlite3.connect(db_path)) as db:
+            return db.execute("SELECT COUNT(*) FROM research_llm_usage").fetchone()[0]
+
+    before = usage_rows()
+    for route in (FEED, f"{FEED}/{sid}", FEED):
+        assert client.get(route, headers=LOCAL).status_code == 200
+    assert usage_rows() == before
+
+
+def test_a_report_says_when_its_commentary_exists_but_is_withheld(make, tmp_path):
+    """Phase 4AA: the empty state tells "never generated" apart from "generated, then withheld by the gate"."""
+    from nzstats.research.drafts_api import internal_drafts_router
+
+    build, conn = make
+    withdrawn = store_hosted(conn, seed_version(conn))
+    store_hosted(
+        conn, seed_version(conn, doc="unusable", published_on="2026-08-20"), status="provider_error"
+    )
+    seed_version(conn, doc="untouched", published_on="2026-08-21")
+    (tmp_path / "data" / "internal-drafts.json").write_text(json.dumps({
+        "auto_display": AUTO,
+        "withdrawn": [{"summary_id": withdrawn, "withdrawn_by": "Test Owner", "withdrawn_on": "2026-11-08",
+                       "note": "synthetic"}],
+    }))  # fmt: skip
+    client = build(routers=[internal_drafts_router(enabled=True, registry=lambda: REG)])
+    body = client.get(FEED, headers=LOCAL).json()
+    assert body["items"] == []
+    reports = {r["title"]: (r["draft_id"], r["validation"], r["withheld"]) for r in body["reports"]}
+    assert reports == {
+        "Synthetic outlook a": (None, None, True),
+        "Synthetic outlook unusable": (None, "unusable_response", False),
+        "Synthetic outlook untouched": (None, None, False),
+    }

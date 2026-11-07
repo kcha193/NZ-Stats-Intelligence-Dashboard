@@ -40,8 +40,8 @@ describe("Economic outlook, nothing published (the real default)", () => {
     expect(within(pulse).getByText("4.1%")).toBeInTheDocument();
     expect(within(pulse).getByText(/Consumer prices were 4\.1% higher than a year earlier/)).toBeInTheDocument();
     expect(within(pulse).getByRole("link", { name: "Explore migration" })).toHaveAttribute("href", "/migration");
-    expect(await screen.findByText("No institutional research is published here yet")).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem").some((li) => /A person approves it/.test(li.textContent ?? ""))).toBe(true);
+    expect(await screen.findByText("No AI economic analysis is shown here")).toBeInTheDocument();
+    expect(screen.queryByText(/A person approves it/)).not.toBeInTheDocument(); // Phase 4AA: no approval checklist
     expect(await screen.findByText(/No forecasts are published here yet/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -53,15 +53,14 @@ describe("Economic outlook, nothing published (the real default)", () => {
     const term = screen.getAllByText("Institutional research").find((el) => el.tagName === "DT");
     const copy = term?.parentElement?.textContent ?? "";
     expect(copy).not.toContain("checked against each document and approved by a person");
-    expect(copy).toContain("Internal AI drafts");
-    expect(copy).toContain("not reviewed by a person");
-    expect(copy).toContain("separate publishing workflow");
+    expect(copy).toContain("for internal use on the local dashboard");
+    expect(copy).toContain("not independently reviewed");
   });
 
   it("never prints an em or en dash in its own copy", async () => {
     mockApi({ "/api/overview": withCpi });
     const { container } = renderWithProviders(<EconomicOutlook />);
-    await screen.findByText("No institutional research is published here yet");
+    await screen.findByText("No AI economic analysis is shown here");
     expect(container.textContent).not.toMatch(/[–—]/);
   });
 });
@@ -72,7 +71,7 @@ describe("Economic outlook asks the server before asking for research", () => {
   it("sends no research request at all while public research is switched off", async () => {
     const fn = mockApi({ "/api/overview": withCpi, "/api/capabilities": { research_public: false } });
     renderWithProviders(<EconomicOutlook />);
-    expect(await screen.findByText("No institutional research is published here yet")).toBeInTheDocument();
+    expect(await screen.findByText("No AI economic analysis is shown here")).toBeInTheDocument();
     expect(await screen.findByText(/No forecasts are published here yet/)).toBeInTheDocument();
     expect(researchCalls(fn)).toEqual([]);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -189,7 +188,7 @@ describe("Economic outlook with published research (SYNTHETIC)", () => {
     }));
     renderWithProviders(<EconomicOutlook />);
     expect(await screen.findByRole("alert")).toHaveTextContent("server error");
-    expect(screen.queryByText("No institutional research is published here yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No AI economic analysis is shown here")).not.toBeInTheDocument();
   });
 });
 

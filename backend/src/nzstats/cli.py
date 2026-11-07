@@ -262,11 +262,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="also serve the private research preview (loopback binds only; needs private_display approvals)",
     )
-    p_serve.add_argument(
+    drafts_switch = p_serve.add_mutually_exclusive_group()
+    drafts_switch.add_argument(
         "--internal-drafts",
-        action="store_true",
+        dest="internal_drafts",
+        action="store_const",
+        const=True,
         help="also show internal AI drafts, including ones that failed checks: those named in"
-        " data/internal-drafts.json, or every eligible one when that file sets auto_display (loopback binds only)",
+        " data/internal-drafts.json, or every eligible one when that file sets auto_display (loopback binds only)."
+        " Without this flag a loopback start shows them when that file sets auto_display",
+    )
+    drafts_switch.add_argument(
+        "--no-internal-drafts",
+        dest="internal_drafts",
+        action="store_const",
+        const=False,
+        help="never show internal AI drafts, even when data/internal-drafts.json sets auto_display",
     )
     sub.add_parser("health", help="print source health as JSON")
     p_status = sub.add_parser(
@@ -434,9 +445,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         loopback = args.host in ("127.0.0.1", "::1", "localhost")
         mode = "off" if args.offline else args.refresh.replace("-", "_")
-        from nzstats.research.drafts_api import draft_bind_refusal, internal_drafts_router
+        from nzstats.research.drafts_api import (
+            draft_bind_refusal,
+            internal_drafts_router,
+            owner_opted_in,
+        )
         from nzstats.research.private_api import private_bind_refusal, private_research_router
 
+        # Phase 4AA: no flag follows the owner's explicit auto_display opt-in, and only on a loopback bind, so the
+        # container (0.0.0.0) never shows drafts and a non-loopback start is never refused for an opt-in it ignores.
+        if args.internal_drafts is None:
+            args.internal_drafts = draft_bind_refusal(args.host) is None and owner_opted_in(
+                settings.db_path.parent
+            )
         refusal = bind_refusal(args.host)
         if refusal is None and args.private_research:
             refusal = private_bind_refusal(args.host)

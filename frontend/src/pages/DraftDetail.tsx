@@ -2,13 +2,12 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { DraftClaim, DraftItem } from "@/api/drafts";
 import { useInternalDraft } from "@/api/hooks";
-import { formatForecastValue } from "@/charts/forecasts";
 import { ExternalLink } from "@/components/outlook/ExternalLink";
-import { ClaimStatus, DRAFT_NOTICE, draftCounts, draftHeadline, NewerReportNote, ValidationBadge } from "@/components/outlook/InternalDrafts";
+import { ClaimStatus, DRAFT_NOTICE, draftCounts, draftHeadline, NewerReportNote, ValidationBadge, valueText } from "@/components/outlook/InternalDrafts";
 import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { formatAklDate, formatCivilDate } from "@/lib/format";
 import { useDocumentTitle } from "@/seo/useDocumentTitle";
-import { Evidence, UNIT_LABELS } from "./ResearchDetail";
+import { Evidence } from "./ResearchDetail";
 
 const PROBLEM_LABELS: Record<string, string> = {
   period_not_supported: "Period not stated near the evidence",
@@ -21,12 +20,6 @@ const PROBLEM_LABELS: Record<string, string> = {
 };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-function valueText(value: number | null, unit: string | null) {
-  if (value === null) return "No number stated";
-  const label = unit ? UNIT_LABELS[unit] ?? unit : null;
-  return label ? formatForecastValue(value, label) : String(value);
-}
 
 function Status({ claim }: { claim: DraftClaim }) {
   return (
@@ -156,7 +149,7 @@ function View({ d }: { d: DraftItem }) {
         <p className="font-semibold">{DRAFT_NOTICE}</p>
         <p className="mt-1 font-semibold text-destructive">{draftHeadline(d)}.</p>
         <p className="mt-1 max-w-[72ch] text-sm leading-relaxed">
-          Treat every line as unconfirmed. Only on this machine. It is not published research and not an official statistic.
+          Treat every line as unconfirmed. Only on this machine, for internal use. It is not an official statistic.
         </p>
         <p className="mt-2 text-sm">{plural(d.claims.length, "claim")}: {draftCounts(d)}.</p>
         <NewerReportNote draft={d} />
@@ -177,7 +170,7 @@ function View({ d }: { d: DraftItem }) {
           <li>AI summary</li>
           <li><ValidationBadge category={d.validation} /></li>
           <li className="text-destructive">{d.human_reviewed ? "Reviewed, not approved for publication" : "Not independently reviewed"}</li>
-          <li className="text-destructive">Not published</li>
+          <li className="text-destructive">Internal use only</li>
         </ul>
       </header>
 
@@ -261,7 +254,7 @@ function View({ d }: { d: DraftItem }) {
           <div><dt className="text-xs text-muted-foreground">Summary written</dt><dd>{formatAklDate(d.provenance.written_at)}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Automated checks</dt><dd>{d.provenance.verifier_version}, {d.checks_passed ? "no failure" : "failed"} with {plural(d.errors, "error")} and {plural(d.warnings, "warning")}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Independent review</dt><dd>{d.human_reviewed ? "Reviewed, not approved for publication" : "None"}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Publication status</dt><dd>Unpublished</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Use</dt><dd>Internal use only, not published</dd></div>
         </dl>
         <p className="mt-5 max-w-[72ch] text-xs leading-relaxed text-muted-foreground">
           &ldquo;No automated issue detected&rdquo; means only that the automated checks raised nothing. It is not verification. They test where a quote, number, unit and horizon sit in the document, not economic accuracy.
