@@ -153,6 +153,12 @@ describe("AI Economic Intelligence on the outlook (Phase 4AA)", () => {
       { ...base, kind: "institutional_view", role: "risk", text: "Export prices could fall (synthetic).", path: "risks[0]", status: "failed",
         problems: [{ code: "quote_not_found", severity: "error", message: "risks[0]: quote not found in the document" }] },
     ] };
+  treasury.assessment = {
+    schema_version: "presentation-1", id: "synthetic-phase-aa", assessed_at: "2026-11-08T00:00:00Z", verifier_version: "verify-5",
+    original_verifier_version: "verify-3", original_output_hash: "synthetic-aa-output", evidence_hash: "synthetic-aa-evidence", original_status: "failed_verification",
+    errors: 2, warnings: 1, counts: { clean: 2, warning: 1, failed: 2 }, claims: treasury.claims,
+    executive_paths: ["outlook", "facts[0]", "drivers[0]"], warning_paths: ["facts[0]"], excluded_paths: ["forecasts[0]", "risks[0]"],
+  };
   const feed = {
     mode: "automatic",
     items: [treasury],
@@ -197,15 +203,13 @@ describe("AI Economic Intelligence on the outlook (Phase 4AA)", () => {
     const drivers = screen.getByRole("region", { name: "Key economic drivers and risks" });
     expect(within(within(drivers).getByRole("region", { name: "Key drivers" })).getByText("No automated issue detected")).toBeInTheDocument();
     const risks = within(drivers).getByRole("region", { name: "Risks" });
-    expect(risks).toHaveTextContent("Export prices could fall (synthetic).");
-    expect(within(risks).getByText("Failed automated checks")).toBeInTheDocument();
+    expect(risks).not.toHaveTextContent("Export prices could fall (synthetic).");
+    expect(risks).toHaveTextContent("No statements without automated errors.");
     const facts = screen.getByRole("region", { name: "Reported economic facts and institutional forecasts" });
     expect(facts).toHaveTextContent("not the official Stats NZ series");
     expect(within(facts).getByRole("region", { name: "Reported figures" })).toHaveTextContent("Source: Stats NZ. Period: September 2026. Value: 3.7%.");
-    const table = within(facts).getByRole("table", { name: "Institutional forecasts" });
-    expect(within(table).getByText("IMF")).toBeInTheDocument();
-    expect(within(table).getByText("Third party, cited by the report")).toBeInTheDocument();
-    expect(within(table).getByText("Failed automated checks")).toBeInTheDocument();
+    expect(within(facts).queryByRole("table", { name: "Institutional forecasts" })).not.toBeInTheDocument();
+    expect(within(facts).getByText("Automated warning")).toBeInTheDocument();
   });
 
   it("leads with the latest Treasury and Reserve Bank commentary", async () => {
@@ -214,7 +218,7 @@ describe("AI Economic Intelligence on the outlook (Phase 4AA)", () => {
     const t = await screen.findByRole("article", { name: "Latest Treasury commentary" });
     expect(t).toHaveTextContent("Published 2 Nov 2026. Document date: 29 October 2026");
     expect(t).toHaveTextContent("Failed automated checks");
-    expect(t).toHaveTextContent("Automated checks: verify-3, prompt outlook-v4");
+    expect(t).toHaveTextContent("Original automated checks: verify-3, prompt outlook-v4");
     expect(within(t).getByRole("link", { name: "Read the full analysis and its checks" })).toHaveAttribute("href", "/economic-outlook/draft/9");
     const r = screen.getByRole("article", { name: "Latest Reserve Bank commentary" });
     expect(r).toHaveTextContent("The AI response for this report was unusable, so nothing is shown.");
@@ -236,7 +240,7 @@ describe("AI Economic Intelligence on the outlook (Phase 4AA)", () => {
     const checks = screen.getByRole("list", { name: "Automated checks by analysis" });
     expect(checks).toHaveTextContent("1 error and 1 warning across 5 claims. Checks verify-3, prompt outlook-v4, model example/model (hosted).");
     expect(within(checks).getByText("3 claims with a failed check or warning")).toBeInTheDocument();
-    expect(within(checks).getByText("risks[0]: quote not found in the document")).toBeInTheDocument();
+    expect(within(checks).getAllByText("risks[0]: quote not found in the document")[0]).toBeInTheDocument();
     expect(within(checks).getByRole("link", { name: "Evidence quotes and every claim" })).toHaveAttribute("href", "/economic-outlook/draft/9");
   });
 
@@ -356,7 +360,8 @@ describe("Phase 4T draft page", () => {
     open();
     const outlook = await screen.findByRole("region", { name: "Outlook" });
     expect(within(outlook).getByText("AI interpretation")).toBeInTheDocument();
-    expect(within(outlook).getByText("Statement in the official report")).toBeInTheDocument();
+    expect(within(outlook).getByText("Quote cited by the AI; automated checks found no issue, not independently confirmed")).toBeInTheDocument();
+    expect(within(outlook).queryByText("Statement in the official report")).not.toBeInTheDocument();
     expect(screen.getByText("Not the official series. Official Stats NZ figures are on the dashboard pages.")).toBeInTheDocument();
   });
 
@@ -390,5 +395,111 @@ describe("Phase 4T draft page", () => {
     const { container } = open();
     expect(await screen.findByRole("alert")).toHaveTextContent("AI draft: automated warning, not independently reviewed.");
     expect(container).not.toHaveTextContent(/\bverified\b/i);
+  });
+});
+
+// SYNTHETIC replay intentionally disagrees with the original stored assessment.
+const replayClaims = [
+  { ...draft.claims[0], status: "failed" as const, problems: [{ code: "quote_not_found", severity: "error" as const, message: "outlook: evidence is unsupported" }] },
+  { ...draft.claims[0], path: "drivers[0]", role: "driver", text: "Supported driver (synthetic)." },
+  { ...draft.claims[0], path: "risks[0]", role: "risk", text: "Warning risk (synthetic).", status: "warning" as const,
+    problems: [{ code: "definition_not_stated", severity: "warning" as const, message: "Definition remains uncertain (synthetic)." }] },
+  { ...draft.claims[1] },
+  { ...draft.claims[2], status: "clean" as const, problems: [], text: "Foreign spending (synthetic).", value: 20, unit: "USD billion", source: "Example Survey", measure: "Quarterly change", adjustment: "Seasonally adjusted", qualification: "Provisional" },
+  { ...draft.claims[0], path: "decisions[0]", kind: "policy_decision" as const, role: null, text: "Unsupported policy decision (synthetic).", status: "failed" as const,
+    problems: [{ code: "decision_not_in_evidence", severity: "error" as const, message: "Decision is unsupported (synthetic)." }] },
+];
+const replay = {
+  schema_version: "presentation-1" as const, id: "synthetic-assessment-id", assessed_at: "2026-11-08T00:00:00Z", verifier_version: "verify-5",
+  original_verifier_version: "verify-3", original_output_hash: "synthetic-output-hash", evidence_hash: "synthetic-evidence-hash", original_status: "failed_verification",
+  errors: 3, warnings: 1, counts: { clean: 2, warning: 1, failed: 3 }, claims: replayClaims,
+  executive_paths: ["drivers[0]", "risks[0]", "facts[0]"], warning_paths: ["risks[0]"], excluded_paths: ["outlook", "forecasts[0]", "decisions[0]"],
+};
+const assessedDraft = { ...draft, assessment: replay };
+const showReplay = () => mockApi({ "/api/capabilities": on, "/api/internal/drafts": { mode: "automatic", items: [assessedDraft], reports: [], notice: "Synthetic" } });
+
+describe("Phase 4AB derived assessment", () => {
+  it("excludes failed outlook, forecasts and policy decisions from prominent commentary", async () => {
+    showReplay();
+    renderWithProviders(<EconomicIntelligence />);
+    const summary = await screen.findByRole("article", { name: "Executive summary" });
+    expect(summary).toHaveTextContent("No evidence-supported AI outlook is available for this report.");
+    expect(summary).not.toHaveTextContent(draft.claims[0].text);
+    const facts = screen.getByRole("region", { name: "Reported economic facts and institutional forecasts" });
+    expect(facts).not.toHaveTextContent("GDP growth");
+    expect(facts).not.toHaveTextContent("Unsupported policy decision");
+  });
+  it("separates clean drivers and warning risks and retains warning details", async () => {
+    showReplay();
+    renderWithProviders(<EconomicIntelligence />);
+    const drivers = await screen.findByRole("region", { name: "Key economic drivers and risks" });
+    expect(within(drivers).getByRole("region", { name: "Key drivers" })).toHaveTextContent("Supported driver (synthetic).");
+    const risks = within(drivers).getByRole("region", { name: "Risks" });
+    for (const text of ["Statements with automated warnings", "Warning risk (synthetic).", "Definition remains uncertain (synthetic)."]) expect(risks).toHaveTextContent(text);
+  });
+  it("shows measurement, adjustment, source, period, unit, qualification and original publication", async () => {
+    showReplay();
+    renderWithProviders(<EconomicIntelligence />);
+    const facts = await screen.findByRole("region", { name: "Reported economic facts and institutional forecasts" });
+    for (const text of ["USD billion", "Quarterly change", "Seasonally adjusted", "Example Survey", "September 2026", "Provisional", "15 Oct 2026"]) expect(facts).toHaveTextContent(text);
+    expect(facts).not.toHaveTextContent("NZD");
+  });
+  it("retains excluded original claims and unconfirmed source citations in expandable attention details", async () => {
+    showReplay();
+    renderWithProviders(<EconomicIntelligence />);
+    const attention = await screen.findByRole("group", { name: /Claims requiring attention/ });
+    expect(attention.tagName).toBe("DETAILS");
+    for (const text of [draft.claims[0].text, evidence[0].quote, "Quote cited by the AI, not confirmed", "quote_not_found", "Excluded from executive insights", "verify-5", "8 Nov 2026"]) expect(attention).toHaveTextContent(text);
+  });
+  it.each([null, undefined])("fails closed when the derived assessment is %s", async (assessment) => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { mode: "automatic", items: [{ ...draft, assessment }], reports: [], notice: "Synthetic" } });
+    renderWithProviders(<EconomicIntelligence />);
+    const summary = await screen.findByRole("article", { name: "Executive summary" });
+    expect(summary).toHaveTextContent("No evidence-supported AI outlook is available for this report.");
+    expect(summary).not.toHaveTextContent(draft.claims[0].text);
+  });
+  it("identifies original and derived assessments without relabelling original claim statuses", async () => {
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": assessedDraft });
+    open();
+    const derived = await screen.findByRole("region", { name: "Derived presentation assessment" });
+    for (const text of ["verify-5", "8 Nov 2026", "synthetic-assessment-id", "synthetic-output-hash", "synthetic-evidence-hash", "verify-3"]) expect(derived).toHaveTextContent(text);
+    expect(screen.getByRole("region", { name: "Outlook" })).toHaveTextContent("No automated issue detected");
+    expect(screen.getByRole("heading", { name: "Original stored summary" })).toBeInTheDocument();
+  });
+});
+
+describe("Phase 4AB promotion boundaries", () => {
+  it("does not promote failed claims even if executive paths include them", async () => {
+    const a = { ...replay, executive_paths: replay.claims.map((c) => c.path), excluded_paths: [] };
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { mode: "automatic", items: [{ ...draft, assessment: a }], reports: [], notice: "Synthetic" } });
+    renderWithProviders(<EconomicIntelligence />);
+    expect(await screen.findByRole("article", { name: "Executive summary" })).not.toHaveTextContent(draft.claims[0].text);
+    expect(screen.getByRole("region", { name: "Reported economic facts and institutional forecasts" })).not.toHaveTextContent("GDP growth");
+  });
+  it("excludes failed outlooks from other institutions, other current and historical previews", async () => {
+    const items = [assessedDraft,
+      { ...assessedDraft, id: 8, institution: "rbnz", document: { ...draft.document, title: "Bank update (synthetic)" } },
+      { ...assessedDraft, id: 9, newer_report: newer, document: { ...draft.document, title: "Older update (synthetic)" } }];
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { mode: "automatic", items, reports: [{ ...reports[0], institution: "rbnz", draft_id: 8 }], notice: "Synthetic" } });
+    renderWithProviders(<EconomicIntelligence />);
+    for (const region of [await screen.findByRole("article", { name: "Latest Reserve Bank commentary" }), screen.getByRole("region", { name: "Other current commentary" }), screen.getByRole("region", { name: "Historical commentary" })]) {
+      expect(region).toHaveTextContent("No evidence-supported AI outlook is available for this report.");
+      expect(region).not.toHaveTextContent(draft.claims[0].text);
+    }
+  });
+  it("states a missing unit explicitly without inferring NZD", async () => {
+    const claims = replay.claims.map((c) => c.path === "facts[0]" ? { ...c, unit: null } : c);
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts": { mode: "automatic", items: [{ ...draft, assessment: { ...replay, claims } }], reports: [], notice: "Synthetic" } });
+    renderWithProviders(<EconomicIntelligence />);
+    const facts = await screen.findByRole("region", { name: "Reported economic facts and institutional forecasts" });
+    expect(facts).toHaveTextContent("Unit: Not stated");
+    expect(facts).not.toHaveTextContent(/NZD|NZ\$/);
+  });
+  it("preserves the original policy claim's words in the complete original summary", async () => {
+    const d = { ...assessedDraft, claims: [...draft.claims, replayClaims[5]] };
+    mockApi({ "/api/capabilities": on, "/api/internal/drafts/7": d });
+    open();
+    const original = await screen.findByRole("region", { name: "Policy decisions" });
+    expect(original).toHaveTextContent("Unsupported policy decision (synthetic).");
   });
 });
