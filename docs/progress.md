@@ -7,6 +7,16 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AC: first new Treasury AI quality acceptance, 8 November 2026
+
+Full record: [phase-4ac-treasury-ai-quality-acceptance.md](phase-4ac-treasury-ai-quality-acceptance.md).
+Baseline main `8394e55`. **PENDING — WAITING FOR NEW TREASURY REPORT.**
+
+- Offline benchmark, six-dimension quality scorecard and owner-run acquisition/import/inference/acceptance procedure prepared. The official newest listing remains the 29 October FEU, issued 2 November; it is already spent.
+- Existing safeguards cover all fifteen requested offline checks; documentation only, no duplicated tests or product changes.
+- Policy pins match, expiry 7 December 2026 22:44:25 NZDT, not revoked. Ledger unchanged: 4/8 attempts, US$0.6267107880; no policy calls or events.
+- No acquisition, import, inference, provider probe or production write. A new report and separate owner confirmation in a real terminal remain required. Live quality is not assessed; full verification evidence is in the record.
+
 ## Phase 4AB: historical AI summary remediation, 8 November 2026
 
 Full record: [phase-4ab-historical-ai-remediation.md](phase-4ab-historical-ai-remediation.md).
