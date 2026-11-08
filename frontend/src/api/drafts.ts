@@ -37,6 +37,25 @@ export type DraftClaim = {
   measure: string | null;
 };
 
+/** Read-only replay; the original claims and provenance below retain their stored verifier. */
+export type DraftAssessment = {
+  schema_version: "presentation-1";
+  id: string;
+  assessed_at: string;
+  verifier_version: string;
+  original_verifier_version: string;
+  original_output_hash: string;
+  evidence_hash: string;
+  original_status: string;
+  errors: number;
+  warnings: number;
+  counts: Record<DraftClaimStatus, number>;
+  claims: DraftClaim[];
+  executive_paths: string[];
+  warning_paths: string[];
+  excluded_paths: string[];
+};
+
 export type DraftItem = {
   id: number;
   label: string;
@@ -56,6 +75,7 @@ export type DraftItem = {
   licence_url: string | null;
   provenance: { provider: string; model: string; hosted: boolean; prompt_version: string; processing_version: string; verifier_version: string; written_at: string; checks_scope: string };
   claims: DraftClaim[];
+  assessment?: DraftAssessment | null;
   newer_report: { title: string; published_on: string } | null;
 };
 

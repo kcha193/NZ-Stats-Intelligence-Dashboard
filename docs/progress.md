@@ -7,6 +7,16 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AB: historical AI summary remediation, 8 November 2026
+
+Full record: [phase-4ab-historical-ai-remediation.md](phase-4ab-historical-ai-remediation.md).
+Baseline main `352ef68`. **No inference, production writes, permission changes or publication.**
+
+- Separately identified, read-only `presentation-1` assessment under `verify-5`; original verdicts and evidence remain intact.
+- Only claims without automated errors reach highlights; warnings stay explicit. Failed claims retain original citations and reasons in expandable attention panels and the full original detail.
+- Real read-only replay: summary 4 remains 7/24 failed (13 → 11 errors); summary 3 remains 7/18 failed (8 errors). No newly accepted/rejected claims, no new verifier semantics or `verify-6`.
+- Responsive synthetic browser checks and an isolated real-data copy pass at desktop/tablet/mobile; all 33 production tables retain their fingerprints. Full verification and review results are in the record.
+
 ## Phase 4AA: internal AI Economic Intelligence without human approval, 8 November 2026
 
 Full record: [phase-4aa-internal-ai-intelligence.md](phase-4aa-internal-ai-intelligence.md). Baseline main `b73e488`.

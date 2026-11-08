@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import type { DraftClaim, DraftItem } from "@/api/drafts";
 import { useInternalDraft } from "@/api/hooks";
 import { ExternalLink } from "@/components/outlook/ExternalLink";
-import { ClaimStatus, DRAFT_NOTICE, draftCounts, draftHeadline, NewerReportNote, ValidationBadge, valueText } from "@/components/outlook/InternalDrafts";
+import { ClaimStatus, DraftAssessmentView, DRAFT_NOTICE, draftCounts, draftHeadline, NewerReportNote, ValidationBadge, valueText } from "@/components/outlook/InternalDrafts";
 import { EmptyState, QueryBoundary } from "@/components/QueryBoundary";
 import { formatAklDate, formatCivilDate } from "@/lib/format";
 import { useDocumentTitle } from "@/seo/useDocumentTitle";
@@ -55,15 +55,14 @@ function Interpretation({ text }: { text: string }) {
 }
 
 /**
- * The evidence a claim cites. The quote comes from the model, so it is called the report's statement only when the
- * automated checks raised nothing about the claim; otherwise it may be misquoted or invented.
+ * The evidence a claim cites. Automated placement checks cannot independently confirm a model's quotation.
  */
 function Quoted({ claim }: { claim: DraftClaim }) {
   if (claim.evidence.length === 0) return <p className="mt-2 text-xs font-medium text-destructive">No evidence cited from the report</p>;
   return (
     <div className="mt-2">
       <p className={`text-xs font-medium ${claim.status === "clean" ? "text-muted-foreground" : "text-destructive"}`}>
-        {claim.status === "clean" ? "Statement in the official report" : "Quote cited by the AI, not confirmed by the automated checks"}
+        {claim.status === "clean" ? "Quote cited by the AI; automated checks found no issue, not independently confirmed" : "Quote cited by the AI, not confirmed by the automated checks"}
       </p>
       <Evidence refs={claim.evidence} />
     </div>
@@ -174,6 +173,12 @@ function View({ d }: { d: DraftItem }) {
         </ul>
       </header>
 
+      <DraftAssessmentView draft={d} />
+
+      <div>
+        <h2 className="type-section">Original stored summary</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Original claims, evidence and automated results below use {d.provenance.verifier_version}. They have not been replaced by the derived presentation assessment.</p>
+      </div>
       <FailedClaims claims={d.claims} />
 
       <label className="flex items-center gap-2 text-sm">
@@ -183,7 +188,7 @@ function View({ d }: { d: DraftItem }) {
 
       <section aria-labelledby="interpretation-title" className="space-y-8">
         <div>
-          <h2 id="interpretation-title" className="type-section">What the document says</h2>
+          <h2 id="interpretation-title" className="type-section">Original AI interpretation</h2>
           <p className="mt-1.5 text-xs font-medium text-muted-foreground">AI interpretation of the document, not independently reviewed. Not an official statistic.</p>
           <p className="mt-1 max-w-[72ch] text-sm text-muted-foreground">Each statement cites the section and the exact words of the stored document it rests on.</p>
         </div>
@@ -235,7 +240,8 @@ function View({ d }: { d: DraftItem }) {
             {decisions.map((c) => (
               <li key={c.path} id={anchor(c.path)}>
                 <Status claim={c} />
-                <Interpretation text={`${c.issuer}: ${c.action}, ${c.rate}%, ${formatCivilDate(c.decided_on)}${c.vote_for !== null ? `, vote ${c.vote_for}–${c.vote_against}` : ""}.`} />
+                <Interpretation text={c.text} />
+                <p className="mt-1 text-sm text-muted-foreground">{`${c.issuer}: ${c.action}, ${c.rate}%, ${formatCivilDate(c.decided_on)}${c.vote_for !== null ? `, vote ${c.vote_for}–${c.vote_against}` : ""}.`}</p>
                 <Quoted claim={c} />
               </li>
             ))}
@@ -252,7 +258,7 @@ function View({ d }: { d: DraftItem }) {
           <div><dt className="text-xs text-muted-foreground">Model</dt><dd>{d.provenance.model} ({d.provenance.provider}, {d.provenance.hosted ? "hosted service" : "run locally"})</dd></div>
           <div><dt className="text-xs text-muted-foreground">Prompt and processing</dt><dd>{d.provenance.prompt_version}, {d.provenance.processing_version}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Summary written</dt><dd>{formatAklDate(d.provenance.written_at)}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Automated checks</dt><dd>{d.provenance.verifier_version}, {d.checks_passed ? "no failure" : "failed"} with {plural(d.errors, "error")} and {plural(d.warnings, "warning")}</dd></div>
+          <div><dt className="text-xs text-muted-foreground">Original stored automated checks</dt><dd>{d.provenance.verifier_version}, {d.checks_passed ? "no failure" : "failed"} with {plural(d.errors, "error")} and {plural(d.warnings, "warning")}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Independent review</dt><dd>{d.human_reviewed ? "Reviewed, not approved for publication" : "None"}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Use</dt><dd>Internal use only, not published</dd></div>
         </dl>

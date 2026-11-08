@@ -5,7 +5,8 @@ Requests must come from the local dashboard, with the same checks as the private
 `drafts.draft_summaries`, the one draft gate, re-checked on each request over a read-only connection. An unreadable
 registry or a malformed list shows nothing. Responses are not cached or indexed.
 
-The models are an allowlist: raw model output, hashes, parameters, usage, cost and the owner's note have no field.
+The models are an allowlist: raw model output, parameters, usage, cost and the owner's note have no field.
+The derived presentation assessment exposes only output/evidence hashes for local audit traceability.
 Each item states that it may have failed the checks and has no approval, so it can never read as a verified summary.
 The feed also lists the reports held (`drafts.stored_reports`), by title, date and address only, and an item says when
 a newer report from its institution is held. A newer report that is undated or withheld gives no notice.
@@ -24,6 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 
 from nzstats.clock import to_akl_iso
 from nzstats.research.api import _is_loopback
+from nzstats.research.assessment import PRESENTATION_VERIFIER, SCHEMA_VERSION, assess
 from nzstats.research.drafts import (
     ALLOWLIST_FILE,
     ClaimStatus,
@@ -82,6 +84,24 @@ class DraftCountsOut(_Out):
     failed: int
 
 
+class DraftAssessmentOut(_Out):
+    schema_version: Literal["presentation-1"] = SCHEMA_VERSION
+    id: str
+    assessed_at: str
+    verifier_version: str = PRESENTATION_VERIFIER
+    original_verifier_version: str
+    original_output_hash: str
+    original_status: str
+    evidence_hash: str
+    errors: int
+    warnings: int
+    counts: DraftCountsOut
+    claims: list[DraftClaimOut]
+    executive_paths: list[str]
+    warning_paths: list[str]
+    excluded_paths: list[str]
+
+
 class DraftProvenanceOut(_Out):
     provider: str
     model: str
@@ -119,6 +139,7 @@ class DraftItemOut(_Out):
     licence_url: str | None
     provenance: DraftProvenanceOut
     claims: list[DraftClaimOut]
+    assessment: DraftAssessmentOut | None
     newer_report: NewerReportOut | None
 
 
@@ -176,7 +197,29 @@ def _newer_report(d: DraftSummary, reports: list[StoredReport]) -> NewerReportOu
     return None
 
 
-def _item(d: DraftSummary, reports: list[StoredReport]) -> DraftItemOut:
+def _assessment(conn: sqlite3.Connection, d: DraftSummary) -> DraftAssessmentOut | None:
+    result = assess(conn, d)
+    if result is None:
+        return None
+    claims = _claims(result.draft)
+    return DraftAssessmentOut(
+        id=result.id,
+        assessed_at=result.assessed_at,
+        original_output_hash=result.original_output_hash,
+        original_verifier_version=d.row["verifier_version"] or "",
+        original_status=d.row["status"],
+        evidence_hash=result.evidence_hash,
+        errors=result.errors,
+        warnings=result.draft.warnings,
+        counts=DraftCountsOut(**result.draft.counts),
+        claims=claims,
+        executive_paths=[c.path for c in claims if c.status != "failed"],
+        warning_paths=[c.path for c in claims if c.status == "warning"],
+        excluded_paths=[c.path for c in claims if c.status == "failed"],
+    )
+
+
+def _item(d: DraftSummary, reports: list[StoredReport], conn: sqlite3.Connection) -> DraftItemOut:
     r, inst = d.row, d.institution
     errors = sum(p.severity == "error" for c in d.claims for p in c.problems)
     return DraftItemOut(
@@ -190,7 +233,7 @@ def _item(d: DraftSummary, reports: list[StoredReport]) -> DraftItemOut:
         provenance=DraftProvenanceOut(provider=r["provider"], model=r["model"], hosted=bool(r["hosted"]),
                                       prompt_version=r["prompt_version"], processing_version=r["processing_version"],
                                       verifier_version=resolve_verifier(r["verifier_version"]), written_at=to_akl_iso(r["created_at"])),
-        claims=_claims(d), newer_report=_newer_report(d, reports),
+        claims=_claims(d), assessment=_assessment(conn, d), newer_report=_newer_report(d, reports),
     )  # fmt: skip
 
 
@@ -253,7 +296,7 @@ def internal_drafts_router(
         drafts = draft_summaries(c, reg, allowlist)
         reports = stored_reports(c, reg)
         return DraftFeedOut(mode="automatic" if allowlist.auto else "named",
-                            items=[_item(d, reports) for d in drafts],
+                            items=[_item(d, reports, c) for d in drafts],
                             reports=[_report(r, drafts) for r in reports])  # fmt: skip
 
     deps = [Depends(gate)]
