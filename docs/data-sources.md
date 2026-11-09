@@ -19,7 +19,10 @@ Phase 4C Official Cash Rate (RBNZ): **blocked**, no documented access decision; 
 exist on synthetic data only, and nothing is acquired or shown. [OCR access assessment](data-sources/ocr.md).
 
 Phase 3A institutional research sources (RBNZ, Treasury, banks, consultancies) were probed on 25 October 2026. They are a
-separate domain with their own registry and runbook, and none is approved for automated access yet.
+separate domain with their own registry and runbook. As of 2026-11-09 (`config/research_sources.toml`): **no
+institution is approved for automated access**; manual import by the owner is approved for RBNZ and Treasury only (since
+31 October); hosted AI processing is permitted for Treasury only, for the operator-run `research run-policy` workflow
+(since 8 November); RBNZ AI processing is denied; public display is `none` for every source.
 [Research source registry, approval checklist and runbook](data-sources/research.md).
 
 Verified on 2026-10-11 (probes) and 2026-10-12 (real-site integration check, see [progress.md](progress.md)).
@@ -50,8 +53,14 @@ to Stats NZ (CC BY 4.0). No source in use needs credentials.
   [data-sources/migration-vintage-depth.md](data-sources/migration-vintage-depth.md).
 - **Provisional vs final**: taken from each file's own `status` column; the latest sixteen months are
   provisional in current files. Standard errors are zero for final estimates.
-- **Calendar**: Stats NZ publishes at 10:45 Auckland time. The International migration: August 2026 release
-  is scheduled for 14 Oct 2026.
+- **Calendar**: Stats NZ publishes at 10:45 Auckland time. (Observed 2026-10-11: the International migration: August
+  2026 release was scheduled for 14 Oct 2026. Historical; read the stored `release` table for current dates.)
+- **Corrections and re-posted releases**: the registry has no signal that a release was corrected. A release is
+  identified by `<series slug>:<period label>`, and once it has a vintage no automatic path downloads it again. A
+  correction under the same release page is detected only by `nzstats ingest --release-key <key>`, which records a new
+  vintage and the `corrected` status if the parsed statistics differ. The release's `published_at` is also overwritten
+  by any later calendar read that lists it as published. See
+  [repository-health-review-2026-11-09.md](repository-health-review-2026-11-09.md) (findings RH-05 to RH-08).
 
 ## Adding a source
 

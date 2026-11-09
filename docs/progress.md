@@ -1,11 +1,33 @@
 # Progress and verification record
 
-Last updated 2026-11-08. **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-09 (see the repository health review entry below the next paragraph). **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Repository health, data-integrity and maintenance review, 9 November 2026
+
+Full record: [repository-health-review-2026-11-09.md](repository-health-review-2026-11-09.md); broader proposals (none
+adopted): [repository-health-recommendations.md](repository-health-recommendations.md). Baseline main `80991aa`.
+**Phase 4AD (Treasury quality acceptance) is BLOCKED — AWAITING NEW REPORT**: no FEU newer than 29 October (issued 2
+November) was found; the official listing returned HTTP 403 to automated fetches, so this rests on search-index
+corroboration and the fortnightly cadence, and the owner should confirm it in a browser.
+
+- The GitHub repository is **public** (created 2026-10-11); earlier docs and issue #9 assumed private. A gitleaks scan of all
+  422 commits found two false positives and no credential; no database, raw, PDF, `.env` or model-response file was ever
+  committed. GitHub secret scanning and push protection are **disabled** (owner action). Visibility is unchanged.
+- Corrected or re-posted official releases are not detected: every automatic path skips a release that has a vintage;
+  only `nzstats ingest --release-key` re-checks one. The real database holds no corrected release and no date drift.
+- **Fixed:** `nzstats backup` (plain and `--bundle`) migrated an existing database before copying it, so a "pre-upgrade"
+  backup was post-upgrade. It now copies an existing database as it is and says when `migrate` is needed after restoring.
+  Regression test added.
+- README, architecture, data-sources, Netlify runbook and Phase 4G wording corrected (active categories, collection
+  modes, repository visibility, research permissions, no deployment). **Nothing is deployed.**
+- Hosted CI is green on main (all four jobs); the billing block recorded on 5 November cleared by 7 November.
+- No inference, acquisition, production write, permission change, deployment or issue change. Issues #9 and #31 have proposed
+  updates in the review; neither was closed.
 
 ## Phase 4AC: first new Treasury AI quality acceptance, 8 November 2026
 

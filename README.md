@@ -3,13 +3,21 @@
 A self-hosted dashboard that turns Stats NZ releases into explained statistics: what changed, how the
 result compares with history, and whether earlier estimates were revised. It checks Stats NZ on a
 release-aware schedule (Pacific/Auckland), stores every release's official data files as a dated
-vintage, and generates deterministic, evidence-linked findings. No paid AI, no notifications.
+vintage, and generates deterministic, evidence-linked findings. Nothing paid runs by itself, and alerts are
+local only (a log and `data/ops/alerts.jsonl`, never a network channel).
 
-**International migration and Phase 2A Electronic Card Transactions are implemented**: Economic overview,
-Release analysis, Migration dashboard (trend, arrivals vs departures, monthly vs year-ended,
-citizenship, country ranking, revisions), ECT spending dashboard (actual, adjusted, trend and official
-quarterly series), Release calendar and Data health. Inflation, labour market, GDP, housing,
-the Data Explorer and the Revision Explorer are Phase 2; see [docs/progress.md](docs/progress.md).
+**Implemented official-statistics categories**: international migration, electronic card transactions (ECT),
+consumers price index (CPI), gross domestic product (GDP) and labour market statistics. Pages: Economic overview,
+Release analysis, Migration, Inflation, Electronic card transactions, GDP, Labour market, Release calendar, Data
+health and Stories. The Official Cash Rate is not acquired (no documented access decision; synthetic data only).
+Housing, trade, population, the Data Explorer and the Revision Explorer are not built. The current state is in
+[docs/progress.md](docs/progress.md); earlier entries there are dated historical records.
+
+**Institutional commentary and AI (separate, gated, off by default).** RBNZ and Treasury documents can be
+imported by hand; nothing is crawled automatically. Hosted AI processing is permitted for Treasury only, and only
+through the operator-run, spend-capped `nzstats research run-policy` in a real terminal. Its output is shown only as
+an internal, loopback-only "AI Economic Intelligence" section with each claim's checks, never publicly, in a
+snapshot or on the Netlify site. See [docs/data-sources/research.md](docs/data-sources/research.md).
 
 Source: Stats NZ (stats.govt.nz), licensed under Creative Commons Attribution 4.0. This project is
 independent and is not endorsed by Stats NZ.
@@ -34,18 +42,26 @@ Open http://localhost:8000. (On Docker Desktop for Mac or Windows the `chown` is
   (`NZSTATS_MIN_INTERVAL_SECONDS` cannot be set below 10). A backfill makes one request per release month
   plus three per release, so expect on the order of 15 to 25 minutes for the 2024-06 onward window.
   The app is usable while it runs; the Data health page shows progress.
-- After the first backfill the container keeps itself current: the calendar refreshes daily, each
-  release is polled shortly after its scheduled publication time (10:45 Auckland), and a catch-up job
-  covers downtime.
+- After the first backfill the container (which runs `--refresh scheduler`) keeps itself current: the calendar
+  refreshes daily, each release is polled shortly after its scheduled publication time (10:45 Auckland), and a
+  catch-up job covers downtime. A local `scripts/run.sh` has no scheduler: it makes one bounded check each time the
+  dashboard is opened (see [Local development](#local-development)). Neither mode re-checks a release that already
+  has data (see [Known limitations](#known-limitations)).
 
 ### Start, stop, update
 
 ```sh
 docker compose stop            # stop
 docker compose up -d           # start
+scripts/backup.sh              # BEFORE updating: see the note below
 git pull && docker compose up -d --build   # update; the database migrates itself on start
 docker compose logs -f nzstats
 ```
+
+The database migrates itself the moment the new version starts (`serve`, `health`, `alert-check` and most `research`
+commands do), so take the backup **before** `git pull` and the restart. `nzstats backup` copies an existing database
+exactly as it is, without migrating it; a backup of an older schema is valid and says to run `nzstats migrate` after it is
+restored. A backup taken after the new version has started holds the new schema and cannot undo the migration.
 
 ### Back up and restore
 
@@ -118,13 +134,16 @@ serves the built app; it never contacts stats.govt.nz.
 
 ## Known limitations
 
-- International migration and Electronic Card Transactions are active. Other categories appear on
-  the Overview as "not yet active"
-  until a verified, maintainable source is wired in.
+- Migration, ECT, CPI, GDP and labour market statistics are implemented. A category with no stored release
+  appears on the Overview as "not yet active", as do housing, trade and population, which have no source wired in.
 - Reprocessing: every ingest parses and validates the source, then compares canonical statistical data.
   Editorial titles and file formatting do not create corrections. Parser fixes that change the parsed
   statistics create a new vintage while preserving existing history; identical statistics are unchanged.
-  Nothing re-checks a release once it has data, so later corrections require manual re-ingestion or backfill.
+  **Nothing re-checks a release once it has data**: the on-open check, the scheduler and `ingest --due` all skip a
+  release that has a stored vintage, and nothing warns when Stats NZ corrects or re-posts one. A correction under
+  the same release page is only picked up by `nzstats ingest --release-key <key>` (re-downloads, and stores a new
+  vintage and the `corrected` status only if the statistics differ). Revisions published in a *later* release arrive
+  normally, as new vintages. See [docs/repository-health-review-2026-11-09.md](docs/repository-health-review-2026-11-09.md).
 - Revision history only covers releases captured since the oldest backfilled vintage. Stats NZ's older
   migration files (before 2024-06) are missing or use a different layout for many months; see
   [docs/data-sources/migration-vintage-depth.md](docs/data-sources/migration-vintage-depth.md). The UI
@@ -145,8 +164,9 @@ ECT source verification, rounding reconciliation and bounded backfill commands:
 nzstats backfill --series-slug electronic-card-transactions --since 2026-08 --until 2026-09
 ```
 
-Future ECT releases use the existing official-calendar scheduler. Database migration 003 preserves
-measurement definitions per vintage; back up the database before updating an existing installation.
+Future ECT releases are picked up by the container's scheduler or by the on-open check of a local run, not by a
+separate job. Database migration 003 preserves measurement definitions per vintage; back up the database
+**before** updating an existing installation (see [Start, stop, update](#start-stop-update)).
 
 [Architecture](docs/architecture.md) · [Data-source registry](docs/data-sources.md) ·
 [Data dictionary](docs/data-dictionary.md) · [Troubleshooting](docs/troubleshooting.md) ·

@@ -69,8 +69,9 @@ the sitemap, share links and PNG footers need it.
 ## First deployment
 
 1. **Create the Netlify site without linking Git.** Netlify dashboard, Add new site, "Deploy manually" (or
-   `netlify sites:create`). Do not connect the GitHub repository: it is private and has no data in it. (If it is ever
-   linked, `netlify.toml`'s build command fails with an explanation rather than publishing an empty site.)
+   `netlify sites:create`). Do not connect the GitHub repository: it has no data in it (the database, raw files and
+   `.env` files are git-ignored). The repository is **public** (verified on 2026-11-09 with `gh repo view`). (If it is
+   ever linked, `netlify.toml`'s build command fails with an explanation rather than publishing an empty site.)
 2. **Use a dedicated account or team** that owns only this site, and create a personal access token for it. Netlify
    tokens are not scoped to one site, so isolation comes from the account. Note the site's ID (Site configuration, Site
    information).
@@ -221,5 +222,11 @@ If research content is ever published, it must be a **separate, opt-in extension
   `/data/v1/manifest.json` and alert when `generated_at` is old.
 - **Provisional data is public.** It is labelled as in the app (provisional badges, caveats, `released_in`), and a
   correction replaces it on the next deploy.
-- **The repository must stay private;** the publisher image copies the code but never the database or `.env` files
-  (`.dockerignore`).
+- **The GitHub repository is public** (the 2026-10-24 design assumed private; verified public on 2026-11-09, created
+  2026-10-11). Treat everything committed as published: the database, raw Stats NZ or institutional files, `.env*`
+  files with values, tokens, model responses and report text must never be committed, and the publisher image copies
+  the code but never the database or `.env` files (`.dockerignore`). A history scan on 2026-11-09 found none (see
+  [repository-health-review-2026-11-09.md](repository-health-review-2026-11-09.md)). Whether it should stay public is
+  the owner's decision; this document does not change visibility.
+- **Nothing has been deployed.** No Netlify site exists in this record and no first deployment has been run; the
+  publisher remains disabled until `PUBLISH_ENABLED=1`. Do not infer a live site from this runbook.
