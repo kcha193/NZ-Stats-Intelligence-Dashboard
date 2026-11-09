@@ -57,7 +57,8 @@ to Stats NZ (CC BY 4.0). No source in use needs credentials.
   2026 release was scheduled for 14 Oct 2026. Historical; read the stored `release` table for current dates.)
 - **Corrections and re-posted releases**: the registry has no signal that a release was corrected. A release is
   identified by `<series slug>:<period label>`, and once it has a vintage no automatic path downloads it again. A
-  correction under the same release page is detected only by `nzstats ingest --release-key <key>`, which records a new
+  correction under the same release page is detected only by a manual `nzstats ingest --release-key <key>` (or by
+  `nzstats backfill` over a period range, which re-downloads every stored release in range), which records a new
   vintage and the `corrected` status if the parsed statistics differ. The release's `published_at` is also overwritten
   by any later calendar read that lists it as published. See
   [repository-health-review-2026-11-09.md](repository-health-review-2026-11-09.md) (findings RH-05 to RH-08).

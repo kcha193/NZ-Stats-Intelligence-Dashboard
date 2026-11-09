@@ -141,7 +141,9 @@ serves the built app; it never contacts stats.govt.nz.
   statistics create a new vintage while preserving existing history; identical statistics are unchanged.
   **Nothing re-checks a release once it has data**: the on-open check, the scheduler and `ingest --due` all skip a
   release that has a stored vintage, and nothing warns when Stats NZ corrects or re-posts one. A correction under
-  the same release page is only picked up by `nzstats ingest --release-key <key>` (re-downloads, and stores a new
+  the same release page is only picked up by a manual `nzstats ingest --release-key <key>` (one release), or by
+  `nzstats backfill` over a period range (which re-downloads every stored release in range, about three requests each); either
+  re-downloads, and stores a new
   vintage and the `corrected` status only if the statistics differ). Revisions published in a *later* release arrive
   normally, as new vintages. See [docs/repository-health-review-2026-11-09.md](docs/repository-health-review-2026-11-09.md).
 - Revision history only covers releases captured since the oldest backfilled vintage. Stats NZ's older

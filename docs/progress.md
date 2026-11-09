@@ -19,7 +19,7 @@ corroboration and the fortnightly cadence, and the owner should confirm it in a 
   422 commits found two false positives and no credential; no database, raw, PDF, `.env` or model-response file was ever
   committed. GitHub secret scanning and push protection are **disabled** (owner action). Visibility is unchanged.
 - Corrected or re-posted official releases are not detected: every automatic path skips a release that has a vintage;
-  only `nzstats ingest --release-key` re-checks one. The real database holds no corrected release and no date drift.
+  only the manual `nzstats ingest --release-key` (one release) and `nzstats backfill` (a range) re-check one. The real database holds no corrected release and no publication date later than its first capture (earlier drift cannot be ruled out; the original date is not recorded).
 - **Fixed:** `nzstats backup` (plain and `--bundle`) migrated an existing database before copying it, so a "pre-upgrade"
   backup was post-upgrade. It now copies an existing database as it is and says when `migrate` is needed after restoring.
   Regression test added.

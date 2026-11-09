@@ -560,3 +560,17 @@ def test_cli_backup_copies_an_older_schema_database_without_migrating_it(
     assert "schema 13" in out and "nzstats migrate" in out
     assert _schema(dest / "nzstats.db" if bundle else dest) == 13
     assert _schema(root / "nzstats.db") == 13  # and the live database was not migrated either
+
+
+def test_a_plain_older_schema_backup_passes_verify_backup(tmp_path, monkeypatch, capsys) -> None:
+    """The README tells operators to verify a file before restoring it: the `backup` output must pass that."""
+    root = tmp_path / "data"
+    root.mkdir()
+    _database_at_schema(root / "nzstats.db", 13)
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(root))
+    dest = tmp_path / "pre-upgrade.db"
+    assert main(["backup", str(dest)]) == 0
+    capsys.readouterr()
+    assert main(["verify-backup", str(dest)]) == 0
+    out = capsys.readouterr().out
+    assert "ok: schema 13" in out and "nzstats migrate" in out

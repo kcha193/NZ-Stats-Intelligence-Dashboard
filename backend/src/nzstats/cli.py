@@ -421,14 +421,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "verify-backup" and Path(args.path).is_dir():
         return _verify_bundle(Path(args.path))
     if args.command == "verify-backup":
-        report = verify_backup(args.path, live=args.live, raw_dir=args.raw_dir)
+        # An older schema is a valid backup (what `backup` writes for a database not yet migrated).
+        report = verify_backup(
+            args.path, live=args.live, raw_dir=args.raw_dir, allow_older_schema=True
+        )
         for problem in report.problems:
             print(f"problem: {problem}")
         for table, (copy, live) in sorted(report.count_differences.items()):
             print(f"rows differ from live: {table} {copy} in the backup, {live} live")
+        older = report.ok and report.schema_version != report.expected_schema_version
         print(f"{'ok' if report.ok else 'FAILED'}: schema {report.schema_version}"
               f" (expected {report.expected_schema_version}), {sum(report.counts.values())} rows"
-              f" in {len(report.counts)} tables")  # fmt: skip
+              f" in {len(report.counts)} tables{OLDER_SCHEMA_NOTE if older else ''}")  # fmt: skip
         return 0 if report.ok else 1
     if args.command == "openapi":
         from nzstats.api.app import create_app

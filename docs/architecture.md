@@ -36,7 +36,8 @@ frontend only calls the API. Types flow from Pydantic models to `frontend/src/ap
    vintages are never edited. A failure writes an `ingest_run` row with an error class and leaves previous
    data untouched. **No automatic path re-ingests a release that already has a vintage** (the on-open check, the
    scheduler's watch and catch-up, and `ingest --due` all select releases with no vintage), so a correction posted under
-   the same release page is only detected by an operator running `nzstats ingest --release-key <key>`.
+   the same release page is only detected by an operator running `nzstats ingest --release-key <key>` or `nzstats backfill`
+   (which has no vintage exclusion and re-downloads every stored release in its range).
 5. **Analyse**: `insights/` builds the release analysis (executive summary, context, revisions,
    interpretation) from stored observations. Each finding carries evidence ids (series, period, value,
    release). Inferences are labelled; no causal claims.
