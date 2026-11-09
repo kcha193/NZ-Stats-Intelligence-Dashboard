@@ -22,7 +22,7 @@ from nzstats.store.backup_bundle import (
     verify_bundle,
 )
 from nzstats.store.backup_check import verify_backup
-from nzstats.store.db import connect, migrate
+from nzstats.store.db import MIGRATIONS_DIR, connect, migrate
 
 NOW = datetime(2026, 10, 30, 3, 0, tzinfo=UTC)
 
@@ -522,3 +522,55 @@ def test_a_backup_in_progress_is_not_a_failed_backup(data) -> None:
     assert (
         scan_backups(path.parent, NOW + timedelta(hours=2)).state == "failed"
     )  # abandoned long ago
+
+
+def _database_at_schema(path: Path, version: int) -> None:
+    """A database exactly as an older release left it: only migrations up to `version` applied."""
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE schema_version (version INTEGER PRIMARY KEY)")
+    for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        number = int(sql_file.name.split("_", 1)[0])
+        if number <= version:
+            conn.executescript(sql_file.read_text())
+            conn.execute("INSERT INTO schema_version VALUES (?)", (number,))
+    conn.commit()
+    conn.close()
+
+
+def _schema(path: Path) -> int:
+    conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        return conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("bundle", [True, False], ids=["bundle", "plain"])
+def test_cli_backup_copies_an_older_schema_database_without_migrating_it(
+    tmp_path, monkeypatch, capsys, bundle
+) -> None:
+    """A pre-upgrade backup must hold the pre-upgrade schema: the command may not migrate first."""
+    root = tmp_path / "data"
+    root.mkdir()
+    _database_at_schema(root / "nzstats.db", 13)
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(root))
+    dest = tmp_path / "pre-upgrade"
+    assert main(["backup", *(["--bundle"] if bundle else []), str(dest)]) == 0
+    out = capsys.readouterr().out
+    assert "schema 13" in out and "nzstats migrate" in out
+    assert _schema(dest / "nzstats.db" if bundle else dest) == 13
+    assert _schema(root / "nzstats.db") == 13  # and the live database was not migrated either
+
+
+def test_a_plain_older_schema_backup_passes_verify_backup(tmp_path, monkeypatch, capsys) -> None:
+    """The README tells operators to verify a file before restoring it: the `backup` output must pass that."""
+    root = tmp_path / "data"
+    root.mkdir()
+    _database_at_schema(root / "nzstats.db", 13)
+    monkeypatch.setenv("NZSTATS_DATA_DIR", str(root))
+    dest = tmp_path / "pre-upgrade.db"
+    assert main(["backup", str(dest)]) == 0
+    capsys.readouterr()
+    assert main(["verify-backup", str(dest)]) == 0
+    out = capsys.readouterr().out
+    assert "ok: schema 13" in out and "nzstats migrate" in out

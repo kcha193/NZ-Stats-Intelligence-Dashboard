@@ -35,6 +35,7 @@ def _health_payload(conn: sqlite3.Connection) -> dict:
 
 
 STATUS_EXIT = {"ok": 0, "attention": 1, "critical": 2}
+OLDER_SCHEMA_NOTE = "; older than this code, so run `nzstats migrate` after restoring it"
 
 
 def _status_command(args: argparse.Namespace, settings) -> int:
@@ -124,6 +125,7 @@ def _bundle_backup(conn: sqlite3.Connection, settings, dest: Path) -> int:
     print(
         f"backup set written to {report.path}: database plus {report.raw_artifacts} raw artifact(s),"
         f" verified (schema {report.schema_version})"
+        + (OLDER_SCHEMA_NOTE if report.needs_migration else "")
     )
     return 0
 
@@ -390,35 +392,47 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(_health_payload(conn), indent=2))
         return 0
     if args.command == "backup":
+        fresh = not settings.db_path.exists()
         conn = connect(settings.db_path)
-        migrate(conn)
+        if fresh:
+            migrate(conn)  # a database created by this command has no earlier state to preserve
+        # An existing database is copied exactly as it is. Migrating it first would make the
+        # "pre-upgrade" backup a post-upgrade one; `restore-backup` says when `migrate` is needed.
         if args.bundle:
             return _bundle_backup(conn, settings, Path(args.dest))
         Path(args.dest).parent.mkdir(parents=True, exist_ok=True)
         dest = sqlite3.connect(args.dest)
         conn.backup(dest)
         dest.close()
-        report = verify_backup(args.dest)
+        report = verify_backup(args.dest, allow_older_schema=True)
         if not report.ok:
             print(
                 f"backup written to {args.dest} but it FAILED verification: {'; '.join(report.problems)}"
             )
             return 1
-        print(f"backup written to {args.dest} and verified (schema {report.schema_version})")
+        older = report.schema_version != report.expected_schema_version
+        print(
+            f"backup written to {args.dest} and verified (schema {report.schema_version})"
+            + (OLDER_SCHEMA_NOTE if older else "")
+        )
         return 0
     if args.command == "restore-backup":
         return _restore_backup(Path(args.src), Path(args.dest_data_dir))
     if args.command == "verify-backup" and Path(args.path).is_dir():
         return _verify_bundle(Path(args.path))
     if args.command == "verify-backup":
-        report = verify_backup(args.path, live=args.live, raw_dir=args.raw_dir)
+        # An older schema is a valid backup (what `backup` writes for a database not yet migrated).
+        report = verify_backup(
+            args.path, live=args.live, raw_dir=args.raw_dir, allow_older_schema=True
+        )
         for problem in report.problems:
             print(f"problem: {problem}")
         for table, (copy, live) in sorted(report.count_differences.items()):
             print(f"rows differ from live: {table} {copy} in the backup, {live} live")
+        older = report.ok and report.schema_version != report.expected_schema_version
         print(f"{'ok' if report.ok else 'FAILED'}: schema {report.schema_version}"
               f" (expected {report.expected_schema_version}), {sum(report.counts.values())} rows"
-              f" in {len(report.counts)} tables")  # fmt: skip
+              f" in {len(report.counts)} tables{OLDER_SCHEMA_NOTE if older else ''}")  # fmt: skip
         return 0 if report.ok else 1
     if args.command == "openapi":
         from nzstats.api.app import create_app

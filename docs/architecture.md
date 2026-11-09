@@ -26,12 +26,18 @@ frontend only calls the API. Types flow from Pydantic models to `frontend/src/ap
 2. **Fetch**: the release page embeds JSON listing its downloads. Files are fetched through `Fetcher`
    (descriptive User-Agent, at least 10 s between requests even across processes, retries with backoff for network and 5xx,
    block-page detection) and stored content-addressed in `raw_artifact` and `data/raw/`.
-3. **Parse and validate**: the migration adapter parses the age/sex and citizenship/visa/country CSVs and the
-   embedded chart series into observations. `validate/` checks required series, period continuity, that the
+3. **Parse and validate**: the category's adapter (migration, ECT, CPI, GDP or labour market; one per category under
+   `adapters/`) parses the official files and the embedded chart series into observations (for migration, the age/sex
+   and citizenship/visa/country CSVs). `validate/` checks required series, period continuity, that the
    latest period matches the release title, magnitude against the previous vintage, and non-null headlines.
-4. **Persist**: one SQLite transaction writes the vintages and their observations. Re-ingesting identical bytes
-   is a no-op (`unchanged`). A failure writes an `ingest_run` row with an error class and leaves previous
-   data untouched.
+4. **Persist**: one SQLite transaction writes the vintages and their observations. Re-ingesting identical
+   statistics is a no-op (`unchanged`; identity is a digest of the parsed statistics, not the file bytes). Different
+   statistics for a release that already has data add a new vintage bundle and set the release to `corrected`; earlier
+   vintages are never edited. A failure writes an `ingest_run` row with an error class and leaves previous
+   data untouched. **No automatic path re-ingests a release that already has a vintage** (the on-open check, the
+   scheduler's watch and catch-up, and `ingest --due` all select releases with no vintage), so a correction posted under
+   the same release page is only detected by an operator running `nzstats ingest --release-key <key>` or `nzstats backfill`
+   (which has no vintage exclusion and re-downloads every stored release in its range).
 5. **Analyse**: `insights/` builds the release analysis (executive summary, context, revisions,
    interpretation) from stored observations. Each finding carries evidence ids (series, period, value,
    release). Inferences are labelled; no causal claims.
@@ -52,7 +58,19 @@ frontend only calls the API. Types flow from Pydantic models to `frontend/src/ap
 A vintage is the official data as published in one release. Revisions are computed between consecutive
 vintages; where vintages do not exist the UI says so instead of reconstructing them.
 
-## Scheduling (`scheduler/`)
+## Collection modes (`nzstats serve --refresh`)
+
+| Mode | Used by | Behaviour |
+|---|---|---|
+| `on-open` (default) | `scripts/run.sh`, a local `nzstats serve` | No scheduler. The dashboard's own `POST /api/refresh` (loopback only) starts one bounded check: the release calendar, then at most 6 missing releases and 40 logical GETs, 10 s apart, after a verified backup. See [phase-4g-on-open-refresh.md](phase-4g-on-open-refresh.md). |
+| `scheduler` | the Docker image (explicit `--refresh scheduler`, binds `0.0.0.0`) | APScheduler, below. |
+| `off` (`--offline`, `--no-scheduler`) | testing, inspecting | Serves stored data and never contacts Stats NZ. |
+
+`nzstats serve`, `health`, `alert-check`, `backup` of a database that does not exist yet, and most `research` commands apply
+pending migrations when they open the database. `nzstats backup` of an existing database does **not**, so it can be used
+as the pre-upgrade backup; `nzstats status` opens the database read-only.
+
+## Scheduling (`scheduler/`, `--refresh scheduler` only)
 
 In-process APScheduler in Pacific/Auckland: calendar refresh daily 06:00; a per-minute release watch that
 touches the network only when a release is due, polling at offsets after the scheduled time
@@ -80,11 +98,17 @@ The Data health page and `GET /api/health` show source state, recent runs and co
 
 `health`, `overview`, `releases` (filters: status, category, limit), `releases/{id}` (with analysis),
 `calendar`, `series`, `series/{key}` (optional `vintage`), `series/{key}/csv`, `revisions/{key}`,
-`migration/countries`. Unknown `/api/*` paths return JSON 404; other paths serve the SPA.
+`migration/countries`, the category bundles `cpi`, `ect`, `gdp` and `labour-market`, `capabilities`, `ops/status`, and
+`refresh/status` (read-only). The only write is `POST /api/refresh`, accepted from a loopback origin in `on-open` mode
+only. Research routes are separate and off by default (below). Unknown `/api/*` paths return JSON 404; other paths serve
+the SPA.
 
 ## Frontend
 
-React Router pages (Overview, Migration, Release analysis, Calendar, Data health) over TanStack Query hooks.
+React Router pages (Overview, Migration, Inflation, Electronic card transactions, GDP, Labour market, Release analysis,
+Calendar, Data health, Stories, Official Cash Rate and the Economic Outlook / AI Economic Intelligence pages) over
+TanStack Query hooks. The Official Cash Rate page has no acquired data (synthetic domain model only), and the
+Economic Outlook pages show internal AI drafts only on a loopback start, never in the public or static build.
 `charts/options.ts` builds ECharts options as pure functions (unit-tested); `ChartCard` adds title, question,
 unit, source, caveat, CSV, PNG and a data table. Dark mode follows `prefers-color-scheme`; print styles hide
 navigation and append link URLs.
@@ -93,7 +117,8 @@ navigation and append link URLs.
 
 - Release-page JSON and official CSVs are the data source; the ADE API is unused (needs a key, no vintages).
 - Backfill window starts at 2024-06 because that is the oldest contiguous run of complete migration files.
-- The Data Explorer, Revision Explorer, preferences and other categories are Phase 2 and 3.
+- The Data Explorer, Revision Explorer and preferences are not built. CPI, GDP and labour market (originally Phase 2)
+  are now implemented; housing, trade and population are not. (This list records the spec's gaps as of 2026-11-09.)
 
 ## CPI (Phase 2B)
 

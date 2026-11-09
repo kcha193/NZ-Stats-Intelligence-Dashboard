@@ -10,7 +10,7 @@ What a check may fetch is deliberately narrow:
 * the calendar (four requests), then
 * releases of a supported series that have no vintage and were published after that series' initial catch-up boundary,
   oldest first. Earlier history is never fetched (that is `backfill`'s job), and a release that already has
-  a vintage is never downloaded again (a correction is ingested by hand, `nzstats ingest --release-key`, with a reason).
+  a vintage is never downloaded again (a correction is ingested by hand with `nzstats ingest --release-key`; nothing detects that one exists).
 
 Each check is bounded by `RefreshSettings` (releases and logical GETs); whatever it could not reach is reported as
 pending, never silently treated as current. `RefreshCoordinator` makes checks single-flight within the process

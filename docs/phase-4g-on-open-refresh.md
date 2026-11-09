@@ -88,8 +88,9 @@ termination (including `SIGKILL`) cannot run graceful cleanup and retains the pa
 
 ## What it will never do
 
-- Download a release that already has a stored vintage. A corrected release is re-ingested by hand, with a reason:
-  `scripts/run.sh ingest --release-key <key>`. Revisions Stats NZ publishes *in later releases* arrive with those releases
+- Download a release that already has a stored vintage. A corrected release is re-ingested by hand:
+  `scripts/run.sh ingest --release-key <key>` (one release; `scripts/run.sh backfill` also re-downloads stored releases in its range, so it is a bulk path). The command takes no reason and records none; keep your own note of why.
+  Nothing detects that a correction exists: see `docs/repository-health-review-2026-11-09.md`. Revisions Stats NZ publishes *in later releases* arrive with those releases
   as new vintages; earlier vintages are never edited.
 - Repeat the historical backfill or fetch unattempted history at/before the initial catch-up boundary.
 - Contact anything other than stats.govt.nz. Research and RBNZ sources are a separate, permission-gated domain that this
