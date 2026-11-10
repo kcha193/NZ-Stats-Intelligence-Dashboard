@@ -103,11 +103,14 @@ def bank_view(
     registry: Mapping[str, Institution],
     allowlist: DraftAllowlist,
     adapters: Mapping[str, BankAdapter] = ADAPTERS,
+    *,
+    drafts: list[DraftSummary] | None = None,
 ) -> BankView:
+    """`drafts` lets a caller that already ran the gate (the API builds cards from the same list) reuse its result."""
     forecasts: list[NormalizedForecast] = []
     markers: list[NormalizedForecast] = []
     excluded: list[ExcludedClaim] = []
-    for d in draft_summaries(conn, registry, allowlist):
+    for d in drafts if drafts is not None else draft_summaries(conn, registry, allowlist):
         kind = d.institution.kind
         if kind != "bank" and kind not in _MARKER_KINDS:
             continue

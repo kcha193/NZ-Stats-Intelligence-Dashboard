@@ -160,6 +160,15 @@ def test_the_real_registry_yields_nothing(conn):
     assert {b.key for b in got.banks} >= {"anz", "asb", "bnz", "westpac", "kiwibank"}
 
 
+def test_drafts_passed_in_are_used_as_given(conn):
+    store_hosted(conn, seed_bank(conn))
+    assert view(conn).forecasts  # the gate would show it ...
+    got = bank_view(conn, REG, auto(), SYNTH_ADAPTERS, drafts=[])
+    assert (
+        got.forecasts == []
+    )  # ... but the caller's already-gated list wins, and the gate is not run again
+
+
 def test_named_list_mode_shows_nothing_unless_the_owner_named_it(conn):
     store_hosted(conn, seed_bank(conn))
     assert view(conn, DraftAllowlist(drafts=())).forecasts == []
