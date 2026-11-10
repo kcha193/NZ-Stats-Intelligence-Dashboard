@@ -33,6 +33,13 @@ describe("BankCards", () => {
     expect(within(b).getByText(/Failed automated checks/)).toBeInTheDocument();
   });
 
+  it("names the series behind a series-level state, beside the report that was received", () => {
+    renderWithProviders(<BankCards cards={[{ ...CARDS[0], state: "missing", worst_series: "Weekly Note" }]} />);
+    const a = screen.getByRole("article", { name: /Example Bank A/ });
+    expect(within(a).getByText("Nothing received · Weekly Note")).toBeInTheDocument();
+    expect(within(a).getByText(/SYNTHETIC outlook A/)).toBeInTheDocument();
+  });
+
   it("shows a bank without access as its state and one sentence, with no stance", () => {
     renderWithProviders(<BankCards cards={CARDS} />);
     const c = screen.getByRole("article", { name: /Example Bank C/ });

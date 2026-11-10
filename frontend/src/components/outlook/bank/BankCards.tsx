@@ -9,7 +9,9 @@ function Card({ card }: { card: BankCard }) {
     <article aria-labelledby={id} className="flex flex-col gap-2 border-t pt-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 id={id} className="type-card">{card.name}</h3>
-        <span className="rounded border px-1.5 py-0.5 text-xs text-muted-foreground">{STATE_LABELS[card.state]}</span>
+        <span className="rounded border px-1.5 py-0.5 text-xs text-muted-foreground">
+          {STATE_LABELS[card.state]}{card.worst_series ? ` · ${card.worst_series}` : ""}
+        </span>
       </header>
       {card.report_name && (
         <p className="text-sm text-muted-foreground">

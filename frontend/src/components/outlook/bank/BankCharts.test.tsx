@@ -5,7 +5,7 @@ import { renderWithProviders } from "@/test/mockApi";
 import { BankConsensusChart } from "./BankConsensusChart";
 import { BankDivergence } from "./BankDivergence";
 import { BankRevisions as Revisions } from "./BankRevisions";
-import { CONSENSUS, CONSENSUS_GROUP } from "./testData";
+import { BANKS, CONSENSUS, CONSENSUS_GROUP, forecast } from "./testData";
 
 vi.mock("@/charts/EChart", () => ({ EChart: ({ ariaLabel }: { ariaLabel: string }) => <div role="img" aria-label={ariaLabel} /> }));
 
@@ -41,6 +41,16 @@ describe("BankConsensusChart", () => {
     expect(within(table).getByText("2.1%")).toBeInTheDocument();
     expect(within(table).getByText(/Example Reference Bank/)).toBeInTheDocument();
     expect(screen.getByText(/not part of the bank figures/i)).toBeInTheDocument();
+  });
+
+  it("lists the forecasts the group left out, by bank, with the reason", () => {
+    const stale = {
+      forecast: forecast(BANKS[1], 1.0),
+      reason: "Published more than 180 days before the newest contribution, so it is left out as stale.",
+    };
+    renderWithProviders(<BankConsensusChart groups={[group({ excluded: [stale] })]} indicator="cpi_inflation" />);
+    expect(screen.getByText(`Example Bank B: ${stale.reason}`)).toBeInTheDocument();
+    expect(screen.getByText(/Left out \(1\)/)).toBeInTheDocument();
   });
 
   it("shows only the chosen indicator, and says so when there is none", () => {
@@ -105,7 +115,7 @@ describe("BankRevisions", () => {
   });
 
   it("says when there are no revisions to show", () => {
-    renderWithProviders(<Revisions data={{ histories: [] }} indicator="cpi_inflation" />);
+    renderWithProviders(<Revisions data={{ histories: [], excluded: [] }} indicator="cpi_inflation" />);
     expect(screen.getByText(/no revision history/i)).toBeInTheDocument();
   });
 });

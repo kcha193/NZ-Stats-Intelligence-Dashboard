@@ -91,14 +91,14 @@ export const FORECASTS: BankForecasts = {
 
 export const CARDS: BankCard[] = [
   {
-    key: A.key, name: A.name, state: "ok", report_name: "SYNTHETIC outlook A", published_on: "2026-10-01",
+    key: A.key, name: A.name, state: "ok", worst_series: null, report_name: "SYNTHETIC outlook A", published_on: "2026-10-01",
     stance: { text: "Synthetic stance: growth recovers while inflation eases.", claim_status: "clean", label: "AI interpretation" },
   },
   {
-    key: B.key, name: B.name, state: "stale", report_name: "SYNTHETIC outlook B", published_on: "2026-05-01",
+    key: B.key, name: B.name, state: "stale", worst_series: null, report_name: "SYNTHETIC outlook B", published_on: "2026-05-01",
     stance: { text: "Synthetic stance with a problem.", claim_status: "failed", label: "AI interpretation" },
   },
-  { key: C.key, name: C.name, state: "permission_denied", report_name: null, published_on: null, stance: null },
+  { key: C.key, name: C.name, state: "permission_denied", worst_series: null, report_name: null, published_on: null, stance: null },
 ];
 
 export const SUMMARY: BankSummary = { notice: "SYNTHETIC notice", cards: CARDS };
@@ -133,7 +133,7 @@ export const CONSENSUS: BankConsensus = {
   ],
 };
 
-export const REVISIONS: BankRevisions = { histories: [] };
+export const REVISIONS: BankRevisions = { histories: [], excluded: [] };
 export const FRESHNESS: BankFreshness = {
   exit_code: 1,
   banks: [

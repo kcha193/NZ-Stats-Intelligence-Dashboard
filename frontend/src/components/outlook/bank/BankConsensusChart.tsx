@@ -5,6 +5,7 @@ import { bankConsensusOption } from "@/charts/bankConsensus";
 import { formatForecastValue } from "@/charts/forecasts";
 import { useChartTheme } from "@/charts/theme";
 import { formatCivilDate } from "@/lib/format";
+import { BankLeftOut } from "./BankLeftOut";
 import { ADJUSTMENT_LABELS } from "./labels";
 
 function Group({ g }: { g: BankConsensusGroup }) {
@@ -40,6 +41,12 @@ function Group({ g }: { g: BankConsensusGroup }) {
           Reference: {g.markers.map((m) => `${m.name} ${show(m.value)}`).join(", ")} (not part of the bank figures).
         </p>
       )}
+      <div className="mt-2">
+        <BankLeftOut
+          items={g.excluded.map((x) => ({ institution_key: x.forecast.institution.key, reason: x.reason }))}
+          names={Object.fromEntries(g.excluded.map((x) => [x.forecast.institution.key, x.forecast.institution.name]))}
+        />
+      </div>
       {/* A table ignores the clipping `sr-only` applies, so the clip lives on a wrapper (else it widens the page). */}
       <div className="sr-only">
         <table>

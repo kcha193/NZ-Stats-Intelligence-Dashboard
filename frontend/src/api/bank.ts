@@ -18,6 +18,8 @@ export type BankCard = {
   key: string;
   name: string;
   state: BankState;
+  /** The report series behind a series-level state (null when the state applies to the whole bank). */
+  worst_series: string | null;
   report_name: string | null;
   published_on: string | null;
   stance: BankStance | null;
@@ -50,7 +52,7 @@ export type BankForecasts = {
   excluded: BankExclusion[];
 };
 
-export type BankRevisions = { histories: { adjustment: Adjustment; history: ForecastHistory }[] };
+export type BankRevisions = { histories: { adjustment: Adjustment; history: ForecastHistory }[]; excluded: BankExclusion[] };
 
 export type BankConsensusGroup = ConsensusGroup & {
   adjustment: Adjustment;

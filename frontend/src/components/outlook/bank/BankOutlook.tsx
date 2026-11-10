@@ -13,6 +13,7 @@ import { BankDivergence } from "./BankDivergence";
 import { BankEvidence } from "./BankEvidence";
 import { BankForecastTable } from "./BankForecastTable";
 import { BankHealth } from "./BankHealth";
+import { BankLeftOut } from "./BankLeftOut";
 import { BankRevisions } from "./BankRevisions";
 import { INDICATORS } from "./labels";
 
@@ -62,6 +63,7 @@ export function BankOutlook() {
   const cards = bank === "all" ? summary.data.cards : summary.data.cards.filter((c) => c.key === bank);
   const banks = (forecasts.data?.banks ?? summary.data.cards).filter((b) => bank === "all" || b.key === bank);
   const empty = emptyReason(summary.data, forecasts.data);
+  const names = Object.fromEntries(summary.data.cards.map((c) => [c.key, c.name]));
   return (
     <section aria-labelledby="bank-outlook-title" className="space-y-10">
       <div>
@@ -84,6 +86,7 @@ export function BankOutlook() {
         <div className="space-y-3">
           <h3 className="type-card">Forecasts by bank</h3>
           <BankForecastTable data={forecasts.data} banks={banks} indicator={indicator} onSelect={setSelected} />
+          <BankLeftOut items={forecasts.data.excluded} names={names} />
         </div>
       )}
       {consensus.data && (
@@ -91,6 +94,7 @@ export function BankOutlook() {
           <div className="space-y-4">
             <h3 className="type-card">Where banks stand</h3>
             <BankConsensusChart groups={consensus.data.consensus.groups} indicator={indicator} />
+            <BankLeftOut items={consensus.data.consensus.excluded} names={names} />
           </div>
           <div className="space-y-4">
             <h3 className="type-card">Where banks disagree</h3>
@@ -102,6 +106,7 @@ export function BankOutlook() {
         <div className="space-y-4">
           <h3 className="type-card">Revisions</h3>
           <BankRevisions data={revisions.data} indicator={indicator} />
+          <BankLeftOut items={revisions.data.excluded} names={names} />
         </div>
       )}
       {freshness.data && (

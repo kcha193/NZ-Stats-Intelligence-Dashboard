@@ -18,7 +18,7 @@ const SUMMARY: BankSummary = {
   notice: "AI-generated analysis for internal use.",
   cards: [
     {
-      key: "example_a", name: "Example Bank A", state: "permission_denied", report_name: null, published_on: null, stance: null,
+      key: "example_a", name: "Example Bank A", state: "permission_denied", worst_series: null, report_name: null, published_on: null, stance: null,
     },
   ],
 };

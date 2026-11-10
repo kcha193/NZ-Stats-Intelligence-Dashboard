@@ -86,6 +86,31 @@ describe("BankOutlook, all sections", () => {
     expect(cell).toHaveFocus();
   });
 
+  it("lists what was left out and why, by bank name, under the table, the consensus and the revisions", async () => {
+    const left = (code: string) => [
+      { institution_key: "example_b", summary_id: 2, claim_path: "forecasts[0]", code, reason: `SYNTHETIC reason for ${code}` },
+    ];
+    mockApi({
+      ...routes(),
+      [`${BASE}/forecasts`]: { ...FORECASTS, excluded: left("claim_failed_checks") },
+      [`${BASE}/consensus`]: { ...CONSENSUS, consensus: { ...CONSENSUS.consensus, excluded: left("newer_claim_unusable") } },
+      [`${BASE}/revisions`]: { ...REVISIONS, excluded: left("no_publication_date") },
+    });
+    renderWithProviders(<BankOutlook />);
+    await screen.findByRole("heading", { name: "Revisions" });
+    for (const code of ["claim_failed_checks", "newer_claim_unusable", "no_publication_date"]) {
+      expect(screen.getByText(`Example Bank B: SYNTHETIC reason for ${code}`)).toBeInTheDocument();
+    }
+    expect(screen.getAllByText(/Left out \(1\)/)).toHaveLength(3);
+  });
+
+  it("shows no left-out list when nothing was left out", async () => {
+    mockApi(routes());
+    renderWithProviders(<BankOutlook />);
+    await screen.findByRole("heading", { name: "Revisions" });
+    expect(screen.queryByText(/Left out/)).not.toBeInTheDocument();
+  });
+
   it("shows the consensus, divergence and source health sections", async () => {
     mockApi(routes());
     renderWithProviders(<BankOutlook />);
