@@ -101,7 +101,7 @@ export const useOpsStatus = () =>
  * Research is "not published" (null) when the API answers 404: public research is switched off, nothing is eligible
  * for that address, or (static site) research is never in a snapshot. Every other failure is still an error.
  */
-async function orUnpublished<T>(request: Promise<T>): Promise<T | null> {
+export async function orUnpublished<T>(request: Promise<T>): Promise<T | null> {
   try {
     return await request;
   } catch (e) {
@@ -114,7 +114,7 @@ async function orUnpublished<T>(request: Promise<T>): Promise<T | null> {
  * Internal drafts, only when the server says its switch is on. Off, unknown or the static site: no request, no draft.
  * These routes are outside the published API, so their types are in `drafts.ts`.
  */
-async function draftsAreOn(client: QueryClient): Promise<boolean> {
+export async function draftsAreOn(client: QueryClient): Promise<boolean> {
   if (isStaticMode()) return false;
   try {
     const caps = await client.ensureQueryData({ queryKey: ["capabilities"], queryFn: ({ signal }) => getJson<Capabilities>("/api/capabilities", signal) });
@@ -124,7 +124,7 @@ async function draftsAreOn(client: QueryClient): Promise<boolean> {
   }
 }
 
-const DASHBOARD_CLIENT = { "X-NZStats-Client": "dashboard" };
+export const DASHBOARD_CLIENT = { "X-NZStats-Client": "dashboard" };
 
 export function useInternalDrafts() {
   const client = useQueryClient();
