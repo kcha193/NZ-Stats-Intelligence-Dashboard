@@ -54,6 +54,10 @@ REASONS = {
         "Two documents from this bank on one date give different values for the same measure,"
         " so neither is used."
     ),
+    "newer_claim_unusable": (
+        "This bank's newer report has a claim for the same measure that could not be used,"
+        " so its older figure is not shown in its place."
+    ),
 }
 
 
@@ -73,12 +77,10 @@ def _exclusion(n: NormalizedForecast, code: str) -> BankExclusionOut:
     )
 
 
-def _prepare(
-    forecasts: list[NormalizedForecast], *, outlook_only: bool, dated_only: bool
-) -> _Prepared:
+def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool) -> _Prepared:
     excluded: list[BankExclusionOut] = []
     eligible: list[NormalizedForecast] = []
-    for n in forecasts:
+    for n in view.forecasts:
         if outlook_only and n.report_kind != "outlook":
             excluded.append(_exclusion(n, "not_outlook_report"))
         elif dated_only and not n.forecast.published_on:
@@ -89,10 +91,20 @@ def _prepare(
     # Cross-document conflicts: same bank, same measure and target, same date, different documents and values.
     by_object = {id(n.forecast): n for n in eligible}
     kept, _ = resolve([n.forecast for n in eligible])
+    key_of = {id(f): key for key, f in kept}
     same_day: dict[tuple, list[NormalizedForecast]] = defaultdict(list)
     for key, f in kept:
         if f.published_on:
-            same_day[(f.institution.key, key, f.published_on)].append(by_object[id(f)])
+            n = by_object[id(f)]
+            same_day[(f.institution.key, n.adjustment, key, f.published_on)].append(n)
+    # The newest date on which a bank's claim for a measure could not be used: a conflict, or a failed or warned claim.
+    # Any older figure of that bank for that measure is then not shown in its place (no carry-forward).
+    newest_unusable: dict[tuple, str] = {}
+
+    def note_unusable(n: NormalizedForecast, key: tuple) -> None:
+        slot = (n.institution_key, n.adjustment, key)
+        newest_unusable[slot] = max(newest_unusable.get(slot, ""), n.forecast.published_on or "")
+
     conflicted: set[int] = set()
     for members in same_day.values():
         if (
@@ -100,13 +112,40 @@ def _prepare(
             and len({m.raw_value for m in members}) > 1
         ):
             conflicted.update(id(m.forecast) for m in members)
+            note_unusable(members[0], key_of[id(members[0].forecast)])
+    pool = [
+        e.normalized
+        for e in view.excluded
+        if e.code
+        in (
+            "claim_failed_checks",
+            "claim_has_warning",
+        )  # a third party's or a no-number claim is not the bank's view
+        and e.normalized is not None
+        and e.normalized.forecast.published_on
+        and (not outlook_only or e.normalized.report_kind == "outlook")
+    ]
+    by_pool = {id(n.forecast): n for n in pool}
+    usable_keys, _ = resolve([n.forecast for n in pool])
+    for key, f in usable_keys:
+        note_unusable(by_pool[id(f)], key)
     partitions: dict[Adjustment, list[NormalizedForecast]] = defaultdict(list)
     for n in eligible:
+        newest = newest_unusable.get((n.institution_key, n.adjustment, key_of.get(id(n.forecast))))
         if id(n.forecast) in conflicted:
             excluded.append(_exclusion(n, "conflicting_forecasts"))
+        elif newest and n.forecast.published_on and n.forecast.published_on < newest:
+            excluded.append(_exclusion(n, "newer_claim_unusable"))
         else:
             partitions[n.adjustment].append(n)
     return _Prepared(dict(partitions), excluded)
+
+
+def bank_exclusions(
+    view: BankView, *, outlook_only: bool, dated_only: bool
+) -> list[BankExclusionOut]:
+    """What an analysis with these settings leaves out, with fixed codes and reasons (never document text)."""
+    return _prepare(view, outlook_only=outlook_only, dated_only=dated_only).excluded
 
 
 def _ordered(prepared: _Prepared):
@@ -116,12 +155,12 @@ def _ordered(prepared: _Prepared):
 
 
 def bank_comparison(view: BankView) -> list[tuple[Adjustment, ForecastComparisonOut]]:
-    prepared = _prepare(view.forecasts, outlook_only=False, dated_only=False)
+    prepared = _prepare(view, outlook_only=False, dated_only=False)
     return [(adj, compare_forecasts(fs)) for adj, fs in _ordered(prepared)]
 
 
 def bank_revisions(view: BankView) -> list[tuple[Adjustment, ForecastHistoryOut]]:
-    prepared = _prepare(view.forecasts, outlook_only=True, dated_only=True)
+    prepared = _prepare(view, outlook_only=True, dated_only=True)
     return [(adj, forecast_history(fs)) for adj, fs in _ordered(prepared)]
 
 
@@ -164,7 +203,7 @@ def _markers(view: BankView) -> dict[tuple[Adjustment, str], list[ContributorOut
 
 
 def bank_consensus(view: BankView) -> BankConsensusOut:
-    prepared = _prepare(view.forecasts, outlook_only=True, dated_only=True)
+    prepared = _prepare(view, outlook_only=True, dated_only=True)
     markers = _markers(view)
     groups: list[BankConsensusGroupOut] = []
     for adjustment, forecasts in _ordered(prepared):
@@ -214,7 +253,7 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
 def bank_evaluation(
     view: BankView, conn: sqlite3.Connection, indicator: str
 ) -> ForecastEvaluationOut:
-    prepared = _prepare(view.forecasts, outlook_only=True, dated_only=True)
+    prepared = _prepare(view, outlook_only=True, dated_only=True)
     forecasts = [f for _, fs in _ordered(prepared) for f in fs]
     actuals = {"gdp": gdp_actuals, "unemployment": unemployment_actuals}.get(indicator, CpiActuals)(
         conn

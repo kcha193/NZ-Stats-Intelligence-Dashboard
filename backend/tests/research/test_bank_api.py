@@ -32,11 +32,12 @@ PRIVATE_TEXT = (RAW, "raw_output", "output_sha256", "parameters", "temperature",
                 "Test Owner", "OWNER NOTE", SECTIONS[0])  # fmt: skip
 
 
-def bank_doc(conn, key, cpi, *, doc="research/outlook/q4", published_on="2026-10-01"):
+def bank_doc(conn, key, cpi, *, doc="research/outlook/q4", published_on="2026-10-01", claimed=None):
+    """A bank report whose text says `cpi`; `claimed` makes the stored claim state a different (unsupported) value."""
     sections = (SECTIONS[0], SECTIONS[1].replace("2.1%", f"{cpi}%"))
     v = seed_version(conn, sections, key=key, doc=doc, published_on=published_on)
     out = draft(v)
-    out["forecasts"][1]["value"] = cpi
+    out["forecasts"][1]["value"] = cpi if claimed is None else claimed
     out["forecasts"][1]["evidence"][0]["quote"] = (
         f"forecast to fall to {cpi}% in the year to June 2027"
     )
@@ -113,7 +114,10 @@ def test_summary_cards_state_and_stance_label(bank_app):
     assert sorted(cards) == ["bank_a", "bank_b", "bank_c"]
     a = cards["bank_a"]
     assert a["name"] == "Example Bank A" and a["published_on"] == "2026-10-01"
-    assert a["state"] == "missing"  # the weekly series has nothing stored
+    assert a["state"] == "missing"  # the weekly series has nothing stored ...
+    assert (
+        a["worst_series"] == "Weekly Note"
+    )  # ... and the card says which, beside the report it did receive
     assert a["stance"]["label"] == "AI interpretation" and a["stance"]["claim_status"] == "clean"
     assert "ref_central" not in cards
     assert "not independently reviewed" in r.json()["notice"].lower()
@@ -150,6 +154,36 @@ def test_consensus_and_divergence(bank_app):
     assert [m["key"] for m in group["markers"]] == ["ref_central"]
     (div,) = body["divergence"]
     assert div["spread"] == pytest.approx(0.6)
+
+
+def test_what_was_left_out_and_why_reaches_the_reader_on_every_route(bank_app):
+    client, conn = bank_app
+    # bank_b's newest report has a claim that fails its checks; its older figure must not stand in for it.
+    bank_doc(conn, "bank_b", 2.5, doc="research/outlook/q5", published_on="2026-10-20", claimed=9.9)
+    c = client()
+    forecasts = get(c, "forecasts").json()
+    left_out = {(e["institution_key"], e["code"]) for e in forecasts["excluded"]}
+    assert ("bank_b", "claim_failed_checks") in left_out
+    assert ("bank_b", "newer_claim_unusable") in left_out
+    assert all(e["reason"] for e in forecasts["excluded"])
+    in_table = {
+        r["forecast"]["institution"]["key"]
+        for g in forecasts["comparison"][0]["comparison"]["groups"]
+        if g["indicator"] == "cpi_inflation"
+        for r in g["rows"]
+    }
+    assert in_table == {"bank_a", "bank_c"}  # a dash for bank_b, not its older 2.2
+    consensus = get(c, "consensus").json()["consensus"]
+    (group,) = [g for g in consensus["groups"] if g["indicator"] == "cpi_inflation"]
+    assert {x["key"] for x in group["contributors"]} == {"bank_a", "bank_c"}
+    assert group["title"] == "Two-bank comparison"
+    assert ("bank_b", "newer_claim_unusable") in {
+        (e["institution_key"], e["code"]) for e in consensus["excluded"]
+    }
+    revisions = get(c, "revisions").json()
+    assert ("bank_b", "newer_claim_unusable") in {
+        (e["institution_key"], e["code"]) for e in revisions["excluded"]
+    }
 
 
 def test_revisions_show_both_vintages(bank_app):
@@ -201,6 +235,9 @@ def test_the_real_registry_shows_every_bank_permission_denied_and_nothing_else(b
     assert sorted(cards) == sorted(BANK_KEYS)
     assert {x["state"] for x in cards.values()} == {"permission_denied"}
     assert all(x["stance"] is None for x in cards.values())
+    assert all(
+        x["worst_series"] is None for x in cards.values()
+    )  # a bank-wide state names no series
     assert get(c, "forecasts").json()["forecasts"] == []
     assert get(c, "consensus").json()["consensus"]["groups"] == []
 

@@ -56,10 +56,18 @@ def nf(
     )
 
 
-def view_of(*forecasts, markers=()):
+def view_of(*forecasts, markers=(), excluded=()):
     from nzstats.research.bank_view import BankView
 
-    return BankView(list(forecasts), [], list(markers), [])
+    return BankView(list(forecasts), list(excluded), list(markers), [])
+
+
+def unusable(institution: str = "bank_a", code: str = "claim_failed_checks", **kw):
+    """A claim the view left out (failed or warned), with the forecast it stated, as `bank_view` records it."""
+    from nzstats.research.bank_view import ExcludedClaim
+
+    n = nf(institution, **kw)
+    return ExcludedClaim(institution, n.forecast.summary_id, n.claim_path, code, n)
 
 
 SYNTH_BANKS = ("bank_a", "bank_b", "bank_c")

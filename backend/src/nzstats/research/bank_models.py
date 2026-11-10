@@ -116,6 +116,7 @@ class BankHistoryOut(_Out):
 
 class BankRevisionsOut(_Out):
     histories: list[BankHistoryOut]
+    excluded: list[BankExclusionOut]
 
 
 class BankConsensusViewOut(_Out):
@@ -133,6 +134,9 @@ class BankCardOut(_Out):
     key: str
     name: str
     state: State
+    # The report series behind a series-level state (e.g. "Weekly Note" when only that series is missing), so a card
+    # never says "nothing received" beside a report it did receive. None when the state applies to the whole bank.
+    worst_series: str | None
     report_name: str | None
     published_on: str | None
     stance: BankStanceOut | None

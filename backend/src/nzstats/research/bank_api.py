@@ -22,6 +22,7 @@ from nzstats.research.bank_analytics import (
     bank_consensus,
     bank_divergence,
     bank_evaluation,
+    bank_exclusions,
     bank_revisions,
 )
 from nzstats.research.bank_forecast import NormalizedForecast
@@ -98,6 +99,13 @@ def _status_out(s: BankStatus) -> BankStatusOut:
     )
 
 
+def _worst_series(s: BankStatus) -> str | None:
+    """The first series in the bank's own (worst) state, unless that state describes the whole bank."""
+    if s.state in ("permission_denied", "unsupported", "ok"):
+        return None
+    return next((x.series_name for x in s.series if x.state == s.state), None)
+
+
 def _stance(d: DraftSummary) -> BankStanceOut:
     status = next((c.status for c in d.claims if c.path == "outlook"), "failed")
     return BankStanceOut(text=d.summary.outlook.text, claim_status=status)
@@ -144,6 +152,7 @@ def bank_router(
                     key=bank.key,
                     name=bank.name,
                     state=statuses[bank.key].state,
+                    worst_series=_worst_series(statuses[bank.key]),
                     report_name=newest.row["title"] if newest else None,
                     published_on=newest.row["published_on"] if newest else None,
                     stance=_stance(newest) if newest else None,
@@ -175,7 +184,8 @@ def bank_router(
                     reason=VIEW_REASONS[e.code],
                 )
                 for e in view.excluded
-            ],
+            ]
+            + bank_exclusions(view, outlook_only=False, dated_only=False),
         )
 
     @router.get(
@@ -185,9 +195,10 @@ def bank_router(
         response.headers.update(_HEADERS)
         got = read(request, c)
         if got is None:
-            return BankRevisionsOut(histories=[])
+            return BankRevisionsOut(histories=[], excluded=[])
         return BankRevisionsOut(
-            histories=[BankHistoryOut(adjustment=a, history=h) for a, h in bank_revisions(got[2])]
+            histories=[BankHistoryOut(adjustment=a, history=h) for a, h in bank_revisions(got[2])],
+            excluded=bank_exclusions(got[2], outlook_only=True, dated_only=True),
         )
 
     @router.get(

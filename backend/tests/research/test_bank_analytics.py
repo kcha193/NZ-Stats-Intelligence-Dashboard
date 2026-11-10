@@ -10,11 +10,12 @@ from nzstats.research.bank_analytics import (
     bank_consensus,
     bank_divergence,
     bank_evaluation,
+    bank_exclusions,
     bank_revisions,
 )
 from tests.cpi_support import ingest_cpi
 
-from .bank_support import nf, view_of
+from .bank_support import nf, unusable, view_of
 
 
 def groups_by_adjustment(out):
@@ -206,3 +207,107 @@ def test_analytics_are_pure_no_provider_or_network(monkeypatch):
     bank_comparison(view)
     bank_divergence(bank_consensus(view))
     bank_revisions(view)
+
+
+# --- review fixes: no carry-forward of an older vintage, and adjustment is part of a conflict -----------------------
+def test_adjusted_and_unadjusted_figures_from_one_bank_on_one_day_are_not_a_conflict():
+    view = view_of(
+        nf("bank_a", summary_id=1, value=2.0, adjustment="seasonally_adjusted"),
+        nf("bank_a", summary_id=2, value=3.0, adjustment="unadjusted"),
+        nf("bank_b", summary_id=3, value=2.2, adjustment="seasonally_adjusted"),
+        nf("bank_c", summary_id=4, value=2.4, adjustment="seasonally_adjusted"),
+    )
+    out = bank_consensus(view)
+    adjusted = groups_by_adjustment(out)["seasonally_adjusted"]
+    assert [c.key for c in adjusted.contributors] == ["bank_a", "bank_b", "bank_c"]
+    assert out.excluded == []
+
+
+def three_banks_with_a_older(**newer):
+    return view_of(
+        nf("bank_a", summary_id=1, value=3.8, published_on="2026-02-10"),
+        nf("bank_b", summary_id=3, value=3.9, published_on="2026-05-13"),
+        nf("bank_c", summary_id=4, value=3.7, published_on="2026-05-14"),
+        **newer,
+    )
+
+
+def test_a_newer_unusable_claim_hides_the_older_figure_instead_of_standing_in_for_it():
+    view = three_banks_with_a_older(
+        excluded=[unusable("bank_a", summary_id=2, value=9.9, published_on="2026-05-12")]
+    )
+    out = bank_consensus(view)
+    (g,) = out.groups
+    assert [c.key for c in g.contributors] == ["bank_b", "bank_c"]
+    assert g.title == "Two-bank comparison"
+    assert [(e.institution_key, e.summary_id, e.code) for e in out.excluded] == [
+        ("bank_a", 1, "newer_claim_unusable")
+    ]
+    ((_, comparison),) = bank_comparison(
+        view
+    )  # the forecast table shows a dash, not the old figure
+    assert {r.forecast.institution.key for r in comparison.groups[0].rows} == {"bank_b", "bank_c"}
+    assert {s.institution.key for _, h in bank_revisions(view) for s in h.series} == {
+        "bank_b",
+        "bank_c",
+    }
+    assert [e.code for e in bank_exclusions(view, outlook_only=False, dated_only=False)] == [
+        "newer_claim_unusable"
+    ]
+
+
+def test_a_newer_same_day_conflict_also_hides_the_older_figure():
+    view = view_of(
+        nf("bank_a", summary_id=1, value=3.8, published_on="2026-02-10"),
+        nf("bank_a", summary_id=2, value=4.0, published_on="2026-05-12"),
+        nf("bank_a", summary_id=5, value=4.4, published_on="2026-05-12", claim_path="forecasts[1]"),
+        nf("bank_b", summary_id=3, value=3.9, published_on="2026-05-13"),
+        nf("bank_c", summary_id=4, value=3.7, published_on="2026-05-14"),
+    )
+    out = bank_consensus(view)
+    assert [c.key for c in out.groups[0].contributors] == ["bank_b", "bank_c"]
+    assert sorted(
+        (e.summary_id, e.code) for e in out.excluded if e.institution_key == "bank_a"
+    ) == [
+        (1, "newer_claim_unusable"),
+        (2, "conflicting_forecasts"),
+        (5, "conflicting_forecasts"),
+    ]
+
+
+def test_claims_that_are_not_this_banks_own_view_of_this_measure_change_nothing():
+    view = three_banks_with_a_older(
+        excluded=[
+            unusable(
+                "bank_a",
+                summary_id=2,
+                value=9.9,
+                published_on="2026-05-12",
+                horizon="year to June 2028",
+            ),
+            unusable(
+                "bank_a", "third_party_issuer", summary_id=6, value=9.9, published_on="2026-05-12"
+            ),
+            unusable("bank_a", "no_value", summary_id=7, value=None, published_on="2026-05-12"),
+        ]
+    )
+    out = bank_consensus(view)
+    assert [c.key for c in out.groups[0].contributors] == ["bank_a", "bank_b", "bank_c"]
+    assert out.excluded == []
+
+
+def test_a_newer_unusable_weekly_claim_hides_the_older_figure_in_the_table_only():
+    view = three_banks_with_a_older(
+        excluded=[
+            unusable(
+                "bank_a", summary_id=2, value=9.9, published_on="2026-05-12", report_kind="weekly"
+            )
+        ]
+    )
+    assert [c.key for c in bank_consensus(view).groups[0].contributors] == [
+        "bank_a",
+        "bank_b",
+        "bank_c",
+    ]
+    ((_, comparison),) = bank_comparison(view)
+    assert {r.forecast.institution.key for r in comparison.groups[0].rows} == {"bank_b", "bank_c"}

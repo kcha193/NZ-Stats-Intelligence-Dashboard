@@ -146,18 +146,25 @@ def test_offline_replay(site, tmp_path, monkeypatch):
     assert kept[("bank_a", "2026-05-12")] == 4.0 and kept[("bank_c", "2026-05-14")] == 4.3
     assert ("bank_b", "2026-05-13") not in kept and WRONG not in kept.values()
     assert [(e["institution_key"], e["code"]) for e in forecasts["excluded"]] == [
-        ("bank_b", "claim_failed_checks")
+        ("bank_b", "claim_failed_checks"),  # the claim that failed ...
+        (
+            "bank_b",
+            "newer_claim_unusable",
+        ),  # ... and the older figure that is not shown in its place
     ]
 
     consensus = json.loads(first["consensus"])["consensus"]
     (group,) = consensus["groups"]
     values = {c["key"]: (c["value"], c["published_on"]) for c in group["contributors"]}
-    assert values == {  # bank_b's failed latest claim never counts; its earlier clean report stands, dated
-        "bank_a": (4.0, "2026-05-12"), "bank_b": (3.9, "2026-02-11"), "bank_c": (4.3, "2026-05-14"),
-    }  # fmt: skip
+    # bank_b's newest claim failed its checks: its older clean report does not stand in for it (no carry-forward), so
+    # only two banks remain, the group is a comparison rather than a consensus, and the reader is told why.
+    assert values == {"bank_a": (4.0, "2026-05-12"), "bank_c": (4.3, "2026-05-14")}
     assert (
-        group["title"] == "Consensus of banks" and group["disclaimer"] == "Not a market consensus."
+        group["title"] == "Two-bank comparison" and group["disclaimer"] == "Not a market consensus."
     )
+    assert [(e["institution_key"], e["code"]) for e in consensus["excluded"]] == [
+        ("bank_b", "newer_claim_unusable")
+    ]
     assert [m["key"] for m in group["markers"]] == ["ref_central"]
     assert WRONG not in [c["value"] for c in group["contributors"]]
 

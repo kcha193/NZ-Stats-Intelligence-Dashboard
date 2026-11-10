@@ -41,6 +41,9 @@ class ExcludedClaim:
     summary_id: int
     claim_path: str
     code: ExclusionCode
+    # The forecast a failed or warned claim stated, so analytics can tell that a bank's newer figure is unusable and
+    # must not be replaced by its older one. None for claims that are not the bank's own numeric view of a measure.
+    normalized: NormalizedForecast | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +133,11 @@ def bank_view(
             if code is None:
                 target.append(_normalized(d, claim, path, adapters))
             elif kind == "bank":
-                excluded.append(ExcludedClaim(d.institution.key, d.id, path, code))
+                own = (
+                    _normalized(d, claim, path, adapters)
+                    if code in ("claim_failed_checks", "claim_has_warning")
+                    else None
+                )
+                excluded.append(ExcludedClaim(d.institution.key, d.id, path, code, own))
     banks = sorted((i for i in registry.values() if i.kind == "bank"), key=lambda i: i.key)
     return BankView(forecasts, excluded, markers, banks)
