@@ -31,7 +31,8 @@ export function BankForecastTable({
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">No bank forecast for this indicator yet.</p>;
   const name = INDICATOR_NAMES[indicator] ?? indicator;
   return (
-    <div role="region" aria-label={`${name} forecasts`} tabIndex={0} className="overflow-x-auto">
+    // `relative` makes this the containing block of the sr-only spans, so the scroller clips them instead of the page.
+    <div role="region" aria-label={`${name} forecasts`} tabIndex={0} className="relative overflow-x-auto">
       <table className="w-full min-w-[32rem] border-collapse text-sm">
         <caption className="sr-only">
           {name} forecasts by bank, each bank&apos;s latest forecast, by target period. A dash means the bank has no forecast for that period.

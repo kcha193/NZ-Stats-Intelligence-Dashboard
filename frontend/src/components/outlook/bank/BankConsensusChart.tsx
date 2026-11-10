@@ -40,18 +40,21 @@ function Group({ g }: { g: BankConsensusGroup }) {
           Reference: {g.markers.map((m) => `${m.name} ${show(m.value)}`).join(", ")} (not part of the bank figures).
         </p>
       )}
-      <table className="sr-only">
-        <caption>{heading}: the values behind the chart</caption>
-        <thead><tr><th scope="col">Institution</th><th scope="col">Forecast</th><th scope="col">Published</th></tr></thead>
-        <tbody>
-          {g.contributors.map((c) => (
-            <tr key={c.key}><th scope="row">{c.name}</th><td>{show(c.value)}</td><td>{formatCivilDate(c.published_on)}</td></tr>
-          ))}
-          {g.markers.map((m) => (
-            <tr key={m.key}><th scope="row">{m.name} (reference institution)</th><td>{show(m.value)}</td><td>{formatCivilDate(m.published_on)}</td></tr>
-          ))}
-        </tbody>
-      </table>
+      {/* A table ignores the clipping `sr-only` applies, so the clip lives on a wrapper (else it widens the page). */}
+      <div className="sr-only">
+        <table>
+          <caption>{heading}: the values behind the chart</caption>
+          <thead><tr><th scope="col">Institution</th><th scope="col">Forecast</th><th scope="col">Published</th></tr></thead>
+          <tbody>
+            {g.contributors.map((c) => (
+              <tr key={c.key}><th scope="row">{c.name}</th><td>{show(c.value)}</td><td>{formatCivilDate(c.published_on)}</td></tr>
+            ))}
+            {g.markers.map((m) => (
+              <tr key={m.key}><th scope="row">{m.name} (reference institution)</th><td>{show(m.value)}</td><td>{formatCivilDate(m.published_on)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

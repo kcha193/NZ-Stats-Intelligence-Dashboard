@@ -1,11 +1,19 @@
 import { useState } from "react";
-import { useBankForecasts, useBankSummary, type BankForecasts, type BankSummary } from "@/api/bank";
+import {
+  useBankConsensus, useBankForecasts, useBankFreshness, useBankRevisions, useBankSummary,
+  type BankForecast, type BankForecasts, type BankSummary,
+} from "@/api/bank";
 import { DRAFT_NOTICE } from "@/components/outlook/InternalDrafts";
 import { ErrorState } from "@/components/QueryBoundary";
 import { Segmented } from "@/components/Segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BankCards } from "./BankCards";
+import { BankConsensusChart } from "./BankConsensusChart";
+import { BankDivergence } from "./BankDivergence";
+import { BankEvidence } from "./BankEvidence";
 import { BankForecastTable } from "./BankForecastTable";
+import { BankHealth } from "./BankHealth";
+import { BankRevisions } from "./BankRevisions";
 import { INDICATORS } from "./labels";
 
 /** Why there is nothing to read, in plain words (null when there is something). */
@@ -30,8 +38,12 @@ export function emptyReason(summary: BankSummary, forecasts: BankForecasts | nul
 export function BankOutlook() {
   const summary = useBankSummary();
   const forecasts = useBankForecasts();
+  const consensus = useBankConsensus();
+  const revisions = useBankRevisions();
+  const freshness = useBankFreshness();
   const [indicator, setIndicator] = useState("cpi_inflation");
   const [bank, setBank] = useState("all");
+  const [selected, setSelected] = useState<BankForecast | null>(null);
 
   if (summary.isPending) {
     return <div role="status" aria-label="Loading bank outlooks" className="space-y-3"><Skeleton className="h-24 w-full" /></div>;
@@ -50,7 +62,7 @@ export function BankOutlook() {
   const banks = (forecasts.data?.banks ?? summary.data.cards).filter((b) => bank === "all" || b.key === bank);
   const empty = emptyReason(summary.data, forecasts.data);
   return (
-    <section aria-labelledby="bank-outlook-title" className="space-y-8">
+    <section aria-labelledby="bank-outlook-title" className="space-y-10">
       <div>
         <h2 id="bank-outlook-title" className="type-section">Bank outlooks</h2>
         <p className="mt-2 max-w-[70ch] text-sm text-muted-foreground">{DRAFT_NOTICE}</p>
@@ -70,9 +82,34 @@ export function BankOutlook() {
       {forecasts.data && forecasts.data.forecasts.length > 0 && (
         <div className="space-y-3">
           <h3 className="type-card">Forecasts by bank</h3>
-          <BankForecastTable data={forecasts.data} banks={banks} indicator={indicator} />
+          <BankForecastTable data={forecasts.data} banks={banks} indicator={indicator} onSelect={setSelected} />
         </div>
       )}
+      {consensus.data && (
+        <>
+          <div className="space-y-4">
+            <h3 className="type-card">Where banks stand</h3>
+            <BankConsensusChart groups={consensus.data.consensus.groups} indicator={indicator} />
+          </div>
+          <div className="space-y-4">
+            <h3 className="type-card">Where banks disagree</h3>
+            <BankDivergence items={consensus.data.divergence} indicator={indicator} />
+          </div>
+        </>
+      )}
+      {revisions.data && (
+        <div className="space-y-4">
+          <h3 className="type-card">Revisions</h3>
+          <BankRevisions data={revisions.data} indicator={indicator} />
+        </div>
+      )}
+      {freshness.data && (
+        <div className="space-y-3">
+          <h3 className="type-card">Source health</h3>
+          <BankHealth rows={freshness.data.banks} />
+        </div>
+      )}
+      {selected && <BankEvidence item={selected} onClose={() => setSelected(null)} />}
     </section>
   );
 }
