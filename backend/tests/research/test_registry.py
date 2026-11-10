@@ -101,7 +101,9 @@ def test_every_url_is_https_on_an_allowed_host_and_hosts_are_plain_names():
 
 def test_bnz_stays_refused_with_owner_supplied_url():
     bnz = load_registry()["bnz"]
-    assert bnz.landing_urls == ("https://www.bnz.co.nz/institutional-banking/research/publications",)
+    assert bnz.landing_urls == (
+        "https://www.bnz.co.nz/institutional-banking/research/publications",
+    )
     assert bnz.landing_evidence == "none"
     assert not bnz.automated_access_allowed
 

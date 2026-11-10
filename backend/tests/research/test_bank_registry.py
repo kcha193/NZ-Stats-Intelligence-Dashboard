@@ -29,8 +29,12 @@ def test_every_bank_is_refused_everywhere(registry, key):
 def test_bnz_and_kiwibank_landing_urls_are_owner_supplied_and_unprobed(registry):
     bnz, kiwi = registry["bnz"], registry["kiwibank"]
     assert bnz.allowed_hosts == ("www.bnz.co.nz",)
-    assert bnz.landing_urls == ("https://www.bnz.co.nz/institutional-banking/research/publications",)
-    assert kiwi.landing_urls == ("https://www.kiwibank.co.nz/business-banking/thrive-hq/kiwi-economics/",)
+    assert bnz.landing_urls == (
+        "https://www.bnz.co.nz/institutional-banking/research/publications",
+    )
+    assert kiwi.landing_urls == (
+        "https://www.kiwibank.co.nz/business-banking/thrive-hq/kiwi-economics/",
+    )
     for inst in (bnz, kiwi):
         assert inst.landing_evidence == "none"
         assert inst.content_policy is ContentPolicy.NONE
