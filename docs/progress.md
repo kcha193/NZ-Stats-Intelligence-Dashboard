@@ -22,7 +22,11 @@ documents. No bank contact, hosted model call, paid inference, permission change
   from the Stats NZ pipeline, no real bank name beside a number in committed frontend data.
 - Chart colours: the new charts reuse the existing validated theme tokens (`--chart-1`, `--chart-2`, the provisional band) and
   introduce no new colour, so no new dataviz-validator run was needed.
-- Final verification counts are in the pull request.
+- Verification on the final tree: backend 6050 passed (baseline 5932 passed, 5 skipped), Ruff check and format clean;
+  frontend 622 unit tests, typecheck, oxlint (no bank warnings), build, `npm audit` 0 vulnerabilities, regenerated
+  `schema.d.ts` unchanged; Playwright live 204 passed (desktop, tablet, mobile), static and parity 315 passed with 54 expected
+  skips. An independent review found no Critical issues; its two Important findings (an older figure standing in for a newer
+  unusable claim; exclusions not shown) and two re-graded minors were fixed with failing-first tests.
 
 ## Repository health, data-integrity and maintenance review, 9 November 2026
 

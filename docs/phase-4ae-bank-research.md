@@ -42,7 +42,10 @@ issuer attribution, summarise and policy workflow, the internal draft gate and i
   average and end-of-period figures stay apart as `compare.py` already ensures; a third party's forecast is never the bank's.
 - Only quarterly *outlook* reports feed consensus, divergence, revisions and evaluation; weekly notes are shown, labelled.
 - Two documents from a bank on one date with different values for one measure are a conflict: neither is used.
-- Missing stays missing: no interpolation, extrapolation, carry-forward or filling.
+- Missing stays missing: no interpolation, extrapolation, carry-forward or filling. When a bank's newer report has a claim for a
+  measure that failed its checks, warned, or conflicted with another report of the same date, that bank's older figure for the
+  measure is **not shown in its place** (code `newer_claim_unusable`): the table shows a dash, the group counts one fewer
+  bank, and a "Left out" list names the bank and the reason under the table, the consensus and the revisions.
 - Forecast versus actual uses stored Stats NZ vintages and the first-published actual; look-ahead is excluded. OCR is not
   evaluated (no authorized source).
 
