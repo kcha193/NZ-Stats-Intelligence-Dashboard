@@ -99,6 +99,38 @@ def test_automatic_internal_drafts_never_reach_a_snapshot(full_dir, copy_of, tmp
     assert b"SYNTHETIC FIXTURE research" not in blob and b"Test Owner" not in blob
 
 
+def test_bank_forecasts_and_automatic_drafts_never_reach_a_snapshot(full_dir, copy_of, tmp_path):
+    """Phase 4AE: stored bank summaries with eligible forecasts, shown in the bank view, change no snapshot byte."""
+    from tests.research.llm_support import seed_version
+    from tests.research.test_drafts_auto import store_hosted
+
+    with_banks = copy_of(full_dir)
+    conn = connect(with_banks / "nzstats.db")
+    migrate(conn)
+    for key in ("bank_a", "bank_b"):
+        store_hosted(conn, seed_version(conn, key=key, doc="research/outlook/q4"))
+    assert (
+        conn.execute("SELECT COUNT(*) FROM research_summary").fetchone()[0] == 2
+    )  # the bank rows are really there
+    conn.close()
+    (with_banks / "internal-drafts.json").write_text(json.dumps({"auto_display": {
+        "enabled": True, "enabled_by": "Test Owner", "enabled_on": "2026-11-10", "note": TEXT}}))  # fmt: skip
+    plain = export_snapshot(full_dir, tmp_path / "plain", now=EXPORT_NOW, allow_fixtures=True)
+    mixed = export_snapshot(with_banks, tmp_path / "mixed", now=EXPORT_NOW, allow_fixtures=True)
+    assert plain["snapshot_id"] == mixed["snapshot_id"]
+    assert _files(tmp_path / "plain") == _files(tmp_path / "mixed")
+    blob = b"".join(_files(tmp_path / "mixed").values())
+    for leaked in (
+        b"bank_a",
+        b"bank_b",
+        b"Example Bank",
+        b"SYNTHETIC FIXTURE",
+        b"forecasts[",
+        b"Test Owner",
+    ):
+        assert leaked not in blob, leaked
+
+
 @pytest.mark.parametrize("path", ["/api/health", "/api/overview", "/api/releases", "/api/cpi"])
 def test_stats_nz_api_answers_are_unchanged_by_research_rows(full_dir, copy_of, path):
     def answer(data_dir: Path):

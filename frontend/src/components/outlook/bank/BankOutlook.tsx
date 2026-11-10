@@ -32,8 +32,9 @@ export function emptyReason(summary: BankSummary, forecasts: BankForecasts | nul
 }
 
 /**
- * Bank outlooks (Phase 4AE): what ANZ, ASB, BNZ, Westpac and Kiwibank say and forecast, from reports held on this
- * machine. Shown only when the server has internal AI analysis on; the static site never asks for it.
+ * Bank outlooks: what each tracked New Zealand bank says and forecasts, from reports held on this machine. Shown only
+ * when the server has internal AI analysis on; the static site never asks for it. Bank names come from the server, so
+ * no real bank name is written into the committed frontend.
  */
 export function BankOutlook() {
   const summary = useBankSummary();
