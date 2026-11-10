@@ -17,7 +17,7 @@ import { BankRevisions } from "./BankRevisions";
 import { INDICATORS } from "./labels";
 
 /** Why there is nothing to read, in plain words (null when there is something). */
-export function emptyReason(summary: BankSummary, forecasts: BankForecasts | null | undefined): string | null {
+function emptyReason(summary: BankSummary, forecasts: BankForecasts | null | undefined): string | null {
   const cards = summary.cards;
   if (cards.length > 0 && cards.every((c) => c.state === "permission_denied")) {
     return "No bank source has been granted access yet, so there is nothing to collect or show.";
