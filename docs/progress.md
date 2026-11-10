@@ -7,6 +7,23 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AE: multi-bank economic intelligence, 10 November 2026
+
+Branch `feat/phase-4ae-bank-research` from main `86a4515` (backend baseline 5932 passed, 5 skipped). Overview
+[phase-4ae-bank-research.md](phase-4ae-bank-research.md), permissions [phase-4ae-permissions-matrix.md](phase-4ae-permissions-matrix.md),
+runbook [phase-4ae-bank-runbook.md](phase-4ae-bank-runbook.md), spec and plan under `docs/superpowers/`.
+**No live ingestion exists for any bank**: all five are permission-denied, so the work is proven offline on synthetic
+documents. No bank contact, hosted model call, paid inference, permission change, deployment or schedule. No migration.
+
+- Internal "Bank outlooks" section in the Economic Outlook page, backed by `/api/internal/bank-intelligence/*` on the draft
+  router only; `nzstats research bank-status`; bank metrics in `research health --json`.
+- A browser test found a real layout bug (visually-hidden content in scrolling tables widened the page at 375 px); fixed.
+- Isolation tests: byte-identical snapshot with bank rows present, no public or private API exposure, no schedule or import
+  from the Stats NZ pipeline, no real bank name beside a number in committed frontend data.
+- Chart colours: the new charts reuse the existing validated theme tokens (`--chart-1`, `--chart-2`, the provisional band) and
+  introduce no new colour, so no new dataviz-validator run was needed.
+- Final verification counts are in the pull request.
+
 ## Repository health, data-integrity and maintenance review, 9 November 2026
 
 Full record: [repository-health-review-2026-11-09.md](repository-health-review-2026-11-09.md); broader proposals (none

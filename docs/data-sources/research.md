@@ -662,6 +662,22 @@ ones that failed checks, with each claim marked. Since Phase 4AA a loopback star
 and change no source permission. See [phase-4p-internal-drafts.md](../phase-4p-internal-drafts.md) and
 [phase-4aa-internal-ai-intelligence.md](../phase-4aa-internal-ai-intelligence.md).
 
+## Bank research (Phase 4AE)
+
+An internal-only comparison of ANZ, ASB, BNZ, Westpac and Kiwibank outlooks, built on this registry and pipeline without a
+second ingestion, permission, model or verifier framework. **All five banks remain `needs_review` with every other decision
+denied, so there is no live ingestion**: the capability is proven offline on synthetic documents and is dormant against the
+real registry. Per-bank state and prerequisites: [phase-4ae-permissions-matrix.md](../phase-4ae-permissions-matrix.md);
+operation: [phase-4ae-bank-runbook.md](../phase-4ae-bank-runbook.md); design and evidence:
+[phase-4ae-bank-research.md](../phase-4ae-bank-research.md).
+
+- Series, report kind and cadence for each bank live in `research/banks.py` (an adapter holds no permission data).
+- `nzstats research bank-status` prints each bank's source state by series, read-only.
+- Bank content is shown only through the internal draft gate on loopback (`/api/internal/bank-intelligence/*`), never in the
+  public API, the private preview, a snapshot or the static build.
+- Rollback: delete the `bank_*` modules and routes; there is no migration to reverse. Registry edits were descriptive only
+  (BNZ and Kiwibank landing URLs, cadence for ANZ, ASB and Westpac).
+
 ## Rollback
 
 Phase 3F: `sqlite3 data/nzstats.db < scripts/rollback/010_research_purge_down.sql` (purge records and the redaction
