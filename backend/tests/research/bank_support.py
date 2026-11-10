@@ -8,6 +8,60 @@ from nzstats.research.registry import Institution
 from .support import institution
 
 BANK_KEYS = ("anz", "asb", "bnz", "westpac", "kiwibank")
+
+
+def nf(
+    institution: str = "bank_a",
+    *,
+    report_kind: str = "outlook",
+    adjustment: str = "not_stated",
+    claim_path: str = "forecasts[0]",
+    **kw,
+):
+    """A NormalizedForecast of a CPI forecast built without a database (SYNTHETIC). Overrides go to ForecastOut."""
+    from nzstats.research.api_models import ForecastOut, InstitutionOut
+    from nzstats.research.bank_forecast import NormalizedForecast
+
+    data = {
+        "summary_id": 1,
+        "institution": InstitutionOut(
+            key=institution, name=f"Example {institution}", kind=kw.pop("kind", "bank")
+        ),
+        "document_title": "SYNTHETIC outlook",
+        "published_on": "2026-08-13",
+        "indicator": "cpi_inflation",
+        "indicator_label": "Annual CPI inflation",
+        "horizon": "year to June 2027",
+        "value": 2.1,
+        "unit": "percent",
+        "direction": "down",
+        "scenario": None,
+        "qualification": None,
+        "evidence": [],
+    }
+    data.update(kw)
+    f = ForecastOut(**data)
+    return NormalizedForecast(
+        forecast=f,
+        institution_key=institution,
+        document_version_id=f.summary_id,
+        claim_path=claim_path,
+        report_kind=report_kind,
+        forecast_author=f.institution.name,
+        geography="New Zealand",
+        measure=f.indicator_label,
+        adjustment=adjustment,
+        verifier_version="verify-5",
+        raw_value=f.value,
+    )
+
+
+def view_of(*forecasts, markers=()):
+    from nzstats.research.bank_view import BankView
+
+    return BankView(list(forecasts), [], list(markers), [])
+
+
 SYNTH_BANKS = ("bank_a", "bank_b", "bank_c")
 _MANUAL = {
     "manual_import": "approved",
