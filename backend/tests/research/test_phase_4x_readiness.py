@@ -34,7 +34,11 @@ START, END = "<!-- approved-registry:start -->", "<!-- approved-registry:end -->
 # The real ledger's shape (amounts and experiment tags), rebuilt on synthetic versions.
 # The parsed registry (comments ignored) as it stood before the owner's 2026-11-08 approval, i.e. main `b5bf3c1`. Removing the two
 # approved lines must give back exactly this; any other registry change is a separate reviewed decision that updates this pin.
-PRE_APPROVAL_SHA256 = "7ad56e93fb0005b1fbc057ccaaf0f5803b1968af2b79cd71a3be44b6d76628f5"
+# Phase 4AE (2026-11-10) updated this pin as that comment requires, for descriptive fields only (checked key by key against main):
+# anz/asb/westpac `expected_publication_days`; bnz `allowed_hosts`, `landing_urls`, `access_notes`; kiwibank `landing_urls`,
+# `landing_evidence`, `access_notes`. No permission, approval, content-policy, LLM or display field of any institution changed,
+# and the test below still asserts that every institution other than Treasury is equal before and after.
+PRE_APPROVAL_SHA256 = "20d09d2dc17c68e439b08af5e15bf2b8566033cd8bd69ccbbe3740f126b9f974"
 REAL_LEDGER = ((None, 0.1798984440), (None, 0.2023797600), ("phase-4n-second-pilot", 0.1261846080),
                ("phase-4s-treasury-v3", 0.1182479760))  # fmt: skip
 
