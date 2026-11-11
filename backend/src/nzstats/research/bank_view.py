@@ -20,6 +20,7 @@ from typing import Literal
 from nzstats.research.api_models import EvidenceOut, ForecastOut, InstitutionOut
 from nzstats.research.bank_forecast import (
     NormalizedForecast,
+    canonical_label,
     derive_adjustment,
     derive_geography,
 )
@@ -54,7 +55,7 @@ class BankView:
     banks: list[Institution]
 
 
-def _forecast_out(d: DraftSummary, claim: ForecastClaim) -> ForecastOut:
+def _forecast_out(d: DraftSummary, claim: ForecastClaim, label: str) -> ForecastOut:
     row = d.row
     return ForecastOut(
         summary_id=d.id,
@@ -64,7 +65,7 @@ def _forecast_out(d: DraftSummary, claim: ForecastClaim) -> ForecastOut:
         document_title=row["title"],
         published_on=row["published_on"],
         indicator=claim.indicator.value,
-        indicator_label=claim.indicator_label,
+        indicator_label=label,
         horizon=claim.horizon,
         value=claim.value,
         unit=claim.unit,
@@ -82,8 +83,11 @@ def _normalized(
     d: DraftSummary, claim: ForecastClaim, path: str, adapters: Mapping[str, BankAdapter]
 ) -> NormalizedForecast:
     row = d.row
-    forecast = _forecast_out(d, claim)
     quotes = " ".join(e.quote for e in claim.evidence)
+    adjustment = derive_adjustment(claim.indicator_label, quotes)
+    # The wrapped forecast carries the label without its adjustment wording, so the same measure has the same identity
+    # whether the bank states the adjustment in the label or the evidence; `measure` keeps the label as stated.
+    forecast = _forecast_out(d, claim, canonical_label(claim.indicator_label, adjustment))
     return NormalizedForecast(
         forecast=forecast,
         institution_key=d.institution.key,
@@ -95,7 +99,7 @@ def _normalized(
             forecast.indicator, claim.indicator_label, claim.horizon, claim.unit
         ),
         measure=claim.indicator_label,
-        adjustment=derive_adjustment(claim.indicator_label, quotes),
+        adjustment=adjustment,
         verifier_version=resolve_verifier(row["verifier_version"]),
         raw_value=claim.value,
     )

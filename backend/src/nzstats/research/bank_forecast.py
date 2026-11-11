@@ -47,6 +47,24 @@ def derive_adjustment(label: str, quote: str) -> Adjustment:
     return "not_stated"
 
 
+def canonical_label(label: str, adjustment: Adjustment) -> str:
+    """The label without its adjustment wording, once the adjustment is settled (the same measure wherever it is stated).
+
+    `compare.basis_of` reads "unadjusted" as part of the CPI basis and rejects "non-seasonally adjusted" as ambiguous, so
+    a bank that says it in the label and a bank that says it in the evidence would otherwise be different measures. The
+    adjustment lives in `NormalizedForecast.adjustment`, the stated label in `measure`, the wording in the evidence. A label
+    that disagrees with its evidence (`not_stated`) is left as stated, and so is a label that is only that wording.
+    """
+    if adjustment == "not_stated":
+        return label
+    text = _ADJUSTED.sub(" ", _UNADJUSTED.sub(" ", label))
+    text = re.sub(r"\(\s*\)", " ", text)  # a bracket left empty
+    text = re.sub(r"\s+([,;])", r"\1", text)
+    text = re.sub(r"([,;])(\s*[,;])+", r"\1", text)  # a comma left behind a removed phrase
+    text = re.sub(r"\s+", " ", text).strip(" ,;-–—")
+    return text or label
+
+
 def states_adjustment(text: str) -> bool:
     """Whether the text says anything about seasonal adjustment (even if it contradicts itself)."""
     return bool(_stated(text))

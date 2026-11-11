@@ -40,6 +40,9 @@ issuer attribution, summarise and policy workflow, the internal draft gate and i
 - Only claims with no automated issue and no warning enter any aggregate; others are listed by fixed code.
 - Seasonally adjusted, unadjusted and unstated figures are never aggregated together; quarterly, annual, calendar, fiscal,
   average and end-of-period figures stay apart as `compare.py` already ensures; a third party's forecast is never the bank's.
+- Adjustment wording is taken out of the label the comparison reads once the adjustment is settled (`canonical_label`), so a
+  bank that says "unadjusted" in its label and one that says it in its evidence are the same measure; `measure` keeps the label
+  as stated and the evidence is untouched. A label that contradicts its evidence is left as stated.
 - Only quarterly *outlook* reports feed consensus, divergence, revisions and evaluation; weekly notes are shown, labelled.
 - Different values from a bank on one date for one measure and adjustment are a conflict, whether in one document or two: none
   is used. A conflict (or a conflicting pair of failed or warned claims) in a newer report also hides the bank's older figure.

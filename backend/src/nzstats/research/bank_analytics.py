@@ -129,25 +129,27 @@ def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool) -> _Prepar
         slot = (n.institution_key, n.adjustment, key)
         newest_unusable[slot] = max(newest_unusable.get(slot, ""), n.forecast.published_on or "")
 
-    # Conflicts inside one document (two values for one measure) and across documents (same bank, measure, target and
-    # date, different documents and values). Both block the bank's older figures, as an unusable claim does.
-    kept, in_document = _resolve_by_adjustment(eligible)
-    key_of = {id(n.forecast): key for key, n in kept}
+    # One identity for every claim: the bank, the adjustment and the comparison group. Claims of one identity must agree
+    # within a document and on a publication date; where they do not, none of them is used, and each blocks the bank's
+    # older figures as an unusable claim does. Every claim is checked against every other of its identity, repeats and
+    # claims from a report that disagrees with itself included.
+    comparable, in_document = _resolve_by_adjustment(eligible)
+    key_of = {id(n.forecast): key for key, n in (*comparable, *in_document)}
+    by_identity: dict[tuple, list[NormalizedForecast]] = defaultdict(list)
+    for key, n in (*comparable, *in_document):
+        by_identity[(n.institution_key, n.adjustment, key)].append(n)
     conflicted: set[int] = set()
-    for key, n in in_document:
-        conflicted.add(id(n.forecast))
-        note_unusable(n, key)
-    same_day: dict[tuple, list[NormalizedForecast]] = defaultdict(list)
-    for key, n in kept:
-        if n.forecast.published_on:
-            same_day[(n.institution_key, n.adjustment, key, n.forecast.published_on)].append(n)
-    for members in same_day.values():
-        if (
-            len({m.forecast.summary_id for m in members}) > 1
-            and len({m.raw_value for m in members}) > 1
-        ):
-            conflicted.update(id(m.forecast) for m in members)
-            note_unusable(members[0], key_of[id(members[0].forecast)])
+    for (_, _, key), members in by_identity.items():
+        must_agree: dict[tuple, list[NormalizedForecast]] = defaultdict(list)
+        for m in members:
+            must_agree[("document", m.forecast.summary_id)].append(m)
+            if m.forecast.published_on:
+                must_agree[("day", m.forecast.published_on)].append(m)
+        for claims in must_agree.values():
+            if len({c.forecast.value for c in claims}) > 1:
+                for c in claims:
+                    conflicted.add(id(c.forecast))
+                    note_unusable(c, key)
     pool = [
         e.normalized
         for e in view.excluded
