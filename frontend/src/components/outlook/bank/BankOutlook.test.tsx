@@ -1,12 +1,14 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { BankForecasts } from "@/api/bank";
+import type { Forecast } from "@/api/types";
 import { formatForecastValue } from "@/charts/forecasts";
 import { mockApi, renderWithProviders } from "@/test/mockApi";
 import { BankCards } from "./BankCards";
 import { BankForecastTable } from "./BankForecastTable";
 import { BankOutlook } from "./BankOutlook";
-import { BANKS, CARDS, FORECASTS, SUMMARY } from "./testData";
+import { bankForecast, BANKS, CARDS, forecast, FORECASTS, group, SUMMARY } from "./testData";
 
 const BASE = "/api/internal/bank-intelligence";
 const routes = (over: Record<string, unknown> = {}) => ({
@@ -105,6 +107,49 @@ describe("BankForecastTable", () => {
     renderWithProviders(<BankForecastTable data={FORECASTS} banks={banks} indicator="cpi_inflation" onSelect={onSelect} />);
     await userEvent.click(screen.getByRole("button", { name: /Example Bank A.*2\.1%/ }));
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ claim_path: "forecasts[0]", report_kind: "outlook" }));
+  });
+
+  it("opens the evidence of the claim behind each row when claims differ only in adjustment or scenario", async () => {
+    const quoted = (quote: string, over: Partial<Forecast> = {}) =>
+      forecast(BANKS[0], 2.1, { evidence: [{ section_ordinal: 1, page: 2, quote }], ...over });
+    const sa = quoted("SYNTHETIC quote: seasonally adjusted");
+    const nsa = quoted("SYNTHETIC quote: unadjusted");
+    const central = quoted("SYNTHETIC quote: central");
+    const downside = quoted("SYNTHETIC quote: downside", { scenario: "SYNTHETIC downside" });
+    const forecasts = [
+      bankForecast(sa, { claim_path: "forecasts[0]" }, "outlook", "seasonally_adjusted"),
+      bankForecast(nsa, { claim_path: "forecasts[1]" }, "outlook", "unadjusted"),
+      bankForecast(central, { claim_path: "forecasts[2]" }),
+      bankForecast(downside, { claim_path: "forecasts[3]" }),
+    ];
+    const scenario = { key: "cpi_inflation|percent|annual_change|year_to:2027-06|downside", kind: "scenario", scenario: "SYNTHETIC downside" } as const;
+    const data = {
+      ...FORECASTS,
+      forecasts,
+      comparison: [
+        { adjustment: "seasonally_adjusted", comparison: { ...FORECASTS.comparison[0].comparison, groups: [group({ rows: [{ forecast: sa, earlier_vintages: [] }] })] } },
+        { adjustment: "unadjusted", comparison: { ...FORECASTS.comparison[0].comparison, groups: [group({ rows: [{ forecast: nsa, earlier_vintages: [] }] })] } },
+        {
+          adjustment: "not_stated",
+          comparison: {
+            ...FORECASTS.comparison[0].comparison,
+            groups: [
+              group({ rows: [{ forecast: central, earlier_vintages: [] }] }),
+              group({ ...scenario, rows: [{ forecast: downside, earlier_vintages: [] }] }),
+            ],
+          },
+        },
+      ],
+    } satisfies BankForecasts;
+    const onSelect = vi.fn();
+    renderWithProviders(<BankForecastTable data={data} banks={BANKS.slice(0, 1)} indicator="cpi_inflation" onSelect={onSelect} />);
+    for (const button of screen.getAllByRole("button", { name: /Example Bank A/ })) await userEvent.click(button);
+    expect(onSelect.mock.calls.map(([f]) => [f.claim_path, f.adjustment, f.forecast.evidence[0].quote])).toEqual([
+      ["forecasts[0]", "seasonally_adjusted", "SYNTHETIC quote: seasonally adjusted"],
+      ["forecasts[1]", "unadjusted", "SYNTHETIC quote: unadjusted"],
+      ["forecasts[2]", "not_stated", "SYNTHETIC quote: central"],
+      ["forecasts[3]", "not_stated", "SYNTHETIC quote: downside"],
+    ]);
   });
 });
 

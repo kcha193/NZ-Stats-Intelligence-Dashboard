@@ -5,7 +5,11 @@ import { ADJUSTMENT_LABELS, INDICATOR_NAMES, KIND_LABELS } from "./labels";
 
 type Bank = { key: string; name: string };
 
-const cellKey = (f: BankForecast["forecast"]) => `${f.summary_id}|${f.indicator_label}|${f.horizon}|${f.value}`;
+type Adjustment = BankForecast["adjustment"];
+
+/** Claims differing only in adjustment or scenario must not share a key, or a row would open another claim's evidence. */
+const cellKey = (f: BankForecast["forecast"], adjustment: Adjustment) =>
+  [f.summary_id, f.indicator_label, f.horizon, f.value, adjustment, f.scenario ?? ""].join("|");
 
 function rowNote(group: ForecastGroup, adjustment: BankForecasts["comparison"][number]["adjustment"]): string {
   const parts = [group.basis_label, ADJUSTMENT_LABELS[adjustment], group.kind === "scenario" ? `scenario: ${group.scenario}` : null];
@@ -24,7 +28,7 @@ export function BankForecastTable({
   indicator: string;
   onSelect?: (f: BankForecast) => void;
 }) {
-  const lookup = new Map(data.forecasts.map((f) => [cellKey(f.forecast), f]));
+  const lookup = new Map(data.forecasts.map((f) => [cellKey(f.forecast, f.adjustment), f]));
   const rows = data.comparison.flatMap((c) =>
     c.comparison.groups.filter((g) => g.indicator === indicator).map((group) => ({ group, adjustment: c.adjustment })),
   );
@@ -59,7 +63,7 @@ export function BankForecastTable({
                     </td>
                   );
                 }
-                const bf = lookup.get(cellKey(hit.forecast));
+                const bf = lookup.get(cellKey(hit.forecast, adjustment));
                 const shown = formatForecastValue(hit.forecast.value ?? 0, group.unit_label);
                 const kind = bf ? KIND_LABELS[bf.report_kind] : null;
                 return (

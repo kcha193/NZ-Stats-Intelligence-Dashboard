@@ -101,6 +101,12 @@ def _resolve_by_adjustment(
             for e in excluded
             if e.reason == CONFLICT
         )
+        # `resolve` keeps one copy of an identical repeat (prose and table) and reports neither the rest nor a reason.
+        # They are the same claim: give each the identity of the copy that was kept.
+        accounted = {id(f) for _, f in kept} | {id(e.forecast) for e in excluded}
+        comparable.extend(
+            (group_key(n.forecast), n) for n in group if id(n.forecast) not in accounted
+        )
     return comparable, conflicts
 
 
