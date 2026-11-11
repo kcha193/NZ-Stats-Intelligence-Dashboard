@@ -118,7 +118,8 @@ def reconcile(
             tables[t.version_id].append(_table_item(t))
     cl: dict[int, list[_Item]] = defaultdict(list)
     for c in claims:
-        if c.forecast.value is not None:
+        # A scenario is not the central forecast the table states; it is neither matched nor contradicted by it.
+        if c.forecast.value is not None and not c.forecast.scenario:
             cl[c.document_version_id].append(_claim_item(c))
     out: list[Reconciliation] = []
     for version in sorted(set(tables) | set(cl)):

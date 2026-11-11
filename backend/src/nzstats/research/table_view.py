@@ -7,7 +7,9 @@ allowed host. The figure must be a forecast (not an actual), have a number (a da
 own (a "Source:" line naming someone else makes it a third party's).
 
 Reconciliation against the bank's checked claims then decides, with fixed codes:
-  * no counterpart, or an exact match  -> used (an exact match is the same statement, counted once downstream);
+  * no counterpart                     -> used;
+  * an exact match                     -> not added: the checked claim already states it, so it is one statement and is
+                                          counted once (it is still reported as an exact match);
   * a different value                  -> used, so the analytics' own conflict rule leaves both out;
   * a rounding difference              -> the claim is kept and the table figure dropped (two precisions of one
                                           number would otherwise be a spurious conflict);
@@ -139,6 +141,8 @@ def table_forecasts(
                 continue
             path = f"tables[{f.extraction_id}:{f.ordinal}]"
             cls = cls_of.get(f.id, "no_counterpart")
+            if cls == "exact_match":
+                continue  # the checked claim already states it: one statement, counted once (see the module note)
             code = None
             if f.author_role == "third_party":
                 code = "table_third_party"

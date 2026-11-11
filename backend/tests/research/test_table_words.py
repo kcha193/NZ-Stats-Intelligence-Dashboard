@@ -62,3 +62,28 @@ def test_word_is_a_frozen_value():
     w = Word(1, 0.0, 1.0, 2.0, 10.0, "x")
     with pytest.raises(AttributeError):
         w.text = "y"  # type: ignore[misc]
+
+
+def test_a_word_with_a_non_finite_position_is_dropped_not_sorted():
+    from nzstats.research.table_words import make_word
+
+    ident = [1, 0, 0, 1, 0, 0]
+    assert make_word(1, "ok", ident, ident, 10.0) is not None
+    nan, inf = float("nan"), float("inf")
+    assert make_word(1, "x", ident, [1, 0, 0, 1, nan, 0], 10.0) is None
+    assert make_word(1, "x", ident, [1, 0, 0, 1, 0, inf], 10.0) is None
+    assert make_word(1, "x", ident, ident, nan) is None
+    assert make_word(1, "   ", ident, ident, 10.0) is None
+
+
+def test_text_drawn_as_one_block_yields_no_table_rather_than_a_wrong_one():
+    """pypdf hands back a whole baseline drawn inside one BT..ET as one string, so positions inside it are unknown.
+    That fails safe: no cell boundaries, no table. (Documented limit; the pilot's dry run shows it.)"""
+    from nzstats.research.table_grid import find_tables
+
+    stream = (
+        "BT /F1 10 Tf 72 700 Td (Dec-26) Tj 180 0 Td (Mar-27) Tj ET "
+        "BT /F1 10 Tf 72 686 Td (OCR) Tj 180 0 Td (3.25) Tj 60 0 Td (3.00) Tj ET"
+    )
+    pdf = table_pdf([[]]).replace(b"q Q", stream.encode())
+    assert find_tables(extract_words(pdf, LIMITS, isolate=False)) == ((), ())

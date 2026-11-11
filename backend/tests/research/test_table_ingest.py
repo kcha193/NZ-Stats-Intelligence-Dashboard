@@ -226,3 +226,28 @@ def test_the_command_refuses_a_real_bank_version(cli, tmp_path, monkeypatch, cap
     conn.close()
     assert main(["research", "tables", "extract", str(v)]) == 1
     assert "refused (source not permitted)" in capsys.readouterr().out
+
+
+def test_a_purge_that_lands_during_the_parse_is_refused_cleanly_and_stores_nothing(
+    conn, artifacts, monkeypatch
+):
+    from nzstats.research import table_ingest
+
+    registry, v = imported(conn, artifacts)
+    real = table_ingest.extract_words
+
+    def purge_meanwhile(*args, **kwargs):
+        plan = purge.plan_purge(conn, "example", version_ids=[v])
+        purge.apply_purge(
+            conn, plan, artifacts, reason="takedown", purged_by="Owner", note="test", now=NOW
+        )
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(table_ingest, "extract_words", purge_meanwhile)
+    # the raw copy is gone with the purge, so the run ends in a fixed refusal, never an unhandled database error
+    result = extract_version_tables(conn, v, artifacts, registry, NOW, isolate=False)
+    assert (result.status, result.reason) in {
+        ("refused", "purged"),
+        ("refused", "raw copy unavailable"),
+    }
+    assert conn.execute("SELECT COUNT(*) FROM research_table_forecast").fetchone()[0] == 0

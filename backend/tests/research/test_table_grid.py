@@ -178,3 +178,54 @@ def test_a_row_with_no_figure_in_the_first_column_keeps_that_column():
     (t,), _ = read(page)
     assert len(t.columns) == 4
     assert [(c.col, c.text) for c in t.body_rows[0][1:]] == [(1, "5.0"), (2, "4.9")]
+
+
+def test_a_captioned_table_on_the_next_page_is_a_new_table_even_with_the_same_header():
+    p1 = [
+        (72, 745, "Table 1: Central forecasts"),
+        *header(),
+        *line(686, "OCR (%)", ["3", "3", "3", "3"]),
+    ]
+    p2 = [
+        (72, 745, "Table 2: Downside scenario"),
+        *header(),
+        *line(686, "OCR (%)", ["9", "9", "9", "9"]),
+    ]
+    tables, _ = read(p1, p2)
+    assert [(t.caption, len(t.body_rows)) for t in tables] == [
+        ("Table 1: Central forecasts", 1),
+        ("Table 2: Downside scenario", 1),
+    ]
+
+
+def test_a_captioned_block_without_a_header_is_not_a_continuation():
+    p1 = [
+        (72, 745, "Table 1: Central forecasts"),
+        *header(),
+        *line(686, "OCR (%)", ["3", "3", "3", "3"]),
+    ]
+    p2 = [(72, 745, "Table 2: Downside scenario"), *line(700, "OCR (%)", ["9", "9", "9", "9"])]
+    tables, rejections = read(p1, p2)
+    assert len(tables) == 1 and len(tables[0].body_rows) == 1
+    assert [r.code for r in rejections] == ["no_header"]
+
+
+def test_a_caption_that_says_continued_is_a_continuation():
+    p1 = [(72, 745, "Table 1: Forecasts"), *header(), *line(686, "OCR (%)", ["3", "3", "3", "3"])]
+    p2 = [
+        (72, 745, "Table 1 (continued)"),
+        *header(),
+        *line(686, "Annual CPI inflation (%)", ["2", "2", "2", "2"]),
+    ]
+    (t,), _ = read(p1, p2)
+    assert t.page_end == 2 and len(t.body_rows) == 2
+
+
+def test_a_header_drawn_in_two_pieces_is_one_header():
+    xs = [250.0, 330.0]
+    page = [
+        (xs[0], 700, "Dec"), (xs[0] + 20, 700, "2026"), (xs[1], 700, "Mar"), (xs[1] + 20, 700, "2027"),
+        *line(686, "OCR (%)", ["3.25", "3.00"], xs),
+    ]  # fmt: skip
+    (t,), _ = read(page)
+    assert [c.headers for c in t.columns] == [("Dec 2026",), ("Mar 2027",)]

@@ -7,6 +7,23 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AF: bank activation readiness and deterministic PDF forecast tables, 11 November 2026
+
+Branch `feat/phase-4af-bank-pdf-extraction` from main `a3a5449` (PR #58 merged). Design
+[spec](superpowers/specs/2026-11-11-phase-4af-bank-pdf-extraction-design.md), [plan](superpowers/plans/2026-11-11-phase-4af-bank-pdf-extraction.md),
+[readiness matrix](phase-4af-source-readiness.md), [architecture](phase-4af-pdf-tables.md), [verification](phase-4af-verification.md),
+[runbook](phase-4af-runbook.md), [first-bank pilot](phase-4af-first-bank-pilot.md). **No live ingestion exists for any bank and no
+permission field was changed.** No bank contact, hosted or local model call, paid inference, deployment, schedule or production write.
+
+- Deterministic table layer (`research/table_*.py`): positioned words, geometric grid (merged group headers, multi-page tables,
+  refusal of ambiguous columns), fixed-rule interpretation (OCR, CPI, GDP, unemployment; actual vs forecast; units; missing,
+  negative and zero kept exactly), additive migration 015, `research tables extract|show`, reconciliation with checked claims.
+- Table figures join the bank analytics through the same internal gate; an exact match is one statement, a contradiction
+  excludes both, a rounding or unit/horizon difference keeps the claim and drops the table figure.
+- 4AE defects fixed with failing-first tests: adjustment false positives (`U.S.A.`, bare `SA`), all-undated series (`undated` state),
+  `bank-status` in Pacific/Auckland, unreadable registry exit code, failed AI stance collapsed, divergence ranked. Deferred and
+  measured items are in the verification record.
+
 ## Phase 4AE: multi-bank economic intelligence, 10 November 2026
 
 Branch `feat/phase-4ae-bank-research` from main `86a4515` (backend baseline 5932 passed, 5 skipped). Overview

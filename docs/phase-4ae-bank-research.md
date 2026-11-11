@@ -64,6 +64,5 @@ that is excluded, runs twice from scratch for byte-identical output, and shows t
 
 ## Not done
 
-Live ingestion (blocked by missing permissions); a deterministic PDF table parser (needs its own claim store; recommended
-next); any hosted or paid inference; deployment; unattended polling. Findings during the build: a visually-hidden element
+Live ingestion (blocked by missing permissions); a deterministic PDF table parser (built in Phase 4AF, see [phase-4af-pdf-tables.md](phase-4af-pdf-tables.md)); any hosted or paid inference; deployment; unattended polling. Findings during the build: a visually-hidden element
 inside a scrolling table widened the page at phone width (fixed and covered by a browser test).

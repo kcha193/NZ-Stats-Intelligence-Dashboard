@@ -170,10 +170,15 @@ def test_content_policy_is_rechecked_on_every_read(conn):
     assert run(conn, {narrowed.key: narrowed})[0] == []
 
 
-def test_an_agreeing_claim_does_not_stop_the_table_figure(conn, artifacts):
+def test_an_agreeing_claim_is_the_one_statement_so_the_table_duplicate_is_not_added(
+    conn, artifacts
+):
     registry, v = stored(conn, artifacts)
     forecasts, excluded, recs = run(conn, registry, [claim(v, 2.6)])
-    assert len(cpi_june(forecasts)) == 1 and excluded == []
+    assert (
+        cpi_june(forecasts) == [] and excluded == []
+    )  # the checked claim already states it; nothing is counted twice
+    assert len(forecasts) == 3  # the other three table figures have no counterpart and stand
     assert summary_counts(recs) == {"exact_match": 1, "no_counterpart": 3}
 
 
@@ -240,12 +245,21 @@ def test_a_table_figure_that_contradicts_a_claim_in_the_same_document_is_a_confl
     assert codes.count("conflicting_forecasts") == 2
 
 
-def test_an_agreeing_claim_and_table_figure_are_one_statement_in_the_comparison(conn, artifacts):
-    registry, v = stored(conn, artifacts)
-    forecasts, _, _ = run(conn, registry, [claim(v, 2.6)])
+def test_an_agreeing_claim_leaves_one_vintage_one_row_and_no_exclusion(conn, artifacts):
+    from nzstats.research.bank_analytics import bank_revisions
+
     from .bank_support import view_of
 
-    view = view_of(claim(v, 2.6), *cpi_june(forecasts))
+    registry, v = stored(conn, artifacts)
+    forecasts, _, _ = run(conn, registry, [claim(v, 2.6)])
+    view = view_of(claim(v, 2.6), *forecasts)
     assert bank_exclusions(view, outlook_only=False, dated_only=False) == []
-    ((_, comparison),) = bank_comparison(view)
-    assert sum(len(g.rows) for g in comparison.groups) == 1
+    ((_, comparison),) = [x for x in bank_comparison(view) if x[1].groups][:1]
+    row = next(
+        r for g in comparison.groups for r in g.rows if r.forecast.indicator == "cpi_inflation"
+    )
+    assert row.earlier_vintages == []
+    series = next(
+        s for _, h in bank_revisions(view) for s in h.series if s.indicator == "cpi_inflation"
+    )
+    assert len(series.vintages) == 1

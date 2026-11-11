@@ -166,3 +166,10 @@ def test_there_is_no_verified_flag_on_a_reconciliation():
         "cls",
         "note_code",
     }
+
+
+def test_a_scenario_claim_is_not_the_central_forecast_and_is_not_reconciled_with_it():
+    rs = reconcile([tab(value="3.00")], [claim(3.0, scenario="downside")])
+    assert summary_counts(rs) == {
+        "no_counterpart": 1
+    }  # only the table figure; the scenario claim is left alone

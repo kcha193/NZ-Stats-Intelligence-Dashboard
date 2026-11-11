@@ -233,3 +233,12 @@ def test_cli_bank_status_does_not_create_or_migrate_a_database(tmp_path, monkeyp
     assert main(["research", "bank-status"]) == 3
     assert not (tmp_path / "data" / "nzstats.db").exists()
     assert "no database" in capsys.readouterr().out.lower()
+
+
+def test_an_undated_series_counts_as_missing_expected(conn):
+    seed(conn, "research/outlook/q4", None)
+    seed(conn, "research/weekly/w45", "2026-11-05")
+    m = bank_metrics(
+        conn, only("bank_a"), NOW - timedelta(days=30), now=NOW, adapters=SYNTH_ADAPTERS
+    )["bank_a"]
+    assert m.missing_expected == 1  # the outlook series is held but cannot be judged current

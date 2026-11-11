@@ -178,7 +178,7 @@ def bank_metrics(
 ) -> dict[str, BankMetrics]:
     stamp = to_utc_iso(since)
     expected = {
-        s.key: sum(x.state in ("missing", "stale") for x in s.series)
+        s.key: sum(x.state in ("missing", "undated", "stale") for x in s.series)
         for s in bank_status(conn, registry, now, adapters)
     }
     out = {}

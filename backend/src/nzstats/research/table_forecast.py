@@ -36,6 +36,16 @@ _INDICATORS: dict[str, re.Pattern[str]] = {
     "gdp": re.compile(r"\bgdp\b|gross domestic product", re.IGNORECASE),
     "unemployment": re.compile(r"unemployment", re.IGNORECASE),
 }
+# A scenario is not the central forecast, and the bank analytics compare central forecasts.
+_SCENARIO = re.compile(
+    r"\b(?:scenarios?|downside|upside|alternative|stress(?:ed)?|sensitivity|illustrative|what[- ]if|risk case)\b",
+    re.IGNORECASE,
+)
+# Forecasters other than the publishing bank that a caption may name; a caption naming one, and not the bank, is theirs.
+_OTHER_FORECASTERS = (
+    "treasury", "rbnz", "reserve bank", "imf", "oecd", "world bank", "consensus", "bloomberg", "reuters",
+    "market pricing", "stats nz", "statistics new zealand",
+)  # fmt: skip
 _RATE_INDICATORS = frozenset({"ocr", "unemployment"})
 _SOURCE = re.compile(r"^sources?\s*[:\-]\s*(.*)$", re.IGNORECASE)
 
@@ -65,22 +75,20 @@ def _indicator(label: str) -> set[str]:
     return {name for name, pattern in _INDICATORS.items() if pattern.search(text)}
 
 
+def _names(text: str, names: Sequence[str]) -> bool:
+    """Whether any name appears in the text as a whole word (so "anz" is not found inside "Manzano")."""
+    return any(re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text, re.IGNORECASE) for n in names if n)
+
+
 def _author_role(t: GridTable, publisher_names: Sequence[str]) -> Literal["author", "third_party"]:
-    """The bank unless a source line exists and does not name it."""
+    """The bank unless a source line or the caption points at someone else and does not name the bank."""
     for note in t.notes:
-        if (m := _SOURCE.match(note.strip())) and not any(
-            name.lower() in m[1].lower() for name in publisher_names
-        ):
+        if (m := _SOURCE.match(note.strip())) and not _names(m[1], publisher_names):
             return "third_party"
+    caption = t.caption or ""
+    if _names(caption, _OTHER_FORECASTERS) and not _names(caption, publisher_names):
+        return "third_party"
     return "author"
-
-
-def _footnotes(t: GridTable) -> dict[str, str]:
-    return {
-        n[0]: n
-        for n in (note.strip() for note in t.notes)
-        if n and not _SOURCE.match(n) and n[0] in "*†‡¹²³⁴⁵⁶⁷⁸⁹"
-    }
 
 
 def _columns(t: GridTable, out: list[Rejection]) -> dict[int, tuple[Column, Period, str]]:
@@ -88,6 +96,9 @@ def _columns(t: GridTable, out: list[Rejection]) -> dict[int, tuple[Column, Peri
     ok: dict[int, tuple[Column, Period, str]] = {}
     for col in t.columns:
         if col.role != "value":
+            continue
+        if any(_SCENARIO.search(h) for h in col.headers):
+            out.append(Rejection("scenario_column", t.page_start, t.index, None, col.index))
             continue
         kind = column_kind(col.headers)
         if kind == "unknown":
@@ -143,13 +154,18 @@ def interpret(
     forecasts: list[TableForecast] = []
     rejections: list[Rejection] = []
     for t in tables:
+        if t.caption and _SCENARIO.search(t.caption):
+            rejections.append(Rejection("scenario_table", t.page_start, t.index))
+            continue
         columns = _columns(t, rejections)
         role = _author_role(t, publisher_names)
-        notes = _footnotes(t)
         units = {c.index for c in t.columns if c.role == "unit"}
         for row in t.body_rows:
             label_cell = row[0]
             at = (label_cell.page, t.index, label_cell.row)
+            if _SCENARIO.search(label_cell.text):
+                rejections.append(Rejection("scenario_row", *at))
+                continue
             found = _indicator(label_cell.text)
             if len(found) != 1:
                 code = "ambiguous_indicator" if found else "unmapped_row"
@@ -169,7 +185,7 @@ def interpret(
                     continue
                 cell = cells.get(index)
                 parsed = parse_value(cell.text if cell else "")
-                if parsed.kind == "reject" or (parsed.footnote and parsed.footnote in notes):
+                if parsed.kind == "reject" or parsed.footnote:
                     code = parsed.code or "footnote_unresolved"
                     rejections.append(
                         Rejection(code, cell.page if cell else at[0], t.index, at[2], index)

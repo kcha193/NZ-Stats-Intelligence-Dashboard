@@ -2,6 +2,8 @@
 
 from decimal import Decimal
 
+import pytest
+
 from nzstats.research.compare import horizon_of
 from nzstats.research.extract import ExtractionLimits
 from nzstats.research.table_forecast import INTERPRETER_VERSION, interpret
@@ -222,3 +224,73 @@ def test_an_annual_row_under_a_quarter_header_is_contradictory():
     )
     assert forecasts == ()
     assert {r.code for r in rejections} == {"contradictory_period"}
+
+
+def test_a_scenario_table_is_never_read_as_the_central_forecast():
+    caption = [(72, 745, "Table 2: Downside scenario (%)")]
+    forecasts, rejections = run(
+        page(line(686, "Annual CPI inflation", ["5.8", "5.4", "5.1", "5.0"]), extra=caption)
+    )
+    assert forecasts == ()
+    assert [r.code for r in rejections] == ["scenario_table"]
+
+
+@pytest.mark.parametrize("word", ["downside", "Upside", "alternative", "stress", "sensitivity"])
+def test_a_scenario_row_is_refused_and_its_neighbour_is_not(word):
+    rows = [
+        *line(686, f"Annual CPI inflation, {word} (%)", ["5.8", "5.4", "5.1", "5.0"]),
+        *line(672, "OCR (%)", ["4", "3", "2.75", "2.5"]),
+    ]
+    forecasts, rejections = run(page(rows))
+    assert {f.indicator for f in forecasts} == {"ocr"}
+    assert [(r.code, r.row) for r in rejections] == [("scenario_row", 0)]
+
+
+def test_a_scenario_column_is_refused():
+    groups = [(250, 714, "Actual"), (370, 714, "Forecast, downside")]
+    forecasts, rejections = run(page(line(686, "OCR (%)", ["4", "3", "9", "9"]), groups=groups))
+    assert {f.kind for f in forecasts} == {"actual"}
+    assert {r.code for r in rejections} == {"scenario_column"}
+
+
+def test_a_footnote_marker_whose_note_cannot_be_found_is_refused_too():
+    rows = line(686, "Annual CPI inflation (%)", ["4", "3", "2.6*", "2"])
+    forecasts, rejections = run(page(rows))  # no note anywhere near the table
+    assert [(r.code, r.col) for r in rejections] == [("footnote_unresolved", 2)]
+    assert len(forecasts) == 3
+
+
+def test_a_caption_naming_another_forecaster_makes_it_a_third_party_figure():
+    caption = [(72, 745, "Table 3: Treasury forecasts (%)")]
+    forecasts, _ = run(page(line(686, "OCR", ["4", "3", "2", "2"]), extra=caption))
+    assert {f.author_role for f in forecasts} == {"third_party"}
+    ours = [(72, 745, "Table 3: Example Bank forecasts, Treasury actuals (%)")]
+    assert {
+        f.author_role for f in run(page(line(686, "OCR", ["4", "3", "2", "2"]), extra=ours))[0]
+    } == {"author"}
+
+
+def test_a_short_bank_name_does_not_match_inside_an_unrelated_word():
+    notes = [(72, 665, "Source: Manzano Research")]
+    forecasts, _ = run(
+        page(line(686, "OCR (%)", ["4", "3", "2", "2"]), extra=notes), publisher=("anz",)
+    )
+    assert {f.author_role for f in forecasts} == {"third_party"}
+    named = [(72, 665, "Source: ANZ Research, Stats NZ")]
+    assert {
+        f.author_role
+        for f in run(
+            page(line(686, "OCR (%)", ["4", "3", "2", "2"]), extra=named), publisher=("anz",)
+        )[0]
+    } == {"author"}
+
+
+def test_a_row_in_a_unit_the_phase_does_not_read_is_refused_even_under_a_percent_caption():
+    caption = [(72, 745, "Table 2: Forecasts (%)")]
+    rows = [
+        *line(686, "Unemployment (000s)", ["150", "151", "152", "153"]),
+        *line(672, "OCR", ["4", "3", "2", "2"]),
+    ]
+    forecasts, rejections = run(page(rows, extra=caption))
+    assert {f.indicator for f in forecasts} == {"ocr"}
+    assert [(r.code, r.row) for r in rejections] == [("unsupported_unit", 0)]

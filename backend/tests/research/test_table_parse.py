@@ -149,3 +149,23 @@ def test_actual_or_forecast_needs_an_explicit_marker(headers, kind):
 )
 def test_units_are_read_from_wording_and_conflicts_are_refused(texts, unit, code):
     assert unit_of_text(*texts) == (unit, code)
+
+
+@pytest.mark.parametrize(
+    "texts",
+    [
+        ("Unemployment (000s)", "(%)"),
+        ("Debt, NZ$ million",),
+        ("Index, 2010=1000", "%"),
+        ("Persons employed",),
+        ("Rate ($)",),
+    ],
+)
+def test_a_unit_this_phase_does_not_read_is_refused_rather_than_taken_as_a_percentage(texts):
+    assert unit_of_text(*texts) == (None, "unsupported_unit")
+
+
+@pytest.mark.parametrize("text", ["1" + "0" * 400, "1234567", "9" * 13])
+def test_an_absurd_magnitude_is_refused_so_nothing_overflows(text):
+    p = parse_value(text)
+    assert (p.kind, p.value, p.code) == ("reject", None, "value_out_of_range")

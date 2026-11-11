@@ -46,6 +46,8 @@ describe("BankEvidence", () => {
     expect(within(dialog).queryByText(/section -1/i)).not.toBeInTheDocument();
     expect(within(dialog).getByText(/no ai was used/i)).toBeInTheDocument();
     expect(within(dialog).queryByText(/automated checks, not a person/i)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/agree with any AI reading/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/no person has checked it/i)).toBeInTheDocument();
     expect(within(dialog).getByText(/<b>\(%\)<\/b>/)).toBeInTheDocument(); // shown as text, not parsed as markup
     expect(dialog.querySelector("b")).toBeNull();
   });

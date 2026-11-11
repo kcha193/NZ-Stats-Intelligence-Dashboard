@@ -6,7 +6,8 @@ from where it starts to where the next group starts. A value belongs to a column
 column by at least half its width. Anything else (a value straddling two columns, beyond the last column, a group
 header that starts in a gap) makes the **whole table** ambiguous and it is rejected rather than repaired. A table that
 continues on the next page is joined only when the next page repeats the same header, or has no header and the table
-had no notes; a continuation that does not fit is refused, never guessed.
+had no notes, and in either case carries no caption of its own (or one that says "continued"); a continuation that does not
+fit is refused, never guessed.
 
 Known limit: a whole row shifted by exactly one column is geometrically identical to a row with a missing first cell,
 so it cannot be detected here (the period and value checks downstream still apply). All text is untrusted data.
@@ -30,6 +31,11 @@ _UNIT = re.compile(r"^(?:%|ppt?s?|bps|% ?pa|% ?y/y|% ?q/q|index)$", re.IGNORECAS
 _NOTE = re.compile(r"^(?:sources?\b|notes?\b|[*†‡¹²³⁴⁵⁶⁷⁸⁹]|\(\d\))", re.IGNORECASE)
 _CAPTION = re.compile(r"^(?:table|figure|chart|exhibit)\b", re.IGNORECASE)
 _UNIT_HEADER = re.compile(r"^units?$", re.IGNORECASE)
+_CONTINUED = re.compile(r"\bcont(?:inued|'d|\.)", re.IGNORECASE)
+_HEADER_HEAD = re.compile(
+    r"^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*$|^q[1-4]$", re.IGNORECASE
+)
+_YEAR_TAIL = re.compile(r"^(?:\d{4}|\d{2})[a-z]?$", re.IGNORECASE)
 
 Role = Literal["value", "unit"]
 
@@ -108,7 +114,13 @@ def _merge(words: list[Word]) -> list[_Chunk]:
     for w in words:
         prev = chunks[-1] if chunks else None
         touching = prev is not None and w.x0 - prev.x1 < 0.8 * prev.size
-        if prev and touching and not (_VALUE.match(prev.text) or _VALUE.match(w.text)):
+        # A period drawn in two pieces ("Dec" then "2026", "Q4" then "2026") is one header.
+        split_period = bool(prev and _HEADER_HEAD.match(prev.text) and _YEAR_TAIL.match(w.text))
+        if (
+            prev
+            and touching
+            and (split_period or not (_VALUE.match(prev.text) or _VALUE.match(w.text)))
+        ):
             chunks[-1] = _Chunk(
                 prev.page, prev.x0, w.x1, prev.y, prev.size, f"{prev.text} {w.text}"
             )
@@ -276,6 +288,11 @@ def _same_columns(a: tuple[Column, ...], b: tuple[Column, ...], tol: float) -> b
     )
 
 
+def _may_continue(cand: _Candidate) -> bool:
+    """A captioned block starts a new table unless its caption says it continues the last one."""
+    return cand.caption is None or bool(_CONTINUED.search(cand.caption))
+
+
 def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rejection, ...]]:
     builders: list[_Builder] = []
     rejections: list[Rejection] = []
@@ -294,6 +311,7 @@ def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rej
                 current is not None
                 and not current.closed
                 and cand.page == current.page_end + 1
+                and _may_continue(cand)
                 and _same_columns(current.columns, columns, tol)
             ):
                 target = current
@@ -301,7 +319,12 @@ def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rej
                 target = current = _Builder(count, cand, columns)
                 builders.append(target)
                 count += 1
-        elif current is not None and not current.closed and cand.page == current.page_end + 1:
+        elif (
+            current is not None
+            and not current.closed
+            and cand.page == current.page_end + 1
+            and _may_continue(cand)
+        ):
             target = current
         else:
             rejections.append(Rejection("no_header", cand.page))

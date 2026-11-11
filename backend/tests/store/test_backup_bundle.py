@@ -267,6 +267,9 @@ def test_an_older_schema_set_restores_and_asks_for_a_migrate(tmp_path) -> None:
         "ops_alert",
         "ops_notification",
         "research_policy_event",
+        "research_table_rejection",
+        "research_table_forecast",
+        "research_table_extraction",
     ):
         conn.execute(f"DROP TABLE {table}")
     report = create_bundle(conn, raw, tmp_path / "old-set", now=NOW)
@@ -279,7 +282,7 @@ def test_an_older_schema_set_restores_and_asks_for_a_migrate(tmp_path) -> None:
         ).fetchone()
         is not None
     )
-    assert migrate(copy) == 14
+    assert migrate(copy) == 15
     copy.close()
     assert verify_backup(tmp_path / "restored" / "nzstats.db").ok
 

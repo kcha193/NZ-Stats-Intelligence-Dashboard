@@ -186,7 +186,7 @@ def test_offline_replay_from_pdf_tables_to_the_internal_routes(site, tmp_path, m
 
     forecasts = json.loads(first["forecasts"])
     shown = by_method(forecasts)
-    # Table figures reach the analytics; the two bank-B readings of the same number are one statement (table kept).
+    # Table figures reach the analytics; the two bank-B readings of the same number are one statement (the checked claim).
     assert shown[("bank_a", "2026-05-12", "cpi_inflation", "year to June 2026", "table")] == 4.0
     assert (
         shown[
@@ -195,7 +195,7 @@ def test_offline_replay_from_pdf_tables_to_the_internal_routes(site, tmp_path, m
                 "2026-05-12",
                 "cpi_inflation",
                 "year to June 2026",
-                "table",
+                "llm_verified",
             )
         ]
         == 4.2

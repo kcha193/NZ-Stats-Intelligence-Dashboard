@@ -99,8 +99,13 @@ def extract_version_tables(
     rejections = (*grid_rejections, *rejections)
     if dry_run:
         return TableIngestResult("dry_run", None, len(forecasts), len(rejections))
-    stored = store_extraction(
-        conn, version_id, now, forecasts, rejections, words_sha256=words_sha256(words)
-    )
+    try:
+        stored = store_extraction(
+            conn, version_id, now, forecasts, rejections, words_sha256=words_sha256(words)
+        )
+    except sqlite3.IntegrityError:
+        # The only refusal the schema makes here is a purge that landed while the (slow) parse ran.
+        log.warning("table figures for version %s were refused by the store", version_id)
+        return _refused("purged")
     status = "stored" if stored is not None else "unchanged"
     return TableIngestResult(status, None, len(forecasts), len(rejections))

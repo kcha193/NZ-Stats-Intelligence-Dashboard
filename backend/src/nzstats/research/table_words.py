@@ -15,6 +15,7 @@ import dataclasses
 import io
 import json
 import logging
+import math
 import subprocess
 import sys
 import tempfile
@@ -60,6 +61,19 @@ def text_width(text: str, size: float) -> float:
     return sum(_advance(c) for c in text) * size
 
 
+def make_word(page: int, text: str, cm, tm, font_size: float) -> Word | None:
+    """A positioned word, or None for blank text or a non-finite position or size (which would make ordering unstable)."""
+    text = " ".join(clean_text(text or "").split())
+    if not text:
+        return None
+    x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
+    y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
+    size = abs(font_size * tm[3] * cm[3]) or abs(font_size)
+    if not all(math.isfinite(v) for v in (x, y, size)):
+        return None
+    return Word(page, x, x + text_width(text, size), y, size, text)
+
+
 def extract_words(
     body: bytes,
     limits: ExtractionLimits | None = None,
@@ -95,15 +109,12 @@ def _extract(body: bytes, limits: ExtractionLimits) -> tuple[Word, ...]:
         for number, page in enumerate(reader.pages, start=1):
 
             def visit(text, cm, tm, _font, font_size, number=number):
-                text = " ".join(clean_text(text or "").split())
-                if not text:
+                word = make_word(number, text, cm, tm, font_size)
+                if word is None:
                     return
                 if len(words) >= _MAX_WORDS:
                     raise IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (words)")
-                x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
-                y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
-                size = abs(font_size * tm[3] * cm[3]) or abs(font_size)
-                words.append(Word(number, x, x + text_width(text, size), y, size, text))
+                words.append(word)
 
             page.extract_text(visitor_text=visit)
     except IngestError:
@@ -162,7 +173,8 @@ def words_sha256(words: Sequence[Word]) -> str:
 
 
 _CHILD_SNIPPET = (
-    "import sys; sys.path.insert(0, sys.argv[1]); sys.argv[1:] = sys.argv[2:];"
+    "import sys; r = sys.argv[1];"
+    " sys.path.insert(0, r) if 'site-packages' not in r else None; sys.argv[1:] = sys.argv[2:];"
     " from nzstats.research.table_words import _child_main; raise SystemExit(_child_main())"
 )
 

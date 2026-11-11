@@ -103,7 +103,7 @@ export function BankEvidence({ item, onClose }: { item: BankForecast; onClose: (
           <dt className="text-muted-foreground">Result</dt>
           <dd>
             {isTable
-              ? "The figure, period and unit are taken as printed in the table and agree with any AI reading of the same report, or none was made. No person has checked it, and a table can be misread."
+              ? "The figure, period and unit are taken as printed in the table. No person has checked it, and a table can be misread."
               : "No automated issue detected. Automated checks, not a person, produced this result, and they can miss errors."}
           </dd>
         </dl>

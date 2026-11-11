@@ -21,6 +21,7 @@ _MONTH_NAMES = tuple(m.title() for m in _MONTHS)
 
 _MISSING = frozenset({"", "-", "–", "—", "−", "n/a", "na", "..", "...", "…"})
 _FOOTNOTE = "*†‡¹²³⁴⁵⁶⁷⁸⁹"
+_MAX_MAGNITUDE = Decimal(1_000_000)
 _NUMBER = re.compile(r"^([-+−–]?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?$")
 
 
@@ -50,6 +51,10 @@ def parse_value(text: str) -> ParsedValue:
         return ParsedValue("reject", None, raw, code="unrecognised_suffix")
     sign, whole, frac = m.groups()
     value = Decimal(f"{whole.replace(',', '')}{frac or ''}")
+    if (
+        value >= _MAX_MAGNITUDE
+    ):  # a rate, growth figure or unemployment rate is never this large: a misread cell
+        return ParsedValue("reject", None, raw, code="value_out_of_range")
     if sign in ("-", "−", "–") and value != 0:
         value = -value
     return ParsedValue("number", value, raw, footnote)
@@ -168,6 +173,14 @@ _PCT_GDP = re.compile(r"%\s*of\s*gdp|per ?cent of gdp", re.IGNORECASE)
 _PCT = re.compile(r"%|per ?cent\b|\bpercent\b", re.IGNORECASE)
 
 
+# Units this phase does not read. A caption saying "(%)" must not turn a count or an amount into a percentage.
+_OTHER_UNITS = re.compile(
+    r"'?000s?\b|\bthousands?\b|\bmillions?\b|\bbillions?\b|\$|\bnzd\b|\bindex\b|\bpersons?\b"
+    r"|\bpeople\b|\bhours?\b",
+    re.IGNORECASE,
+)
+
+
 def _units_in(text: str) -> set[str]:
     found: set[str] = set()
     if _PP.search(text):
@@ -186,6 +199,8 @@ def unit_of_text(*texts: str) -> tuple[str | None, str | None]:
     """(unit, None) when the texts name one unit; (None, None) when none does; (None, code) when they disagree."""
     found: set[str] = set()
     for text in texts:
+        if _OTHER_UNITS.search(text):
+            return None, "unsupported_unit"
         found |= _units_in(text)
     if len(found) > 1:
         return None, "contradictory_unit"

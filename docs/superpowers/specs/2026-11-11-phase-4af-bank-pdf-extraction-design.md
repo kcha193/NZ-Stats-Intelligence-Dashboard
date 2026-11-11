@@ -86,7 +86,7 @@ period count, makes the *table* ambiguous and it is rejected whole (`ambiguous_c
   header period that contradicts its group label (e.g. "Dec 2026" under "Year to March"), rejects the column
   (`contradictory_period`, `unparsed_period`). Fiscal vs calendar year follows the stated wording only.
 - Actual vs forecast from an explicit marker: a group header ("Actual", "Forecast", "Projection") or a per-column suffix
-  ("f", "F", "(f)", "e", "p" is *not* accepted). No marker means `unknown` and the column is rejected (`actual_or_forecast_unstated`).
+  ("f", "F", "(f)"; "e" and "p" are *not* accepted). No marker means `unknown` and the column is rejected (`actual_or_forecast_unstated`).
   Actuals are stored as `actual` rows and are never forecasts; they feed nothing.
 - Unit from the table caption, a unit column, or a bracket in the row label ("%", "% y/y", "% q/q", "% pa", "percentage points").
   Mixed units in one table are allowed if each row states its own; a row with none is rejected (`unit_unstated`). A unit that
@@ -121,9 +121,9 @@ Everything else is listed by a fixed exclusion code, never by text. The existing
 that differs from a verified LLM claim for the same bank, document and measure is a *conflict* and both are left out, which is
 the behaviour we want from `contradictory_value`.
 
-Reconciliation classes (fixed, in this precedence): `exact_match`; `rounding_difference` (the more precise value, rounded
-half-up to the other's printed precision, equals it); `units_mismatch`; `horizon_mismatch` (same row identity, different
-canonical horizon); `attribution_mismatch` (one side third party or a different author); `contradictory_value`;
+Reconciliation classes (fixed): problems with *what is compared* are decided before the numbers (`ambiguous_or_unsupported`,
+`attribution_mismatch`, `units_mismatch`, `horizon_mismatch`), then `exact_match`; `rounding_difference` (the more precise value,
+rounded half-up to the other's printed precision, equals it); `contradictory_value`;
 `ambiguous_or_unsupported` (a side rejected, or the LLM claim is not matched by a table row, or the match is not one-to-one);
 `no_counterpart` (table row with no LLM claim, or the reverse). Matching is by institution, version, indicator, canonical
 horizon and the existing `canonical_label`/adjustment identity, and must be one-to-one or it is `ambiguous_or_unsupported`.
