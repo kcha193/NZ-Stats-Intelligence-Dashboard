@@ -77,6 +77,14 @@ VIEW_REASONS = {
     "claim_has_warning": "The claim raised an automated warning.",
     "third_party_issuer": "The forecast is attributed to another organisation, not to this bank.",
     "no_value": "The claim states a direction but no number.",
+    "table_third_party": "The table attributes the figure to another organisation, not to this bank.",
+    "reconciliation_rounding": (
+        "The table figure differs from the bank's checked claim only by rounding; the claim is used."
+    ),
+    "table_unresolved_reconciliation": (
+        "The table figure and the bank's checked claim differ in unit, horizon or attribution, or cannot be"
+        " matched one-to-one; neither is guessed."
+    ),
 }
 
 

@@ -108,9 +108,11 @@ def test_extra_fields_are_rejected_and_model_is_frozen():
         n.raw_value = 1.0  # type: ignore[misc]
 
 
-def test_no_conversion_is_recorded_and_extraction_method_is_fixed():
+def test_no_conversion_is_recorded_and_extraction_method_is_one_of_the_two_known_ones():
+    # Phase 4AF added "table" (figures read deterministically from a PDF table); nothing else is accepted.
     n = normalized(forecast())
     assert n.conversions == ()
     assert n.extraction_method == "llm_verified"
+    assert normalized(forecast(), extraction_method="table").extraction_method == "table"
     with pytest.raises(ValidationError):
-        normalized(forecast(), extraction_method="table")
+        normalized(forecast(), extraction_method="regex")

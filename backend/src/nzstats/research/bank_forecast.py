@@ -123,7 +123,7 @@ class NormalizedForecast(BaseModel):
     adjustment: Adjustment
     # The label and evidence state the adjustment both ways: `not_stated` here is a contradiction, not silence.
     adjustment_conflict: bool = False
-    extraction_method: Literal["llm_verified"] = "llm_verified"
+    extraction_method: Literal["llm_verified", "table"] = "llm_verified"
     verifier_version: str
     raw_value: float | None
     conversions: tuple[str, ...] = ()
