@@ -82,10 +82,12 @@ export function BankOutlook() {
       {empty && <p role="note" className="max-w-[70ch] rounded-md border p-4 text-sm">{empty}</p>}
       <BankCards cards={cards} />
       {forecasts.isError && <ErrorState error={forecasts.error} onRetry={() => void forecasts.refetch()} />}
-      {forecasts.data && forecasts.data.forecasts.length > 0 && (
+      {forecasts.data && (forecasts.data.forecasts.length > 0 || forecasts.data.excluded.length > 0) && (
         <div className="space-y-3">
           <h3 className="type-card">Forecasts by bank</h3>
-          <BankForecastTable data={forecasts.data} banks={banks} indicator={indicator} onSelect={setSelected} />
+          {forecasts.data.forecasts.length > 0 && (
+            <BankForecastTable data={forecasts.data} banks={banks} indicator={indicator} onSelect={setSelected} />
+          )}
           <BankLeftOut items={forecasts.data.excluded} names={names} />
         </div>
       )}

@@ -146,4 +146,21 @@ describe("BankOutlook", () => {
     renderWithProviders(<BankOutlook />);
     expect(await screen.findByText(expected)).toBeInTheDocument();
   });
+
+  it("still lists what was left out, and why, when every claim was rejected and no forecast remains", async () => {
+    const rejected = {
+      ...FORECASTS,
+      forecasts: [],
+      comparison: [],
+      excluded: [
+        { institution_key: BANKS[0].key, summary_id: 1, claim_path: "forecasts[0]", code: "claim_failed_checks", reason: "SYNTHETIC reason: the claim failed an automated check." },
+      ],
+    };
+    mockApi(routes({ [`${BASE}/forecasts`]: rejected }));
+    renderWithProviders(<BankOutlook />);
+    expect(await screen.findByText(/no forecast is eligible/i)).toBeInTheDocument();
+    expect(screen.getByText("Left out (1)")).toBeInTheDocument();
+    expect(screen.getByText(/SYNTHETIC reason: the claim failed an automated check\./)).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
 });

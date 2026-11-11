@@ -206,11 +206,11 @@ def _group_key(key: tuple) -> str:
 
 def _markers(view: BankView) -> dict[tuple[Adjustment, str], list[ContributorOut]]:
     """The newest forecast of each reference institution, by adjustment and comparison group."""
-    by_object = {id(n.forecast): n for n in view.markers}
-    kept, _ = resolve([n.forecast for n in view.markers])
+    kept, _ = _resolve_by_adjustment(view.markers)
     newest: dict[tuple[Adjustment, str, str], ForecastOut] = {}
-    for key, f in kept:
-        slot = (by_object[id(f)].adjustment, _group_key(key), f.institution.key)
+    for key, n in kept:
+        f = n.forecast
+        slot = (n.adjustment, _group_key(key), f.institution.key)
         if slot not in newest or (f.published_on or "", f.summary_id) > (
             newest[slot].published_on or "",
             newest[slot].summary_id,
@@ -314,8 +314,11 @@ class _AdjustmentAwareActuals:
         self._adjustments = adjustments
         self.indicator = inner.indicator
 
+    def adjustment_of(self, f: ForecastOut) -> Adjustment:
+        return self._adjustments.get(id(f), "not_stated")
+
     def target(self, f: ForecastOut) -> Target | str:
-        adjustment = self._adjustments.get(id(f), "not_stated")
+        adjustment = self.adjustment_of(f)
         if adjustment == "not_stated":
             if states_adjustment(f.indicator_label):
                 return DISAGREEING_ADJUSTMENT
@@ -358,4 +361,6 @@ def bank_evaluation(
         conn
     )
     actuals = _AdjustmentAwareActuals(inner, {id(n.forecast): n.adjustment for n in members})
-    return evaluate_forecasts(forecasts, actuals, indicator=indicator)
+    return evaluate_forecasts(
+        forecasts, actuals, indicator=indicator, resolve_scope=actuals.adjustment_of
+    )

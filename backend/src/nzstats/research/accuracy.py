@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Hashable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
@@ -161,8 +161,34 @@ def _target_label(t: Target) -> str:
     return f"{_MONTHS[int(t.quarter[5:]) // 3 - 1]} {t.quarter[:4]} quarter"
 
 
+def _resolve_within(
+    forecasts: list[ForecastOut], scope: Callable[[ForecastOut], Hashable] | None
+) -> tuple[list[tuple[tuple, ForecastOut]], list[ExcludedForecastOut]]:
+    """`compare.resolve`, run separately for each `scope` value when one is given (default: all together).
+
+    `resolve` ignores seasonal-adjustment wording, so a caller that tracks adjustment itself (the bank layer) scopes
+    by it: figures on different adjustments are then neither a conflict nor merged into one.
+    """
+    if scope is None:
+        return resolve(forecasts)
+    by_scope: dict[Hashable, list[ForecastOut]] = defaultdict(list)
+    for f in forecasts:
+        by_scope[scope(f)].append(f)
+    kept: list[tuple[tuple, ForecastOut]] = []
+    excluded: list[ExcludedForecastOut] = []
+    for members in by_scope.values():
+        k, x = resolve(members)
+        kept.extend(k)
+        excluded.extend(x)
+    return kept, excluded
+
+
 def evaluate_forecasts(
-    forecasts: list[ForecastOut], actuals: Actuals, *, indicator: str
+    forecasts: list[ForecastOut],
+    actuals: Actuals,
+    *,
+    indicator: str,
+    resolve_scope: Callable[[ForecastOut], Hashable] | None = None,
 ) -> ForecastEvaluationOut:
     chosen = [f for f in forecasts if f.indicator == indicator]
     evaluated_here = indicator in EVALUATED_INDICATORS and actuals.indicator == indicator
@@ -188,7 +214,7 @@ def evaluate_forecasts(
     if not chosen:
         return ForecastEvaluationOut(state="nothing_to_evaluate", **base, **empty)
 
-    kept, excluded = resolve(chosen)
+    kept, excluded = _resolve_within(chosen, resolve_scope)
     evaluated: list[EvaluatedForecastOut] = []
     for _, f in kept:
         if f.scenario:
