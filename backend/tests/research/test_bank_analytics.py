@@ -142,7 +142,7 @@ def test_divergence_requires_three_banks_and_ranks_by_spread():
 
 def test_divergence_names_the_measure_of_each_group_and_keeps_its_numbers():
     """Annual, quarterly and seasonally adjusted CPI for one target are three entries: each carries the basis label of
-    its own consensus group, and the spread, median, banks and order are the group's, unchanged."""
+    its own consensus group, and the spread, median and banks are the group's (the banks ranked highest first)."""
     claims = []
     for i, key in enumerate(("bank_a", "bank_b", "bank_c")):
         claims += [
@@ -160,7 +160,8 @@ def test_divergence_names_the_measure_of_each_group_and_keeps_its_numbers():
         g = groups[(d.group_key, d.adjustment)]
         assert d.basis_label == g.basis_label
         assert (d.spread, d.median) == (g.range, g.median)
-        assert [(b.key, b.value) for b in d.banks] == [(c.key, c.value) for c in g.contributors]
+        ranked = sorted(((c.key, c.value) for c in g.contributors), key=lambda x: (-x[1], x[0]))
+        assert [(b.key, b.value) for b in d.banks] == ranked
     assert [(d.basis_label, d.adjustment, d.spread) for d in div] == [
         ("Annual change (through the year)", "not_stated", 2.0),
         ("Annual change (through the year)", "seasonally_adjusted", 1.0),
@@ -339,3 +340,18 @@ def test_a_newer_unusable_weekly_claim_hides_the_older_figure_in_the_table_only(
     ]
     ((_, comparison),) = bank_comparison(view)
     assert {r.forecast.institution.key for r in comparison.groups[0].rows} == {"bank_b", "bank_c"}
+
+
+def test_divergence_lists_banks_from_the_highest_forecast_to_the_lowest():
+    (d,) = bank_divergence(bank_consensus(view_of(*three_banks((2.1, 2.7, 2.4)))))
+    assert [b.value for b in d.banks] == [2.7, 2.4, 2.1]
+    assert [b.distance_from_median for b in d.banks] == [0.3, 0.0, -0.3]
+
+
+def test_equal_forecasts_are_listed_in_a_fixed_order():
+    (d,) = bank_divergence(bank_consensus(view_of(*three_banks((2.4, 2.4, 3.0)))))
+    assert [(b.key, b.value) for b in d.banks] == [
+        ("bank_c", 3.0),
+        ("bank_a", 2.4),
+        ("bank_b", 2.4),
+    ]

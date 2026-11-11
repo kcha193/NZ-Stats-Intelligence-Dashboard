@@ -64,6 +64,11 @@ def normalized(f: ForecastOut, **overrides) -> NormalizedForecast:
         ("GDP growth", "seasonally adjusted and unadjusted both", "not_stated"),
         ("GDP growth", "growth of 0.4%", "not_stated"),
         ("Real GDP growth", "", "not_stated"),
+        # Phase 4AF: an abbreviation that is also a place or a bare "SA" is not a statement of seasonal adjustment.
+        ("Visitors from the U.S.A.", "growth of 0.4%", "not_stated"),
+        ("Unemployment rate, SA", "unemployment to 5.0%", "not_stated"),
+        ("Unemployment rate (SA)", "unemployment to 5.0%", "seasonally_adjusted"),
+        ("GDP growth, S.A.", "growth of 0.4%", "seasonally_adjusted"),
     ],
 )
 def test_adjustment_is_derived_only_from_stated_phrases(label, quote, expected):

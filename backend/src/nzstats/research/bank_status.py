@@ -3,7 +3,7 @@
 A bank's state is the worst of its report series (staleness is judged per series against the adapter's cadence, so a
 fresh weekly note cannot mask a missing quarterly outlook). Precedence, worst first:
 
-    permission_denied > unsupported > blocked > missing > stale > ok
+    permission_denied > unsupported > blocked > missing > undated > stale > ok
 
 `permission_denied` is the real state of every bank until the owner approves a route; it is expected, not a fault, and
 `bank_status_exit` treats it, `unsupported` and `ok` as success. Four dates are kept apart: when the newest document
@@ -18,13 +18,13 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Literal
 
-from nzstats.clock import AKL, to_utc_iso
+from nzstats.clock import AKL, to_akl_iso, to_utc_iso
 from nzstats.research.banks import ADAPTERS, BankAdapter, adapter_for
 from nzstats.research.registry import Institution
 
-State = Literal["ok", "stale", "missing", "blocked", "unsupported", "permission_denied"]
+State = Literal["ok", "stale", "undated", "missing", "blocked", "unsupported", "permission_denied"]
 PRECEDENCE: tuple[State, ...] = (
-    "permission_denied", "unsupported", "blocked", "missing", "stale", "ok",
+    "permission_denied", "unsupported", "blocked", "missing", "undated", "stale", "ok",
 )  # fmt: skip
 SUCCESS: frozenset[State] = frozenset({"ok", "permission_denied", "unsupported"})
 
@@ -96,6 +96,8 @@ def _series_statuses(
             state: State = "blocked"
         elif not mine:
             state = "missing"
+        elif published is None:
+            state = "undated"  # reports are held but none states a date: freshness cannot be judged, so not "ok"
         elif published and (today - date.fromisoformat(published)).days > series.cadence_days:
             state = "stale"
         else:
@@ -137,6 +139,28 @@ def bank_status(
                 BankStatus(inst.key, inst.name, _worst([s.state for s in series]), series)
             )
     return statuses
+
+
+def _akl(value: str | None) -> str:
+    return to_akl_iso(value) if value else "-"
+
+
+def render_text(statuses: list[BankStatus]) -> list[str]:
+    """The `bank-status` report as lines: times in Pacific/Auckland (the JSON form keeps UTC). No document text."""
+    lines = [
+        "Bank sources. Read-only: nothing was requested or changed. Times are Pacific/Auckland;"
+        " `--json` keeps UTC.",
+        f"{'bank':<10} {'state':<18} series",
+    ]
+    for s in statuses:
+        lines.append(f"{s.key:<10} {s.state:<18}")
+        for x in s.series:
+            lines.append(
+                f"  {x.series_key:<30} {x.state:<18} published {x.newest_published_on or '-':<11}"
+                f" ingested {_akl(x.ingested_at):<26} analysed {_akl(x.analysed_at):<26}"
+                f" checked {_akl(x.last_checked_at)}"
+            )
+    return lines
 
 
 def bank_status_exit(statuses: list[BankStatus]) -> int:

@@ -4,6 +4,7 @@ import type { Adjustment, BankState, ReportKind } from "@/api/bank";
 export const STATE_LABELS: Record<BankState, string> = {
   ok: "Up to date",
   stale: "Stale",
+  undated: "Date unknown",
   missing: "Nothing received",
   blocked: "Blocked by the source",
   unsupported: "Not supported yet",
@@ -13,6 +14,7 @@ export const STATE_LABELS: Record<BankState, string> = {
 export const STATE_SENTENCES: Record<BankState, string> = {
   ok: "",
   stale: "The newest report is older than this series' usual schedule.",
+  undated: "Reports are held but none states a publication date, so freshness cannot be judged.",
   missing: "Access is in place but no report has been received yet.",
   blocked: "The source refused the last request; the last good data is kept.",
   unsupported: "This source has no report series defined yet.",

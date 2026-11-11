@@ -8,7 +8,7 @@ import { getJson } from "./client";
 import { DASHBOARD_CLIENT, draftsAreOn, orUnpublished } from "./hooks";
 import type { Consensus, ConsensusGroup, Forecast, ForecastComparison, ForecastEvaluation, ForecastHistory } from "./types";
 
-export type BankState = "ok" | "stale" | "missing" | "blocked" | "unsupported" | "permission_denied";
+export type BankState = "ok" | "stale" | "undated" | "missing" | "blocked" | "unsupported" | "permission_denied";
 export type Adjustment = "seasonally_adjusted" | "unadjusted" | "not_stated";
 export type ReportKind = "outlook" | "weekly" | "commentary" | "other";
 export type Contributor = Consensus["groups"][number]["contributors"][number];

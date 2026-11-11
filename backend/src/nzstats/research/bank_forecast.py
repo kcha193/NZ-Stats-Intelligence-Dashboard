@@ -26,7 +26,11 @@ _UNADJUSTED = re.compile(
     r"\bnon[- ]?seasonally[- ]adjusted\b|\bun-?adjusted\b|\bnsa\b|\bactual (?:values|series)\b",
     re.IGNORECASE,
 )
-_ADJUSTED = re.compile(r"\bseasonally[- ]adjusted\b|\bs\.a\.?(?=\W|$)|\bsa\b", re.IGNORECASE)
+# "S.A." counts only when it is not the tail of a longer abbreviation ("U.S.A."), and a bare "SA" (a place as often as
+# an adjustment) counts only in brackets: silence is `not_stated`, never a guess.
+_ADJUSTED = re.compile(
+    r"\bseasonally[- ]adjusted\b|(?<![\w.])s\.a\.?(?=\W|$)|\(sa\)", re.IGNORECASE
+)
 
 
 def _stated(text: str) -> set[Adjustment]:

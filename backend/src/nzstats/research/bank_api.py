@@ -234,7 +234,9 @@ def bank_router(
         response.headers.update(_HEADERS)
         got = read(request, c)
         if got is None:
-            return BankFreshnessOut(banks=[], exit_code=0)
+            return BankFreshnessOut(
+                banks=[], exit_code=3
+            )  # could not run, as `bank-status` reports it
         statuses = bank_status(c, got[0], utc_now(), adapters)
         return BankFreshnessOut(
             banks=[_status_out(s) for s in statuses], exit_code=bank_status_exit(statuses)

@@ -35,6 +35,25 @@ describe("BankCards", () => {
     expect(within(b).getByText(/Failed automated checks/)).toBeInTheDocument();
   });
 
+  it("keeps a reading that failed its checks behind its failure label, closed, and never as the bank's view", () => {
+    renderWithProviders(<BankCards cards={CARDS} />);
+    const b = screen.getByRole("article", { name: /Example Bank B/ });
+    const details = b.querySelector("details");
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details as HTMLElement).getByText(/failed automated checks/i, { selector: "summary" })).toBeInTheDocument();
+    expect(within(details as HTMLElement).getByText(/Synthetic stance with a problem/)).toBeInTheDocument();
+    const a = screen.getByRole("article", { name: /Example Bank A/ });
+    expect(a.querySelector("details")).toBeNull(); // a clean reading is shown plainly
+  });
+
+  it("says when a bank's reports carry no date, rather than calling it up to date", () => {
+    renderWithProviders(<BankCards cards={[{ ...CARDS[0], state: "undated", stance: null }]} />);
+    const a = screen.getByRole("article", { name: /Example Bank A/ });
+    expect(within(a).getByText("Date unknown")).toBeInTheDocument();
+    expect(within(a).getByText(/none states a publication date/i)).toBeInTheDocument();
+  });
+
   it("names the series behind a series-level state, beside the report that was received", () => {
     renderWithProviders(<BankCards cards={[{ ...CARDS[0], state: "missing", worst_series: "Weekly Note" }]} />);
     const a = screen.getByRole("article", { name: /Example Bank A/ });

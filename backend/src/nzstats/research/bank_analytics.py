@@ -274,6 +274,7 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
                 unit_label=g.unit_label,
                 spread=g.range,
                 median=g.median,
+                # Ranked: highest forecast first, so the reader sees who is above and who is below the median.
                 banks=[
                     DivergenceBankOut(
                         key=b.key,
@@ -281,7 +282,7 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
                         value=b.value,
                         distance_from_median=round(b.value - g.median, 6),
                     )
-                    for b in g.contributors
+                    for b in sorted(g.contributors, key=lambda b: (-b.value, b.key))
                 ],
             )
         )

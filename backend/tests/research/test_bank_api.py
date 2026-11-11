@@ -252,6 +252,8 @@ def test_an_unreadable_registry_shows_nothing(bank_app):
     c = client(registry=broken)
     assert get(c, "summary").json()["cards"] == []
     assert get(c, "forecasts").json()["forecasts"] == []
+    # An unreadable registry is "could not run", the code `bank-status` uses, not a clean bill of health.
+    assert get(c, "freshness").json() == {"banks": [], "exit_code": 3}
 
 
 def test_zero_provider_calls_and_fetches_on_every_route(bank_app, monkeypatch):

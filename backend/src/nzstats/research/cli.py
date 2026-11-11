@@ -23,7 +23,7 @@ from nzstats.config import Settings
 from nzstats.research import policy as pol
 from nzstats.research import purge
 from nzstats.research import summary_store as ss
-from nzstats.research.bank_status import bank_metrics, bank_status, bank_status_exit
+from nzstats.research.bank_status import bank_metrics, bank_status, bank_status_exit, render_text
 from nzstats.research.contract import OutlookSummary, Provider
 from nzstats.research.cpi_reconcile import reconcile
 from nzstats.research.drafts import (
@@ -887,14 +887,8 @@ def _bank_status(
         payload = {"banks": [asdict(s) for s in statuses], "exit_code": code}
         print(json.dumps(payload, indent=2, sort_keys=True))
         return code
-    _emit("Bank sources. Read-only: nothing was requested or changed. Dates are UTC as stored.")
-    _emit(f"{'bank':<10} {'state':<18} series")
-    for s in statuses:
-        _emit(f"{s.key:<10} {s.state:<18}")
-        for x in s.series:
-            _emit(f"  {x.series_key:<30} {x.state:<18} published {x.newest_published_on or '-':<11}"
-                  f" ingested {x.ingested_at or '-':<21} analysed {x.analysed_at or '-':<21}"
-                  f" checked {x.last_checked_at or '-'}")  # fmt: skip
+    for line in render_text(statuses):
+        _emit(line)
     return code
 
 
