@@ -99,9 +99,12 @@ def test_every_url_is_https_on_an_allowed_host_and_hosts_are_plain_names():
         assert inst.crawl_delay_seconds >= 10.0, key
 
 
-def test_unprobed_sources_do_not_invent_landing_pages():
+def test_bnz_stays_refused_with_owner_supplied_url():
     bnz = load_registry()["bnz"]
-    assert bnz.allowed_hosts == () and bnz.landing_urls == ()
+    assert bnz.landing_urls == (
+        "https://www.bnz.co.nz/institutional-banking/research/publications",
+    )
+    assert bnz.landing_evidence == "none"
     assert not bnz.automated_access_allowed
 
 

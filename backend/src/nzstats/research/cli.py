@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sqlite3
-from datetime import date
+from contextlib import closing
+from dataclasses import asdict
+from datetime import date, timedelta
 from pathlib import Path
 
 from nzstats.clock import to_akl_iso, utc_now
@@ -20,6 +23,7 @@ from nzstats.config import Settings
 from nzstats.research import policy as pol
 from nzstats.research import purge
 from nzstats.research import summary_store as ss
+from nzstats.research.bank_status import bank_metrics, bank_status, bank_status_exit
 from nzstats.research.contract import OutlookSummary, Provider
 from nzstats.research.cpi_reconcile import reconcile
 from nzstats.research.drafts import (
@@ -63,6 +67,8 @@ from nzstats.research.summarise import summarise_versions
 from nzstats.research.verify import SCOPE, VERIFIER_VERSION, VerificationContext, resolve_verifier
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.store.db import connect, migrate
+
+log = logging.getLogger(__name__)
 
 
 def _positive_int(text: str) -> int:
@@ -126,6 +132,10 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         "health", help="pipeline health, staleness, queues and withheld publications (Phase 3E)"
     )
     p_health.add_argument("--json", action="store_true", help="machine-readable output")
+    p_bank = rsub.add_parser(
+        "bank-status", help="read-only source state of each bank by report series (Phase 4AE)"
+    )
+    p_bank.add_argument("--json", action="store_true", help="machine-readable output")
     rsub.add_parser(
         "cpi-vintages", help="which CPI quarters have a genuine first-published vintage stored (3E)"
     )
@@ -815,12 +825,16 @@ def _health(args: argparse.Namespace, settings: Settings, registry: dict[str, In
     except LlmConfigError as exc:
         _emit(f"LLM configuration error: {exc}")
         return 2
+    conn = _open(settings)
+    now = utc_now()
     report = research_health(
-        _open(settings), registry, now=utc_now(), limits=limits, env=os.environ,
+        conn, registry, now=now, limits=limits, env=os.environ,
         artifacts=ArtifactStore(settings.raw_dir),
     )  # fmt: skip
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+        metrics = bank_metrics(conn, registry, now - timedelta(days=30), now=now)
+        payload = {**report.to_dict(), "bank_metrics": {k: asdict(v) for k, v in metrics.items()}}
+        print(json.dumps(payload, indent=2, sort_keys=True))
         return 1 if report.needs_attention else 0
     _emit(f"Research health at {report.checked_at}. Read-only: nothing was requested or changed.")
     _emit(f"{'key':<12} {'routes':<14} {'crawler':<10} {'newest':<11} {'pubs':>5} {'todo':>5} {'review':>6}"
@@ -837,6 +851,38 @@ def _health(args: argparse.Namespace, settings: Settings, registry: dict[str, In
         _emit(f"{f.severity}: {f.code}: {f.message}")
     _emit("needs attention" if report.needs_attention else "ok")
     return 1 if report.needs_attention else 0
+
+
+def _bank_status(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    """Read-only: the database is opened `mode=ro`, never created or migrated. Ids, states and dates only."""
+    if not settings.db_path.exists():
+        _emit("no database yet: nothing to report (this command never creates one)")
+        return 3
+    try:
+        uri = f"{settings.db_path.resolve().as_uri()}?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True, timeout=30)) as conn:
+            conn.row_factory = sqlite3.Row
+            statuses = bank_status(conn, registry, utc_now())
+    except sqlite3.Error:
+        log.warning("bank-status could not read the database")
+        _emit("the database could not be read")
+        return 3
+    code = bank_status_exit(statuses)
+    if args.json:
+        payload = {"banks": [asdict(s) for s in statuses], "exit_code": code}
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return code
+    _emit("Bank sources. Read-only: nothing was requested or changed. Dates are UTC as stored.")
+    _emit(f"{'bank':<10} {'state':<18} series")
+    for s in statuses:
+        _emit(f"{s.key:<10} {s.state:<18}")
+        for x in s.series:
+            _emit(f"  {x.series_key:<30} {x.state:<18} published {x.newest_published_on or '-':<11}"
+                  f" ingested {x.ingested_at or '-':<21} analysed {x.analysed_at or '-':<21}"
+                  f" checked {x.last_checked_at or '-'}")  # fmt: skip
+    return code
 
 
 def _cpi_vintages(
@@ -1010,7 +1056,7 @@ def _policy_command(name: str):
 
 _SUMMARY_COMMANDS = {"run-policy": _policy_command("run_policy"), "policy-init": _policy_command("policy_init"),
                      "policy-audit": _policy_command("policy_audit"), "policy-revoke": _policy_command("policy_revoke"),
-                     "cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
+                     "cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "bank-status": _bank_status, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
                      "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "owner-review-package": _owner_review_package, "score-gold": _score_gold, "diagnose": _diagnose}  # fmt: skip

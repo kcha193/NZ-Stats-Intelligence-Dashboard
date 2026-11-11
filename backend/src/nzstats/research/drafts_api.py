@@ -26,6 +26,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 from nzstats.clock import to_akl_iso
 from nzstats.research.api import _is_loopback
 from nzstats.research.assessment import PRESENTATION_VERIFIER, SCHEMA_VERSION, assess
+from nzstats.research.bank_api import bank_router
+from nzstats.research.banks import ADAPTERS, BankAdapter
 from nzstats.research.drafts import (
     ALLOWLIST_FILE,
     ClaimStatus,
@@ -274,9 +276,13 @@ def owner_opted_in(data_dir: FilePath) -> bool:
 
 
 def internal_drafts_router(
-    *, enabled: bool = False, registry: RegistryLoader | None = None
+    *,
+    enabled: bool = False,
+    registry: RegistryLoader | None = None,
+    bank_adapters: Mapping[str, BankAdapter] = ADAPTERS,
 ) -> APIRouter:
-    """The draft routes; off unless `enabled` (the CLI passes `--internal-drafts`)."""
+    """The draft routes; off unless `enabled` (the CLI passes `--internal-drafts`). The bank-intelligence routes
+    (Phase 4AE) are mounted here and nowhere else, behind this same gate."""
     load = registry or load_registry
     router = APIRouter()
 
@@ -284,6 +290,8 @@ def internal_drafts_router(
         if not enabled:
             raise HTTPException(404, "not found")
         _refuse_unless_local_dashboard(request)
+
+    router.include_router(bank_router(gate=gate, load=load, adapters=bank_adapters))
 
     def read(request: Request, c: sqlite3.Connection) -> DraftFeedOut:
         path = request.app.state.settings.db_path.parent / ALLOWLIST_FILE
