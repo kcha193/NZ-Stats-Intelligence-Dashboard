@@ -288,8 +288,8 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
 
 
 DISAGREEING_ADJUSTMENT = (
-    "The label and the evidence disagree on seasonal adjustment, so the basis is unclear"
-    " and it is not matched to an official figure."
+    "The seasonal adjustment is stated both ways (the label and the evidence disagree, or the evidence gives both),"
+    " so the basis is unclear and it is not matched to an official figure."
 )
 ONLY_SA_STORED = (
     "Only the seasonally adjusted series is ingested for this measure,"
@@ -317,9 +317,12 @@ class _AdjustmentAwareActuals:
     a measure held only seasonally adjusted, is excluded with a reason rather than matched to a different series.
     """
 
-    def __init__(self, inner: Actuals, adjustments: dict[int, Adjustment]) -> None:
+    def __init__(
+        self, inner: Actuals, adjustments: dict[int, Adjustment], contradictory: set[int]
+    ) -> None:
         self._inner = inner
         self._adjustments = adjustments
+        self._contradictory = contradictory  # forecasts whose adjustment is stated both ways
         self.indicator = inner.indicator
 
     def adjustment_of(self, f: ForecastOut) -> Adjustment:
@@ -327,6 +330,8 @@ class _AdjustmentAwareActuals:
 
     def target(self, f: ForecastOut) -> Target | str:
         adjustment = self.adjustment_of(f)
+        if id(f) in self._contradictory:
+            return DISAGREEING_ADJUSTMENT
         if adjustment == "not_stated":
             if states_adjustment(f.indicator_label):
                 return DISAGREEING_ADJUSTMENT
@@ -368,7 +373,11 @@ def bank_evaluation(
     inner = {"gdp": gdp_actuals, "unemployment": unemployment_actuals}.get(indicator, CpiActuals)(
         conn
     )
-    actuals = _AdjustmentAwareActuals(inner, {id(n.forecast): n.adjustment for n in members})
+    actuals = _AdjustmentAwareActuals(
+        inner,
+        {id(n.forecast): n.adjustment for n in members},
+        {id(n.forecast) for n in members if n.adjustment_conflict},
+    )
     return evaluate_forecasts(
         forecasts, actuals, indicator=indicator, resolve_scope=actuals.adjustment_of
     )

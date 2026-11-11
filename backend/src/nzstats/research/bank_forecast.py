@@ -12,13 +12,13 @@ internal type the comparison, history and consensus functions already accept; no
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 from nzstats.research.api_models import ForecastOut
 from nzstats.research.banks import ReportKind
-from nzstats.research.compare import basis_of
 
 Adjustment = Literal["seasonally_adjusted", "unadjusted", "not_stated"]
 
@@ -70,12 +70,43 @@ def states_adjustment(text: str) -> bool:
     return bool(_stated(text))
 
 
+def adjustment_conflicts(label: str, quote: str) -> bool:
+    """Whether the label and quote state the adjustment both ways (so `not_stated` is a contradiction, not silence)."""
+    return len(_stated(label) | _stated(quote)) > 1
+
+
+# New Zealand regions, main centres and the two islands, as a bank names a part of the country. Nothing else is a place:
+# `compare`'s basis qualifiers also carry measure words (production, unadjusted, Crown) and populations (youth, women).
+_PLACES = {
+    name.lower(): name
+    for name in (
+        "Northland", "Auckland", "Waikato", "Bay of Plenty", "Gisborne", "Hawke's Bay", "Taranaki", "Manawatu",
+        "Whanganui", "Wellington", "Tasman", "Nelson", "Marlborough", "West Coast", "Canterbury", "Otago",
+        "Southland", "Hamilton", "Tauranga", "Rotorua", "Napier", "Hastings", "Palmerston North", "Christchurch",
+        "Dunedin", "Queenstown", "Invercargill", "North Island", "South Island",
+    )
+}  # fmt: skip
+_PLACE = re.compile(
+    r"(?<![\w'])("
+    + "|".join(sorted((re.escape(p) for p in _PLACES), key=len, reverse=True))
+    + r"|hawkes bay)(?![\w'])"
+)
+
+
 def derive_geography(indicator: str, label: str, horizon: str, unit: str | None) -> str:
-    """New Zealand unless the comparison basis carries a part-of-series word (a region), shown title-cased."""
-    basis = basis_of(indicator, label, horizon, unit)
-    if basis and ":" in basis:
-        return basis.split(":", 1)[1].replace("-", " ").title()
-    return "New Zealand"
+    """The New Zealand places the label names (in order, title-cased), else New Zealand.
+
+    Only a fixed list of places counts: a basis qualifier such as "unadjusted", "production" or "youth" is not geography.
+    """
+    folded = "".join(
+        c for c in unicodedata.normalize("NFKD", label) if not unicodedata.combining(c)
+    ).lower()
+    found: list[str] = []
+    for m in _PLACE.finditer(folded.replace("’", "'")):
+        name = _PLACES.get(m[1], "Hawke's Bay")  # "hawkes bay" is the only spelling not in the list
+        if name not in found:
+            found.append(name)
+    return ", ".join(found) if found else "New Zealand"
 
 
 class NormalizedForecast(BaseModel):
@@ -90,6 +121,8 @@ class NormalizedForecast(BaseModel):
     geography: str
     measure: str
     adjustment: Adjustment
+    # The label and evidence state the adjustment both ways: `not_stated` here is a contradiction, not silence.
+    adjustment_conflict: bool = False
     extraction_method: Literal["llm_verified"] = "llm_verified"
     verifier_version: str
     raw_value: float | None

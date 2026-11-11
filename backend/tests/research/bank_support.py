@@ -15,6 +15,7 @@ def nf(
     *,
     report_kind: str = "outlook",
     adjustment: str = "not_stated",
+    adjustment_conflict: bool = False,
     claim_path: str = "forecasts[0]",
     **kw,
 ):
@@ -51,6 +52,7 @@ def nf(
         geography="New Zealand",
         measure=f.indicator_label,
         adjustment=adjustment,
+        adjustment_conflict=adjustment_conflict,
         verifier_version="verify-5",
         raw_value=f.value,
     )

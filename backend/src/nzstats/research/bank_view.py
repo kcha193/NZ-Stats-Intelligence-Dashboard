@@ -20,6 +20,7 @@ from typing import Literal
 from nzstats.research.api_models import EvidenceOut, ForecastOut, InstitutionOut
 from nzstats.research.bank_forecast import (
     NormalizedForecast,
+    adjustment_conflicts,
     canonical_label,
     derive_adjustment,
     derive_geography,
@@ -100,6 +101,7 @@ def _normalized(
         ),
         measure=claim.indicator_label,
         adjustment=adjustment,
+        adjustment_conflict=adjustment_conflicts(claim.indicator_label, quotes),
         verifier_version=resolve_verifier(row["verifier_version"]),
         raw_value=claim.value,
     )
