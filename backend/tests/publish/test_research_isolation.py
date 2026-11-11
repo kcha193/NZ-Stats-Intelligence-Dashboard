@@ -181,3 +181,25 @@ def test_the_exporters_app_has_no_private_research_routes(tmp_path):
     """Phase 4I: the private preview is mounted only by `nzstats serve --private-research`, never for a snapshot."""
     app = create_app(load_settings({"NZSTATS_DATA_DIR": str(tmp_path / "data")}))
     assert not [path for path in app.openapi()["paths"] if "research" in path or "drafts" in path]
+
+
+def test_figures_read_from_pdf_tables_never_reach_a_snapshot(full_dir, copy_of, tmp_path):
+    """Phase 4AF: stored table-derived forecasts change no snapshot byte and put none of their text in one."""
+    from decimal import Decimal
+
+    from nzstats.research.table_store import store_extraction
+    from tests.research.test_table_store import SHA, tf
+
+    with_tables = copy_of(full_dir)
+    seed_research(with_tables)
+    conn = connect(with_tables / "nzstats.db")
+    version = conn.execute("SELECT id FROM research_document_version").fetchone()[0]
+    store_extraction(conn, version, NOW, [tf(label="SYNTHETIC-TABLE-LABEL-7731", value=Decimal("9.9"))], [],
+                     words_sha256=SHA)  # fmt: skip
+    conn.close()
+    plain = export_snapshot(full_dir, tmp_path / "plain", now=EXPORT_NOW, allow_fixtures=True)
+    mixed = export_snapshot(with_tables, tmp_path / "mixed", now=EXPORT_NOW, allow_fixtures=True)
+    assert plain["snapshot_id"] == mixed["snapshot_id"]
+    assert _files(tmp_path / "plain") == _files(tmp_path / "mixed")
+    blob = b"".join(_files(tmp_path / "mixed").values())
+    assert b"SYNTHETIC-TABLE-LABEL-7731" not in blob and b"research_table" not in blob
