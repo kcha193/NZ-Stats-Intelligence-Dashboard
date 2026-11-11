@@ -3,6 +3,7 @@ import {
   useBankConsensus, useBankForecasts, useBankFreshness, useBankRevisions, useBankSummary,
   type BankForecast, type BankForecasts, type BankSummary,
 } from "@/api/bank";
+import type { ExcludedForecast } from "@/api/types";
 import { DRAFT_NOTICE } from "@/components/outlook/InternalDrafts";
 import { ErrorState } from "@/components/QueryBoundary";
 import { Segmented } from "@/components/Segmented";
@@ -31,6 +32,9 @@ function emptyReason(summary: BankSummary, forecasts: BankForecasts | null | und
   }
   return null;
 }
+
+/** An analysis's own exclusions as left-out items: the bank and the server's fixed reason, never document text. */
+const unusable = (items: ExcludedForecast[]) => items.map((e) => ({ institution_key: e.forecast.institution.key, reason: e.reason }));
 
 /**
  * Bank outlooks: what each tracked New Zealand bank says and forecasts, from reports held on this machine. Shown only
@@ -64,6 +68,13 @@ export function BankOutlook() {
   const banks = (forecasts.data?.banks ?? summary.data.cards).filter((b) => bank === "all" || b.key === bank);
   const empty = emptyReason(summary.data, forecasts.data);
   const names = Object.fromEntries(summary.data.cards.map((c) => [c.key, c.name]));
+  // Claims the bank view kept but the comparison or the history could not use carry their fixed reason in the analysis.
+  const forecastsLeftOut = forecasts.data
+    ? [...forecasts.data.excluded, ...forecasts.data.comparison.flatMap((c) => unusable(c.comparison.excluded))]
+    : [];
+  const revisionsLeftOut = revisions.data
+    ? [...revisions.data.excluded, ...revisions.data.histories.flatMap((h) => unusable(h.history.excluded))]
+    : [];
   return (
     <section aria-labelledby="bank-outlook-title" className="space-y-10">
       <div>
@@ -82,13 +93,13 @@ export function BankOutlook() {
       {empty && <p role="note" className="max-w-[70ch] rounded-md border p-4 text-sm">{empty}</p>}
       <BankCards cards={cards} />
       {forecasts.isError && <ErrorState error={forecasts.error} onRetry={() => void forecasts.refetch()} />}
-      {forecasts.data && (forecasts.data.forecasts.length > 0 || forecasts.data.excluded.length > 0) && (
+      {forecasts.data && (forecasts.data.forecasts.length > 0 || forecastsLeftOut.length > 0) && (
         <div className="space-y-3">
           <h3 className="type-card">Forecasts by bank</h3>
           {forecasts.data.forecasts.length > 0 && (
             <BankForecastTable data={forecasts.data} banks={banks} indicator={indicator} onSelect={setSelected} />
           )}
-          <BankLeftOut items={forecasts.data.excluded} names={names} />
+          <BankLeftOut items={forecastsLeftOut} names={names} />
         </div>
       )}
       {consensus.data && (
@@ -108,7 +119,7 @@ export function BankOutlook() {
         <div className="space-y-4">
           <h3 className="type-card">Revisions</h3>
           <BankRevisions data={revisions.data} indicator={indicator} />
-          <BankLeftOut items={revisions.data.excluded} names={names} />
+          <BankLeftOut items={revisionsLeftOut} names={names} />
         </div>
       )}
       {freshness.data && (

@@ -192,6 +192,22 @@ describe("BankOutlook", () => {
     expect(await screen.findByText(expected)).toBeInTheDocument();
   });
 
+  it("lists claims that the comparison or the revision analysis could not use, with the reason", async () => {
+    const [, bankB] = BANKS;
+    const noUnit = forecast(bankB, 1.0, { unit: null });
+    const noHorizon = forecast(BANKS[2], 1.2, { horizon: "next year" });
+    const comparison = FORECASTS.comparison.map((c, i) =>
+      i === 0 ? { ...c, comparison: { ...c.comparison, excluded: [{ forecast: noUnit, reason: "SYNTHETIC comparison reason: no unit." }] } } : c);
+    const revisions = {
+      histories: [{ adjustment: "not_stated", history: { series: [], measure_changes: [], excluded: [{ forecast: noHorizon, reason: "SYNTHETIC history reason: horizon." }] } }],
+      excluded: [],
+    };
+    mockApi(routes({ [`${BASE}/forecasts`]: { ...FORECASTS, comparison }, [`${BASE}/revisions`]: revisions }));
+    renderWithProviders(<BankOutlook />);
+    expect(await screen.findByText(/SYNTHETIC comparison reason: no unit\./)).toBeInTheDocument();
+    expect(await screen.findByText(/SYNTHETIC history reason: horizon\./)).toBeInTheDocument();
+  });
+
   it("still lists what was left out, and why, when every claim was rejected and no forecast remains", async () => {
     const rejected = {
       ...FORECASTS,
