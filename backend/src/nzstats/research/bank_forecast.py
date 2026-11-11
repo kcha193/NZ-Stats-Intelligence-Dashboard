@@ -47,6 +47,11 @@ def derive_adjustment(label: str, quote: str) -> Adjustment:
     return "not_stated"
 
 
+def states_adjustment(text: str) -> bool:
+    """Whether the text says anything about seasonal adjustment (even if it contradicts itself)."""
+    return bool(_stated(text))
+
+
 def derive_geography(indicator: str, label: str, horizon: str, unit: str | None) -> str:
     """New Zealand unless the comparison basis carries a part-of-series word (a region), shown title-cased."""
     basis = basis_of(indicator, label, horizon, unit)

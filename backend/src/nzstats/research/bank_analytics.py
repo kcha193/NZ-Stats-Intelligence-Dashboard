@@ -8,8 +8,8 @@ unchanged. This module decides only what they are given:
 - Consensus, divergence, revisions and evaluation take only quarterly *outlook* reports with a publication date; a
   weekly note or an undated document is listed as excluded, never silently dropped. The forecast table
   (`bank_comparison`) takes every report kind.
-- Two documents from one bank on one date with different values for the same measure are a conflict: neither is
-  used (`compare.resolve` already does this inside one document).
+- Different values from one bank on one date for the same measure and adjustment are a conflict, inside one document
+  or across two: none is used, and the bank's older figures for that measure are not shown in their place.
 - Reference institutions (central bank, government) are markers on a group, never contributors.
 
 No model, network or database write is involved; `bank_evaluation` only reads stored Stats NZ vintages.
@@ -21,7 +21,7 @@ import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 
-from nzstats.research.accuracy import evaluate_forecasts
+from nzstats.research.accuracy import Actuals, evaluate_forecasts
 from nzstats.research.api_models import (
     ConsensusOut,
     ContributorOut,
@@ -30,7 +30,7 @@ from nzstats.research.api_models import (
     ForecastHistoryOut,
     ForecastOut,
 )
-from nzstats.research.bank_forecast import Adjustment, NormalizedForecast
+from nzstats.research.bank_forecast import Adjustment, NormalizedForecast, states_adjustment
 from nzstats.research.bank_models import (
     BankConsensusGroupOut,
     BankConsensusOut,
@@ -40,19 +40,19 @@ from nzstats.research.bank_models import (
     DivergenceOut,
 )
 from nzstats.research.bank_view import BankView
-from nzstats.research.compare import compare_forecasts, resolve
+from nzstats.research.compare import CONFLICT, compare_forecasts, group_key, resolve
 from nzstats.research.consensus import consensus
 from nzstats.research.history import forecast_history
 from nzstats.research.macro_outcomes import gdp_actuals, unemployment_actuals
-from nzstats.research.outcomes import CpiActuals
+from nzstats.research.outcomes import CpiActuals, Outcome, Target
 
 ADJUSTMENTS: tuple[Adjustment, ...] = ("seasonally_adjusted", "unadjusted", "not_stated")
 REASONS = {
     "not_outlook_report": "Only quarterly outlook reports feed this analysis.",
     "no_publication_date": "The document has no publication date, so its vintage cannot be placed.",
     "conflicting_forecasts": (
-        "Two documents from this bank on one date give different values for the same measure,"
-        " so neither is used."
+        "This bank gave different values for the same measure on one date (in one document or"
+        " in two), so none of them is used."
     ),
     "newer_claim_unusable": (
         "This bank's newer report has a claim for the same measure that could not be used,"
@@ -77,6 +77,33 @@ def _exclusion(n: NormalizedForecast, code: str) -> BankExclusionOut:
     )
 
 
+def _resolve_by_adjustment(
+    items: list[NormalizedForecast],
+) -> tuple[list[tuple[tuple, NormalizedForecast]], list[tuple[tuple, NormalizedForecast]]]:
+    """`compare.resolve` per adjustment: (comparable claims, claims in conflict inside one document), each with its key.
+
+    `compare.group_key` ignores adjustment wording, so resolving everything together would call a seasonally adjusted
+    and an unadjusted figure for one measure a conflict. Claims `resolve` leaves out for any other reason have no
+    comparable key and are not returned.
+    """
+    by_adjustment: dict[Adjustment, list[NormalizedForecast]] = defaultdict(list)
+    for n in items:
+        by_adjustment[n.adjustment].append(n)
+    comparable: list[tuple[tuple, NormalizedForecast]] = []
+    conflicts: list[tuple[tuple, NormalizedForecast]] = []
+    for adjustment in ADJUSTMENTS:
+        group = by_adjustment.get(adjustment, [])
+        by_object = {id(n.forecast): n for n in group}
+        kept, excluded = resolve([n.forecast for n in group])
+        comparable.extend((key, by_object[id(f)]) for key, f in kept)
+        conflicts.extend(
+            (group_key(e.forecast), by_object[id(e.forecast)])
+            for e in excluded
+            if e.reason == CONFLICT
+        )
+    return comparable, conflicts
+
+
 def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool) -> _Prepared:
     excluded: list[BankExclusionOut] = []
     eligible: list[NormalizedForecast] = []
@@ -88,15 +115,6 @@ def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool) -> _Prepar
         else:
             eligible.append(n)
 
-    # Cross-document conflicts: same bank, same measure and target, same date, different documents and values.
-    by_object = {id(n.forecast): n for n in eligible}
-    kept, _ = resolve([n.forecast for n in eligible])
-    key_of = {id(f): key for key, f in kept}
-    same_day: dict[tuple, list[NormalizedForecast]] = defaultdict(list)
-    for key, f in kept:
-        if f.published_on:
-            n = by_object[id(f)]
-            same_day[(f.institution.key, n.adjustment, key, f.published_on)].append(n)
     # The newest date on which a bank's claim for a measure could not be used: a conflict, or a failed or warned claim.
     # Any older figure of that bank for that measure is then not shown in its place (no carry-forward).
     newest_unusable: dict[tuple, str] = {}
@@ -105,7 +123,18 @@ def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool) -> _Prepar
         slot = (n.institution_key, n.adjustment, key)
         newest_unusable[slot] = max(newest_unusable.get(slot, ""), n.forecast.published_on or "")
 
+    # Conflicts inside one document (two values for one measure) and across documents (same bank, measure, target and
+    # date, different documents and values). Both block the bank's older figures, as an unusable claim does.
+    kept, in_document = _resolve_by_adjustment(eligible)
+    key_of = {id(n.forecast): key for key, n in kept}
     conflicted: set[int] = set()
+    for key, n in in_document:
+        conflicted.add(id(n.forecast))
+        note_unusable(n, key)
+    same_day: dict[tuple, list[NormalizedForecast]] = defaultdict(list)
+    for key, n in kept:
+        if n.forecast.published_on:
+            same_day[(n.institution_key, n.adjustment, key, n.forecast.published_on)].append(n)
     for members in same_day.values():
         if (
             len({m.forecast.summary_id for m in members}) > 1
@@ -125,10 +154,10 @@ def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool) -> _Prepar
         and e.normalized.forecast.published_on
         and (not outlook_only or e.normalized.report_kind == "outlook")
     ]
-    by_pool = {id(n.forecast): n for n in pool}
-    usable_keys, _ = resolve([n.forecast for n in pool])
-    for key, f in usable_keys:
-        note_unusable(by_pool[id(f)], key)
+    # A pool claim that conflicts with another in its own document was still the bank's newest word on that measure.
+    pool_kept, pool_conflicts = _resolve_by_adjustment(pool)
+    for key, n in (*pool_kept, *pool_conflicts):
+        note_unusable(n, key)
     partitions: dict[Adjustment, list[NormalizedForecast]] = defaultdict(list)
     for n in eligible:
         newest = newest_unusable.get((n.institution_key, n.adjustment, key_of.get(id(n.forecast))))
@@ -250,12 +279,83 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
     return sorted(out, key=lambda d: (-d.spread, d.group_key))
 
 
+DISAGREEING_ADJUSTMENT = (
+    "The label and the evidence disagree on seasonal adjustment, so the basis is unclear"
+    " and it is not matched to an official figure."
+)
+ONLY_SA_STORED = (
+    "Only the seasonally adjusted series is ingested for this measure,"
+    " so an unadjusted forecast is not matched."
+)
+# Official measures held only as the seasonally adjusted series; the CPI measures and annual average GDP (computed from
+# actual values) have an unadjusted version.
+_SA_ONLY_MEASURES = frozenset(
+    {
+        "gdp_quarterly_production",
+        "gdp_quarterly_expenditure",
+        "gdp_annual_change_sa",
+        "unemployment_rate",
+    }
+)
+
+
+class _AdjustmentAwareActuals:
+    """Official actuals that choose a series using the adjustment the bank layer derived, not the label alone.
+
+    The matchers (`outcomes.cpi_target`, `macro_outcomes.gdp_target`, `unemployment_target`) read only
+    `ForecastOut.indicator_label`, but the bank layer also takes the adjustment from the evidence quote. The matcher is
+    shown the label with the derived adjustment added (when the label is silent); the forecast that is reported and
+    scored keeps its own label. A forecast whose label and evidence disagree, or that asks for an unadjusted version of
+    a measure held only seasonally adjusted, is excluded with a reason rather than matched to a different series.
+    """
+
+    def __init__(self, inner: Actuals, adjustments: dict[int, Adjustment]) -> None:
+        self._inner = inner
+        self._adjustments = adjustments
+        self.indicator = inner.indicator
+
+    def target(self, f: ForecastOut) -> Target | str:
+        adjustment = self._adjustments.get(id(f), "not_stated")
+        if adjustment == "not_stated":
+            if states_adjustment(f.indicator_label):
+                return DISAGREEING_ADJUSTMENT
+            return self._inner.target(f)
+        seen = f
+        if not states_adjustment(f.indicator_label) and (
+            adjustment == "seasonally_adjusted" or f.indicator == "cpi_inflation"
+        ):
+            words = "seasonally adjusted" if adjustment == "seasonally_adjusted" else "unadjusted"
+            seen = f.model_copy(update={"indicator_label": f"{f.indicator_label} ({words})"})
+        result = self._inner.target(seen)
+        if (
+            adjustment == "unadjusted"
+            and isinstance(result, Target)
+            and result.measure in _SA_ONLY_MEASURES
+        ):
+            return ONLY_SA_STORED
+        return result
+
+    def measure_label(self, measure: str) -> str:
+        return self._inner.measure_label(measure)
+
+    def release_date(self, quarter: str) -> str | None:
+        return self._inner.release_date(quarter)
+
+    def newest_release(self) -> tuple[str, str] | None:
+        return self._inner.newest_release()
+
+    def outcome(self, target: Target) -> Outcome | None:
+        return self._inner.outcome(target)
+
+
 def bank_evaluation(
     view: BankView, conn: sqlite3.Connection, indicator: str
 ) -> ForecastEvaluationOut:
     prepared = _prepare(view, outlook_only=True, dated_only=True)
-    forecasts = [f for _, fs in _ordered(prepared) for f in fs]
-    actuals = {"gdp": gdp_actuals, "unemployment": unemployment_actuals}.get(indicator, CpiActuals)(
+    members = [n for adjustment in ADJUSTMENTS for n in prepared.partitions.get(adjustment, [])]
+    forecasts = [n.forecast for n in members]
+    inner = {"gdp": gdp_actuals, "unemployment": unemployment_actuals}.get(indicator, CpiActuals)(
         conn
     )
+    actuals = _AdjustmentAwareActuals(inner, {id(n.forecast): n.adjustment for n in members})
     return evaluate_forecasts(forecasts, actuals, indicator=indicator)
