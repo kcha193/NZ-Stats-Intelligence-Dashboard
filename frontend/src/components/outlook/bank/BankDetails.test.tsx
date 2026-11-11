@@ -36,6 +36,20 @@ describe("BankEvidence", () => {
     expect(within(dialog).getByText(/automated checks, not a person/i)).toBeInTheDocument();
   });
 
+  it("says a table figure was read directly from the report's table, not by an AI, and escapes its text", () => {
+    const f = { ...CPI_A, summary_id: -4, evidence: [{ section_ordinal: -1, page: 6, quote: "Annual CPI inflation <b>(%)</b> | Forecast / Jun-26 | 2.6" }] };
+    const table = bankForecast(f, { claim_path: "tables[4:2]", extraction_method: "table", verifier_version: "tables-1" });
+    renderWithProviders(<BankEvidence item={table} onClose={() => {}} />);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/read directly from a table in the report/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/table cell, page 6/i)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/section -1/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/no ai was used/i)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/automated checks, not a person/i)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/<b>\(%\)<\/b>/)).toBeInTheDocument(); // shown as text, not parsed as markup
+    expect(dialog.querySelector("b")).toBeNull();
+  });
+
   it("closes on Escape and on the close button, and traps Tab inside", async () => {
     const onClose = vi.fn();
     renderWithProviders(<BankEvidence item={item} onClose={onClose} />);

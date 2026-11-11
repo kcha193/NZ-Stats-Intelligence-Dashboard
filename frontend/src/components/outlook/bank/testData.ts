@@ -39,7 +39,7 @@ export function bankForecast(f: Forecast, over: Partial<BankForecast> = {}, kind
   return {
     forecast: f, claim_path: "forecasts[0]", report_kind: kind, adjustment, geography: "New Zealand",
     measure: f.indicator_label, forecast_author: f.institution.name, verifier_version: "verify-5",
-    document_version_id: f.summary_id, ...over,
+    document_version_id: f.summary_id, extraction_method: "llm_verified", ...over,
   };
 }
 
@@ -87,6 +87,7 @@ export const FORECASTS: BankForecasts = {
     },
   ],
   excluded: [],
+  table_reconciliation: {},
 };
 
 export const CARDS: BankCard[] = [

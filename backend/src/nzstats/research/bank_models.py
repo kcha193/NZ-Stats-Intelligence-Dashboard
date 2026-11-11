@@ -103,6 +103,8 @@ class BankForecastOut(_Out):
     forecast_author: str | None
     verifier_version: str
     document_version_id: int
+    # How the figure was read: a checked model claim, or read directly from a table in the PDF (Phase 4AF).
+    extraction_method: Literal["llm_verified", "table"] = "llm_verified"
 
 
 class BankComparisonOut(_Out):
@@ -116,6 +118,8 @@ class BankForecastsOut(_Out):
     forecasts: list[BankForecastOut]
     comparison: list[BankComparisonOut]
     excluded: list[BankExclusionOut]
+    # How table-read figures compare with the checked claims, by fixed class (counts only). Agreement is not proof.
+    table_reconciliation: dict[str, int] = {}
 
 
 class BankHistoryOut(_Out):

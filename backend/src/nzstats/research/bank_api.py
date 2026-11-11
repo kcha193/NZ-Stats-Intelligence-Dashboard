@@ -55,6 +55,7 @@ from nzstats.research.drafts import (
 )
 from nzstats.research.private_api import _HEADERS, Conn
 from nzstats.research.registry import Institution, RegistryError
+from nzstats.research.table_reconcile import summary_counts
 
 log = logging.getLogger(__name__)
 RegistryLoader = Callable[[], Mapping[str, Institution]]
@@ -76,6 +77,7 @@ def _forecast_out(n: NormalizedForecast) -> BankForecastOut:
         forecast_author=n.forecast_author,
         verifier_version=n.verifier_version,
         document_version_id=n.document_version_id,
+        extraction_method=n.extraction_method,
     )
 
 
@@ -186,6 +188,7 @@ def bank_router(
                 for e in view.excluded
             ]
             + bank_exclusions(view, outlook_only=False, dated_only=False),
+            table_reconciliation=summary_counts(view.reconciliation),
         )
 
     @router.get(

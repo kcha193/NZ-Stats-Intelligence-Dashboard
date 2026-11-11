@@ -36,6 +36,8 @@ export type BankForecast = {
   forecast_author: string | null;
   verifier_version: string;
   document_version_id: number;
+  /** How the figure was read: a checked model claim, or read directly from a table in the PDF (Phase 4AF). */
+  extraction_method: "llm_verified" | "table";
 };
 export type BankExclusion = {
   institution_key: string;
@@ -50,6 +52,8 @@ export type BankForecasts = {
   forecasts: BankForecast[];
   comparison: { adjustment: Adjustment; comparison: ForecastComparison }[];
   excluded: BankExclusion[];
+  /** Table figures against checked claims, by fixed class (counts only). Agreement is not proof. */
+  table_reconciliation: Record<string, number>;
 };
 
 export type BankRevisions = { histories: { adjustment: Adjustment; history: ForecastHistory }[]; excluded: BankExclusion[] };

@@ -18,6 +18,7 @@ export function BankEvidence({ item, onClose }: { item: BankForecast; onClose: (
   const f = item.forecast;
   const unit = UNIT_LABELS[f.unit ?? ""] ?? f.unit ?? "";
   const kind = KIND_LABELS[item.report_kind] ?? "quarterly outlook";
+  const isTable = item.extraction_method === "table";
 
   useEffect(() => {
     const returnTo = opener.current;
@@ -61,6 +62,10 @@ export function BankEvidence({ item, onClose }: { item: BankForecast; onClose: (
     ["Adjustment", ADJUSTMENT_LABELS[item.adjustment] ?? "not stated"],
     ["Geography", item.geography],
     ["Forecast made by", item.forecast_author ?? "not stated"],
+    [
+      "Read by",
+      isTable ? "Read directly from a table in the report. No AI was used." : "An AI reading of the report, then checked automatically.",
+    ],
   ];
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -86,15 +91,21 @@ export function BankEvidence({ item, onClose }: { item: BankForecast; onClose: (
           {f.evidence.map((e, i) => (
             <figure key={i} className="border-l-2 pl-3">
               <blockquote className="text-sm leading-relaxed">{e.quote}</blockquote>
-              <figcaption className="mt-1 text-xs text-muted-foreground">Section {e.section_ordinal}{e.page ? `, page ${e.page}` : ""}</figcaption>
+              <figcaption className="mt-1 text-xs text-muted-foreground">
+                {isTable ? "Table cell" : `Section ${e.section_ordinal}`}{e.page ? `, page ${e.page}` : ""}
+              </figcaption>
             </figure>
           ))}
         </section>
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
-          <dt className="text-muted-foreground">Claim</dt><dd><code>{item.claim_path}</code></dd>
-          <dt className="text-muted-foreground">Checker</dt><dd><span>{item.verifier_version}</span></dd>
+          <dt className="text-muted-foreground">{isTable ? "Table figure" : "Claim"}</dt><dd><code>{item.claim_path}</code></dd>
+          <dt className="text-muted-foreground">{isTable ? "Reader" : "Checker"}</dt><dd><span>{item.verifier_version}</span></dd>
           <dt className="text-muted-foreground">Result</dt>
-          <dd>No automated issue detected. Automated checks, not a person, produced this result, and they can miss errors.</dd>
+          <dd>
+            {isTable
+              ? "The figure, period and unit are taken as printed in the table and agree with any AI reading of the same report, or none was made. No person has checked it, and a table can be misread."
+              : "No automated issue detected. Automated checks, not a person, produced this result, and they can miss errors."}
+          </dd>
         </dl>
       </div>
     </div>
