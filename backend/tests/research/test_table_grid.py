@@ -171,3 +171,10 @@ def test_a_unit_column_is_a_column_with_its_own_role():
     (t,), _ = read(page)
     assert [c.role for c in t.columns] == ["unit", "value", "value"]
     assert t.body_rows[0][1].text == "%"
+
+
+def test_a_row_with_no_figure_in_the_first_column_keeps_that_column():
+    page = [*header(), *line(686, "Unemployment rate", [None, "5.0", "4.9", None])]
+    (t,), _ = read(page)
+    assert len(t.columns) == 4
+    assert [(c.col, c.text) for c in t.body_rows[0][1:]] == [(1, "5.0"), (2, "4.9")]

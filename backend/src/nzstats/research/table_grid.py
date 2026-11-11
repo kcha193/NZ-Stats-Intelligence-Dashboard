@@ -158,8 +158,9 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
             end += 1
         body = lines[i : end + 1]
         page = body[0][0].page
-        min_x = min(c.x0 for row in body for c in row[1:])
-        tol = 1.5 * body[0][0].size
+        # Header cells to the right of every row label are columns. (The leftmost *value* is not the edge: a row may
+        # have no figure in its first column.)
+        edge = max(row[0].x1 for row in body)
         header: list[list[_Chunk]] = []
         j = i - 1
         while (
@@ -168,9 +169,9 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
             and not _is_body(lines[j])
             and _gap(lines[j], lines[j + 1]) <= 3 * lines[j][0].size
             and not _CAPTION.match(lines[j][0].text)
-            and any(c.x0 >= min_x - tol for c in lines[j])
+            and any(c.x0 >= edge for c in lines[j])
         ):
-            header.insert(0, [c for c in lines[j] if c.x0 >= min_x - tol])
+            header.insert(0, [c for c in lines[j] if c.x0 >= edge])
             j -= 1
         caption = None
         if (

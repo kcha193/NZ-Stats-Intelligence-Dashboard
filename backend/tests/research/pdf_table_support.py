@@ -19,7 +19,7 @@ def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         f"<< /Type /Pages /Kids [{kids}] /Count {n} >>".encode(),
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     ]
     for i, items in enumerate(pages):
         ops = (
@@ -30,7 +30,7 @@ def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
                 for x, y, text in items
             )
         )
-        stream = ops.encode("latin-1")
+        stream = ops.encode("cp1252")
         objects.append(
             b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >>"
             + f" /Contents {5 + 2 * i} 0 R >>".encode()
