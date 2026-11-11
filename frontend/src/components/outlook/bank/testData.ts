@@ -122,7 +122,8 @@ export const CONSENSUS: BankConsensus = {
   consensus: { groups: [CONSENSUS_GROUP], excluded: [] },
   divergence: [
     {
-      group_key: CONSENSUS_GROUP.key, indicator: "cpi_inflation", indicator_name: "CPI inflation", adjustment: "not_stated",
+      group_key: CONSENSUS_GROUP.key, indicator: "cpi_inflation", indicator_name: "CPI inflation",
+      basis_label: CONSENSUS_GROUP.basis_label, adjustment: "not_stated",
       horizon_label: "Year to June 2027", unit_label: "%", spread: 0.6, median: 2.4,
       banks: [
         { key: A.key, name: A.name, value: 2.1, distance_from_median: -0.3 },

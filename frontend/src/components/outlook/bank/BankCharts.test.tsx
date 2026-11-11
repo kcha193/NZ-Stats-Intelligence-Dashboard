@@ -76,6 +76,26 @@ describe("BankDivergence", () => {
     expect(items[0]).toHaveTextContent(/Example Bank C.*\+0\.3/);
   });
 
+  it("names the measure and the adjustment of each entry, so entries for one target can be told apart", () => {
+    const base = CONSENSUS.divergence[0];
+    const entries = [
+      { ...base, basis_label: "Annual change (through the year)", adjustment: "not_stated" as const, spread: 0.9 },
+      { ...base, basis_label: "Annual change (through the year)", adjustment: "seasonally_adjusted" as const, spread: 0.8 },
+      { ...base, basis_label: "Annual change (through the year)", adjustment: "unadjusted" as const, spread: 0.7 },
+      { ...base, group_key: "q", basis_label: "Quarterly change", adjustment: "not_stated" as const, spread: 0.2 },
+    ];
+    renderWithProviders(<BankDivergence items={entries} indicator="cpi_inflation" />);
+    const headings = screen.getAllByRole("listitem").filter((li) => li.parentElement?.tagName === "OL").map((li) => li.querySelector("p")?.textContent);
+    expect(headings).toEqual([
+      "CPI inflation, Year to June 2027: Annual change (through the year), adjustment not stated",
+      "CPI inflation, Year to June 2027: Annual change (through the year), seasonally adjusted",
+      "CPI inflation, Year to June 2027: Annual change (through the year), unadjusted",
+      "CPI inflation, Year to June 2027: Quarterly change, adjustment not stated",
+    ]);
+    expect(new Set(headings).size).toBe(entries.length);
+    expect(screen.getAllByText(/Spread 0\.9 percentage points; median 2\.4%\./)).toHaveLength(1);
+  });
+
   it("says nothing is shown without three banks", () => {
     renderWithProviders(<BankDivergence items={[]} indicator="cpi_inflation" />);
     expect(screen.getByText(/needs at least three banks/i)).toBeInTheDocument();

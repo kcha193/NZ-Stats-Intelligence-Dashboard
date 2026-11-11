@@ -64,6 +64,7 @@ export type Divergence = {
   group_key: string;
   indicator: string;
   indicator_name: string;
+  basis_label: string;
   adjustment: Adjustment;
   horizon_label: string;
   unit_label: string;

@@ -268,6 +268,7 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
                 group_key=g.key,
                 indicator=g.indicator,
                 indicator_name=g.indicator_name,
+                basis_label=g.basis_label,
                 adjustment=g.adjustment,
                 horizon_label=g.horizon_label,
                 unit_label=g.unit_label,

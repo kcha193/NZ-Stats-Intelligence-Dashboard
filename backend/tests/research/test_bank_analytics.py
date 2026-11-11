@@ -138,6 +138,34 @@ def test_divergence_requires_three_banks_and_ranks_by_spread():
     assert [d.horizon_label for d in div] == ["Year to June 2027", "Year to June 2028"]
     assert [d.spread for d in div] == [2.0, 1.5]
     assert div[0].median == 2.0
+
+
+def test_divergence_names_the_measure_of_each_group_and_keeps_its_numbers():
+    """Annual, quarterly and seasonally adjusted CPI for one target are three entries: each carries the basis label of
+    its own consensus group, and the spread, median, banks and order are the group's, unchanged."""
+    claims = []
+    for i, key in enumerate(("bank_a", "bank_b", "bank_c")):
+        claims += [
+            nf(key, summary_id=i + 1, value=2.0 + i),
+            nf(key, summary_id=i + 1, value=0.5 + i / 10, claim_path="forecasts[1]",
+               indicator_label="Quarterly CPI inflation"),
+            nf(key, summary_id=i + 1, value=2.2 + i / 2, claim_path="forecasts[2]",
+               adjustment="seasonally_adjusted"),
+        ]  # fmt: skip
+    consensus = bank_consensus(view_of(*claims))
+    div = bank_divergence(consensus)
+    groups = {(g.key, g.adjustment): g for g in consensus.groups}
+    assert len(div) == 3 == len(groups)
+    for d in div:
+        g = groups[(d.group_key, d.adjustment)]
+        assert d.basis_label == g.basis_label
+        assert (d.spread, d.median) == (g.range, g.median)
+        assert [(b.key, b.value) for b in d.banks] == [(c.key, c.value) for c in g.contributors]
+    assert [(d.basis_label, d.adjustment, d.spread) for d in div] == [
+        ("Annual change (through the year)", "not_stated", 2.0),
+        ("Annual change (through the year)", "seasonally_adjusted", 1.0),
+        ("Quarterly change", "not_stated", 0.2),
+    ]
     assert {b.key: b.distance_from_median for b in div[0].banks} == {
         "bank_a": -1.0, "bank_b": 0.0, "bank_c": 1.0,
     }  # fmt: skip

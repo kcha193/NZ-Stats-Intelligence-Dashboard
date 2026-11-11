@@ -57,6 +57,7 @@ class DivergenceOut(_Out):
     group_key: str
     indicator: str
     indicator_name: str
+    basis_label: str  # the measure (annual or quarterly change...), from the group
     adjustment: Adjustment
     horizon_label: str
     unit_label: str

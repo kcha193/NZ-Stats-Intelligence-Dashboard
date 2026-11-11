@@ -154,6 +154,7 @@ def test_consensus_and_divergence(bank_app):
     assert [m["key"] for m in group["markers"]] == ["ref_central"]
     (div,) = body["divergence"]
     assert div["spread"] == pytest.approx(0.6)
+    assert (div["basis_label"], div["adjustment"]) == (group["basis_label"], group["adjustment"])
 
 
 def test_what_was_left_out_and_why_reaches_the_reader_on_every_route(bank_app):
