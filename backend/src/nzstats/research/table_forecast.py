@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-5`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-6`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -26,7 +26,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-5"
+INTERPRETER_VERSION = "tables-6"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE
@@ -47,6 +47,11 @@ _SOURCE = re.compile(r"^sources?\s*[:\-]\s*(.*)$", re.IGNORECASE)
 _LABEL_FOOTNOTE = re.compile(r"[*†‡¹²³⁴⁵⁶⁷⁸⁹]")
 _UNIT_ANNUAL = re.compile(r"\by\s*/\s*y\b", re.IGNORECASE)
 _UNIT_QUARTERLY = re.compile(r"\bq\s*/\s*q\b", re.IGNORECASE)
+_POPULATION = re.compile(
+    r"\b(?:youth|young|teenagers?|children|men|women|male|female|māori|maori|"
+    r"pacific peoples?|aged|age group|ethnic(?:ity)?|migrants?|immigrants?)\b",
+    re.IGNORECASE,
+)
 _FOREIGN = re.compile(
     r"\b(?:australia(?:n)?|china|chinese|united states|u\.?s\.?a\.?|american|"
     r"united kingdom|britain|british|euro(?:zone| area)|japan(?:ese)?)\b",
@@ -165,6 +170,9 @@ def interpret(
             _FOREIGN.search(t.caption) or derive_geography("", t.caption, "", None) != "New Zealand"
         ):
             rejections.append(Rejection("unsupported_geography", t.page_start, t.index))
+            continue
+        if t.caption and _POPULATION.search(t.caption):
+            rejections.append(Rejection("unsupported_scope", t.page_start, t.index))
             continue
         columns = _columns(t, rejections)
         role = _author_role(t, publisher_names)

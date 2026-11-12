@@ -81,7 +81,7 @@ def _normalized(
 ) -> NormalizedForecast:
     assert f.value is not None
     caption = f.evidence.get("caption") or ""
-    context = " ".join([caption, *f.evidence.get("notes", [])])
+    context = " ".join([caption, *f.evidence.get("notes", []), *f.evidence.get("header_texts", [])])
     adjustment = derive_adjustment(f.label, context)
     label = canonical_label(f.label, adjustment)
     out = ForecastOut(

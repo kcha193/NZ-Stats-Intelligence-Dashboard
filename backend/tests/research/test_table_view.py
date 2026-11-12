@@ -93,7 +93,7 @@ def test_forecast_rows_become_normalized_forecasts_with_their_cell_as_evidence(c
         "percent",
         "unclear",
     )
-    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-5"
+    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-6"
     (e,) = n.forecast.evidence
     assert (
         e.page == 1
@@ -139,6 +139,34 @@ def test_regional_caption_does_not_enter_national_analytics(conn, artifacts):
     assert forecasts == []
 
 
+def test_population_caption_does_not_enter_headline_analytics(conn, artifacts):
+    body = table_pdf(
+        [
+            page(
+                line(686, "Unemployment rate (%)", ["4", "3", "2", "2"]),
+                extra=[(72, 745, "Table 1: Youth unemployment forecasts (%)")],
+            )
+        ]
+    )
+    registry, _ = stored(conn, artifacts, body)
+    forecasts, _, _ = run(conn, registry)
+    assert forecasts == []
+
+
+def test_adjustment_in_column_header_is_applied(conn, artifacts):
+    body = table_pdf(
+        [
+            page(
+                line(686, "Unemployment rate (%)", ["4", "3", "2", "2"]),
+                groups=[(250, 714, "Forecast (seasonally adjusted)")],
+            )
+        ]
+    )
+    registry, _ = stored(conn, artifacts, body)
+    forecasts, _, _ = run(conn, registry)
+    assert forecasts and {f.adjustment for f in forecasts} == {"seasonally_adjusted"}
+
+
 def test_table_note_adjustment_is_retained_and_applied(conn, artifacts):
     body = table_pdf(
         [
@@ -172,7 +200,7 @@ def test_legacy_extractions_do_not_reach_analytics(conn):
     from .test_table_store import SHA, tf
 
     v = seed_version(conn)
-    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-4")
+    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-5")
     inst = institution(min_text_chars=20)
     assert run(conn, {inst.key: inst}) == ([], [], [])
 

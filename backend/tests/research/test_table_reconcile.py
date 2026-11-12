@@ -160,6 +160,14 @@ def test_adjustment_in_table_note_is_used_in_reconciliation():
     assert only(reconcile([t], [claim(2.6, adjustment="seasonally_adjusted")])).cls == "exact_match"
 
 
+def test_adjustment_in_column_header_is_used_in_reconciliation():
+    from dataclasses import replace
+
+    t = tab()
+    t = replace(t, evidence={**t.evidence, "header_texts": ["Forecast (seasonally adjusted)"]})
+    assert only(reconcile([t], [claim(2.6, adjustment="seasonally_adjusted")])).cls == "exact_match"
+
+
 def test_conflicting_adjustment_in_note_is_not_reconciled_as_unstated():
     from dataclasses import replace
 

@@ -77,7 +77,13 @@ def _identity(
 
 
 def _table_item(t: StoredTableForecast) -> _Item:
-    context = " ".join([t.evidence.get("caption") or "", *t.evidence.get("notes", [])])
+    context = " ".join(
+        [
+            t.evidence.get("caption") or "",
+            *t.evidence.get("notes", []),
+            *t.evidence.get("header_texts", []),
+        ]
+    )
     adjustment = derive_adjustment(t.label, context)
     key, family = _identity(
         t.indicator, canonical_label(t.label, adjustment), t.horizon, adjustment
