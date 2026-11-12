@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-6`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-7`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -26,7 +26,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-6"
+INTERPRETER_VERSION = "tables-7"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE
@@ -206,6 +206,15 @@ def interpret(
                 continue
             cells = {c.col: c for c in row[1:]}
             for index, (column, period, kind) in columns.items():
+                if any(_ANNUAL_AVERAGE.search(h) for h in column.headers):
+                    rejections.append(Rejection("period_basis_unstated", *at, index))
+                    continue
+                column_unit, unit_code = unit_of_text(
+                    label_cell.text, t.caption or "", unit_text, *column.headers
+                )
+                if column_unit is None:
+                    rejections.append(Rejection(unit_code or "unit_unstated", *at, index))
+                    continue
                 horizon, code = _horizon(period, label_cell.text, indicator)
                 if horizon is None:
                     rejections.append(Rejection(code or "unparsed_period", *at, index))
@@ -228,7 +237,7 @@ def interpret(
                         indicator,
                         horizon,
                         kind,
-                        unit,
+                        column_unit,
                         parsed,
                         "third_party"
                         if _names(" ".join(column.headers), _OTHER_FORECASTERS)

@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-6"
+    assert INTERPRETER_VERSION == "tables-7"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts
@@ -313,6 +313,28 @@ def test_a_forecaster_in_the_column_header_is_not_attributed_to_the_publisher():
     forecasts, _ = run(page(line(686, "OCR (%)", ["4", "3", "2", "2"]), groups=groups))
     assert forecasts
     assert {f.author_role for f in forecasts} == {"third_party"}
+
+
+def test_annual_average_column_is_not_read_as_through_year():
+    forecasts, rejections = run(
+        page(
+            line(686, "Annual CPI inflation (%)", ["4", "3", "2", "2"]),
+            groups=[(250, 714, "Forecast (annual average)")],
+        )
+    )
+    assert forecasts == ()
+    assert {r.code for r in rejections} == {"period_basis_unstated"}
+
+
+def test_column_unit_conflicting_with_row_is_refused():
+    forecasts, rejections = run(
+        page(
+            line(686, "OCR (%)", ["25", "25", "25", "25"]),
+            groups=[(250, 714, "Forecast (basis points)")],
+        )
+    )
+    assert forecasts == ()
+    assert {r.code for r in rejections} == {"contradictory_unit"}
 
 
 def test_column_attribution_does_not_change_neighbouring_forecasts():
