@@ -93,7 +93,7 @@ def test_forecast_rows_become_normalized_forecasts_with_their_cell_as_evidence(c
         "percent",
         "unclear",
     )
-    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-8"
+    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-9"
     (e,) = n.forecast.evidence
     assert (
         e.page == 1
@@ -200,7 +200,7 @@ def test_legacy_extractions_do_not_reach_analytics(conn):
     from .test_table_store import SHA, tf
 
     v = seed_version(conn)
-    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-7")
+    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-8")
     inst = institution(min_text_chars=20)
     assert run(conn, {inst.key: inst}) == ([], [], [])
 

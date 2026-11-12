@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-8`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-9`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -26,7 +26,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-8"
+INTERPRETER_VERSION = "tables-9"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE
@@ -105,6 +105,16 @@ def _columns(t: GridTable, out: list[Rejection]) -> dict[int, tuple[Column, Peri
     ok: dict[int, tuple[Column, Period, str]] = {}
     for col in t.columns:
         if col.role != "value":
+            continue
+        header_text = " ".join(col.headers)
+        if (
+            _FOREIGN.search(header_text)
+            or derive_geography("", header_text, "", None) != "New Zealand"
+        ):
+            out.append(Rejection("unsupported_geography", t.page_start, t.index, None, col.index))
+            continue
+        if _POPULATION.search(header_text):
+            out.append(Rejection("unsupported_scope", t.page_start, t.index, None, col.index))
             continue
         if any(_SCENARIO.search(h) for h in col.headers):
             out.append(Rejection("scenario_column", t.page_start, t.index, None, col.index))
@@ -206,6 +216,12 @@ def interpret(
                 continue
             cells = {c.col: c for c in row[1:]}
             for index, (column, period, kind) in columns.items():
+                header_text = " ".join(column.headers)
+                if (_UNIT_ANNUAL.search(header_text) and (not annual or quarterly)) or (
+                    _UNIT_QUARTERLY.search(header_text) and (not quarterly or annual)
+                ):
+                    rejections.append(Rejection("contradictory_period", *at, index))
+                    continue
                 if any(_ANNUAL_AVERAGE.search(h) for h in column.headers):
                     rejections.append(Rejection("period_basis_unstated", *at, index))
                     continue

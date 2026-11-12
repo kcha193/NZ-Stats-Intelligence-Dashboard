@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-8"
+    assert INTERPRETER_VERSION == "tables-9"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts
@@ -350,6 +350,28 @@ def test_column_unit_conflicting_with_row_is_refused():
     )
     assert forecasts == ()
     assert {r.code for r in rejections} == {"contradictory_unit"}
+
+
+def test_foreign_geography_in_column_header_is_refused():
+    forecasts, rejections = run(
+        page(
+            line(686, "Unemployment rate (%)", ["4", "3", "2", "2"]),
+            groups=[(250, 714, "Forecast (Australia)")],
+        )
+    )
+    assert forecasts == ()
+    assert {r.code for r in rejections} == {"unsupported_geography"}
+
+
+def test_column_cadence_conflicting_with_row_is_refused():
+    forecasts, rejections = run(
+        page(
+            line(686, "Quarterly real GDP growth (%)", ["5", "4", "3", "2"]),
+            groups=[(250, 714, "Forecast (% y/y)")],
+        )
+    )
+    assert forecasts == ()
+    assert {r.code for r in rejections} == {"contradictory_period"}
 
 
 def test_column_attribution_does_not_change_neighbouring_forecasts():
