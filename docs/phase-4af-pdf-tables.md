@@ -22,9 +22,9 @@ PDF bytes (stored copy) -> table_words   positioned words, in an isolated child 
                         -> table_view    the gate, then NormalizedForecast for bank_view / bank_analytics
 ```
 
-## Rules (interpreter `tables-2`)
+## Rules (interpreter `tables-3`)
 
-Earlier `tables-1` extractions remain immutable but are excluded from analytics. Re-extract the held PDF
+Earlier `tables-1` and `tables-2` extractions remain immutable but are excluded from analytics. Re-extract the held PDF
 to create a current interpretation before using its figures.
 
 | Topic | Rule |
@@ -37,7 +37,7 @@ to create a current interpretation before using its figures.
 | Values | The printed text is always kept. `-0.3` and `−0.3` are negative; `0.0` is zero; a lone dash, `n/a`, `..` or an empty cell is **missing** (never zero, never filled from a neighbour). `(0.3)` is `bracketed_value` and refused, because some reports bracket negatives and some do not. Anything else is `unrecognised_suffix`; a magnitude of one million or more is `value_out_of_range`. |
 | Footnotes | Any footnote marker on a figure refuses that figure (`footnote_unresolved`): the note may change its basis and may sit further from the table than the reader looks. |
 | Scenarios | A caption, nearby unnumbered scenario heading, row label or column header saying scenario, downside, upside, alternative, stress, sensitivity, illustrative or risk case refuses the table, row or column (`scenario_table`, `scenario_row`, `scenario_column`): a scenario is not the central forecast the analytics compare. |
-| Author | The bank, unless a `Source:` line exists and does not name the bank, or the caption names another forecaster (Treasury, RBNZ, the IMF, consensus, Stats NZ ...) and not the bank, in which case the figure is a third party's and is excluded from bank analytics. Names match as whole words. |
+| Author | The bank, unless a `Source:` line exists and does not name the bank, the caption names another forecaster and not the bank, or a column header names another forecaster (Treasury, RBNZ, the IMF, consensus, Stats NZ ...). These figures are third party and excluded from bank analytics. Names match as whole words. |
 | Columns | A value belongs to a column only if it overlaps exactly one column by half its width. A value between two columns, past the last column, or a group header starting in a gap rejects the **whole table** (`ambiguous_columns`). |
 | Multi-page | Joined only when the next page repeats the same header, or has no header, the table had no notes, **and the next page's block has no caption of its own** (or one saying "continued"). A captioned block is a new table, so a second table (for example a scenario table) is never read under the first one's columns. Otherwise refused (`no_header`). |
 

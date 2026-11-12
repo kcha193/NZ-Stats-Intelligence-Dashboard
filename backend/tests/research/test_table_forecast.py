@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-2"
+    assert INTERPRETER_VERSION == "tables-3"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts
@@ -306,6 +306,32 @@ def test_a_scenario_column_is_refused():
     forecasts, rejections = run(page(line(686, "OCR (%)", ["4", "3", "9", "9"]), groups=groups))
     assert {f.kind for f in forecasts} == {"actual"}
     assert {r.code for r in rejections} == {"scenario_column"}
+
+
+def test_a_forecaster_in_the_column_header_is_not_attributed_to_the_publisher():
+    groups = [(250, 714, "Forecast — RBNZ")]
+    forecasts, _ = run(page(line(686, "OCR (%)", ["4", "3", "2", "2"]), groups=groups))
+    assert forecasts
+    assert {f.author_role for f in forecasts} == {"third_party"}
+
+
+def test_column_attribution_does_not_change_neighbouring_forecasts():
+    groups = [(250, 714, "Forecast"), (370, 714, "Forecast — RBNZ")]
+    forecasts, _ = run(page(line(686, "OCR (%)", ["4", "3", "2", "2"]), groups=groups))
+    assert [f.author_role for f in forecasts] == ["author", "author", "third_party", "third_party"]
+
+
+@pytest.mark.parametrize("marker", ["e", "p", "(e)", "(p)"])
+def test_estimated_or_provisional_column_is_not_a_forecast(marker):
+    forecasts, rejections = run(
+        page(
+            line(686, "OCR (%)", ["4", "3", "2", "2"]),
+            groups=[(250, 714, "Forecast")],
+            head=[f"Dec-25{marker}", "Mar-26", "Jun-26", "Sep-26"],
+        )
+    )
+    assert all(f.period_text != f"Dec-25{marker}" for f in forecasts)
+    assert ("actual_or_forecast_unstated", 0) in [(r.code, r.col) for r in rejections]
 
 
 def test_a_footnote_marker_whose_note_cannot_be_found_is_refused_too():

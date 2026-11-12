@@ -160,6 +160,8 @@ def column_kind(headers: tuple[str, ...]) -> Literal["actual", "forecast", "unkn
         elif _FORECAST.match(group.strip()):
             stated.add("forecast")
     own = headers[-1].strip()
+    if (marker := _MARK.search(own)) and marker[1].lower() in ("e", "p"):
+        return "unknown"
     if _ACTUAL.match(own):
         stated.add("actual")
     elif _FORECAST.match(own) or _FORECAST_MARK.search(own):
