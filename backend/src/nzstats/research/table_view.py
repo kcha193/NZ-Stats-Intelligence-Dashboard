@@ -139,6 +139,17 @@ def table_forecasts(
         found = reconcile(stored, mine)
         recs.extend(found)
         cls_of = {tid: r.cls for r in found for tid in r.table_ids}
+        by_id = {f.id: f for f in stored}
+        conflicting_ids: set[int] = set()
+        for r in found:
+            figures = [by_id[tid] for tid in r.table_ids]
+            if (
+                r.note_code == "several_differing_readings"
+                and len({f.value for f in figures}) > 1
+                and len({f.unit for f in figures}) == 1
+                and all(f.author_role == "author" for f in figures)
+            ):
+                conflicting_ids.update(r.table_ids)
         for f in stored:
             if f.kind != "forecast" or f.missing or f.value is None:
                 continue
@@ -151,7 +162,7 @@ def table_forecasts(
                 code = "table_third_party"
             elif cls == "rounding_difference":
                 code = "reconciliation_rounding"
-            elif cls in _UNRESOLVED:
+            elif cls in _UNRESOLVED and f.id not in conflicting_ids:
                 code = "table_unresolved_reconciliation"
             if code is None:
                 usable.append(_normalized(f, row, inst, adapters))

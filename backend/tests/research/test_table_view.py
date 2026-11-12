@@ -275,6 +275,24 @@ def test_a_contradicting_claim_leaves_both_in_so_the_analytics_can_refuse_both(c
     assert len(cpi_june(forecasts)) == 1 and "contradictory_value" in {r.cls for r in recs}
 
 
+def test_conflicting_table_figures_cannot_be_hidden_by_agreeing_claim(conn, artifacts):
+    from .bank_support import view_of
+
+    rows = [
+        *line(686, "Annual CPI inflation (%)", ["4", "3", "2.6", "2.2"]),
+        *line(672, "Annual CPI inflation (%)", ["4", "3", "3.1", "2.2"]),
+    ]
+    registry, v = stored(conn, artifacts, table_pdf([page(rows)]))
+    checked = claim(v, 2.6)
+    forecasts, _, recs = run(conn, registry, [checked])
+    assert "ambiguous_or_unsupported" in {r.cls for r in recs}
+    codes = [
+        e.code
+        for e in bank_exclusions(view_of(checked, *forecasts), outlook_only=False, dated_only=False)
+    ]
+    assert codes.count("conflicting_forecasts") >= 2
+
+
 def test_a_rounding_difference_keeps_the_claim_and_drops_the_table_figure(conn, artifacts):
     registry, v = stored(conn, artifacts, pdf(cpi=("4", "3", "2.65", "2.2")))
     forecasts, excluded, _ = run(conn, registry, [claim(v, 2.7)])

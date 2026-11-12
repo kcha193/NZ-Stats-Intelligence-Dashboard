@@ -54,7 +54,9 @@ What reaches the analytics: a figure with no counterpart; a contradiction (both
 readings go in so the existing conflict rule leaves **both** out and does not show the bank's older figure in their place).
 Not added: an exact match (the checked claim already states it, so it is one statement and counted once; it still shows in `table_reconciliation`). Not used: a rounding difference (the checked claim stays, the table figure is dropped, because a precise and a rounded
 value of one number would be a spurious conflict), a unit, horizon or attribution difference, and anything not matched
-one-to-one. Table figures appear only when the owner's automatic internal view is on.
+one-to-one. An ambiguous group containing differently valued, same-unit, author-owned table figures retains those figures
+so the analytics conflict rule can exclude the disagreement alongside any matching claim. Table figures appear only
+when the owner's automatic internal view is on.
 
 ## Known limits
 
