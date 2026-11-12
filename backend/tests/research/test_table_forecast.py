@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-7"
+    assert INTERPRETER_VERSION == "tables-8"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts
@@ -264,6 +264,21 @@ def test_scenario_heading_on_continuation_cannot_inherit_central_context():
     assert len(forecasts) == 4
     assert {f.page for f in forecasts} == {1}
     assert [r.code for r in rejections] == ["scenario_table"]
+
+
+def test_explicit_continuation_after_notes_cannot_lose_attribution():
+    first = page(
+        line(686, "OCR (%)", ["4", "3", "2", "2"]),
+        extra=[(72, 745, "Table 1: RBNZ forecasts (%)"), (72, 665, "Note: context")],
+    )
+    second = page(
+        line(686, "OCR (%)", ["9", "9", "9", "9"]),
+        extra=[(72, 745, "Table 1 (continued)")],
+    )
+    forecasts, rejections = run(first, second)
+    assert {f.author_role for f in forecasts} == {"third_party"}
+    assert {f.page for f in forecasts} == {1}
+    assert [r.code for r in rejections] == ["unjoined_continuation"]
 
 
 def test_quarterly_growth_under_year_to_group_is_refused():

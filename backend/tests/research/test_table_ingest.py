@@ -88,11 +88,11 @@ def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts
     registry, v = imported(conn, artifacts, body)
     words = extract_words(body, ExtractionLimits(), isolate=False)
     store_extraction(
-        conn, v, NOW, [], [], words_sha256=words_sha256(words), interpreter_version="tables-6"
+        conn, v, NOW, [], [], words_sha256=words_sha256(words), interpreter_version="tables-7"
     )
     result = extract_version_tables(conn, v, artifacts, registry, NOW, isolate=False)
     assert result.status == "stored"
-    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-7"}
+    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-8"}
 
 
 def test_a_dry_run_reads_and_counts_but_writes_nothing(conn, artifacts):

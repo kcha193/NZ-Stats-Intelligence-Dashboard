@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-7`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-8`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -26,7 +26,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-7"
+INTERPRETER_VERSION = "tables-8"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE

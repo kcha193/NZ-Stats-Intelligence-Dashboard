@@ -331,6 +331,11 @@ def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rej
                 and _same_columns(current.columns, columns, tol)
             ):
                 target = current
+            elif cand.caption and _CONTINUED.search(cand.caption) and _may_continue(cand):
+                rejections.append(Rejection("unjoined_continuation", cand.page, count))
+                count += 1
+                current = None
+                continue
             else:
                 target = current = _Builder(count, cand, columns)
                 builders.append(target)
@@ -343,7 +348,13 @@ def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rej
         ):
             target = current
         else:
-            rejections.append(Rejection("no_header", cand.page))
+            code = (
+                "unjoined_continuation"
+                if cand.caption and _CONTINUED.search(cand.caption)
+                else "no_header"
+            )
+            rejections.append(Rejection(code, cand.page))
+            current = None
             continue
         if target.dead:
             continue
