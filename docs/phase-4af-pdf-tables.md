@@ -22,7 +22,7 @@ PDF bytes (stored copy) -> table_words   positioned words, in an isolated child 
                         -> table_view    the gate, then NormalizedForecast for bank_view / bank_analytics
 ```
 
-## Rules (interpreter `tables-4`)
+## Rules (interpreter `tables-5`)
 
 Earlier interpreter extractions remain immutable but are excluded from analytics. Re-extract the held PDF
 to create a current interpretation before using its figures.

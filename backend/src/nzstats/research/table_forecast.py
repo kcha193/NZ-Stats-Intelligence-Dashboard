@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-4`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-5`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -26,7 +26,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-4"
+INTERPRETER_VERSION = "tables-5"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE
@@ -44,6 +44,9 @@ _OTHER_FORECASTERS = (
 )  # fmt: skip
 _RATE_INDICATORS = frozenset({"ocr", "unemployment"})
 _SOURCE = re.compile(r"^sources?\s*[:\-]\s*(.*)$", re.IGNORECASE)
+_LABEL_FOOTNOTE = re.compile(r"[*†‡¹²³⁴⁵⁶⁷⁸⁹]")
+_UNIT_ANNUAL = re.compile(r"\by\s*/\s*y\b", re.IGNORECASE)
+_UNIT_QUARTERLY = re.compile(r"\bq\s*/\s*q\b", re.IGNORECASE)
 _FOREIGN = re.compile(
     r"\b(?:australia(?:n)?|china|chinese|united states|u\.?s\.?a\.?|american|"
     r"united kingdom|britain|british|euro(?:zone| area)|japan(?:ese)?)\b",
@@ -169,6 +172,9 @@ def interpret(
         for row in t.body_rows:
             label_cell = row[0]
             at = (label_cell.page, t.index, label_cell.row)
+            if _LABEL_FOOTNOTE.search(label_cell.text):
+                rejections.append(Rejection("footnote_unresolved", *at))
+                continue
             if _SCENARIO.search(label_cell.text):
                 rejections.append(Rejection("scenario_row", *at))
                 continue
@@ -179,6 +185,13 @@ def interpret(
                 continue
             (indicator,) = found
             unit_text = " ".join(c.text for c in row[1:] if c.col in units)
+            annual = bool(_ANNUAL.search(label_cell.text) or _THROUGH_YEAR.search(label_cell.text))
+            quarterly = bool(_QUARTERLY.search(label_cell.text))
+            if (_UNIT_ANNUAL.search(unit_text) and (not annual or quarterly)) or (
+                _UNIT_QUARTERLY.search(unit_text) and (not quarterly or annual)
+            ):
+                rejections.append(Rejection("contradictory_period", *at))
+                continue
             unit, code = unit_of_text(label_cell.text, t.caption or "", unit_text)
             if unit is None:
                 rejections.append(Rejection(code or "unit_unstated", *at))

@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-4"
+    assert INTERPRETER_VERSION == "tables-5"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts
@@ -339,6 +339,41 @@ def test_a_footnote_marker_whose_note_cannot_be_found_is_refused_too():
     forecasts, rejections = run(page(rows))  # no note anywhere near the table
     assert [(r.code, r.col) for r in rejections] == [("footnote_unresolved", 2)]
     assert len(forecasts) == 3
+
+
+def test_a_footnoted_row_label_is_refused():
+    rows = line(686, "Unemployment rate* (%)", ["4", "3", "2", "2"])
+    forecasts, rejections = run(page(rows, extra=[(72, 665, "* Youth aged 15-24 only")]))
+    assert forecasts == ()
+    assert [r.code for r in rejections] == ["footnote_unresolved"]
+
+
+def test_unit_cadence_conflicting_with_quarterly_row_is_refused():
+    xs = [230.0, 300.0, 360.0, 420.0]
+    report = [
+        (300, 714, "Forecast"),
+        *line(700, "", ["Unit", "Dec-26", "Mar-27", "Jun-27"], xs),
+        *line(686, "Quarterly real GDP growth", ["% y/y", "5.0", "4.0", "3.0"], xs),
+    ]
+    forecasts, rejections = run(report)
+    assert forecasts == ()
+    assert "contradictory_period" in {r.code for r in rejections}
+
+
+@pytest.mark.parametrize(
+    ("label", "unit"),
+    [("Annual GDP growth", "% y/y"), ("Quarterly GDP growth", "% q/q")],
+)
+def test_matching_row_and_unit_cadence_is_preserved(label, unit):
+    xs = [230.0, 300.0, 360.0, 420.0]
+    report = [
+        (300, 714, "Forecast"),
+        *line(700, "", ["Unit", "Dec-26", "Mar-27", "Jun-27"], xs),
+        *line(686, label, [unit, "5.0", "4.0", "3.0"], xs),
+    ]
+    forecasts, rejections = run(report)
+    assert len(forecasts) == 3
+    assert rejections == ()
 
 
 def test_a_caption_naming_another_forecaster_makes_it_a_third_party_figure():
