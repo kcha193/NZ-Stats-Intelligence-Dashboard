@@ -93,7 +93,7 @@ def test_forecast_rows_become_normalized_forecasts_with_their_cell_as_evidence(c
         "percent",
         "unclear",
     )
-    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-3"
+    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-4"
     (e,) = n.forecast.evidence
     assert (
         e.page == 1
@@ -111,6 +111,53 @@ def test_actuals_and_missing_figures_are_not_forecasts(conn, artifacts):
     assert excluded == []
 
 
+def test_foreign_caption_does_not_enter_new_zealand_analytics(conn, artifacts):
+    body = table_pdf(
+        [
+            page(
+                line(686, "Unemployment rate (%)", ["4", "3", "2", "2"]),
+                extra=[(72, 745, "Table 1: Australian forecasts (%)")],
+            )
+        ]
+    )
+    registry, _ = stored(conn, artifacts, body)
+    forecasts, _, _ = run(conn, registry)
+    assert forecasts == []
+
+
+def test_regional_caption_does_not_enter_national_analytics(conn, artifacts):
+    body = table_pdf(
+        [
+            page(
+                line(686, "Unemployment rate (%)", ["4", "3", "2", "2"]),
+                extra=[(72, 745, "Table 1: Auckland forecasts (%)")],
+            )
+        ]
+    )
+    registry, _ = stored(conn, artifacts, body)
+    forecasts, _, _ = run(conn, registry)
+    assert forecasts == []
+
+
+def test_table_note_adjustment_is_retained_and_applied(conn, artifacts):
+    body = table_pdf(
+        [
+            page(
+                line(686, "Unemployment rate (%)", ["4", "3", "2", "2"]),
+                extra=[(72, 665, "Note: All figures are seasonally adjusted")],
+            )
+        ]
+    )
+    registry, v = stored(conn, artifacts, body)
+    forecasts, _, _ = run(conn, registry)
+    assert forecasts and {f.adjustment for f in forecasts} == {"seasonally_adjusted"}
+    from nzstats.research.table_store import load_forecasts
+
+    assert load_forecasts(conn, v)[0].evidence["notes"] == [
+        "Note: All figures are seasonally adjusted"
+    ]
+
+
 def test_only_the_auto_gate_shows_table_figures(conn, artifacts):
     from nzstats.research.drafts import DraftAllowlist
 
@@ -125,7 +172,7 @@ def test_legacy_extractions_do_not_reach_analytics(conn):
     from .test_table_store import SHA, tf
 
     v = seed_version(conn)
-    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-2")
+    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-3")
     inst = institution(min_text_chars=20)
     assert run(conn, {inst.key: inst}) == ([], [], [])
 

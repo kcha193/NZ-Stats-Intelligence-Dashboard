@@ -72,7 +72,7 @@ def _shown(row: sqlite3.Row, inst: Institution | None) -> bool:
 
 def _quote(f: StoredTableForecast) -> str:
     e = f.evidence
-    text = f"{e.get('row_label', '')} | {' / '.join(e.get('header_texts', []))} | {e.get('cell_text', '')}"
+    text = f"{e.get('row_label', '')} | {' / '.join(e.get('header_texts', []))} | {e.get('cell_text', '')} | {' / '.join(e.get('notes', []))}"
     return text[:_QUOTE_MAX]
 
 
@@ -81,7 +81,8 @@ def _normalized(
 ) -> NormalizedForecast:
     assert f.value is not None
     caption = f.evidence.get("caption") or ""
-    adjustment = derive_adjustment(f.label, caption)
+    context = " ".join([caption, *f.evidence.get("notes", [])])
+    adjustment = derive_adjustment(f.label, context)
     label = canonical_label(f.label, adjustment)
     out = ForecastOut(
         summary_id=-f.extraction_id,  # negative: a table extraction, never a summary
@@ -108,7 +109,7 @@ def _normalized(
         geography=derive_geography(f.indicator, f.label, f.horizon, f.unit),
         measure=f.label,
         adjustment=adjustment,
-        adjustment_conflict=adjustment_conflicts(f.label, caption),
+        adjustment_conflict=adjustment_conflicts(f.label, context),
         extraction_method="table",
         verifier_version=f.interpreter_version,
         raw_value=float(f.value),

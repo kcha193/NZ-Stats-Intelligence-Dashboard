@@ -26,7 +26,12 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
-from nzstats.research.bank_forecast import NormalizedForecast, canonical_label, derive_adjustment
+from nzstats.research.bank_forecast import (
+    NormalizedForecast,
+    adjustment_conflicts,
+    canonical_label,
+    derive_adjustment,
+)
 from nzstats.research.compare import basis_of, horizon_of
 from nzstats.research.table_store import StoredTableForecast
 
@@ -72,10 +77,13 @@ def _identity(
 
 
 def _table_item(t: StoredTableForecast) -> _Item:
-    adjustment = derive_adjustment(t.label, t.evidence.get("caption") or "")
+    context = " ".join([t.evidence.get("caption") or "", *t.evidence.get("notes", [])])
+    adjustment = derive_adjustment(t.label, context)
     key, family = _identity(
         t.indicator, canonical_label(t.label, adjustment), t.horizon, adjustment
     )
+    if adjustment_conflicts(t.label, context):
+        key, family = None, None
     assert t.value is not None
     return _Item(key, family, t.value, t.unit, t.author_role == "third_party", t.id)
 

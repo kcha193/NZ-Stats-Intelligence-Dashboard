@@ -152,6 +152,22 @@ def test_adjustment_and_document_keep_figures_apart():
     assert summary_counts(other) == {"no_counterpart": 2}
 
 
+def test_adjustment_in_table_note_is_used_in_reconciliation():
+    from dataclasses import replace
+
+    t = tab()
+    t = replace(t, evidence={**t.evidence, "notes": ["Note: seasonally adjusted"]})
+    assert only(reconcile([t], [claim(2.6, adjustment="seasonally_adjusted")])).cls == "exact_match"
+
+
+def test_conflicting_adjustment_in_note_is_not_reconciled_as_unstated():
+    from dataclasses import replace
+
+    t = tab(label="Annual CPI inflation, unadjusted (%)")
+    t = replace(t, evidence={**t.evidence, "notes": ["Note: seasonally adjusted"]})
+    assert only(reconcile([t], [])).cls == "ambiguous_or_unsupported"
+
+
 def test_actuals_and_missing_figures_are_not_forecasts_to_reconcile():
     rs = reconcile([tab(kind="actual"), tab(2, missing=True, value=None)], [])
     assert rs == []

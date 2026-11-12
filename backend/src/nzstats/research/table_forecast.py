@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-3`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-4`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Literal
 
+from nzstats.research.bank_forecast import derive_geography
 from nzstats.research.compare import _ANNUAL, _ANNUAL_AVERAGE, _QUARTERLY, _THROUGH_YEAR, horizon_of
 from nzstats.research.table_grid import _SCENARIO, Cell, Column, GridTable, Rejection
 from nzstats.research.table_parse import (
@@ -25,7 +26,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-3"
+INTERPRETER_VERSION = "tables-4"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE
@@ -43,6 +44,11 @@ _OTHER_FORECASTERS = (
 )  # fmt: skip
 _RATE_INDICATORS = frozenset({"ocr", "unemployment"})
 _SOURCE = re.compile(r"^sources?\s*[:\-]\s*(.*)$", re.IGNORECASE)
+_FOREIGN = re.compile(
+    r"\b(?:australia(?:n)?|china|chinese|united states|u\.?s\.?a\.?|american|"
+    r"united kingdom|britain|british|euro(?:zone| area)|japan(?:ese)?)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -152,6 +158,11 @@ def interpret(
         if t.caption and _SCENARIO.search(t.caption):
             rejections.append(Rejection("scenario_table", t.page_start, t.index))
             continue
+        if t.caption and (
+            _FOREIGN.search(t.caption) or derive_geography("", t.caption, "", None) != "New Zealand"
+        ):
+            rejections.append(Rejection("unsupported_geography", t.page_start, t.index))
+            continue
         columns = _columns(t, rejections)
         role = _author_role(t, publisher_names)
         units = {c.index for c in t.columns if c.role == "unit"}
@@ -248,5 +259,6 @@ def _forecast(
             "row_label": label_cell.text,
             "header_texts": list(column.headers),
             "caption": t.caption,
+            "notes": list(t.notes),
         },
     )
