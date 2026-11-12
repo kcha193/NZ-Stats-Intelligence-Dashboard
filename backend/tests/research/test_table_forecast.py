@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-1"
+    assert INTERPRETER_VERSION == "tables-2"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts
@@ -233,6 +233,61 @@ def test_a_scenario_table_is_never_read_as_the_central_forecast():
     )
     assert forecasts == ()
     assert [r.code for r in rejections] == ["scenario_table"]
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "Downside scenario (%)",
+        "Upside scenario (%)",
+        "Alternative scenario (%)",
+        "Stress scenario (%)",
+        "Sensitivity analysis (%)",
+        "Illustrative projections (%)",
+    ],
+)
+def test_unnumbered_scenario_heading_is_not_lost(heading):
+    forecasts, rejections = run(
+        page(line(686, "OCR (%)", ["4", "3", "2", "2"]), extra=[(72, 745, heading)])
+    )
+    assert forecasts == ()
+    assert [r.code for r in rejections] == ["scenario_table"]
+
+
+def test_scenario_heading_on_continuation_cannot_inherit_central_context():
+    central = page(line(686, "OCR (%)", ["4", "3", "2", "2"]))
+    scenario = page(
+        line(686, "OCR (%)", ["9", "9", "9", "9"]),
+        extra=[(72, 745, "Downside scenario (continued)")],
+    )
+    forecasts, rejections = run(central, scenario)
+    assert len(forecasts) == 4
+    assert {f.page for f in forecasts} == {1}
+    assert [r.code for r in rejections] == ["scenario_table"]
+
+
+def test_quarterly_growth_under_year_to_group_is_refused():
+    forecasts, rejections = run(
+        page(
+            line(686, "Quarterly GDP growth (%)", ["0.2", None, None, None]),
+            groups=[(250, 714, "Forecast — year to March")],
+            head=["Mar-27", "Mar-28", "Mar-29", "Mar-30"],
+        )
+    )
+    assert forecasts == ()
+    assert {r.code for r in rejections} == {"contradictory_period"}
+
+
+def test_quarterly_growth_under_calendar_year_is_refused():
+    forecasts, rejections = run(
+        page(
+            line(686, "Quarterly GDP growth (%)", ["0.2", None, None, None]),
+            groups=[(250, 714, "Forecast")],
+            head=["2027", "2028", "2029", "2030"],
+        )
+    )
+    assert forecasts == ()
+    assert {r.code for r in rejections} == {"contradictory_period"}
 
 
 @pytest.mark.parametrize("word", ["downside", "Upside", "alternative", "stress", "sensitivity"])

@@ -30,6 +30,20 @@ _VALUE = re.compile(
 _UNIT = re.compile(r"^(?:%|ppt?s?|bps|% ?pa|% ?y/y|% ?q/q|index)$", re.IGNORECASE)
 _NOTE = re.compile(r"^(?:sources?\b|notes?\b|[*†‡¹²³⁴⁵⁶⁷⁸⁹]|\(\d\))", re.IGNORECASE)
 _CAPTION = re.compile(r"^(?:table|figure|chart|exhibit)\b", re.IGNORECASE)
+_SCENARIO = re.compile(
+    r"\b(?:scenarios?|downside|upside|alternative|stress(?:ed)?|sensitivity|illustrative|what[- ]if|risk case)\b",
+    re.IGNORECASE,
+)
+_SCENARIO_HEADING = re.compile(
+    r"^(?:scenarios?|downside|upside|alternative|stress(?:ed)?|sensitivity|illustrative|what[- ]if|risk case)\b",
+    re.IGNORECASE,
+)
+
+
+def _caption(text: str) -> bool:
+    return bool(_CAPTION.match(text) or _SCENARIO_HEADING.match(text))
+
+
 _UNIT_HEADER = re.compile(r"^units?$", re.IGNORECASE)
 _CONTINUED = re.compile(r"\bcont(?:inued|'d|\.)", re.IGNORECASE)
 _HEADER_HEAD = re.compile(
@@ -180,7 +194,7 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
             and lines[j][0].page == page
             and not _is_body(lines[j])
             and _gap(lines[j], lines[j + 1]) <= 3 * lines[j][0].size
-            and not _CAPTION.match(lines[j][0].text)
+            and not _caption(lines[j][0].text)
             and any(c.x0 >= edge for c in lines[j])
         ):
             header.insert(0, [c for c in lines[j] if c.x0 >= edge])
@@ -189,7 +203,7 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
         if (
             j >= 0
             and lines[j][0].page == page
-            and _CAPTION.match(lines[j][0].text)
+            and _caption(lines[j][0].text)
             and _gap(lines[j], lines[j + 1]) <= 5 * lines[j][0].size
         ):
             caption = " ".join(c.text for c in lines[j])
@@ -290,7 +304,9 @@ def _same_columns(a: tuple[Column, ...], b: tuple[Column, ...], tol: float) -> b
 
 def _may_continue(cand: _Candidate) -> bool:
     """A captioned block starts a new table unless its caption says it continues the last one."""
-    return cand.caption is None or bool(_CONTINUED.search(cand.caption))
+    return cand.caption is None or bool(
+        _CONTINUED.search(cand.caption) and not _SCENARIO.search(cand.caption)
+    )
 
 
 def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rejection, ...]]:

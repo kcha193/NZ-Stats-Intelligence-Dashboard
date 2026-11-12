@@ -110,6 +110,18 @@ def test_contradiction_and_unreadable_have_their_own_codes():
     assert period_of(("Forecast", "next year"))[1] == "unparsed_period"
 
 
+def test_year_to_group_preserves_basis_and_rejects_conflicts():
+    assert period_of(("Forecast — year to March", "Mar-27")) == (Period("year_to", 2027, 3), None)
+    for headers in [
+        ("Year to March", "Q1 2027"),
+        ("Year to March", "2027"),
+        ("Year to March", "Year to June 2027"),
+        ("Year to March 2026", "Mar-27"),
+        ("Year to March", "Year to June", "Mar-27"),
+    ]:
+        assert period_of(headers) == (None, "contradictory_period")
+
+
 @pytest.mark.parametrize(
     ("headers", "kind"),
     [

@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-1`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-2`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from nzstats.research.compare import _ANNUAL, _ANNUAL_AVERAGE, _QUARTERLY, _THROUGH_YEAR, horizon_of
-from nzstats.research.table_grid import Cell, Column, GridTable, Rejection
+from nzstats.research.table_grid import _SCENARIO, Cell, Column, GridTable, Rejection
 from nzstats.research.table_parse import (
     Period,
     column_kind,
@@ -25,7 +25,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-1"
+INTERPRETER_VERSION = "tables-2"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE
@@ -36,11 +36,6 @@ _INDICATORS: dict[str, re.Pattern[str]] = {
     "gdp": re.compile(r"\bgdp\b|gross domestic product", re.IGNORECASE),
     "unemployment": re.compile(r"unemployment", re.IGNORECASE),
 }
-# A scenario is not the central forecast, and the bank analytics compare central forecasts.
-_SCENARIO = re.compile(
-    r"\b(?:scenarios?|downside|upside|alternative|stress(?:ed)?|sensitivity|illustrative|what[- ]if|risk case)\b",
-    re.IGNORECASE,
-)
 # Forecasters other than the publishing bank that a caption may name; a caption naming one, and not the bank, is theirs.
 _OTHER_FORECASTERS = (
     "treasury", "rbnz", "reserve bank", "imf", "oecd", "world bank", "consensus", "bloomberg", "reuters",
@@ -130,7 +125,7 @@ def _horizon(period: Period, label: str, indicator: str) -> tuple[str | None, st
     if annual and quarterly:
         return None, "period_basis_unstated"
     if period.kind == "calendar":
-        text = period.render("calendar")
+        text = None if quarterly else period.render("calendar")
     elif period.kind == "quarter":
         text = None if annual else period.render("quarter")
     elif period.kind == "year_to":

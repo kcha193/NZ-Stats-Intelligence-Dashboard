@@ -35,6 +35,7 @@ from nzstats.research.banks import ADAPTERS, BankAdapter, report_kind_of
 from nzstats.research.drafts import DraftAllowlist
 from nzstats.research.public import allowed_document_url
 from nzstats.research.registry import ContentPolicy, Institution
+from nzstats.research.table_forecast import INTERPRETER_VERSION
 from nzstats.research.table_reconcile import Reconciliation, reconcile
 from nzstats.research.table_store import StoredTableForecast, load_forecasts
 
@@ -45,6 +46,7 @@ _VERSIONS = (
     " JOIN research_publication p ON p.id = v.publication_id"
     " JOIN research_institution i ON i.id = p.institution_id"
     " WHERE e.id = (SELECT MAX(id) FROM research_table_extraction WHERE version_id = e.version_id)"
+    " AND e.interpreter_version = ?"
     " ORDER BY v.id"
 )
 _QUOTE_MAX = 300
@@ -126,7 +128,7 @@ def table_forecasts(
     usable: list[NormalizedForecast] = []
     excluded: list[ExcludedClaim] = []
     recs: list[Reconciliation] = []
-    for row in conn.execute(_VERSIONS).fetchall():
+    for row in conn.execute(_VERSIONS, (INTERPRETER_VERSION,)).fetchall():
         inst = registry.get(row["institution"])
         if not _shown(row, inst):
             continue

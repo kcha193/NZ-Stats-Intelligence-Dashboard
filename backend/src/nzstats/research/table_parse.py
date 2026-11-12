@@ -134,8 +134,10 @@ def period_of(headers: tuple[str, ...]) -> tuple[Period | None, str | None]:
     if period is None or not (1990 <= period.year <= 2100):
         return None, "unparsed_period"
     for group in headers[:-1]:
-        if (m := _G_YEAR_TO.search(group)) and _month(m[1]) != period.month:
-            return None, "contradictory_period"
+        if m := _G_YEAR_TO.search(group):
+            if _month(m[1]) != period.month or period.kind not in ("month_end", "year_to"):
+                return None, "contradictory_period"
+            period = Period("year_to", period.year, period.month)
         years = {int(y) for y in _G_YEAR.findall(group)}
         if years and period.year not in years:
             return None, "contradictory_period"
