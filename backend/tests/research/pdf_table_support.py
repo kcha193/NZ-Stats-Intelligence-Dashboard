@@ -5,6 +5,7 @@ Each item is drawn as its own text-showing operation at (x_left, y), so a test c
 
 from __future__ import annotations
 
+import functools
 import io
 
 from .pdf_support import _escape
@@ -52,3 +53,15 @@ def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
         f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
     )
     return out.getvalue()
+
+
+@functools.cache
+def text_width(text: str, size: float) -> float:
+    """The real drawn width of `text` in Helvetica at `size` points, measured by the word reader on a one-word PDF."""
+    from nzstats.research.extract import ExtractionLimits
+    from nzstats.research.table_words import extract_words
+
+    (word,) = extract_words(
+        table_pdf([[(100, 700, text)]], size=size), ExtractionLimits(), isolate=False
+    )
+    return word.x1 - word.x0

@@ -64,26 +64,27 @@ def test_word_is_a_frozen_value():
         w.text = "y"  # type: ignore[misc]
 
 
-def test_a_word_with_a_non_finite_position_is_dropped_not_sorted():
-    from nzstats.research.table_words import make_word
+def test_a_glyph_with_a_non_finite_position_is_dropped_not_sorted():
+    from nzstats.research.table_words import _finite
 
-    ident = [1, 0, 0, 1, 0, 0]
-    assert make_word(1, "ok", ident, ident, 10.0) is not None
-    nan, inf = float("nan"), float("inf")
-    assert make_word(1, "x", ident, [1, 0, 0, 1, nan, 0], 10.0) is None
-    assert make_word(1, "x", ident, [1, 0, 0, 1, 0, inf], 10.0) is None
-    assert make_word(1, "x", ident, ident, nan) is None
-    assert make_word(1, "   ", ident, ident, 10.0) is None
+    assert _finite(1.0, 2.0, 3.0)
+    assert not _finite(1.0, float("nan"))
+    assert not _finite(float("inf"), 1.0)
 
 
-def test_text_drawn_as_one_block_yields_no_table_rather_than_a_wrong_one():
-    """pypdf hands back a whole baseline drawn inside one BT..ET as one string, so positions inside it are unknown.
-    That fails safe: no cell boundaries, no table. (Documented limit; the pilot's dry run shows it.)"""
-    from nzstats.research.table_grid import find_tables
-
+def test_text_drawn_as_one_block_now_gives_each_cell_its_own_word():
+    """Phase 4AF documented that `pypdf` returned a whole baseline drawn in one BT..ET as one string. The Phase 4AG reader
+    follows each glyph, so the same stream yields separate cells at their own positions."""
     stream = (
         "BT /F1 10 Tf 72 700 Td (Dec-26) Tj 180 0 Td (Mar-27) Tj ET "
         "BT /F1 10 Tf 72 686 Td (OCR) Tj 180 0 Td (3.25) Tj 60 0 Td (3.00) Tj ET"
     )
     pdf = table_pdf([[]]).replace(b"q Q", stream.encode())
-    assert find_tables(extract_words(pdf, LIMITS, isolate=False)) == ((), ())
+    words = extract_words(pdf, LIMITS, isolate=False)
+    assert [(w.text, round(w.x0)) for w in words] == [
+        ("Dec-26", 72),
+        ("Mar-27", 252),
+        ("OCR", 72),
+        ("3.25", 252),
+        ("3.00", 312),
+    ]

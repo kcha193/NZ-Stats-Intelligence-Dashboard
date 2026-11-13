@@ -1,12 +1,23 @@
-"""Positioned words from a text-layer PDF (Phase 4AF): where each piece of text sits on its page.
+"""Positioned words from a text-layer PDF (Phase 4AF, reader `pdf-words-2` since Phase 4AG).
 
-`extract_pdf` returns readable text per page, which loses the layout a table needs. This module keeps, for every
-text-showing operation, the page, the left and right edge, the baseline and the font size, so `table_grid` can read
-rows and columns geometrically. The parser runs under the same hardened child-process rules as `extract_pdf` (hostile
-bytes, wall-clock, CPU and memory limits, JSON only back). All text is untrusted data.
+`extract_pdf` returns readable text per page, which loses the layout a table needs. This module keeps, for every word or
+phrase, the page, the left and right edge, the baseline and the font size, so `table_grid` can read rows and columns
+geometrically. Glyphs come from `pdfminer.six` one character at a time with their real positions and advances (the earlier
+`pypdf` visitor returned everything drawn in one `BT..ET` block as one string, which hid every cell boundary of the way real
+reports are written). The parser runs under the same hardened child-process rules as `extract_pdf` (hostile bytes,
+wall-clock, CPU and memory limits, JSON only back). All text is untrusted data.
 
-The right edge is estimated from the text and the font size (no font file is read) with Helvetica-like advances, so it
-is approximate: it is used only to decide which column a cell overlaps, never to change a value.
+Words are assembled conservatively, because a wrong boundary is a wrong number:
+
+* a glyph run is split at a space glyph, at a gap above 0.15 em, and wherever the baseline or the font size changes;
+* two neighbouring pieces join into one phrase (a row label) only across a gap of at most 0.45 em, and **never when both
+  are value-like**, so two figures are never read as one;
+* a smaller piece touching the end of the previous one on a shifted baseline (a footnote marker) is kept, as a superscript
+  character on that word (`3.25` and a raised `1` become `3.25¹`, never `3.251`), so the figure is later refused as footnoted;
+* rotated text is dropped (a table read sideways is not read), and a glyph with no Unicode mapping stays visible as
+  `(cid:N)` so its cell cannot parse as a number.
+
+Not detected (documented): invisible text (render mode 3), text clipped away, and white-on-white text.
 """
 
 from __future__ import annotations
@@ -16,6 +27,7 @@ import io
 import json
 import logging
 import math
+import re
 import subprocess
 import sys
 import tempfile
@@ -32,11 +44,27 @@ from nzstats.research.extract_pdf import (
 )
 
 log = logging.getLogger(__name__)
-EXTRACTOR_VERSION = "pdf-words-1"
+EXTRACTOR_VERSION = "pdf-words-2"
 _MAX_WORDS = 200_000
+_MAX_CHARS = 1_000_000
 
-_NARROW = frozenset(".,:;'|!iIl ")
-_DIGIT_ADVANCE, _NARROW_ADVANCE, _OTHER_ADVANCE = 0.556, 0.278, 0.55
+_TOKEN_GAP = (
+    0.15  # em: a larger gap between glyphs ends a token (implementer's call; boundary-tested)
+)
+_PHRASE_GAP = 0.45  # em: a larger gap between tokens separates cells
+_MARKER_GAP = (
+    0.35  # em: a smaller shifted piece this close to the previous one is a footnote marker
+)
+_SHIFT = 0.15  # em: baseline movement that starts a new token
+_SIZE_RATIO = 0.85  # a font size ratio below this (or above its inverse) starts a new token
+_BASE_BREAK = 0.45  # em: baselines further apart than this are different lines
+_SUPERSCRIPT = str.maketrans(
+    "0123456789", "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"
+)
+_VALUE_LIKE = re.compile(
+    r"^(?:[-\u2212\u2013(]?\d[\d,.]*%?\)?[*\u2020\u2021\u00b9\u00b2\u00b3\u2074-\u2079]*|[-\u2013\u2014]|n/?a|\.{2,})$",
+    re.IGNORECASE,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -47,31 +75,6 @@ class Word:
     y: float  # baseline, points from the bottom of the page
     size: float
     text: str
-
-
-def _advance(ch: str) -> float:
-    if ch.isdigit():
-        return _DIGIT_ADVANCE
-    if ch in "-−–—":
-        return 0.333
-    return _NARROW_ADVANCE if ch in _NARROW else _OTHER_ADVANCE
-
-
-def text_width(text: str, size: float) -> float:
-    return sum(_advance(c) for c in text) * size
-
-
-def make_word(page: int, text: str, cm, tm, font_size: float) -> Word | None:
-    """A positioned word, or None for blank text or a non-finite position or size (which would make ordering unstable)."""
-    text = " ".join(clean_text(text or "").split())
-    if not text:
-        return None
-    x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
-    y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
-    size = abs(font_size * tm[3] * cm[3]) or abs(font_size)
-    if not all(math.isfinite(v) for v in (x, y, size)):
-        return None
-    return Word(page, x, x + text_width(text, size), y, size, text)
 
 
 def extract_words(
@@ -91,12 +94,160 @@ def extract_words(
     return _extract(body, limits)
 
 
+@dataclasses.dataclass(frozen=True)
+class _Glyph:
+    page: int
+    x0: float
+    x1: float
+    base: float  # baseline of the text matrix (the text-rise operator is not included)
+    y0: float  # bottom of the glyph box: baseline, descent and text rise together
+    size: float
+    font: str
+    text: str
+
+
+@dataclasses.dataclass
+class _Token:
+    text: str
+    x0: float
+    x1: float
+    base: float
+    size: float
+    shifted: bool  # starts where the baseline or the font size changed
+
+
+def _finite(*values: float) -> bool:
+    return all(math.isfinite(v) for v in values)
+
+
+def _walk(node, depth: int = 0):
+    """Characters of a pdfminer layout node, in drawing order (Form XObjects nest, bounded by depth)."""
+    from pdfminer.layout import LTChar
+
+    if isinstance(node, LTChar):
+        yield node
+    elif depth < 8 and hasattr(node, "__iter__"):
+        for child in node:
+            yield from _walk(child, depth + 1)
+
+
+def _page_glyphs(number: int, layout, counter: list[int]) -> tuple[list[_Glyph], int]:
+    """Upright glyphs of one page and how many rotated ones were left out."""
+    out: list[_Glyph] = []
+    rotated = 0
+    seen: set[tuple[float, float, float, str]] = set()
+    for ch in _walk(layout):
+        counter[0] += 1
+        if counter[0] > _MAX_CHARS:
+            raise IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (characters)")
+        text = ch.get_text() or ""
+        if not ch.upright:
+            rotated += 1
+            continue
+        base = ch.matrix[5]
+        if not _finite(ch.x0, ch.x1, base, ch.y0, ch.size):
+            continue
+        # Fake bold draws a glyph twice in the same place; a real repeated digit always advances.
+        key = (round(ch.x0, 1), round(base, 1), round(ch.size, 1), text)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(_Glyph(number, ch.x0, ch.x1, base, ch.y0, abs(ch.size), ch.fontname, text))
+    return out, rotated
+
+
+def _lines(glyphs: list[_Glyph]) -> list[list[_Glyph]]:
+    """Glyphs grouped by baseline. A raised marker (a smaller shifted baseline) stays in its line."""
+    ordered = sorted(glyphs, key=lambda g: (-g.base, g.x0))
+    lines: list[list[_Glyph]] = []
+    last: _Glyph | None = None
+    for g in ordered:
+        if last is not None and last.base - g.base <= _BASE_BREAK * max(last.size, g.size):
+            lines[-1].append(g)
+        else:
+            lines.append([g])
+        last = g
+    return lines
+
+
+def _tokens(line: list[_Glyph]) -> list[_Token]:
+    tokens: list[_Token] = []
+    current: list[_Glyph] = []
+    prev: _Glyph | None = None  # the previous non-blank glyph
+    blank_before = False
+
+    def close() -> None:
+        nonlocal current
+        if current:
+            text = " ".join(clean_text("".join(g.text for g in current)).split())
+            if text:
+                first, last = current[0], current[-1]
+                tokens.append(_Token(text, first.x0, last.x1, first.base, first.size, False))
+        current = []
+
+    for g in sorted(line, key=lambda g: g.x0):
+        if not g.text.strip():
+            close()
+            blank_before = True
+            continue
+        if prev is not None and current:
+            ratio = g.size / prev.size if prev.size else 1.0
+            moved = abs(g.base - prev.base) > _SHIFT * prev.size or (
+                g.font == prev.font and abs(g.y0 - prev.y0) > _SHIFT * prev.size
+            )
+            resized = ratio < _SIZE_RATIO or ratio > 1 / _SIZE_RATIO
+            if blank_before or g.x0 - prev.x1 > _TOKEN_GAP * prev.size or moved or resized:
+                close()
+        current.append(g)
+        prev, blank_before = g, False
+    close()
+    for before, after in zip(tokens, tokens[1:], strict=False):
+        ratio = after.size / before.size if before.size else 1.0
+        after.shifted = (
+            abs(after.base - before.base) > _SHIFT * before.size
+            or ratio < _SIZE_RATIO
+            or ratio > 1 / _SIZE_RATIO
+        )
+    return tokens
+
+
+def _words_of(number: int, tokens: list[_Token]) -> list[Word]:
+    words: list[Word] = []
+    cur: _Token | None = None
+    for tok in tokens:
+        if cur is None:
+            cur = dataclasses.replace(tok)
+            continue
+        gap = tok.x0 - cur.x1
+        if tok.shifted and tok.size < _SIZE_RATIO * cur.size and gap < _MARKER_GAP * cur.size:
+            cur.text += tok.text.translate(
+                _SUPERSCRIPT
+            )  # a footnote marker stays on its figure, visibly
+            cur.x1 = tok.x1
+        elif (
+            tok.shifted
+            or gap > _PHRASE_GAP * cur.size
+            or (_VALUE_LIKE.match(cur.text.rsplit(" ", 1)[-1]) and _VALUE_LIKE.match(tok.text))
+        ):
+            words.append(Word(number, cur.x0, cur.x1, cur.base, cur.size, cur.text))
+            cur = dataclasses.replace(tok)
+        else:
+            cur.text += " " + tok.text
+            cur.x1 = tok.x1
+    if cur is not None:
+        words.append(Word(number, cur.x0, cur.x1, cur.base, cur.size, cur.text))
+    return words
+
+
 def _extract(body: bytes, limits: ExtractionLimits) -> tuple[Word, ...]:
     try:
+        from pdfminer.high_level import extract_pages
         from pypdf import PdfReader
     except ImportError:
         raise IngestError(ErrorClass.UNEXPECTED, "pdf_support_not_installed") from None
     words: list[Word] = []
+    rotated = 0
+    counter = [0]
     try:
         reader = PdfReader(io.BytesIO(body), strict=False)
         if reader.is_encrypted:
@@ -106,26 +257,32 @@ def _extract(body: bytes, limits: ExtractionLimits) -> tuple[Word, ...]:
             raise IngestError(ErrorClass.LAYOUT_CHANGED, "unreadable pdf (no pages)")
         if pages > limits.max_pages:
             raise IngestError(ErrorClass.VALIDATION_FAILED, f"pdf has too many pages ({pages})")
-        for number, page in enumerate(reader.pages, start=1):
-
-            def visit(text, cm, tm, _font, font_size, number=number):
-                word = make_word(number, text, cm, tm, font_size)
-                if word is None:
-                    return
-                if len(words) >= _MAX_WORDS:
-                    raise IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (words)")
-                words.append(word)
-
-            page.extract_text(visitor_text=visit)
+        for number, layout in enumerate(
+            extract_pages(
+                io.BytesIO(body), laparams=None, maxpages=limits.max_pages, caching=False
+            ),
+            start=1,
+        ):
+            glyphs, turned = _page_glyphs(number, layout, counter)
+            rotated += turned
+            for line in _lines(glyphs):
+                for word in _words_of(number, _tokens(line)):
+                    if len(words) >= _MAX_WORDS:
+                        raise IngestError(
+                            ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (words)"
+                        )
+                    words.append(word)
     except IngestError:
         raise
-    except Exception as exc:  # pypdf raises many types on damaged input: keep only the type
+    except Exception as exc:  # parsers raise many types on damaged input: keep only the type
         log.warning("pdf word extraction failed: %r", exc)
         raise IngestError(
             ErrorClass.LAYOUT_CHANGED, f"unreadable pdf ({type(exc).__name__})"
         ) from None
     if not words:
-        raise IngestError(ErrorClass.VALIDATION_FAILED, "no_text_layer")
+        raise IngestError(
+            ErrorClass.VALIDATION_FAILED, "rotated_text_only" if rotated else "no_text_layer"
+        )
     return tuple(sorted(words, key=lambda w: (w.page, -w.y, w.x0)))
 
 

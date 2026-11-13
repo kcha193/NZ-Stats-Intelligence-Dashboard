@@ -2,9 +2,9 @@
 
 from nzstats.research.extract import ExtractionLimits
 from nzstats.research.table_grid import find_tables
-from nzstats.research.table_words import extract_words, text_width
+from nzstats.research.table_words import extract_words
 
-from .pdf_table_support import Item, table_pdf
+from .pdf_table_support import Item, table_pdf, text_width
 
 COLS = [250.0, 310.0, 370.0, 430.0]
 HEAD = ["Dec-26", "Mar-27", "Jun-27", "Sep-27"]
