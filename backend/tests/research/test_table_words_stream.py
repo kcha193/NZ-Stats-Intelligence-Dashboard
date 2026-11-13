@@ -11,7 +11,7 @@ from nzstats.research import table_words
 from nzstats.research.extract import ExtractionLimits
 from nzstats.research.table_words import extract_words
 
-from .pdf_stream_support import page, raw_pdf, row
+from .pdf_stream_support import nested_form_pdf, page, raw_pdf, row
 
 LIMITS = ExtractionLimits()
 
@@ -323,3 +323,19 @@ def test_horizontally_compressed_shadows_cannot_hide_inside_the_kerning_allowanc
 
 def test_horizontally_compressed_legitimate_repeated_digits_are_preserved():
     assert texts(words_of("BT /F1 10 Tf 5 Tz 72 700 Td (44) Tj ET")) == ["44"]
+
+
+@pytest.mark.parametrize("isolate", [False, True])
+@pytest.mark.parametrize("depth", [8, 9])
+@pytest.mark.parametrize("inner", [row(700, [(68.67, "-")]), row(704, [(77.6, "1")], size=6)])
+def test_form_traversal_limit_refuses_instead_of_losing_a_sign_or_footnote(isolate, depth, inner):
+    body = nested_form_pdf(row(700, [(72, "4")]), inner, depth=depth)
+    with pytest.raises(IngestError, match="^pdf_extraction_limit \\(layout depth\\)$") as caught:
+        extract_words(body, LIMITS, isolate=isolate)
+    assert caught.value.error_class is ErrorClass.VALIDATION_FAILED
+
+
+@pytest.mark.parametrize("isolate", [False, True])
+def test_form_text_at_the_supported_depth_keeps_the_minus_sign(isolate):
+    body = nested_form_pdf(row(700, [(72, "4")]), row(700, [(68.67, "-")]), depth=7)
+    assert texts(extract_words(body, LIMITS, isolate=isolate)) == ["-4"]

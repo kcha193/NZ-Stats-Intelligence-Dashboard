@@ -9,8 +9,8 @@ Today all five banks refuse them ([permissions package](phase-4ag-anz-permission
 
 | Before (4AF) | Now (4AG) |
 |---|---|
-| word reader `pdf-words-1` (`pypdf`), a `BT..ET` row came back as one string | `pdf-words-3` (`pdfminer.six>=20251230`), every cell is its own word with its true right edge; unresolved glyph overlays refuse the PDF |
-| interpreter `tables-10` | `tables-12`; older extractions, including `tables-11`, stay stored and stop feeding the analytics, so a held PDF is re-extracted once to appear again |
+| word reader `pdf-words-1` (`pypdf`), a `BT..ET` row came back as one string | `pdf-words-4` (`pdfminer.six>=20251230`), every cell is its own word with its true right edge; unresolved glyph overlays refuse the PDF |
+| interpreter `tables-10` | `tables-13`; older extractions, including `tables-11` and `tables-12`, stay stored and stop feeding the analytics, so a held PDF is re-extracted once to appear again |
 | dry run printed counts | dry run also prints each rejection code with its count, the reader and the interpreter version |
 | prose beside table rows made the table vanish without a code | reported as `mixed_layout` |
 | `Mar-26` and `Jun-26` in a narrow gutter could merge into one header | period headers, month-only headers and figures are separate cells; double-struck (fake bold) text is read once |
@@ -43,7 +43,7 @@ are not changed. Reads use the latest extraction, and analytics use only the cur
 | `unmapped_row`, `ambiguous_indicator`, `unit_unstated`, `contradictory_unit`, `unsupported_unit`, `period_basis_unstated`, `contradictory_period`, `unparsed_period`, `bracketed_value`, `unrecognised_suffix`, `value_out_of_range` | as in [phase-4af-pdf-tables.md](phase-4af-pdf-tables.md) | |
 
 Reader refusals (fixed wording, shown as `pdf could not be read (...)`): `no_text_layer` (no extractable text),
-`rotated_text_only` (the only text is sideways), `pdf_extraction_limit (words|characters|content)`, `pdf has too many pages`,
+`rotated_text_only` (the only text is sideways), `pdf_extraction_limit (words|characters|content|layout depth)`, `pdf has too many pages`,
 `pdf is encrypted`, `pdf_support_not_installed`, `unreadable pdf (ErrorType)`,
 `ambiguous_glyph_overlap` (overlapping glyphs beyond recognised overprints and normal kerning; the whole PDF is refused).
 

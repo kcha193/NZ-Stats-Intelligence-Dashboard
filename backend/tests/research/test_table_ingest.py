@@ -79,7 +79,7 @@ def test_a_stored_pdf_yields_figures_and_a_rerun_is_unchanged(conn, artifacts):
     ) in figures
 
 
-@pytest.mark.parametrize("legacy", ["tables-9", "tables-10", "tables-11"])
+@pytest.mark.parametrize("legacy", ["tables-9", "tables-10", "tables-11", "tables-12"])
 def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts, legacy):
     from nzstats.research.extract import ExtractionLimits
     from nzstats.research.table_store import store_extraction
@@ -93,7 +93,7 @@ def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts
     )
     result = extract_version_tables(conn, v, artifacts, registry, NOW, isolate=False)
     assert result.status == "stored"
-    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-12"}
+    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-13"}
 
 
 def test_a_dry_run_reads_and_counts_but_writes_nothing(conn, artifacts):
@@ -135,6 +135,48 @@ def test_an_ambiguous_integer_forecast_is_refused_without_storing_figures(
     )
     assert load_forecasts(conn, v) == []
     assert conn.execute("SELECT COUNT(*) FROM research_table_extraction").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("isolate", [False, True])
+@pytest.mark.parametrize("dry_run", [False, True])
+@pytest.mark.parametrize("marker", ["minus", "footnote"])
+def test_a_nested_sign_or_marker_beyond_the_depth_limit_refuses_all_forecasts(
+    conn, artifacts, isolate, dry_run, marker
+):
+    from .pdf_stream_support import nested_form_pdf, row
+    from .test_table_real_layouts import data, table
+
+    inner = row(686, [(366.67, "-")]) if marker == "minus" else row(690, [(375.6, "1")], size=6)
+    body = nested_form_pdf(table([data(686, "OCR (%)", ["4", "3", "4", "3"])]), inner, depth=8)
+    registry, v = imported(conn, artifacts, body)
+    result = extract_version_tables(
+        conn, v, artifacts, registry, NOW, dry_run=dry_run, isolate=isolate
+    )
+    assert (result.status, result.reason, result.forecasts) == (
+        "refused",
+        "pdf could not be read (pdf_extraction_limit (layout depth))",
+        0,
+    )
+    assert load_forecasts(conn, v) == []
+    assert conn.execute("SELECT COUNT(*) FROM research_table_extraction").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("marker", ["minus", "footnote"])
+def test_a_nested_sign_or_marker_at_the_supported_depth_keeps_its_meaning(conn, artifacts, marker):
+    from .pdf_stream_support import nested_form_pdf, row
+    from .test_table_real_layouts import data, table
+
+    inner = row(686, [(366.67, "-")]) if marker == "minus" else row(690, [(375.6, "1")], size=6)
+    body = nested_form_pdf(table([data(686, "OCR (%)", ["4", "3", "4", "3"])]), inner, depth=7)
+    registry, v = imported(conn, artifacts, body)
+    result = extract_version_tables(conn, v, artifacts, registry, NOW, isolate=False)
+    assert result.status == "stored"
+    june = [f for f in load_forecasts(conn, v) if f.horizon == "June 2026 quarter"]
+    if marker == "minus":
+        assert len(june) == 1 and str(june[0].value) == "-4"
+    else:
+        assert june == []
+        assert [r.code for r in load_rejections(conn, v)] == ["footnote_unresolved"]
 
 
 def test_rejections_are_stored_with_codes_only(conn, artifacts):
@@ -319,7 +361,7 @@ def test_the_dry_run_command_prints_the_tally_the_reader_and_the_interpreter(cli
                  "--importer", "Owner", "--note", "n"]) == 0  # fmt: skip
     assert main(["research", "tables", "extract", "1", "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "pdf-words-3" in out and "tables-12" in out
+    assert "pdf-words-4" in out and "tables-13" in out
     assert SENTINEL not in out and "Annual CPI" not in out
 
 
@@ -331,7 +373,7 @@ def test_show_names_the_interpreter_and_says_when_it_is_not_the_current_one(cli,
     assert main(["research", "tables", "show", "1", "--json"]) == 0
     out = capsys.readouterr().out
     data = json.loads(out[out.index("{") :])
-    assert data["interpreter"] == "tables-12" and data["current"] is True
+    assert data["interpreter"] == "tables-13" and data["current"] is True
     # Make the stored extraction look like an older interpreter's.
     from nzstats.config import load_settings
     from nzstats.research.cli import _open

@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-12"
+    assert INTERPRETER_VERSION == "tables-13"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts

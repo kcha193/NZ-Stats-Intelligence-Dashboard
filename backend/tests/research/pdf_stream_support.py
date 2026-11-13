@@ -73,3 +73,42 @@ def row(y: float, cells: list[tuple[float, str]], *, size: float = 10, font: str
 
 def page(*rows: str) -> str:
     return "\n".join(rows)
+
+
+def nested_form_pdf(outer: str, inner: str, *, depth: int) -> bytes:
+    """A page's shallow content plus text inside exactly `depth` nested Form XObjects."""
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import (
+        ArrayObject,
+        DecodedStreamObject,
+        DictionaryObject,
+        NameObject,
+        NumberObject,
+    )
+
+    writer = PdfWriter(clone_from=PdfReader(io.BytesIO(raw_pdf([outer]))))
+    sheet = writer.pages[0]
+    fonts = sheet["/Resources"]["/Font"]
+    nested = None
+    for _ in range(depth):
+        resources = DictionaryObject({NameObject("/Font"): fonts})
+        if nested is not None:
+            resources[NameObject("/XObject")] = DictionaryObject({NameObject("/Nested"): nested})
+        form = DecodedStreamObject()
+        form.set_data((inner if nested is None else "/Nested Do").encode("cp1252"))
+        form.update(
+            {
+                NameObject("/Type"): NameObject("/XObject"),
+                NameObject("/Subtype"): NameObject("/Form"),
+                NameObject("/BBox"): ArrayObject([NumberObject(n) for n in (0, 0, 612, 792)]),
+                NameObject("/Resources"): resources,
+            }
+        )
+        nested = writer._add_object(form)
+    sheet["/Resources"][NameObject("/XObject")] = DictionaryObject({NameObject("/Nested"): nested})
+    contents = DecodedStreamObject()
+    contents.set_data(outer.encode("cp1252") + b"\n/Nested Do")
+    sheet[NameObject("/Contents")] = writer._add_object(contents)
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()

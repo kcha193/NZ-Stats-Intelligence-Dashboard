@@ -93,7 +93,7 @@ def test_forecast_rows_become_normalized_forecasts_with_their_cell_as_evidence(c
         "percent",
         "unclear",
     )
-    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-12"
+    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-13"
     (e,) = n.forecast.evidence
     assert (
         e.page == 1
@@ -193,7 +193,7 @@ def test_only_the_auto_gate_shows_table_figures(conn, artifacts):
     assert run(conn, registry, allowlist=DraftAllowlist())[0] == []
 
 
-@pytest.mark.parametrize("legacy", ["tables-9", "tables-10", "tables-11"])
+@pytest.mark.parametrize("legacy", ["tables-9", "tables-10", "tables-11", "tables-12"])
 def test_legacy_extractions_do_not_reach_analytics(conn, legacy):
     from nzstats.research.table_store import store_extraction
 

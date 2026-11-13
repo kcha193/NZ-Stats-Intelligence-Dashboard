@@ -1,4 +1,4 @@
-"""Positioned words from a text-layer PDF (Phase 4AF, reader `pdf-words-3` after Phase 4AG review).
+"""Positioned words from a text-layer PDF (Phase 4AF, reader `pdf-words-4` after Phase 4AG review).
 
 `extract_pdf` returns readable text per page, which loses the layout a table needs. This module keeps, for every word or
 phrase, the page, the left and right edge, the baseline and the font size, so `table_grid` can read rows and columns
@@ -45,7 +45,7 @@ from nzstats.research.extract_pdf import (
 )
 
 log = logging.getLogger(__name__)
-EXTRACTOR_VERSION = "pdf-words-3"
+EXTRACTOR_VERSION = "pdf-words-4"
 _MAX_WORDS = 200_000
 _MAX_CHARS = 1_000_000
 _MAX_PAGE_CONTENT = 300_000  # bytes of one page's decompressed content stream; refused before layout (macOS has no address-space limit)
@@ -154,7 +154,9 @@ def _walk(node, depth: int = 0):
 
     if isinstance(node, LTChar):
         yield node
-    elif depth < 8 and hasattr(node, "__iter__"):
+    elif hasattr(node, "__iter__"):
+        if depth >= 8:
+            raise IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (layout depth)")
         for child in node:
             yield from _walk(child, depth + 1)
 

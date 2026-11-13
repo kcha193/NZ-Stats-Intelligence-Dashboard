@@ -87,3 +87,23 @@ normal repeated digits and modest kerning; neighbouring narrow cells; stale acce
 
 Execution: native, sequential TDD under the owner's explicit instruction to proceed autonomously.
 Verification evidence and review outcomes belong in `docs/phase-4ag-verification.md`.
+
+## Task 10: Review cycle 1 — refuse truncated Form XObject traversal
+
+Root cause: `_walk()` stops visiting iterable layout nodes at depth 8 without an error.
+A depth-8 form's minus sign disappears while shallow digits survive; the June forecast
+reproduces as `4` instead of `-4`. A nested footnote can disappear the same way.
+
+- [x] RED: Add synthetic nested-Form support in `pdf_stream_support.py`. Stream tests
+  must refuse signs/markers at form depths 8 and 9 in both isolation paths; depth 7
+  must retain `-4`. Ingestion must refuse deep signs/markers without writes, including
+  dry runs; supported-depth signs and footnotes must retain their numerical meaning.
+- [x] GREEN: In `table_words._walk(node, depth=0)`, raise the existing
+  `VALIDATION_FAILED / pdf_extraction_limit (layout depth)` at the iterable-node limit.
+  Keep the depth bound unchanged. Advance reader/interpreter to `pdf-words-4` / `tables-13`
+  and add `tables-12` to legacy-extraction tests so partial historical readings stay excluded.
+- [x] VERIFY: Run focused stream/ingestion/view tests, full backend, Ruff, and final diff
+  checks. Frontend has no code changes; the preceding 630 unit and 204/18/315 browser
+  results remain applicable. Update current version labels and the existing verification record.
+- [ ] Commit/push the existing branch, reply/resolve the new P2, then inspect review cycle 2
+  and CI. Do not duplicate a review already triggered by the push. Maximum remains three cycles.

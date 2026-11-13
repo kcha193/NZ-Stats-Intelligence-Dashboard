@@ -47,7 +47,7 @@ failures with 17 preservation cases passing. Independent review found the compre
 glyph case; two regression cases failed before the width cap. Normal compressed `44`
 remains readable.
 
-Local remediation verification:
+Local verification at `7438b82` (before the depth-limit follow-up):
 
 | Check | Result |
 |---|---|
@@ -69,6 +69,28 @@ recorded in PR #60's conversation after pushing, so an evidence-only commit does
 The original implementation results in the following sections are historical evidence.
 All five banks remain denied; the ANZ pilot remains **BLOCKED**. No source permission,
 registry pin, schedule, production data, model call, live acquisition or XLSX adapter changed.
+
+## Review cycle 1 follow-up: nested Form XObjects
+
+The current-head automated review found that `_walk()` silently stopped at an iterable
+layout node at depth 8. A synthetic PDF reproduced a June forecast of `4` when the printed
+minus sign was inside eight nested forms; seven nested forms correctly yielded `-4`.
+A similarly nested footnote also disappeared. Eight stream and sixteen ingestion
+regressions failed before the fix; supported-depth sign/footnote controls passed.
+
+The traversal bound stays at 8. Reaching it now raises
+`VALIDATION_FAILED / pdf_extraction_limit (layout depth)`, refusing the whole document
+instead of returning partial glyphs. Tests cover form depths 7, 8 and 9, both isolation
+paths, dry runs and zero extraction/forecast writes after a refusal. Reader `pdf-words-4`
+and interpreter `tables-13` exclude older partial interpretations, including `tables-12`,
+without rewriting immutable history. No dependency, schema or permission changed.
+
+Focused follow-up stream/ingestion/view tests: 244 passed. Ruff lint and format checks
+passed; diff secret scan was clean. Full backend: **7015 passed** on Python 3.14
+(one existing Starlette deprecation warning, 493.81 seconds), including deterministic
+replay, source-governance, isolation and the table extraction/ingestion pipeline.
+The frontend implementation is unchanged; the preceding 630 unit and 204/18/315 browser
+results remain applicable. Hosted CI runs those checks again on the pushed HEAD.
 
 ## Original implementation results
 
