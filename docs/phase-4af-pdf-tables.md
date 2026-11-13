@@ -22,7 +22,7 @@ PDF bytes (stored copy) -> table_words   positioned words, in an isolated child 
                         -> table_view    the gate, then NormalizedForecast for bank_view / bank_analytics
 ```
 
-## Rules (interpreter `tables-10`)
+## Rules (interpreter `tables-11`; `tables-10` is the Phase 4AF interpreter)
 
 Earlier interpreter extractions remain immutable but are excluded from analytics. Re-extract the held PDF
 to create a current interpretation before using its figures.
@@ -77,10 +77,11 @@ when the owner's automatic internal view is on.
   nearby sentence ambiguous to `verify-5`, which then fails that claim (correct and conservative). The synthetic replay puts
   the commentary on its own page for that reason.
 - HTML tables are not parsed.
-- **The word extractor needs each cell drawn as its own text operation.** `pypdf` returns a baseline drawn inside one
-  `BT ... ET` block as one string, so cell boundaries inside it are unknown. That fails safe (no table, never a wrong number)
-  but means many real reports may yield nothing; the synthetic fixtures draw one block per cell. A positioned-word reader that
-  follows the content stream itself would be a Phase 4AG item. The pilot's dry run shows this at once.
+- Prose set beside a table's rows leaves the table unread and is reported as `mixed_layout` (Phase 4AG).
+- **Resolved in Phase 4AG.** The word reader used to need each cell drawn as its own text operation (`pypdf` returned a whole
+  `BT ... ET` baseline as one string). Since reader `pdf-words-2` it follows each glyph with `pdfminer.six`, so real reports
+  that draw a row in one block are read cell by cell; the interpreter is now `tables-11`. See
+  [phase-4ag-source-assessment.md](phase-4ag-source-assessment.md) and [phase-4ag-runbook.md](phase-4ag-runbook.md).
 - There is no per-document owner withdrawal for table figures (the draft gate's withdrawal is per summary). To stop showing a
   document's figures: purge it, revoke its route, or turn `auto_display` off.
 - `research purge` dry-run counts do not include table figures (they are deleted all the same). An extraction row keeps its

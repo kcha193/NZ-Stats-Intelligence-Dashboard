@@ -96,6 +96,12 @@ def _latest(conn: sqlite3.Connection, version_id: int) -> sqlite3.Row | None:
     ).fetchone()
 
 
+def latest_interpreter(conn: sqlite3.Connection, version_id: int) -> str | None:
+    """The interpreter that read the version's latest extraction, or None when it has none."""
+    latest = _latest(conn, version_id)
+    return None if latest is None else latest["interpreter_version"]
+
+
 def load_forecasts(conn: sqlite3.Connection, version_id: int) -> list[StoredTableForecast]:
     """The figures of the version's latest extraction, in printed order."""
     latest = _latest(conn, version_id)

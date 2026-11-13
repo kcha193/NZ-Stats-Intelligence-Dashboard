@@ -287,3 +287,29 @@ def test_the_dry_run_command_prints_the_tally_the_reader_and_the_interpreter(cli
     out = capsys.readouterr().out
     assert "pdf-words-2" in out and "tables-11" in out
     assert SENTINEL not in out and "Annual CPI" not in out
+
+
+def test_show_names_the_interpreter_and_says_when_it_is_not_the_current_one(cli, capsys):
+    assert main(["research", "import", "banky", str(cli), "--url", "https://banky.example.org/o.pdf",
+                 "--importer", "Owner", "--note", "n"]) == 0  # fmt: skip
+    assert main(["research", "tables", "extract", "1"]) == 0
+    capsys.readouterr()
+    assert main(["research", "tables", "show", "1", "--json"]) == 0
+    out = capsys.readouterr().out
+    data = json.loads(out[out.index("{") :])
+    assert data["interpreter"] == "tables-11" and data["current"] is True
+    # Make the stored extraction look like an older interpreter's.
+    from nzstats.config import load_settings
+    from nzstats.research.cli import _open
+
+    conn = _open(load_settings())
+    from nzstats.research.table_store import store_extraction
+
+    store_extraction(conn, 1, NOW, [], [], words_sha256="0" * 64, interpreter_version="tables-10")
+    conn.close()
+    assert main(["research", "tables", "show", "1", "--json"]) == 0
+    out = capsys.readouterr().out
+    data = json.loads(out[out.index("{") :])
+    assert data["interpreter"] == "tables-10" and data["current"] is False
+    assert main(["research", "tables", "show", "1"]) == 0
+    assert "NOT CURRENT" in capsys.readouterr().out

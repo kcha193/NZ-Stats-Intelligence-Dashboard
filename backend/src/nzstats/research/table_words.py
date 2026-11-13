@@ -47,10 +47,12 @@ log = logging.getLogger(__name__)
 EXTRACTOR_VERSION = "pdf-words-2"
 _MAX_WORDS = 200_000
 _MAX_CHARS = 1_000_000
+_MAX_PAGE_CONTENT = 300_000  # bytes of one page's decompressed content stream; refused before layout (macOS has no address-space limit)
 
-_TOKEN_GAP = (
-    0.15  # em: a larger gap between glyphs ends a token (implementer's call; boundary-tested)
-)
+# Gap constants are the implementer's calls, each covered by boundary tests.
+_TOKEN_GAP = 0.15  # em: a larger gap between glyphs ends a token (kerning is far smaller)
+_DIGIT_GAP = 0.03  # em: between two figure characters even a small gap ends the token (two cells, not one number)
+_FIGURE_CHARS = frozenset("0123456789.,%-\u2212\u2013")
 _PHRASE_GAP = 0.45  # em: a larger gap between tokens separates cells
 _MARKER_GAP = (
     0.35  # em: a smaller shifted piece this close to the previous one is a footnote marker
@@ -71,6 +73,7 @@ _PERIOD_LIKE = re.compile(
     rf"^(?:{_MONTH}[-/ ]?\d{{2,4}}|q[1-4][-/ ]?\d{{2,4}}|(?:fy|cy)?\d{{4}}(?:[-/]\d{{2,4}})?[a-z]?|(?:fy|cy)\d{{2}})$",
     re.IGNORECASE,
 )
+_MONTH_ONLY = re.compile(rf"^(?:{_MONTH}|q[1-4])$", re.IGNORECASE)
 _PERIOD_START = re.compile(rf"^(?:{_MONTH}|q[1-4]|year|fy|cy|\d)", re.IGNORECASE)
 
 
@@ -86,6 +89,8 @@ def cell_boundary(left: str, right: str) -> bool:
         return True
     if _PERIOD_LIKE.match(last) and _PERIOD_LIKE.match(right):
         return True
+    if _MONTH_ONLY.match(last) and _MONTH_ONLY.match(right):
+        return True  # "Dec" then "Mar": two headers (a month then its own year is one header, handled above)
     return bool(_PERIOD_LIKE.match(last) and _PERIOD_START.match(right) and re.search(r"\d", last))
 
 
@@ -155,9 +160,8 @@ def _walk(node, depth: int = 0):
 
 def _page_glyphs(number: int, layout, counter: list[int]) -> tuple[list[_Glyph], int]:
     """Upright glyphs of one page and how many rotated ones were left out."""
-    out: list[_Glyph] = []
+    found: list[_Glyph] = []
     rotated = 0
-    seen: set[tuple[float, float, float, str]] = set()
     for ch in _walk(layout):
         counter[0] += 1
         if counter[0] > _MAX_CHARS:
@@ -169,13 +173,38 @@ def _page_glyphs(number: int, layout, counter: list[int]) -> tuple[list[_Glyph],
         base = ch.matrix[5]
         if not _finite(ch.x0, ch.x1, base, ch.y0, ch.size):
             continue
-        # Fake bold draws a glyph twice in the same place; a real repeated digit always advances.
-        key = (round(ch.x0, 1), round(base, 1), round(ch.size, 1), text)
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(_Glyph(number, ch.x0, ch.x1, base, ch.y0, abs(ch.size), ch.fontname, text))
-    return out, rotated
+        found.append(_Glyph(number, ch.x0, ch.x1, base, ch.y0, abs(ch.size), ch.fontname, text))
+    return _without_overprints(found), rotated
+
+
+def _without_overprints(glyphs: list[_Glyph]) -> list[_Glyph]:
+    """Drop a glyph drawn again almost on top of the same glyph (fake bold, drop shadows).
+
+    "Almost" is geometric, not a rounding bucket: the same character, the same size, within a tenth of an em vertically and
+    less than half its own width horizontally. A real repeated character advances by a whole glyph width, so it is never
+    dropped; an overprint that moves by more than half a glyph is not recognised and the layout then fails closed downstream.
+    """
+    by_text: dict[str, list[_Glyph]] = {}
+    for g in glyphs:
+        by_text.setdefault(g.text, []).append(g)
+    kept: list[_Glyph] = []
+    for group in by_text.values():
+        group.sort(key=lambda g: (g.x0, g.base))
+        recent: list[_Glyph] = []
+        for g in group:
+            near = (
+                k
+                for k in reversed(recent)
+                if g.x0 - k.x0 < 0.5 * max(k.x1 - k.x0, 1e-6)
+                and abs(g.base - k.base) <= 0.1 * g.size
+                and abs(g.size - k.size) <= 0.05 * g.size
+            )
+            if next(near, None) is None:
+                recent.append(g)
+                kept.append(g)
+            while recent and g.x0 - recent[0].x0 >= max(recent[0].x1 - recent[0].x0, 1.0):
+                recent.pop(0)
+    return kept
 
 
 def _lines(glyphs: list[_Glyph]) -> list[list[_Glyph]]:
@@ -218,7 +247,9 @@ def _tokens(line: list[_Glyph]) -> list[_Token]:
                 g.font == prev.font and abs(g.y0 - prev.y0) > _SHIFT * prev.size
             )
             resized = ratio < _SIZE_RATIO or ratio > 1 / _SIZE_RATIO
-            if blank_before or g.x0 - prev.x1 > _TOKEN_GAP * prev.size or moved or resized:
+            figures = g.text in _FIGURE_CHARS and prev.text in _FIGURE_CHARS
+            limit = _DIGIT_GAP if figures else _TOKEN_GAP
+            if blank_before or g.x0 - prev.x1 > limit * prev.size or moved or resized:
                 close()
         current.append(g)
         prev, blank_before = g, False
@@ -275,6 +306,10 @@ def _extract(body: bytes, limits: ExtractionLimits) -> tuple[Word, ...]:
             raise IngestError(ErrorClass.LAYOUT_CHANGED, "unreadable pdf (no pages)")
         if pages > limits.max_pages:
             raise IngestError(ErrorClass.VALIDATION_FAILED, f"pdf has too many pages ({pages})")
+        for page in reader.pages:
+            contents = page.get_contents()
+            if contents is not None and len(contents.get_data()) > _MAX_PAGE_CONTENT:
+                raise IngestError(ErrorClass.VALIDATION_FAILED, "pdf_extraction_limit (content)")
         for number, layout in enumerate(
             extract_pages(
                 io.BytesIO(body), laparams=None, maxpages=limits.max_pages, caching=False

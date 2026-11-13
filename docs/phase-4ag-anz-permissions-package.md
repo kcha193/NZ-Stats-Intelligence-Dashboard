@@ -9,9 +9,9 @@ edited a permission field, contacted ANZ or fetched an ANZ page. The terms below
 | Item | Recorded state |
 |---|---|
 | Registry entry | `institutions.anz`: `review_status = needs_review`, `content_policy = metadata_only`, `manual_import = denied`, `llm_processing = denied`, `public_display = none`, `private_display = none`; no approver or date on any of them |
-| Terms (`https://www.anz.co.nz/comms/website-terms-of-use/`) | "(c) ANZ Bank New Zealand Limited, all rights reserved"; reproduce and store **solely for viewing**; **not to be displayed or distributed in public**; links need **prior permission**; silent on automated access and on machine analysis |
+| Terms (`https://www.anz.co.nz/comms/website-terms-of-use/`) | "(c) ANZ Bank New Zealand Limited, all rights reserved"; reproduce and store **solely for viewing**; **not to be displayed or distributed in public**; links need **prior permission**; the registry records it as silent on automated access; whether machine analysis of a stored copy counts as "viewing" is **not addressed in the record** and must be read by the owner |
 | Robots | read directly: no Disallow; names a sitemap |
-| Routes | Economic Outlook page (HTML summary plus PDF links), quarterly PDFs `ANZ-QEO-YYYYMMDD.pdf`; the research hub also lists a forecasts workbook (not evaluated) |
+| Routes | Economic Outlook page (HTML summary plus PDF links), quarterly PDFs `ANZ-QEO-YYYYMMDD.pdf`. The owner's brief says the research hub lists a forecasts workbook; **the registry has no record of it** and it was not evaluated |
 
 ## 2. Decisions, what each needs, and who can give it
 
@@ -20,7 +20,7 @@ availability is not permission, and robots permission is not copyright permissio
 
 | # | Decision | Sensible reading of the terms | Needs ANZ in writing? | What stays denied if unresolved |
 |---|---|---|---|---|
-| 1 | **Source terms and copyright.** May the owner keep a copy of one report for internal analysis? | "reproduce and store solely for viewing" is the only licence granted; whether analysis counts as "viewing" is a judgement | **Yes, recommended**: the terms are all-rights-reserved and do not address analysis | everything below |
+| 1 | **Source terms and copyright.** May the owner keep a copy of one report for internal analysis? | "reproduce and store solely for viewing" is the only licence the registry records; whether analysis counts as "viewing" is a judgement | **Yes, recommended**: the terms are all-rights-reserved and do not address analysis | everything below |
 | 2 | **Intended internal use.** A single-owner, loopback-only, local dashboard; no sharing, no public page, no snapshot | consistent with "not displayed or distributed in public" | Confirm in the same reply | public and private display stay `none` |
 | 3 | **Saving a browser-obtained document.** The owner saves one PDF in a browser (a person, a normal visit) and imports it | probably "viewing" plus storage | Confirm | `manual_import` stays `denied`; no pilot |
 | 4 | **Machine extraction of forecast figures.** Deterministic code reads numbers from the stored copy on this machine | not addressed by the terms; no new copy leaves the machine, but it is a use beyond reading | **Yes**: ask by name | tables are refused (`research tables extract` checks the route and `content_policy = full_text`) |

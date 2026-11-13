@@ -68,8 +68,10 @@ The assessment lists the conditions under which a workbook adapter should be bui
 
 1. In the existing child process: `pypdf` pre-checks (encrypted → blocked, page count within `max_pages`), then
    `pdfminer.high_level.extract_pages(laparams=None)`; only upright `LTChar` objects are read; blank glyphs are separators.
-2. Characters are bounded (`_MAX_CHARS`, `_MAX_WORDS`) and a char drawn twice at the same spot (fake bold) is read once.
-3. Per page and baseline, characters become **tokens** (split at a space glyph or a gap above 0.15 em; split wherever the
+2. Bounds: a per-page decompressed content-stream cap checked before layout (`_MAX_PAGE_CONTENT`, added after review), characters
+   and words. A glyph drawn again almost on top of the same glyph (same text and size, within 0.1 em vertically and half its own
+   width horizontally) is read once; a real repeated character advances a whole width and is kept.
+3. Per page and baseline, characters become **tokens** (split at a space glyph or a gap above 0.15 em, or above 0.03 em between two figure characters; split wherever the
    baseline moves more than 0.15 em or the font size changes by more than 15%, so a raised footnote digit is never glued to a
    figure), then tokens become **phrases**: neighbours join unless the gap exceeds 0.45 em or both sides are value-like (numbers
    are never merged across a space or gap; a split number token with no gap, such as `3.` + `25`, is one token).

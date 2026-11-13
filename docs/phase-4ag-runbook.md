@@ -13,7 +13,7 @@ Today all five banks refuse them ([permissions package](phase-4ag-anz-permission
 | interpreter `tables-10` | `tables-11`; older extractions stay stored and stop feeding the analytics, so a held PDF is re-extracted once to appear again |
 | dry run printed counts | dry run also prints each rejection code with its count, the reader and the interpreter version |
 | prose beside table rows made the table vanish without a code | reported as `mixed_layout` |
-| `Mar-26` and `Jun-26` in a narrow gutter could merge into one header | period headers and figures are never merged |
+| `Mar-26` and `Jun-26` in a narrow gutter could merge into one header | period headers, month-only headers and figures are separate cells; double-struck (fake bold) text is read once |
 
 Install the research extra so the reader exists: `pip install -e 'backend[research]'` (or the `dev` extra). Without it,
 extraction refuses with `pdf_support_not_installed`.
@@ -23,7 +23,7 @@ extraction refuses with `pdf_support_not_installed`.
 ```sh
 nzstats research tables extract VERSION --dry-run   # counts, rejection tally, reader and interpreter versions; writes nothing
 nzstats research tables extract VERSION             # store (rerunning with the same reader and interpreter is a no-op)
-nzstats research tables show VERSION [--json]       # stored figures and rejection codes; codes and numbers only
+nzstats research tables show VERSION [--json]       # stored figures and rejection codes; names the interpreter and says NOT CURRENT for an older one
 nzstats research bank-status [--json]               # state of each bank source
 ```
 
@@ -43,7 +43,7 @@ are not changed. Reads use the latest extraction, and analytics use only the cur
 | `unmapped_row`, `ambiguous_indicator`, `unit_unstated`, `contradictory_unit`, `unsupported_unit`, `period_basis_unstated`, `contradictory_period`, `unparsed_period`, `bracketed_value`, `unrecognised_suffix`, `value_out_of_range` | as in [phase-4af-pdf-tables.md](phase-4af-pdf-tables.md) | |
 
 Reader refusals (fixed wording, shown as `pdf could not be read (...)`): `no_text_layer` (no extractable text),
-`rotated_text_only` (the only text is sideways), `pdf_extraction_limit (words|characters)`, `pdf has too many pages`,
+`rotated_text_only` (the only text is sideways), `pdf_extraction_limit (words|characters|content)`, `pdf has too many pages`,
 `pdf is encrypted`, `pdf_support_not_installed`, `unreadable pdf (ErrorType)`.
 
 ## Reading a result that gave nothing

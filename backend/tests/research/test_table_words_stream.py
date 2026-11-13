@@ -197,3 +197,52 @@ def test_the_character_limit_is_enforced(monkeypatch):
     monkeypatch.setattr(table_words, "_MAX_CHARS", 5)
     with pytest.raises(IngestError, match="pdf_extraction_limit"):
         words_of(row(700, [(72, "OCR"), (252, "3.25")]))
+
+
+# --- Phase 4AG review fixes -------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("offset", [0.0, 0.05, 0.3, 0.45])
+def test_double_struck_text_is_read_once_whatever_the_small_offset(offset):
+    """Fake bold draws a row twice, shifted a fraction of a point. Rounded buckets let `4.25` become `44.225`."""
+    cells = [(72, "OCR"), (250, "4.25"), (310, "3.75")]
+    shifted = [(x + offset, t) for x, t in cells]
+    assert texts(words_of(row(700, cells) + " " + row(700, shifted))) == ["OCR", "4.25", "3.75"]
+
+
+def test_double_struck_figures_never_reach_the_table_as_a_wrong_number():
+    from .test_table_real_layouts import COLS, data, read, table
+
+    values = ["4.25", "3.75", "3.25", "3.00"]
+    once = data(686, "OCR (%)", values)
+    twice = once + "\n" + data(686, "OCR (%)", values).replace(" 250.00 ", " 250.05 ")
+    forecasts, _ = read(table([twice]))
+    assert {f.raw_text for f in forecasts} <= set(values)
+    assert not any("44" in f.raw_text for f in forecasts)
+    assert len(COLS) == 4
+
+
+def test_a_repeated_digit_that_advances_is_never_removed():
+    assert texts(words_of(row(700, [(72, "11.5"), (150, "3.00")]))) == ["11.5", "3.00"]
+    assert texts(words_of(row(700, [(72, "OCR 55")]))) == ["OCR 55"]
+
+
+def test_two_figures_a_point_apart_are_two_cells_not_one_number():
+    # "5" ends 5.56 points after it starts; the next figure starts 1.0 point later: not a kerning gap between digits.
+    assert texts(words_of(row(700, [(250, "5"), (250 + 5.56 + 1.0, "4")]))) == ["5", "4"]
+
+
+def test_digits_split_across_a_kerned_tj_array_still_form_one_number():
+    (w,) = words_of("BT /F1 10 Tf 72 700 Td [(3)-20(.)-15(2)-10(5)] TJ ET")
+    assert w.text == "3.25"
+
+
+def test_month_only_headers_are_separate_cells():
+    words = words_of(row(700, [(150, "Dec"), (170, "Mar"), (190, "Jun"), (210, "Sep")]))
+    assert texts(words) == ["Dec", "Mar", "Jun", "Sep"]
+
+
+def test_a_page_with_an_absurd_content_stream_is_refused_before_it_is_laid_out(monkeypatch):
+    monkeypatch.setattr(table_words, "_MAX_PAGE_CONTENT", 200)
+    with pytest.raises(IngestError, match="pdf_extraction_limit"):
+        words_of("BT /F1 10 Tf 72 700 Td (" + "x" * 500 + ") Tj ET")

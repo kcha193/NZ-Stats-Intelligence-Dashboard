@@ -77,16 +77,21 @@ as one block has no cell boundaries. Real report generators do exactly that.
 | Custom content-stream interpreter | n/a | n/a | none | n/a | would reimplement fonts, encodings and CMaps; the brief prefers a maintained library |
 
 **Selected: `pdfminer.six>=20251230`**, used directly (no `pdfplumber`). Resource limits are the existing child-process ones
-(wall-clock timeout, CPU and address-space limits, bounded reply) plus new bounds: pages, characters (1,000,000) and words
-(200,000). The test suite pins the installed version at or above the floor.
+(wall-clock timeout, bounded reply, CPU limit, and an address-space limit **that applies on Linux only**: macOS refuses it, so
+there the timeout and the bounds below are the protection) plus new bounds: pages, a per-page decompressed content-stream
+cap of 300,000 bytes checked **before** pdfminer lays the page out (a review showed one huge string reaching 1.5 GB before
+the character count was checked), characters (1,000,000) and words (200,000). The test suite pins the installed version at
+or above the floor.
 
 Sources checked: the CVE records for pdfminer.six (NVD, Debian and SUSE trackers) and the `pdfplumber` package metadata.
 
 ## 6. What the reader does and does not do
 
 Does: gives each cell its own word with the page, left and right glyph edge, baseline and size; keeps a raised footnote marker
-on its figure as a superscript character so the figure is refused as footnoted; refuses to merge two figures, or two period
-headers, however narrow the gutter; drops rotated text; leaves an unmapped glyph visible as `(cid:N)` so it cannot parse as a
+on its figure as a superscript character so the figure is refused as footnoted; will not merge two figures (digits more than
+0.03 em apart are two cells; a smaller gap between figure characters is treated as one number, so cells closer than that
+cannot be told apart and fail closed downstream) or two period headers; reads a glyph drawn again almost on top of itself
+(fake bold) once, by geometric distance; drops rotated text; leaves an unmapped glyph visible as `(cid:N)` so it cannot parse as a
 number; reports prose set beside a table's rows as `mixed_layout`.
 
 Does not: detect invisible text (render mode 3), clipped text or white-on-white text; read scanned pages (OCR of bank
