@@ -1061,3 +1061,19 @@ def test_two_values_for_one_measure_in_one_document_are_withheld_as_a_conflict()
     assert [r.forecast.institution.key for r in g.rows] == ["beta"]
     assert sorted(e.forecast.value for e in out.excluded) == [2.1, 2.3]
     assert all("two different values" in e.reason for e in out.excluded)
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("Annual-average CPI inflation", "annual_average_change"),
+        ("CPI inflation, annual-average % change", "annual_average_change"),
+        # "Average annual" can be a multi-year mean of annual rates; a trailing
+        # "average" says neither which. Neither is the through-the-year rate.
+        ("Average annual CPI inflation", None),
+        ("Annual CPI inflation average", None),
+        ("Annual CPI inflation, average of quarters", None),
+    ],
+)
+def test_average_wording_is_never_read_as_through_the_year_cpi(label, expected):
+    assert basis_of("cpi_inflation", label, "year to December 2026", "percent") == expected
