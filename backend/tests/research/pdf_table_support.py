@@ -12,6 +12,27 @@ from .pdf_support import _escape
 
 Item = tuple[float, float, str]
 
+# How `table_pdf` draws text. "cell": every cell in its own BT..ET (the Phase 4AF fixtures). "row": every baseline in ONE
+# BT..ET with each cell placed by an absolute `Tm`, the way real generators write a row. The table-pipeline test modules run
+# under both (see conftest), and the results must be identical.
+STYLE = "cell"
+
+
+def _operators(items: list[Item], size: float) -> str:
+    if STYLE == "row":
+        rows: dict[str, list[Item]] = {}
+        for item in items:
+            rows.setdefault(f"{item[1]:.2f}", []).append(item)
+        return " ".join(
+            f"BT /F1 {size} Tf "
+            + " ".join(f"1 0 0 1 {x:.2f} {y:.2f} Tm ({_escape(text)}) Tj" for x, y, text in row)
+            + " ET"
+            for row in rows.values()
+        )
+    return " ".join(
+        f"BT /F1 {size} Tf {x:.2f} {y:.2f} Td ({_escape(text)}) Tj ET" for x, y, text in items
+    )
+
 
 def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
     """One page per entry; an empty page has no text. Coordinates are PDF points from the bottom-left."""
@@ -23,14 +44,7 @@ def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     ]
     for i, items in enumerate(pages):
-        ops = (
-            "q Q"
-            if not items
-            else " ".join(
-                f"BT /F1 {size} Tf {x:.2f} {y:.2f} Td ({_escape(text)}) Tj ET"
-                for x, y, text in items
-            )
-        )
+        ops = "q Q" if not items else _operators(items, size)
         stream = ops.encode("cp1252")
         objects.append(
             b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >>"

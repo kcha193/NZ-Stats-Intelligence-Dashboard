@@ -148,3 +148,18 @@ def test_the_isolated_child_gives_the_same_words_as_the_parent():
         [page(row(700, [(72, "OCR"), (252, "3.25")]), row(686, [(72, "CPI"), (252, "2.1")]))]
     )
     assert extract_words(pdf, LIMITS, isolate=True) == extract_words(pdf, LIMITS, isolate=False)
+
+
+def test_neighbouring_period_headers_are_separate_cells_even_when_the_gutter_is_narrow():
+    # "Mar-26" is 31.7 points wide at 10 pt; a 4.3 point gutter is 0.43 em, inside the phrase limit.
+    words = words_of(row(700, [(150, "Mar-26"), (186, "Jun-26"), (222, "Sep-26")]))
+    assert texts(words) == ["Mar-26", "Jun-26", "Sep-26"]
+
+
+def test_headers_made_of_a_month_and_a_year_do_not_run_into_the_next_header():
+    words = words_of(row(700, [(150, "Dec 2026"), (150 + 42.7 + 3, "Mar 2027")]))
+    assert texts(words) == ["Dec 2026", "Mar 2027"]
+
+
+def test_a_month_and_a_year_drawn_apart_still_form_one_header():
+    assert texts(words_of(row(700, [(150, "Dec"), (150 + 17.8 + 3, "2026")]))) == ["Dec 2026"]

@@ -79,7 +79,8 @@ def test_a_stored_pdf_yields_figures_and_a_rerun_is_unchanged(conn, artifacts):
     ) in figures
 
 
-def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts):
+@pytest.mark.parametrize("legacy", ["tables-9", "tables-10"])
+def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts, legacy):
     from nzstats.research.extract import ExtractionLimits
     from nzstats.research.table_store import store_extraction
     from nzstats.research.table_words import extract_words, words_sha256
@@ -88,11 +89,11 @@ def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts
     registry, v = imported(conn, artifacts, body)
     words = extract_words(body, ExtractionLimits(), isolate=False)
     store_extraction(
-        conn, v, NOW, [], [], words_sha256=words_sha256(words), interpreter_version="tables-9"
+        conn, v, NOW, [], [], words_sha256=words_sha256(words), interpreter_version=legacy
     )
     result = extract_version_tables(conn, v, artifacts, registry, NOW, isolate=False)
     assert result.status == "stored"
-    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-10"}
+    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-11"}
 
 
 def test_a_dry_run_reads_and_counts_but_writes_nothing(conn, artifacts):

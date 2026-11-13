@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from nzstats.research.table_context import SCENARIO as _SCENARIO
-from nzstats.research.table_words import Word
+from nzstats.research.table_words import Word, cell_boundary
 
 _MINUS = "−–"
 _VALUE = re.compile(
@@ -131,6 +131,7 @@ def _merge(words: list[Word]) -> list[_Chunk]:
             prev
             and touching
             and (split_period or not (_VALUE.match(prev.text) or _VALUE.match(w.text)))
+            and not cell_boundary(prev.text, w.text)
         ):
             chunks[-1] = _Chunk(
                 prev.page, prev.x0, w.x1, prev.y, prev.size, f"{prev.text} {w.text}"
@@ -149,6 +150,22 @@ def _is_body(line: list[_Chunk]) -> bool:
     return all(_VALUE.match(c.text) or _UNIT.match(c.text) for c in rest) and any(
         _VALUE.match(c.text) for c in rest
     )
+
+
+def _mixed(line: list[_Chunk]) -> bool:
+    """A would-be table row with text set beside its figures (prose or a note in the next column).
+
+    Such a row is not read: figures that share a baseline with unrelated text cannot be told from a column of the table.
+    It is reported so a dry run says why a table gave nothing, instead of silently reading none.
+    """
+    if len(line) < 3:
+        return False
+    label, rest = line[0], line[1:]
+    if _VALUE.match(label.text) or not re.search(r"[A-Za-z]", label.text):
+        return False
+    figures = sum(1 for c in rest if _VALUE.match(c.text))
+    others = sum(1 for c in rest if not (_VALUE.match(c.text) or _UNIT.match(c.text)))
+    return figures >= 2 and others > 0
 
 
 @dataclass
@@ -335,10 +352,13 @@ def _may_continue(cand: _Candidate, previous: str | None) -> bool:
 
 def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rejection, ...]]:
     builders: list[_Builder] = []
-    rejections: list[Rejection] = []
+    lines = _lines(words)
+    rejections: list[Rejection] = [
+        Rejection("mixed_layout", line[0].page) for line in lines if _mixed(line)
+    ]
     current: _Builder | None = None
     count = 0
-    for cand in _candidates(_lines(words)):
+    for cand in _candidates(lines):
         if cand.header:
             columns = _columns(cand.header)
             if columns is None:

@@ -65,6 +65,28 @@ _VALUE_LIKE = re.compile(
     r"^(?:[-\u2212\u2013(]?\d[\d,.]*%?\)?[*\u2020\u2021\u00b9\u00b2\u00b3\u2074-\u2079]*|[-\u2013\u2014]|n/?a|\.{2,})$",
     re.IGNORECASE,
 )
+_MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
+# A whole period header: "Mar-26", "Dec 2026", "Q3 2026", "2027", "FY27", "2026/27".
+_PERIOD_LIKE = re.compile(
+    rf"^(?:{_MONTH}[-/ ]?\d{{2,4}}|q[1-4][-/ ]?\d{{2,4}}|(?:fy|cy)?\d{{4}}(?:[-/]\d{{2,4}})?[a-z]?|(?:fy|cy)\d{{2}})$",
+    re.IGNORECASE,
+)
+_PERIOD_START = re.compile(rf"^(?:{_MONTH}|q[1-4]|year|fy|cy|\d)", re.IGNORECASE)
+
+
+def cell_boundary(left: str, right: str) -> bool:
+    """Whether two neighbouring pieces of text are two cells that must never be read as one phrase.
+
+    Two value-like pieces (figures, dashes) are two cells. So are two whole period headers, and a header that ends in a year
+    followed by the start of another period ("Dec 2026" then "Mar 2027"). A month or quarter followed by its own year
+    ("Dec", then "2026") is one header.
+    """
+    last = left.rsplit(" ", 1)[-1]
+    if _VALUE_LIKE.match(last) and _VALUE_LIKE.match(right):
+        return True
+    if _PERIOD_LIKE.match(last) and _PERIOD_LIKE.match(right):
+        return True
+    return bool(_PERIOD_LIKE.match(last) and _PERIOD_START.match(right) and re.search(r"\d", last))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -224,11 +246,7 @@ def _words_of(number: int, tokens: list[_Token]) -> list[Word]:
                 _SUPERSCRIPT
             )  # a footnote marker stays on its figure, visibly
             cur.x1 = tok.x1
-        elif (
-            tok.shifted
-            or gap > _PHRASE_GAP * cur.size
-            or (_VALUE_LIKE.match(cur.text.rsplit(" ", 1)[-1]) and _VALUE_LIKE.match(tok.text))
-        ):
+        elif tok.shifted or gap > _PHRASE_GAP * cur.size or cell_boundary(cur.text, tok.text):
             words.append(Word(number, cur.x0, cur.x1, cur.base, cur.size, cur.text))
             cur = dataclasses.replace(tok)
         else:

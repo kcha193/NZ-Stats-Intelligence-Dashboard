@@ -93,7 +93,7 @@ def test_forecast_rows_become_normalized_forecasts_with_their_cell_as_evidence(c
         "percent",
         "unclear",
     )
-    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-10"
+    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-11"
     (e,) = n.forecast.evidence
     assert (
         e.page == 1
