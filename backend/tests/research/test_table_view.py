@@ -93,7 +93,7 @@ def test_forecast_rows_become_normalized_forecasts_with_their_cell_as_evidence(c
         "percent",
         "unclear",
     )
-    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-11"
+    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-12"
     (e,) = n.forecast.evidence
     assert (
         e.page == 1
@@ -193,14 +193,15 @@ def test_only_the_auto_gate_shows_table_figures(conn, artifacts):
     assert run(conn, registry, allowlist=DraftAllowlist())[0] == []
 
 
-def test_legacy_extractions_do_not_reach_analytics(conn):
+@pytest.mark.parametrize("legacy", ["tables-9", "tables-10", "tables-11"])
+def test_legacy_extractions_do_not_reach_analytics(conn, legacy):
     from nzstats.research.table_store import store_extraction
 
     from .llm_support import seed_version
     from .test_table_store import SHA, tf
 
     v = seed_version(conn)
-    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-9")
+    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version=legacy)
     inst = institution(min_text_chars=20)
     assert run(conn, {inst.key: inst}) == ([], [], [])
 

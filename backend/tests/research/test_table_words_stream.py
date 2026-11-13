@@ -6,7 +6,7 @@ footnote markers. The reader must give every cell its own word and position, nev
 
 import pytest
 
-from nzstats.domain import IngestError
+from nzstats.domain import ErrorClass, IngestError
 from nzstats.research import table_words
 from nzstats.research.extract import ExtractionLimits
 from nzstats.research.table_words import extract_words
@@ -246,3 +246,80 @@ def test_a_page_with_an_absurd_content_stream_is_refused_before_it_is_laid_out(m
     monkeypatch.setattr(table_words, "_MAX_PAGE_CONTENT", 200)
     with pytest.raises(IngestError, match="pdf_extraction_limit"):
         words_of("BT /F1 10 Tf 72 700 Td (" + "x" * 500 + ") Tj ET")
+
+
+@pytest.mark.parametrize("isolate", [False, True])
+@pytest.mark.parametrize("dy", [1.01, 1.1, 1.49, 1.5, 1.51, 4.51, 9.9])
+def test_unresolved_vertical_shadows_refuse_the_pdf(isolate, dy):
+    body = raw_pdf([row(700, [(72, "4")]) + "\n" + row(700 + dy, [(72.05, "4")])])
+    with pytest.raises(IngestError, match="^ambiguous_glyph_overlap$") as caught:
+        extract_words(body, LIMITS, isolate=isolate)
+    assert caught.value.error_class is ErrorClass.LAYOUT_CHANGED
+
+
+@pytest.mark.parametrize("dy", [0, 0.99, 1.0])
+@pytest.mark.parametrize("dx", [0, 0.05, 2.77])
+def test_recognised_overprints_still_read_once_at_the_tolerance_boundary(dx, dy):
+    assert texts(words_of(row(700, [(72, "4")]) + "\n" + row(700 + dy, [(72 + dx, "4")]))) == ["4"]
+
+
+@pytest.mark.parametrize("dx", [2.78, 2.79, 4.0, 5.25])
+def test_horizontal_overlays_outside_deduplication_are_refused(dx):
+    with pytest.raises(IngestError, match="ambiguous_glyph_overlap"):
+        words_of(row(700, [(72, "4")]) + "\n" + row(700, [(72 + dx, "4")]))
+
+
+@pytest.mark.parametrize(
+    "overlay",
+    [
+        row(700, [(72.05, "7")]),  # conflicting characters, same geometry
+        row(700, [(72.05, "4")], size=9),  # outside duplicate font-size tolerance
+        row(700, [(72.05, "7")], size=6, font="F2"),
+        "BT /F1 10 Tf 72.05 700 Td 1.1 Ts (4) Tj ET",  # same baseline, raised box
+        row(700, [(72.05, "-0.3")]),
+    ],
+)
+def test_conflicting_or_resized_overlays_are_refused(overlay):
+    with pytest.raises(IngestError, match="ambiguous_glyph_overlap"):
+        words_of(row(700, [(72, "4")]) + "\n" + overlay)
+
+
+@pytest.mark.parametrize("value", ["44", "11.00", "-0.33", "3.00"])
+def test_legitimate_repeated_digits_keep_their_exact_numeric_value(value):
+    from decimal import Decimal
+
+    from nzstats.research.table_parse import parse_value
+
+    (word,) = words_of(row(700, [(72, value)]))
+    assert word.text == value
+    assert parse_value(word.text).value == Decimal(value)
+
+
+def test_modest_negative_numeric_kerning_is_preserved():
+    (word,) = words_of("BT /F1 10 Tf 72 700 Td [(4) 20 (4)] TJ ET")
+    assert word.text == "44"  # 0.2 pt overlap; each glyph still advances 5.36 pt
+
+
+def test_ordinary_label_kerning_is_preserved():
+    assert texts(words_of("BT /F1 10 Tf 72 700 Td [(A) 80 (V)] TJ ET")) == ["AV"]
+
+
+@pytest.mark.parametrize("gap", [0.31, 1.0])
+def test_narrow_numeric_cells_stay_separate(gap):
+    assert texts(words_of(row(700, [(72, "4"), (72 + 5.56 + gap, "4")]))) == ["4", "4"]
+
+
+@pytest.mark.parametrize("scale", [1, 5, 20])
+def test_horizontally_compressed_shadows_cannot_hide_inside_the_kerning_allowance(scale):
+    # Keep the displacement at about 18% of the compressed glyph's width, including the reported 5% / 0.05 pt case.
+    shadow_x = 72 + 0.01 * scale
+    stream = (
+        f"BT /F1 10 Tf {scale} Tz 72 700 Td (4) Tj ET\n"
+        f"BT /F1 10 Tf {scale} Tz {shadow_x} 701.1 Td (4) Tj ET"
+    )
+    with pytest.raises(IngestError, match="ambiguous_glyph_overlap"):
+        words_of(stream)
+
+
+def test_horizontally_compressed_legitimate_repeated_digits_are_preserved():
+    assert texts(words_of("BT /F1 10 Tf 5 Tz 72 700 Td (44) Tj ET")) == ["44"]

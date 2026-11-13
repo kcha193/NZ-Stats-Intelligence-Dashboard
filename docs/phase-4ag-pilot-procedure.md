@@ -65,7 +65,7 @@ Stop on any mismatch; fix the import metadata through a new import, never by edi
 nzstats research tables extract <VERSION> --dry-run
 ```
 
-Read: figure count, rejection tally by code, reader (`pdf-words-2`) and interpreter (`tables-11`). Nothing is written.
+Read: figure count, rejection tally by code, reader (`pdf-words-3`) and interpreter (`tables-12`). Nothing is written.
 
 ## Step 5: examine the rejected and ambiguous tables
 

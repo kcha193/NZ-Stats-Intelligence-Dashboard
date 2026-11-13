@@ -17,7 +17,60 @@ written to production data. The `PRE_APPROVAL_SHA256` pin is unchanged and `conf
 
 Technical completion and live activation are separate: a clean build unlocks nothing.
 
-## Results on the final tree
+## PR #60 review remediation (14 November 2026)
+
+The initial review found that a 10 pt `4` and its shadow at horizontal offset 0.05 pt and
+vertical offset 1.1 pt became an accepted `44` forecast. Overprint deduplication stopped
+at 0.1 em vertically, while token joining allowed 0.15 em and arbitrary negative gaps.
+The downstream number pattern correctly accepted `44`; numeric range checks cannot
+distinguish that corrupted integer from a printed value.
+
+The reader now rejects residual overlapping glyph rectangles before line grouping,
+using the actual text-rise position. Recognised duplicate glyphs retain the existing
+tolerances, with text-rise proximity also required. Numeric kerning is bounded by
+0.03 em and half the narrower glyph advance; ordinary text kerning permits less than
+half the narrower advance. The width cap closes an independently reproduced second
+case: at `5 Tz`, a whole digit is narrower than the former 0.03 em allowance.
+An unresolved overlay raises `LAYOUT_CHANGED / ambiguous_glyph_overlap`. Ingestion,
+including dry runs and either isolation path, refuses the whole document and stores
+no extraction or forecast. No tolerance was increased.
+
+Reader `pdf-words-3` and interpreter `tables-12` supersede `pdf-words-2` / `tables-11`.
+Immutable older extractions stay stored but cannot feed current analytics. This is
+version invalidation, without a schema migration or rewriting historical figures.
+
+Tests cover exact/offset duplicates, horizontal and vertical boundaries, conflicting
+digits, text rise, mixed sizes/fonts, horizontal scaling, legitimate repeated digits,
+negative/decimal values, kerning, narrow cells, raised footnotes, isolated extraction,
+ingestion refusal and exclusion of `tables-11` analytics. RED: 39 original overlap/refusal
+failures with 17 preservation cases passing. Independent review found the compressed
+glyph case; two regression cases failed before the width cap. Normal compressed `44`
+remains readable.
+
+Local remediation verification:
+
+| Check | Result |
+|---|---|
+| Full backend `PYTHONPATH=src python -m pytest` (Python 3.14) | 6981 passed; one existing Starlette deprecation warning |
+| Ruff `check` / `format --check` | clean, 432 files formatted |
+| Focused stream, ingestion and view regressions | 210 passed |
+| Offline replay, isolation and source-governance tests | passed in the full suite; replay compares two empty-directory runs in both PDF drawing styles |
+| Frontend unit tests / types / lint / build | 630 passed; checks passed with existing lint/chunk warnings |
+| Playwright dashboard | 204 passed on the final full run with three workers |
+| Playwright synthetic research | 18 passed, 3 expected skips |
+| Static site and parity | 315 passed, 54 expected skips |
+| Diff secret scan / diff whitespace | Gitleaks clean; `git diff --check` passed |
+
+The first concurrent dashboard run had one tablet `stories.spec.ts:41` heading timeout
+(203 passed). Its complete tablet story module passed 11/11 on retry, then the full
+204-test dashboard suite passed. No frontend implementation changed. Backend type
+checking is not configured. Hosted CI and current-head automated review outcomes are
+recorded in PR #60's conversation after pushing, so an evidence-only commit does not invalidate the reviewed head.
+The original implementation results in the following sections are historical evidence.
+All five banks remain denied; the ANZ pilot remains **BLOCKED**. No source permission,
+registry pin, schedule, production data, model call, live acquisition or XLSX adapter changed.
+
+## Original implementation results
 
 | Check | Result |
 |---|---|

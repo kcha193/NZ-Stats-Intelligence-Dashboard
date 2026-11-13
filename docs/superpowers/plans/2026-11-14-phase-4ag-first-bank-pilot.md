@@ -47,3 +47,43 @@ Source assessment; ANZ permissions package with the unsent request; pilot proced
 ## Task 8: Verification, review, PR
 Full backend, ruff, frontend tests/typecheck/build, Playwright (live, research), static parity, offline replay twice;
 independent code review; fix Critical and High; push the branch and open a PR (not merged).
+
+## Task 9: PR #60 numeric-integrity remediation
+
+**Goal:** Refuse unresolved overlapping glyphs before they can become accepted figures.
+**Spec:** The design's anti-goal forbids accepting a wrong number by guessing a boundary.
+**Files:** `table_words.py`, `table_forecast.py`, the stream/ingestion/version regression tests,
+and the existing verification record. No dependency, permission, registry pin or schema change.
+**Interfaces:** `extract_words(...)` keeps its signature and raises the existing `IngestError`;
+`extract_version_tables(...)` returns its existing fixed refusal without storing forecasts.
+
+**Root cause:** At 10 pt, overprint deduplication accepts a vertical offset up to 1 pt,
+but token assembly joins through 1.5 pt and imposes no lower bound on horizontal gaps.
+The reproduced 0.05 pt horizontal / 1.1 pt vertical shadow becomes `44`; `parse_value`
+accepts that valid integer. Raising the deduplication tolerance would guess away ambiguity.
+
+**Review focus:** residual identical/different glyph overlays; mixed sizes/fonts and text rise;
+normal repeated digits and modest kerning; neighbouring narrow cells; stale accepted extractions.
+
+- [x] RED: Add stream tests for the reported shadow and overprint boundaries, conflicting overlays,
+  and mixed sizes/fonts. Test both child-process and direct extraction. Preserve exact repeats,
+  decimals, negatives, modest kerning, raised markers and narrow cells with explicit expected text.
+- [x] RED: Add ingestion tests asserting `refused`, zero accepted figures and zero extraction writes
+  for ambiguous synthetic PDFs, including dry runs. Add `tables-11` to legacy-version tests.
+- [x] GREEN: After recognised duplicates are removed, check remaining nonblank glyph rectangles
+  before line/token assembly. Reject overlapping numeric glyphs beyond the existing 0.03 em
+  kerning allowance, capped by half the narrower glyph's width under horizontal scaling;
+  permit ordinary text kerning below half the narrower glyph's width.
+  Use actual `y0` and size for vertical overlap, so shifted baselines/text rise cannot evade it.
+  Raise `LAYOUT_CHANGED` with fixed code `ambiguous_glyph_overlap`; refuse the whole PDF.
+- [x] GREEN: Advance reader to `pdf-words-3` and interpreter to `tables-12`, excluding older
+  accepted extractions from analytics without modifying immutable history.
+- [x] REFACTOR/VERIFY: Run focused stream, table, ingestion, isolation and deterministic replay
+  tests; full backend and Ruff; frontend tests/types/lint/build and relevant browser integration.
+  Backend type checking is not configured. Inspect the diff and obtain independent code review.
+- [ ] Commit and push to `feat/phase-4ag-bank-pilot`; answer and resolve genuinely fixed threads.
+  Request `@codex review` only when none is pending, at most three new cycles. Verify current-head
+  review coverage and CI before declaring REVIEW CLEAN. ANZ remains BLOCKED.
+
+Execution: native, sequential TDD under the owner's explicit instruction to proceed autonomously.
+Verification evidence and review outcomes belong in `docs/phase-4ag-verification.md`.

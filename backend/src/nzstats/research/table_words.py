@@ -1,4 +1,4 @@
-"""Positioned words from a text-layer PDF (Phase 4AF, reader `pdf-words-2` since Phase 4AG).
+"""Positioned words from a text-layer PDF (Phase 4AF, reader `pdf-words-3` after Phase 4AG review).
 
 `extract_pdf` returns readable text per page, which loses the layout a table needs. This module keeps, for every word or
 phrase, the page, the left and right edge, the baseline and the font size, so `table_grid` can read rows and columns
@@ -16,6 +16,7 @@ Words are assembled conservatively, because a wrong boundary is a wrong number:
   character on that word (`3.25` and a raised `1` become `3.25¹`, never `3.251`), so the figure is later refused as footnoted;
 * rotated text is dropped (a table read sideways is not read), and a glyph with no Unicode mapping stays visible as
   `(cid:N)` so its cell cannot parse as a number.
+* recognised overprints are read once; unresolved glyph overlays refuse the whole PDF before word assembly.
 
 Not detected (documented): invisible text (render mode 3), text clipped away, and white-on-white text.
 """
@@ -44,7 +45,7 @@ from nzstats.research.extract_pdf import (
 )
 
 log = logging.getLogger(__name__)
-EXTRACTOR_VERSION = "pdf-words-2"
+EXTRACTOR_VERSION = "pdf-words-3"
 _MAX_WORDS = 200_000
 _MAX_CHARS = 1_000_000
 _MAX_PAGE_CONTENT = 300_000  # bytes of one page's decompressed content stream; refused before layout (macOS has no address-space limit)
@@ -174,7 +175,9 @@ def _page_glyphs(number: int, layout, counter: list[int]) -> tuple[list[_Glyph],
         if not _finite(ch.x0, ch.x1, base, ch.y0, ch.size):
             continue
         found.append(_Glyph(number, ch.x0, ch.x1, base, ch.y0, abs(ch.size), ch.fontname, text))
-    return _without_overprints(found), rotated
+    glyphs = _without_overprints(found)
+    _reject_overlaps(glyphs)
+    return glyphs, rotated
 
 
 def _without_overprints(glyphs: list[_Glyph]) -> list[_Glyph]:
@@ -182,7 +185,7 @@ def _without_overprints(glyphs: list[_Glyph]) -> list[_Glyph]:
 
     "Almost" is geometric, not a rounding bucket: the same character, the same size, within a tenth of an em vertically and
     less than half its own width horizontally. A real repeated character advances by a whole glyph width, so it is never
-    dropped; an overprint that moves by more than half a glyph is not recognised and the layout then fails closed downstream.
+    dropped; an overprint that moves by more than half a glyph is not recognised and the residual-overlap check refuses it.
     """
     by_text: dict[str, list[_Glyph]] = {}
     for g in glyphs:
@@ -197,6 +200,7 @@ def _without_overprints(glyphs: list[_Glyph]) -> list[_Glyph]:
                 for k in reversed(recent)
                 if g.x0 - k.x0 < 0.5 * max(k.x1 - k.x0, 1e-6)
                 and abs(g.base - k.base) <= 0.1 * g.size
+                and abs(g.y0 - k.y0) <= 0.1 * g.size
                 and abs(g.size - k.size) <= 0.05 * g.size
             )
             if next(near, None) is None:
@@ -205,6 +209,30 @@ def _without_overprints(glyphs: list[_Glyph]) -> list[_Glyph]:
             while recent and g.x0 - recent[0].x0 >= max(recent[0].x1 - recent[0].x0, 1.0):
                 recent.pop(0)
     return kept
+
+
+def _reject_overlaps(glyphs: list[_Glyph]) -> None:
+    """Refuse unresolved overlays before line grouping can hide their geometry.
+
+    Recognised overprints have already been removed. Figures permit only the same small kerning allowance used for
+    numeric gaps, capped by half the narrower advance even under horizontal scaling; ordinary text permits kerning below
+    half the narrower advance. Use the visible vertical interval,
+    including text rise, independently of the baseline tolerances used to assemble lines and tokens.
+    """
+    recent: list[_Glyph] = []
+    for g in sorted((g for g in glyphs if g.text.strip()), key=lambda g: g.x0):
+        recent = [k for k in recent if k.x1 > g.x0]
+        for k in recent:
+            if k.page != g.page or min(k.y0 + k.size, g.y0 + g.size) <= max(k.y0, g.y0):
+                continue
+            overlap = min(k.x1, g.x1) - g.x0
+            figures = k.text in _FIGURE_CHARS and g.text in _FIGURE_CHARS
+            allowance = 0.5 * min(k.x1 - k.x0, g.x1 - g.x0)
+            if figures:
+                allowance = min(allowance, _DIGIT_GAP * min(k.size, g.size))
+            if overlap > allowance:
+                raise IngestError(ErrorClass.LAYOUT_CHANGED, "ambiguous_glyph_overlap")
+        recent.append(g)
 
 
 def _lines(glyphs: list[_Glyph]) -> list[list[_Glyph]]:
