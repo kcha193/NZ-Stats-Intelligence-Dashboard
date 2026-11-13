@@ -39,6 +39,7 @@ from nzstats.research.bank_models import (
     BankConsensusGroupOut,
     BankConsensusOut,
     BankExclusionOut,
+    BankVintageOut,
     ConsensusTitle,
     DivergenceBankOut,
     DivergenceOut,
@@ -445,3 +446,36 @@ def bank_evaluation(
     return evaluate_forecasts(
         forecasts, actuals, indicator=indicator, resolve_scope=actuals.adjustment_of
     )
+
+
+# Worst first: when two reports share the newest date, the less completely read one decides.
+_STATE_ORDER = ("not_read", "incomplete", "incomplete_scenario", "read")
+
+
+def bank_vintages(view: BankView) -> list[BankVintageOut]:
+    """Per bank with a dated outlook report: the newest published against the newest accepted (Phase 4AH)."""
+    out = []
+    for key in sorted({d.institution_key for d in view.documents}):
+        mine = [d for d in view.documents if d.institution_key == key]
+        newest = max(d.published_on for d in mine)
+        state = min((d.state for d in mine if d.published_on == newest), key=_STATE_ORDER.index)
+        accepted = max(
+            (
+                n.forecast.published_on
+                for n in view.forecasts
+                if n.institution_key == key
+                and n.report_kind == "outlook"
+                and n.forecast.published_on
+            ),
+            default=None,
+        )
+        out.append(
+            BankVintageOut(
+                institution_key=key,
+                latest_published_on=newest,
+                latest_accepted_on=accepted,
+                state=state,
+                current=state == "read" and accepted == newest,
+            )
+        )
+    return out

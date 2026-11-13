@@ -88,3 +88,19 @@ def test_table_figures_need_the_gate_to_be_on(app):
     client, conn = app
     add_table(conn)
     assert client(enabled=False).get(f"{BASE}/forecasts", headers=LOCAL).status_code == 404
+
+
+def test_forecasts_report_latest_published_and_latest_accepted(app):
+    from nzstats.research.table_grid import Rejection
+
+    client, conn = app
+    v = version_of(conn, "bank_b")
+    figure = tf(label="OCR (%)", indicator="ocr", horizon="June 2026 quarter",
+                value=Decimal("2.9"), raw_text="2.9", unit="percent")  # fmt: skip
+    refused = Rejection("footnote_unresolved", 1, 0, 1, 2)
+    store_extraction(conn, v, NOW, [figure], [refused], words_sha256=SHA)
+    body = get(client(), "forecasts").json()
+    rows = {r["institution_key"]: r for r in body["vintages"]}
+    assert rows["bank_b"]["state"] == "incomplete" and rows["bank_b"]["current"] is False
+    assert set(rows["bank_b"]) == {
+        "institution_key", "latest_published_on", "latest_accepted_on", "state", "current"}  # fmt: skip

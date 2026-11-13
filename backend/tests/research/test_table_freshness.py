@@ -355,3 +355,36 @@ def test_a_newer_weekly_or_undated_report_changes_nothing(conn, artifacts, where
         )
     v = view(conn)
     assert current(v) == ("2026-08-01", 2.6, []) and codes(v) == []
+
+
+# --- latest published versus latest accepted -------------------------------------------------------------------------
+
+
+def vintages(v):
+    from nzstats.research.bank_analytics import bank_vintages
+
+    return [(x.institution_key, x.latest_published_on, x.latest_accepted_on, x.state, x.current)
+            for x in bank_vintages(v)]  # fmt: skip
+
+
+def test_a_clean_newest_report_is_current(conn, artifacts):
+    held(conn, artifacts, report(), published=AUG, url=URL_AUG)
+    held(conn, artifacts, report(cpi=("4", "3", "2.4", "2.1")))
+    assert vintages(view(conn)) == [("example", "2026-11-01", "2026-11-01", "read", True)]
+
+
+def test_a_partly_refused_newest_report_is_published_but_not_current(conn, artifacts):
+    held(conn, artifacts, report(), published=AUG, url=URL_AUG)
+    held(conn, artifacts, footnoted())
+    assert vintages(view(conn)) == [("example", "2026-11-01", "2026-11-01", "incomplete", False)]
+
+
+def test_an_unread_newest_report_leaves_the_latest_accepted_older(conn, artifacts):
+    held(conn, artifacts, report(), published=AUG, url=URL_AUG)
+    held(conn, artifacts, report(cpi=("4", "3", "2.4", "2.1")), extract=False)
+    assert vintages(view(conn)) == [("example", "2026-11-01", "2026-08-01", "not_read", False)]
+
+
+def test_a_bank_with_no_dated_outlook_report_has_no_vintage_row(conn, artifacts):
+    held(conn, artifacts, report(), url=f"{BASE}/research/weekly-2026-11.pdf")
+    assert vintages(view(conn)) == []
