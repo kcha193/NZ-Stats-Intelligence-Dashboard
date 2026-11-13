@@ -7,6 +7,22 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AG: glyph-level PDF reader and first-bank pilot preparation, 14 November 2026
+
+Branch `feat/phase-4ag-bank-pilot` from main `e0fd037` (PR #59 merged). [spec](superpowers/specs/2026-11-14-phase-4ag-first-bank-pilot-design.md),
+[plan](superpowers/plans/2026-11-14-phase-4ag-first-bank-pilot.md), [source assessment](phase-4ag-source-assessment.md),
+[ANZ permissions package](phase-4ag-anz-permissions-package.md), [pilot procedure](phase-4ag-pilot-procedure.md),
+[runbook](phase-4ag-runbook.md), [verification and verdict](phase-4ag-verification.md). **Verdict: technical GO WITH CONDITIONS; the
+ANZ pilot is BLOCKED (no right or owner permission recorded). No live ingestion, no permission field changed, nothing fetched.**
+
+- Reader `pdf-words-2` (`pdfminer.six>=20251230`, not `pdfplumber`: exact pin, Pillow and pdfium, 4x memory) replaces the `pypdf`
+  visitor that merged a `BT..ET` row into one string; interpreter `tables-11`. Nine table test modules also run with every baseline
+  in one `BT..ET`; results identical.
+- Independent review found a High (double-struck row stored as `44.225`); fixed with failing tests, plus four Medium findings.
+- XLSX assessed, not built (unauthorised, unevidenced). PDF stays the pilot route.
+- Backend 6894 passed, 5 skipped; frontend 630; Playwright 204 live, 18 research, static parity 315.
+- Known gap carried forward: a refused table cell leaves an older bank figure showing as latest (dated); check at the second report.
+
 ## Phase 4AF: bank activation readiness and deterministic PDF forecast tables, 11 November 2026
 
 Branch `feat/phase-4af-bank-pdf-extraction` from main `a3a5449` (PR #58 merged). Design

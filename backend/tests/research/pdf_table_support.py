@@ -5,11 +5,33 @@ Each item is drawn as its own text-showing operation at (x_left, y), so a test c
 
 from __future__ import annotations
 
+import functools
 import io
 
 from .pdf_support import _escape
 
 Item = tuple[float, float, str]
+
+# How `table_pdf` draws text. "cell": every cell in its own BT..ET (the Phase 4AF fixtures). "row": every baseline in ONE
+# BT..ET with each cell placed by an absolute `Tm`, the way real generators write a row. The table-pipeline test modules run
+# under both (see conftest), and the results must be identical.
+STYLE = "cell"
+
+
+def _operators(items: list[Item], size: float) -> str:
+    if STYLE == "row":
+        rows: dict[str, list[Item]] = {}
+        for item in items:
+            rows.setdefault(f"{item[1]:.2f}", []).append(item)
+        return " ".join(
+            f"BT /F1 {size} Tf "
+            + " ".join(f"1 0 0 1 {x:.2f} {y:.2f} Tm ({_escape(text)}) Tj" for x, y, text in row)
+            + " ET"
+            for row in rows.values()
+        )
+    return " ".join(
+        f"BT /F1 {size} Tf {x:.2f} {y:.2f} Td ({_escape(text)}) Tj ET" for x, y, text in items
+    )
 
 
 def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
@@ -22,14 +44,7 @@ def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     ]
     for i, items in enumerate(pages):
-        ops = (
-            "q Q"
-            if not items
-            else " ".join(
-                f"BT /F1 {size} Tf {x:.2f} {y:.2f} Td ({_escape(text)}) Tj ET"
-                for x, y, text in items
-            )
-        )
+        ops = "q Q" if not items else _operators(items, size)
         stream = ops.encode("cp1252")
         objects.append(
             b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >>"
@@ -52,3 +67,15 @@ def table_pdf(pages: list[list[Item]], *, size: float = 10) -> bytes:
         f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
     )
     return out.getvalue()
+
+
+@functools.cache
+def text_width(text: str, size: float) -> float:
+    """The real drawn width of `text` in Helvetica at `size` points, measured by the word reader on a one-word PDF."""
+    from nzstats.research.extract import ExtractionLimits
+    from nzstats.research.table_words import extract_words
+
+    (word,) = extract_words(
+        table_pdf([[(100, 700, text)]], size=size), ExtractionLimits(), isolate=False
+    )
+    return word.x1 - word.x0

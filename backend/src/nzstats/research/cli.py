@@ -916,8 +916,10 @@ _SUFFIXES = {".html": "html", ".htm": "html", ".pdf": "pdf"}
 
 def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
     """`tables extract` reads one stored PDF; `tables show` lists stored figures and codes. Never prints cell or label text."""
+    from nzstats.research.table_forecast import INTERPRETER_VERSION
     from nzstats.research.table_ingest import extract_version_tables, version_refusal
-    from nzstats.research.table_store import load_forecasts, load_rejections
+    from nzstats.research.table_store import latest_interpreter, load_forecasts, load_rejections
+    from nzstats.research.table_words import EXTRACTOR_VERSION
 
     conn = _open(settings)
     try:
@@ -936,6 +938,9 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
             _emit(
                 f"version {args.version}: {result.status}, {result.forecasts} figures, {result.rejections} rejections"
             )
+            for code, count in result.rejection_codes:
+                _emit(f"  rejected {code} x{count}")
+            _emit(f"Reader {EXTRACTOR_VERSION}, interpreter {INTERPRETER_VERSION}.")
             _emit("Read locally from the stored copy. Nothing was requested; no model was used.")
             return 0
         row = conn.execute(
@@ -948,23 +953,36 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
         if reason:
             _emit(f"version {args.version}: refused ({reason})")
             return 1
+        stored = load_forecasts(conn, args.version)
+        interpreter = latest_interpreter(conn, args.version)
+        current = interpreter in (None, INTERPRETER_VERSION)
         forecasts = [
             {"indicator": f.indicator, "horizon": f.horizon, "kind": f.kind, "unit": f.unit,
              "value": None if f.value is None else str(f.value), "missing": f.missing,
              "author_role": f.author_role, "page": f.page, "table": f.table, "row": f.row, "col": f.col}
-            for f in load_forecasts(conn, args.version)
+            for f in stored
         ]  # fmt: skip
         rejections = [asdict(r) for r in load_rejections(conn, args.version)]
         if args.json:
             print(
                 json.dumps(
-                    {"version": args.version, "forecasts": forecasts, "rejections": rejections},
+                    {
+                        "version": args.version,
+                        "interpreter": interpreter,
+                        "current": current,
+                        "forecasts": forecasts,
+                        "rejections": rejections,
+                    },
                     indent=2,
                     sort_keys=True,
                 )
             )
             return 0
         _emit(f"version {args.version}: {len(forecasts)} figures, {len(rejections)} rejections")
+        if not current:
+            _emit(
+                f"  NOT CURRENT: read by {interpreter}, not {INTERPRETER_VERSION}; extract again to refresh. Not used by the analytics."
+            )
         for f in forecasts:
             _emit(f"  p{f['page']} t{f['table']} r{f['row']} c{f['col']} {f['indicator']:<14} {f['kind']:<8}"
                   f" {f['horizon']:<26} {f['value'] if f['value'] is not None else 'missing'} {f['unit']}")  # fmt: skip
