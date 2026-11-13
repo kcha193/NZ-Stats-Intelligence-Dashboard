@@ -25,9 +25,10 @@ from .test_table_grid import COLS
 from .test_table_ingest import APPROVED, no_network  # noqa: F401 (autouse guard)
 
 ADAPTERS = {
-    "example": BankAdapter(
-        "example", (Series("outlook", "Outlook", "outlook", 100, url_pattern=r"outlook-2026"),)
+    key: BankAdapter(
+        key, (Series("outlook", "Outlook", "outlook", 100, url_pattern=r"outlook-2026"),)
     )
+    for key in ("example", "other")
 }
 INST = institution(**APPROVED)
 REGISTRY = {INST.key: INST}
@@ -173,11 +174,55 @@ def test_a_newer_weekly_note_has_no_state(conn, artifacts):
     assert states(conn) == set()
 
 
-def test_a_revoked_route_has_no_state(conn, artifacts):
-    held(conn, artifacts, footnoted())
-    revoked = institution(**{**APPROVED, "manual_import": "denied", "manual_import_approved_by": None,
-                             "manual_import_approved_on": None, "manual_import_note": None})  # fmt: skip
-    assert states(conn, registry={revoked.key: revoked}) == set()
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"manual_import": "denied", "manual_import_approved_by": None,
+         "manual_import_approved_on": None, "manual_import_note": None},
+    ],
+    ids=["route_revoked"],
+)  # fmt: skip
+def test_a_held_report_that_may_not_be_shown_is_not_read(conn, artifacts, overrides):
+    held(conn, artifacts, report())
+    narrowed = institution(**{**APPROVED, **overrides})
+    assert states(conn, registry={narrowed.key: narrowed}) == {("2026-11-01", "not_read")}
+
+
+def direct(conn, allowlist, read):
+    from nzstats.research.table_view import document_states
+
+    return {
+        (s.published_on, s.state)
+        for s in document_states(conn, REGISTRY, allowlist, read, ADAPTERS)
+    }
+
+
+def test_an_admitted_summary_does_not_make_a_stale_table_reading_read(conn, artifacts):
+    vid = held(conn, artifacts, report(), extract=False)
+    from nzstats.research.table_store import store_extraction
+
+    from .test_table_store import SHA, tf
+
+    store_extraction(conn, vid, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-12")
+    assert direct(conn, auto(), {vid}) == {("2026-11-01", "not_read")}
+    assert direct(conn, DraftAllowlist(), {vid}) == {("2026-11-01", "not_read")}
+
+
+def test_an_admitted_summary_with_no_table_reading_is_read(conn, artifacts):
+    vid = held(
+        conn, artifacts, report(), extract=False
+    )  # Phase 4AE: the checked model reading is the reading
+    assert direct(conn, auto(), {vid}) == {("2026-11-01", "read")}
+
+
+def test_a_refused_cell_counts_in_the_named_mode_too(conn, artifacts):
+    vid = held(conn, artifacts, footnoted())
+    assert direct(conn, DraftAllowlist(), {vid}) == {("2026-11-01", "incomplete")}
+    clean = held(conn, artifacts, report(), published=AUG, url=URL_AUG)
+    assert ("2026-08-01", "not_read") in direct(
+        conn, DraftAllowlist(), {vid}
+    )  # tables alone do not show there
+    assert ("2026-08-01", "read") in direct(conn, DraftAllowlist(), {vid, clean})
 
 
 # --- the rule in the analytics ---------------------------------------------------------------------------------------
@@ -285,7 +330,7 @@ def test_a_newer_report_not_yet_read_stops_older_figures_appearing_current(conn,
     assert history(v) == [[2.6]]
 
 
-def test_revisions_and_evaluation_keep_every_accepted_vintage(conn, artifacts):
+def test_the_history_views_keep_every_accepted_vintage(conn, artifacts):
     held(conn, artifacts, report(), published=AUG, url=URL_AUG)
     held(conn, artifacts, footnoted())
     v = view(conn)
@@ -339,6 +384,7 @@ def test_a_refused_scenario_table_leaves_central_figures_current(conn, artifacts
     scenario = page(line(686, "OCR (%)", ["4.25", "3.00", "2.50", "2.00"]),
                     extra=[SOURCE, (72, 730, "Downside scenario")])  # fmt: skip
     held(conn, artifacts, table_pdf([central, scenario]))
+    assert ("2026-11-01", "incomplete_scenario") in states(conn)
     v = view(conn)
     assert current(v) == ("2026-08-01", 2.6, []) and codes(v) == []
 
@@ -388,3 +434,37 @@ def test_an_unread_newest_report_leaves_the_latest_accepted_older(conn, artifact
 def test_a_bank_with_no_dated_outlook_report_has_no_vintage_row(conn, artifacts):
     held(conn, artifacts, report(), url=f"{BASE}/research/weekly-2026-11.pdf")
     assert vintages(view(conn)) == []
+
+
+def test_one_banks_unread_report_does_not_hide_another_banks_figures(conn, artifacts):
+    other = institution("other", **APPROVED)
+    registry = {**REGISTRY, other.key: other}
+    held(conn, artifacts, report(), published=AUG, url=URL_AUG)
+    import_document(conn, other, body=report(cpi=("4", "3", "2.5", "2.0")), file_format="pdf",
+                    url=f"{BASE}/research/other-outlook-2026-11.pdf", importer="Test Owner",
+                    note="saved from a browser", now=NOW, artifacts=artifacts, published_on=NOV)  # fmt: skip
+    v = view(conn, registry=registry)
+    assert ("other", "not_read") in {(s.institution_key, s.state) for s in v.documents}
+    assert current(v) == ("2026-08-01", 2.6, []) and codes(v) == []
+
+
+def test_an_undated_figure_is_not_current_beside_a_newer_unread_report(conn, artifacts):
+    old = held(conn, artifacts, report(), published=AUG, url=URL_AUG)
+    conn.execute(
+        "UPDATE research_publication SET published_on = NULL WHERE current_version_id = ?", (old,)
+    )
+    held(conn, artifacts, report(cpi=("4", "3", "2.4", "2.1")), extract=False)
+    v = view(conn)  # an undated figure cannot be shown to be newer than the unread report
+    assert current(v) is None and codes(v) == ["newer_report_not_read"]
+
+
+def test_latest_accepted_ignores_figures_the_analysis_refuses(conn, artifacts):
+    held(conn, artifacts, report(), published=AUG, url=URL_AUG)
+    first = page(line(686, "Annual CPI inflation (%)", ["4", "3", "2.4", "2.1"]), extra=[SOURCE])
+    second = [(72, 745, "Table 2: Inflation (SYNTHETIC FIXTURE)"),
+              *page(line(686, "Annual CPI inflation (%)", ["4", "3", "2.9", "2.7"]), extra=[SOURCE])]  # fmt: skip
+    held(
+        conn, artifacts, table_pdf([first, second])
+    )  # the newest report contradicts itself on every figure
+    assert ("2026-11-01", "read") in states(conn)
+    assert vintages(view(conn)) == [("example", "2026-11-01", "2026-08-01", "read", False)]

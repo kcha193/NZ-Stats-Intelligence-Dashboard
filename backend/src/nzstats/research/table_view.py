@@ -203,10 +203,16 @@ def table_forecasts(
     return usable, excluded, recs
 
 
-def _table_state(conn: sqlite3.Connection, version_id: int) -> DocumentStateName | None:
-    """What the current interpreter's extraction says about a report; None when it read nothing usable."""
-    if latest_interpreter(conn, version_id) != INTERPRETER_VERSION:
-        return None  # never extracted, refused by the reader (nothing is stored), or read by an older interpreter
+def _table_state(
+    conn: sqlite3.Connection, version_id: int
+) -> DocumentStateName | Literal["stale"] | None:
+    """What the latest table extraction says about a report: None when there is none (or it read nothing usable),
+    `stale` when it was made by an older interpreter (its tables must be read again)."""
+    interpreter = latest_interpreter(conn, version_id)
+    if interpreter is None:
+        return None  # never extracted, or refused by the reader (which stores nothing)
+    if interpreter != INTERPRETER_VERSION:
+        return "stale"
     codes = {r.code for r in load_rejections(conn, version_id)}
     own = [
         f
@@ -215,9 +221,21 @@ def _table_state(conn: sqlite3.Connection, version_id: int) -> DocumentStateName
     ]
     if codes - _SCENARIO_CODES or any(f.missing for f in own):
         return "incomplete"  # a refused cell or a printed dash: which measure it was is not known, and not guessed
-    if all(f.missing for f in own):
+    if not own:
         return None
     return "incomplete_scenario" if codes else "read"
+
+
+def _identified(row: sqlite3.Row, inst: Institution | None) -> bool:
+    """A bank's live, current, unique report, whether or not it may be shown."""
+    return (
+        inst is not None
+        and inst.kind == "bank"
+        and not row["purged_at"]
+        and row["current_version_id"] == row["version_id"]
+        and not row["superseded_at"]
+        and row["duplicate_of_id"] is None
+    )
 
 
 def document_states(
@@ -227,24 +245,38 @@ def document_states(
     read_versions: set[int],
     adapters: Mapping[str, BankAdapter] = ADAPTERS,
 ) -> list[DocumentState]:
-    """Each current, dated, shown quarterly outlook report of a bank, and whether its figures were read. Read-only.
+    """Each current, dated quarterly outlook report of a bank, and whether its figures were read. Read-only.
 
-    `read_versions` are the versions with an admitted draft summary. A report is `read` when its tables gave the bank's
-    own figures with nothing refused, or (without usable tables) when its summary was admitted; `incomplete` when a
-    table cell was refused or printed without a value; `incomplete_scenario` when only scenario cells were refused;
-    `not_read` otherwise. Table extractions count only in the owner's automatic mode, as for the figures themselves.
+    `read_versions` are the versions with an admitted draft summary. A report is:
+      * `incomplete` when its current table extraction refused a cell or printed an own forecast without a value (in
+        either display mode: the refusal is a fact about the report);
+      * `not_read` when it may not be shown (route, content policy or host), when its tables were read only by an
+        older interpreter, or when nothing usable was read;
+      * `incomplete_scenario` when only scenario cells were refused, `read` otherwise. Table figures count as read only
+        in the owner's automatic mode, as for the figures themselves; without usable tables an admitted summary is the
+        reading (Phase 4AE).
+    Purged, superseded, duplicate and undated reports have no state.
     """
     out: list[DocumentState] = []
     for row in conn.execute(_CURRENT_DOCUMENTS).fetchall():
         inst = registry.get(row["institution"])
-        if not _shown(row, inst):
+        if not _identified(row, inst):
             continue
         assert inst is not None
         if report_kind_of(inst.key, row["canonical_url"], row["title"], adapters) != "outlook":
             continue
         vid = int(row["version_id"])
-        state = _table_state(conn, vid) if allowlist.auto else None
-        if state is None:
-            state = "read" if vid in read_versions else "not_read"
+        tables = _table_state(conn, vid)
+        state: DocumentStateName
+        if not _shown(row, inst) or tables == "stale":
+            state = "not_read"
+        elif tables == "incomplete":
+            state = "incomplete"
+        elif tables is not None and allowlist.auto:
+            state = tables
+        elif vid in read_versions:
+            state = "incomplete_scenario" if tables == "incomplete_scenario" else "read"
+        else:
+            state = "not_read"
         out.append(DocumentState(inst.key, vid, row["published_on"], state))
     return out

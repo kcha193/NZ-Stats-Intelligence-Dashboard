@@ -57,6 +57,22 @@ Reader refusals (fixed wording, shown as `pdf could not be read (...)`): `no_tex
 5. A figure present in the PDF but absent without any code: that is a defect; stop and add a failing synthetic test.
 6. `ambiguous_glyph_overlap`: unresolved glyph geometry; stop and reproduce with a synthetic fixture. No figure is accepted.
 
+## Freshness: why an older bank figure disappeared (Phase 4AH)
+
+A bank's figure is left out of the comparison, the consensus and the divergence (never the revisions or the evaluation)
+when the bank has a newer dated outlook report that was not fully read and that report does not restate the measure.
+The dashboard's "left out" list names the bank and one of these fixed reasons:
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `newer_report_incomplete` | the newer report has a refused table cell, or a forecast printed as a dash | dry-run the newer report (`tables extract VERSION --dry-run`) and read the rejection codes above; never loosen a rule |
+| `newer_report_not_read` | the newer report is held but nothing usable was read: never extracted, read by an older interpreter, refused by the reader, or its summary not admitted | run `tables extract VERSION`; if the reader refuses, follow "Reading a result that gave nothing" |
+
+`GET /internal/bank-intelligence/forecasts` also returns `vintages`: per bank, `latest_published_on`, `latest_accepted_on`,
+the newest report's `state` (`read`, `incomplete`, `incomplete_scenario`, `not_read`) and `current`. A refused cell's
+measure is never guessed, so a partly refused report hides every older figure it does not restate. Details:
+[phase-4ah-forecast-freshness.md](phase-4ah-forecast-freshness.md).
+
 ## Rollback
 
 Code: revert the Phase 4AG commits; `pdfminer.six` can stay installed. Data: nothing was migrated (no schema change), so there

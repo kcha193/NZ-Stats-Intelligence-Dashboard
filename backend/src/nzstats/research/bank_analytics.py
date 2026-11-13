@@ -151,9 +151,8 @@ def _not_current(
         key = key_of.get(id(n.forecast))
         if key is None:
             continue
-        dated = (
-            n.forecast.published_on or ""
-        )  # an undated figure cannot be newer than any dated report
+        # An undated figure cannot be shown to be newer than any dated report, so a newer unread one blocks it.
+        dated = n.forecast.published_on or ""
         latest = restated[(n.institution_key, n.adjustment, key)]
         hits = [
             (day, code)
@@ -454,20 +453,16 @@ _STATE_ORDER = ("not_read", "incomplete", "incomplete_scenario", "read")
 
 def bank_vintages(view: BankView) -> list[BankVintageOut]:
     """Per bank with a dated outlook report: the newest published against the newest accepted (Phase 4AH)."""
+    # Accepted: survives the analysis's own rules (conflicts, unusable newer claims), before freshness is applied.
+    prepared = _prepare(view, outlook_only=True, dated_only=True, current=False)
+    usable = [n for members in prepared.partitions.values() for n in members]
     out = []
     for key in sorted({d.institution_key for d in view.documents}):
         mine = [d for d in view.documents if d.institution_key == key]
         newest = max(d.published_on for d in mine)
         state = min((d.state for d in mine if d.published_on == newest), key=_STATE_ORDER.index)
         accepted = max(
-            (
-                n.forecast.published_on
-                for n in view.forecasts
-                if n.institution_key == key
-                and n.report_kind == "outlook"
-                and n.forecast.published_on
-            ),
-            default=None,
+            (n.forecast.published_on for n in usable if n.institution_key == key), default=None
         )
         out.append(
             BankVintageOut(
