@@ -35,6 +35,7 @@ from nzstats.research.banks import ADAPTERS, BankAdapter, report_kind_of
 from nzstats.research.drafts import DraftAllowlist
 from nzstats.research.public import allowed_document_url
 from nzstats.research.registry import ContentPolicy, Institution
+from nzstats.research.table_context import evidence_texts, stored_context_rejection
 from nzstats.research.table_forecast import INTERPRETER_VERSION
 from nzstats.research.table_reconcile import Reconciliation, reconcile
 from nzstats.research.table_store import StoredTableForecast, load_forecasts
@@ -72,7 +73,7 @@ def _shown(row: sqlite3.Row, inst: Institution | None) -> bool:
 
 def _quote(f: StoredTableForecast) -> str:
     e = f.evidence
-    text = f"{e.get('row_label', '')} | {' / '.join(e.get('header_texts', []))} | {e.get('cell_text', '')} | {' / '.join(e.get('notes', []))}"
+    text = f"{e.get('row_label', '')} | {' / '.join(e.get('header_texts', []))} | {e.get('cell_text', '')} | {' / '.join(e.get('unit_texts', []))} | {e.get('caption') or ''} | {e.get('document_title') or ''} | {' / '.join(e.get('notes', []))}"
     return text[:_QUOTE_MAX]
 
 
@@ -80,8 +81,7 @@ def _normalized(
     f: StoredTableForecast, row: sqlite3.Row, inst: Institution, adapters: Mapping[str, BankAdapter]
 ) -> NormalizedForecast:
     assert f.value is not None
-    caption = f.evidence.get("caption") or ""
-    context = " ".join([caption, *f.evidence.get("notes", []), *f.evidence.get("header_texts", [])])
+    context = " ".join((f.evidence.get("document_title") or "", *evidence_texts(f.evidence)))
     adjustment = derive_adjustment(f.label, context)
     label = canonical_label(f.label, adjustment)
     out = ForecastOut(
@@ -160,6 +160,8 @@ def table_forecasts(
             code = None
             if f.author_role == "third_party":
                 code = "table_third_party"
+            elif stored_context_rejection(f.label, f.evidence):
+                code = "table_unresolved_reconciliation"
             elif cls == "rounding_difference":
                 code = "reconciliation_rounding"
             elif cls in _UNRESOLVED and f.id not in conflicting_ids:

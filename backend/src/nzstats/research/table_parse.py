@@ -98,6 +98,8 @@ _P_Q_FIRST = re.compile(rf"^q([1-4])[ \-]?{_YEAR}$", re.IGNORECASE)
 _P_Q_LAST = re.compile(rf"^{_YEAR}[ \-]?q([1-4])$", re.IGNORECASE)
 _P_CALENDAR = re.compile(r"^(\d{4})$")
 _G_YEAR_TO = re.compile(rf"year (?:to|ended|ending|end(?:ing)?)\s+{_MON}", re.IGNORECASE)
+_G_CALENDAR = re.compile(r"\bcalendar(?:[- ]year)?\b", re.IGNORECASE)
+_G_QUARTER = re.compile(r"\bquarter(?:[- ]end| (?:to|ended|ending))\b", re.IGNORECASE)
 _G_YEAR = re.compile(r"\b(\d{4})\b")
 
 
@@ -134,7 +136,17 @@ def period_of(headers: tuple[str, ...]) -> tuple[Period | None, str | None]:
     if period is None or not (1990 <= period.year <= 2100):
         return None, "unparsed_period"
     for group in headers[:-1]:
-        if m := _G_YEAR_TO.search(group):
+        if _G_CALENDAR.search(group) and period.kind != "calendar":
+            return None, "contradictory_period"
+        if _G_QUARTER.search(group):
+            if (
+                period.kind not in ("month_end", "quarter")
+                or period.month is None
+                or period.month % 3
+            ):
+                return None, "contradictory_period"
+            period = Period("quarter", period.year, period.month)
+        for m in _G_YEAR_TO.finditer(group):
             if _month(m[1]) != period.month or period.kind not in ("month_end", "year_to"):
                 return None, "contradictory_period"
             period = Period("year_to", period.year, period.month)

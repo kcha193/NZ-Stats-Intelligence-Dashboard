@@ -42,7 +42,7 @@ def test_the_four_priority_indicators_map_with_their_horizons_and_units():
     ]
     forecasts, rejections = run(page(rows))
     assert rejections == ()
-    assert INTERPRETER_VERSION == "tables-9"
+    assert INTERPRETER_VERSION == "tables-10"
     got = {
         (f.indicator, f.horizon): (f.value, f.unit, f.raw_text)
         for f in forecasts
@@ -440,9 +440,9 @@ def test_a_caption_naming_another_forecaster_makes_it_a_third_party_figure():
     forecasts, _ = run(page(line(686, "OCR", ["4", "3", "2", "2"]), extra=caption))
     assert {f.author_role for f in forecasts} == {"third_party"}
     ours = [(72, 745, "Table 3: Example Bank forecasts, Treasury actuals (%)")]
-    assert {
-        f.author_role for f in run(page(line(686, "OCR", ["4", "3", "2", "2"]), extra=ours))[0]
-    } == {"author"}
+    forecasts, rejections = run(page(line(686, "OCR", ["4", "3", "2", "2"]), extra=ours))
+    assert {f.kind for f in forecasts} == {"actual"}  # forecasts need column-specific attribution
+    assert {r.code for r in rejections} == {"actual_or_forecast_unstated"}
 
 
 def test_a_short_bank_name_does_not_match_inside_an_unrelated_word():

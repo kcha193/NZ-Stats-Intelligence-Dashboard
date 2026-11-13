@@ -42,10 +42,10 @@ def pdf(
     return table_pdf([page(rows, extra=[(72, 650, source)] if source else [])])
 
 
-def stored(conn, artifacts, body=None, *, published=date(2026, 10, 1), **overrides):
+def stored(conn, artifacts, body=None, *, published=date(2026, 10, 1), title=None, **overrides):
     inst = institution(**{**APPROVED, **overrides})
     result = import_document(conn, inst, body=body or pdf(), file_format="pdf", url=URL, importer="Test Owner",
-                             note="saved from a browser", now=NOW, artifacts=artifacts, published_on=published)  # fmt: skip
+                             note="saved from a browser", now=NOW, artifacts=artifacts, published_on=published, title=title)  # fmt: skip
     registry = {inst.key: inst}
     extract_version_tables(conn, result.version_id, artifacts, registry, NOW, isolate=False)
     return registry, result.version_id
@@ -93,7 +93,7 @@ def test_forecast_rows_become_normalized_forecasts_with_their_cell_as_evidence(c
         "percent",
         "unclear",
     )
-    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-9"
+    assert n.forecast.published_on == "2026-10-01" and n.verifier_version == "tables-10"
     (e,) = n.forecast.evidence
     assert (
         e.page == 1
@@ -200,7 +200,7 @@ def test_legacy_extractions_do_not_reach_analytics(conn):
     from .test_table_store import SHA, tf
 
     v = seed_version(conn)
-    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-8")
+    store_extraction(conn, v, NOW, [tf()], [], words_sha256=SHA, interpreter_version="tables-9")
     inst = institution(min_text_chars=20)
     assert run(conn, {inst.key: inst}) == ([], [], [])
 
@@ -368,3 +368,40 @@ def test_an_agreeing_claim_leaves_one_vintage_one_row_and_no_exclusion(conn, art
         s for _, h in bank_revisions(view) for s in h.series if s.indicator == "cpi_inflation"
     )
     assert len(series.vintages) == 1
+
+
+@pytest.mark.parametrize("with_claim", [False, True])
+def test_caption_annual_average_is_rejected_before_through_year_analytics(
+    conn, artifacts, with_claim
+):
+    from nzstats.research.table_store import load_forecasts, load_rejections
+
+    body = table_pdf(
+        [
+            page(
+                line(686, "Annual CPI inflation (%)", ["2.6"], xs=[250]),
+                head=["Dec-26", "Mar-27", "Jun-27", "Sep-27"],
+                groups=[(250, 714, "Forecast")],
+                extra=[(72, 745, "Table 1: Annual average forecasts (%)")],
+            )
+        ]
+    )
+    registry, v = stored(conn, artifacts, body)
+    claims = (
+        [
+            claim(v).model_copy(
+                update={
+                    "forecast": claim(v).forecast.model_copy(
+                        update={"horizon": "year to December 2026"}
+                    )
+                }
+            )
+        ]
+        if with_claim
+        else []
+    )
+    forecasts, _, recs = run(conn, registry, claims)
+    assert forecasts == []
+    assert load_forecasts(conn, v) == []
+    assert {r.code for r in load_rejections(conn, v)} == {"period_basis_unstated"}
+    assert not any(r.table_ids for r in recs)

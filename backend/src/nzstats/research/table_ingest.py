@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
+from urllib.parse import urlsplit
 
 from nzstats.domain import IngestError
 from nzstats.research.extract import ExtractionLimits
@@ -28,7 +29,7 @@ from nzstats.sources.artifacts import ArtifactStore, valid_rel
 log = logging.getLogger(__name__)
 
 _VERSION = (
-    "SELECT v.id, v.format, v.purged_at, v.acquisition, i.key, a.path, a.sha256 AS raw_sha256"
+    "SELECT v.id, v.title, p.canonical_url, v.format, v.purged_at, v.acquisition, i.key, a.path, a.sha256 AS raw_sha256"
     " FROM research_document_version v JOIN research_publication p ON p.id = v.publication_id"
     " JOIN research_institution i ON i.id = p.institution_id"
     " LEFT JOIN raw_artifact a ON a.id = v.raw_artifact_id WHERE v.id = ?"
@@ -95,7 +96,13 @@ def extract_version_tables(
         return _refused(f"pdf could not be read ({exc})")
     tables, grid_rejections = find_tables(words)
     names = (inst.name, inst.key, inst.name.removesuffix(" New Zealand"))
-    forecasts, rejections = interpret(tables, publisher_names=names)
+    # Ingestion uses the URL basename when neither metadata nor the owner names
+    # a document. That generated fallback is not a statement about its scope.
+    fallback = (
+        urlsplit(row["canonical_url"]).path.rstrip("/").rsplit("/", 1)[-1] or row["canonical_url"]
+    )
+    title = row["title"] if row["title"] != fallback else ""
+    forecasts, rejections = interpret(tables, publisher_names=names, document_title=title)
     rejections = (*grid_rejections, *rejections)
     if dry_run:
         return TableIngestResult("dry_run", None, len(forecasts), len(rejections))

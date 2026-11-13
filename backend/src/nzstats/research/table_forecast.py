@@ -1,4 +1,4 @@
-"""Table rows as forecasts (Phase 4AF, interpreter `tables-9`): fixed phrase maps, no guessing.
+"""Table rows as forecasts (Phase 4AF, interpreter `tables-10`): fixed phrase maps, no guessing.
 
 `table_grid` says where cells are; this module says what a row and a column *mean*, by fixed rules only, and refuses
 (with a fixed code, never text) whatever it cannot read exactly. It never fills a missing figure, converts a unit,
@@ -17,6 +17,16 @@ from typing import Any, Literal
 
 from nzstats.research.bank_forecast import derive_geography
 from nzstats.research.compare import _ANNUAL, _ANNUAL_AVERAGE, _QUARTERLY, _THROUGH_YEAR, horizon_of
+from nzstats.research.table_context import (
+    FOREIGN as _FOREIGN,
+)
+from nzstats.research.table_context import (
+    POPULATION as _POPULATION,
+)
+from nzstats.research.table_context import (
+    context_rejection,
+    unmarked_notes,
+)
 from nzstats.research.table_grid import _SCENARIO, Cell, Column, GridTable, Rejection
 from nzstats.research.table_parse import (
     Period,
@@ -26,7 +36,7 @@ from nzstats.research.table_parse import (
     unit_of_text,
 )
 
-INTERPRETER_VERSION = "tables-9"
+INTERPRETER_VERSION = "tables-10"
 
 _NOT_A_LEVEL = re.compile(
     r"%\s*of\s*gdp|per ?cent of gdp|share of gdp|\bto gdp\b|/\s*gdp", re.IGNORECASE
@@ -41,22 +51,13 @@ _INDICATORS: dict[str, re.Pattern[str]] = {
 _OTHER_FORECASTERS = (
     "treasury", "rbnz", "reserve bank", "imf", "oecd", "world bank", "consensus", "bloomberg", "reuters",
     "market pricing", "stats nz", "statistics new zealand",
+    "anz", "asb", "bnz", "westpac", "kiwibank",
 )  # fmt: skip
 _RATE_INDICATORS = frozenset({"ocr", "unemployment"})
 _SOURCE = re.compile(r"^sources?\s*[:\-]\s*(.*)$", re.IGNORECASE)
 _LABEL_FOOTNOTE = re.compile(r"[*†‡¹²³⁴⁵⁶⁷⁸⁹]")
 _UNIT_ANNUAL = re.compile(r"\by\s*/\s*y\b", re.IGNORECASE)
 _UNIT_QUARTERLY = re.compile(r"\bq\s*/\s*q\b", re.IGNORECASE)
-_POPULATION = re.compile(
-    r"\b(?:youth|young|teenagers?|children|men|women|male|female|māori|maori|"
-    r"pacific peoples?|aged|age group|ethnic(?:ity)?|migrants?|immigrants?)\b",
-    re.IGNORECASE,
-)
-_FOREIGN = re.compile(
-    r"\b(?:australia(?:n)?|china|chinese|united states|u\.?s\.?a\.?|american|"
-    r"united kingdom|britain|british|euro(?:zone| area)|japan(?:ese)?)\b",
-    re.IGNORECASE,
-)
 
 
 @dataclass(frozen=True)
@@ -89,13 +90,24 @@ def _names(text: str, names: Sequence[str]) -> bool:
     return any(re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text, re.IGNORECASE) for n in names if n)
 
 
-def _author_role(t: GridTable, publisher_names: Sequence[str]) -> Literal["author", "third_party"]:
+def _third_party(text: str, publisher_names: Sequence[str]) -> bool:
+    others = tuple(n for n in _OTHER_FORECASTERS if not _names(n, publisher_names))
+    # Stats NZ may supply actuals; a second forecaster is never made the
+    # publisher's merely by naming the publisher alongside it.
+    if _names(text, publisher_names):
+        others = tuple(n for n in others if n not in ("stats nz", "statistics new zealand"))
+    return _names(text, others)
+
+
+def _author_role(
+    t: GridTable, publisher_names: Sequence[str], document_title: str
+) -> Literal["author", "third_party"]:
     """The bank unless a source line or the caption points at someone else and does not name the bank."""
     for note in t.notes:
         if (m := _SOURCE.match(note.strip())) and not _names(m[1], publisher_names):
             return "third_party"
-    caption = t.caption or ""
-    if _names(caption, _OTHER_FORECASTERS) and not _names(caption, publisher_names):
+    caption = " ".join((document_title, t.caption or ""))
+    if _third_party(" ".join((caption, *unmarked_notes(t.notes))), publisher_names):
         return "third_party"
     return "author"
 
@@ -125,7 +137,7 @@ def _columns(t: GridTable, out: list[Rejection]) -> dict[int, tuple[Column, Peri
                 Rejection("actual_or_forecast_unstated", t.page_start, t.index, None, col.index)
             )
             continue
-        period, code = period_of(col.headers)
+        period, code = period_of((t.caption or "", *unmarked_notes(t.notes), *col.headers))
         if period is None:
             out.append(Rejection(code or "unparsed_period", t.page_start, t.index, None, col.index))
             continue
@@ -168,7 +180,7 @@ def _horizon(period: Period, label: str, indicator: str) -> tuple[str | None, st
 
 
 def interpret(
-    tables: Sequence[GridTable], *, publisher_names: Sequence[str]
+    tables: Sequence[GridTable], *, publisher_names: Sequence[str], document_title: str = ""
 ) -> tuple[tuple[TableForecast, ...], tuple[Rejection, ...]]:
     forecasts: list[TableForecast] = []
     rejections: list[Rejection] = []
@@ -185,7 +197,7 @@ def interpret(
             rejections.append(Rejection("unsupported_scope", t.page_start, t.index))
             continue
         columns = _columns(t, rejections)
-        role = _author_role(t, publisher_names)
+        role = _author_role(t, publisher_names, document_title)
         units = {c.index for c in t.columns if c.role == "unit"}
         for row in t.body_rows:
             label_cell = row[0]
@@ -210,23 +222,36 @@ def interpret(
             ):
                 rejections.append(Rejection("contradictory_period", *at))
                 continue
-            unit, code = unit_of_text(label_cell.text, t.caption or "", unit_text)
+            unit, code = unit_of_text(
+                label_cell.text, t.caption or "", unit_text, *unmarked_notes(t.notes)
+            )
             if unit is None:
                 rejections.append(Rejection(code or "unit_unstated", *at))
                 continue
             cells = {c.col: c for c in row[1:]}
             for index, (column, period, kind) in columns.items():
+                texts = (t.caption or "", *unmarked_notes(t.notes), *column.headers, unit_text)
+                if code := context_rejection(
+                    label_cell.text,
+                    texts,
+                    publisher_names=publisher_names,
+                    document_title=document_title,
+                    kind=kind,
+                ):
+                    rejections.append(Rejection(code, *at, index))
+                    continue
                 header_text = " ".join(column.headers)
                 if (_UNIT_ANNUAL.search(header_text) and (not annual or quarterly)) or (
                     _UNIT_QUARTERLY.search(header_text) and (not quarterly or annual)
                 ):
                     rejections.append(Rejection("contradictory_period", *at, index))
                     continue
-                if any(_ANNUAL_AVERAGE.search(h) for h in column.headers):
-                    rejections.append(Rejection("period_basis_unstated", *at, index))
-                    continue
                 column_unit, unit_code = unit_of_text(
-                    label_cell.text, t.caption or "", unit_text, *column.headers
+                    label_cell.text,
+                    t.caption or "",
+                    unit_text,
+                    *unmarked_notes(t.notes),
+                    *column.headers,
                 )
                 if column_unit is None:
                     rejections.append(Rejection(unit_code or "unit_unstated", *at, index))
@@ -236,6 +261,9 @@ def interpret(
                     rejections.append(Rejection(code or "unparsed_period", *at, index))
                     continue
                 cell = cells.get(index)
+                if cell and "%" in cell.text and column_unit != "percent":
+                    rejections.append(Rejection("contradictory_unit", *at, index))
+                    continue
                 parsed = parse_value(cell.text if cell else "")
                 if parsed.kind == "reject" or parsed.footnote:
                     code = parsed.code or "footnote_unresolved"
@@ -255,8 +283,14 @@ def interpret(
                         kind,
                         column_unit,
                         parsed,
-                        "third_party"
-                        if _names(" ".join(column.headers), _OTHER_FORECASTERS)
+                        unit_texts=[c.text for c in row[1:] if c.col in units],
+                        publisher_names=publisher_names,
+                        document_title=document_title,
+                        role="third_party"
+                        if _third_party(
+                            " ".join((label_cell.text, *unmarked_notes(t.notes), *column.headers)),
+                            publisher_names,
+                        )
                         else role,
                     )
                 )
@@ -275,6 +309,10 @@ def _forecast(
     unit,
     parsed,
     role,
+    *,
+    unit_texts: list[str],
+    publisher_names: Sequence[str],
+    document_title: str,
 ):
     page = cell.page if cell else label_cell.page
     bbox = [cell.x0, cell.x1, cell.y] if cell else None
@@ -306,5 +344,8 @@ def _forecast(
             "header_texts": list(column.headers),
             "caption": t.caption,
             "notes": list(t.notes),
+            "unit_texts": unit_texts,
+            "publisher_names": list(publisher_names),
+            "document_title": document_title,
         },
     )

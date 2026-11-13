@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from nzstats.research.table_context import SCENARIO as _SCENARIO
 from nzstats.research.table_words import Word
 
 _MINUS = "−–"
@@ -30,10 +31,6 @@ _VALUE = re.compile(
 _UNIT = re.compile(r"^(?:%|ppt?s?|bps|% ?pa|% ?y/y|% ?q/q|index)$", re.IGNORECASE)
 _NOTE = re.compile(r"^(?:sources?\b|notes?\b|[*†‡¹²³⁴⁵⁶⁷⁸⁹]|\(\d\))", re.IGNORECASE)
 _CAPTION = re.compile(r"^(?:table|figure|chart|exhibit)\b", re.IGNORECASE)
-_SCENARIO = re.compile(
-    r"\b(?:scenarios?|downside|upside|alternative|stress(?:ed)?|sensitivity|illustrative|what[- ]if|risk case)\b",
-    re.IGNORECASE,
-)
 _SCENARIO_HEADING = re.compile(
     r"^(?:scenarios?|downside|upside|alternative|stress(?:ed)?|sensitivity|illustrative|what[- ]if|risk case)\b",
     re.IGNORECASE,
@@ -188,6 +185,7 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
         # have no figure in its first column.)
         edge = max(row[0].x1 for row in body)
         header: list[list[_Chunk]] = []
+        header_context: list[str] = []
         j = i - 1
         while (
             j >= 0
@@ -198,25 +196,43 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
             and any(c.x0 >= edge for c in lines[j])
         ):
             header.insert(0, [c for c in lines[j] if c.x0 >= edge])
+            left = " ".join(c.text for c in lines[j] if c.x0 < edge)
+            if left:
+                header_context.insert(0, left)
             j -= 1
         caption = None
-        if (
+        captions: list[str] = []
+        while (
             j >= 0
             and lines[j][0].page == page
-            and _caption(lines[j][0].text)
+            and not _is_body(lines[j])
             and _gap(lines[j], lines[j + 1]) <= 5 * lines[j][0].size
         ):
-            caption = " ".join(c.text for c in lines[j])
+            captions.insert(0, " ".join(c.text for c in lines[j]))
+            j -= 1
+        caption = " ".join((*captions, *header_context)) or None
         notes: list[str] = []
         k = end + 1
         while (
             k < len(lines)
             and lines[k][0].page == page
             and not _is_body(lines[k])
-            and _NOTE.match(lines[k][0].text)
+            and (
+                _NOTE.match(lines[k][0].text)
+                or (
+                    notes
+                    and len(lines[k]) == 1
+                    and lines[k][0].x0 < edge
+                    and not _CAPTION.match(lines[k][0].text)
+                )
+            )
             and _gap(lines[k - 1], lines[k]) <= 3 * lines[k][0].size
         ):
-            notes.append(" ".join(c.text for c in lines[k]))
+            note = " ".join(c.text for c in lines[k])
+            if _NOTE.match(lines[k][0].text):
+                notes.append(note)
+            else:
+                notes[-1] += " " + note
             k += 1
         out.append(_Candidate(page, caption, header, body, notes))
         i = k
@@ -302,10 +318,18 @@ def _same_columns(a: tuple[Column, ...], b: tuple[Column, ...], tol: float) -> b
     )
 
 
-def _may_continue(cand: _Candidate) -> bool:
+def _may_continue(cand: _Candidate, previous: str | None) -> bool:
     """A captioned block starts a new table unless its caption says it continues the last one."""
-    return cand.caption is None or bool(
-        _CONTINUED.search(cand.caption) and not _SCENARIO.search(cand.caption)
+    if cand.caption is None:
+        return True
+    reference = re.match(r"^(table|figure|chart|exhibit)\s+(\d+)\b", cand.caption, re.IGNORECASE)
+    prior = re.search(r"\b(table|figure|chart|exhibit)\s+(\d+)\b", previous or "", re.IGNORECASE)
+    return bool(reference and prior and reference.groups() == prior.groups()) and bool(
+        re.fullmatch(
+            r"(?:table|figure|chart|exhibit)\s+\d+\s*\(?cont(?:inued|'d|\.)\)?[.]?",
+            cand.caption,
+            re.IGNORECASE,
+        )
     )
 
 
@@ -327,11 +351,15 @@ def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rej
                 current is not None
                 and not current.closed
                 and cand.page == current.page_end + 1
-                and _may_continue(cand)
+                and _may_continue(cand, current.caption)
                 and _same_columns(current.columns, columns, tol)
             ):
                 target = current
-            elif cand.caption and _CONTINUED.search(cand.caption) and _may_continue(cand):
+            elif (
+                cand.caption
+                and _CONTINUED.search(cand.caption)
+                and not _SCENARIO.search(cand.caption)
+            ):
                 rejections.append(Rejection("unjoined_continuation", cand.page, count))
                 count += 1
                 current = None
@@ -344,7 +372,7 @@ def find_tables(words: Sequence[Word]) -> tuple[tuple[GridTable, ...], tuple[Rej
             current is not None
             and not current.closed
             and cand.page == current.page_end + 1
-            and _may_continue(cand)
+            and _may_continue(cand, current.caption)
         ):
             target = current
         else:
