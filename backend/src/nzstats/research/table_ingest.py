@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import sqlite3
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -42,6 +43,8 @@ class TableIngestResult:
     reason: str | None = None
     forecasts: int = 0
     rejections: int = 0
+    # How many rejections of each fixed code, sorted by code: content-free, so a dry run can say why tables gave nothing.
+    rejection_codes: tuple[tuple[str, int], ...] = ()
 
 
 def _refused(reason: str) -> TableIngestResult:
@@ -104,8 +107,9 @@ def extract_version_tables(
     title = row["title"] if row["title"] != fallback else ""
     forecasts, rejections = interpret(tables, publisher_names=names, document_title=title)
     rejections = (*grid_rejections, *rejections)
+    codes = tuple(sorted(Counter(r.code for r in rejections).items()))
     if dry_run:
-        return TableIngestResult("dry_run", None, len(forecasts), len(rejections))
+        return TableIngestResult("dry_run", None, len(forecasts), len(rejections), codes)
     try:
         stored = store_extraction(
             conn, version_id, now, forecasts, rejections, words_sha256=words_sha256(words)
@@ -115,4 +119,4 @@ def extract_version_tables(
         log.warning("table figures for version %s were refused by the store", version_id)
         return _refused("purged")
     status = "stored" if stored is not None else "unchanged"
-    return TableIngestResult(status, None, len(forecasts), len(rejections))
+    return TableIngestResult(status, None, len(forecasts), len(rejections), codes)

@@ -916,8 +916,10 @@ _SUFFIXES = {".html": "html", ".htm": "html", ".pdf": "pdf"}
 
 def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
     """`tables extract` reads one stored PDF; `tables show` lists stored figures and codes. Never prints cell or label text."""
+    from nzstats.research.table_forecast import INTERPRETER_VERSION
     from nzstats.research.table_ingest import extract_version_tables, version_refusal
     from nzstats.research.table_store import load_forecasts, load_rejections
+    from nzstats.research.table_words import EXTRACTOR_VERSION
 
     conn = _open(settings)
     try:
@@ -936,6 +938,9 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
             _emit(
                 f"version {args.version}: {result.status}, {result.forecasts} figures, {result.rejections} rejections"
             )
+            for code, count in result.rejection_codes:
+                _emit(f"  rejected {code} x{count}")
+            _emit(f"Reader {EXTRACTOR_VERSION}, interpreter {INTERPRETER_VERSION}.")
             _emit("Read locally from the stored copy. Nothing was requested; no model was used.")
             return 0
         row = conn.execute(

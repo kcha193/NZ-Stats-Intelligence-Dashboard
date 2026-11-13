@@ -268,3 +268,22 @@ def test_a_purge_that_lands_during_the_parse_is_refused_cleanly_and_stores_nothi
         ("refused", "raw copy unavailable"),
     }
     assert conn.execute("SELECT COUNT(*) FROM research_table_forecast").fetchone()[0] == 0
+
+
+def test_a_dry_run_reports_the_rejection_codes_as_counts_and_nothing_else(conn, artifacts):
+    body = table_pdf(
+        [page(line(686, "Current account balance (% of GDP)", ["-6", "-5", "-4", "-3"]))]
+    )
+    registry, v = imported(conn, artifacts, body)
+    result = extract_version_tables(conn, v, artifacts, registry, NOW, dry_run=True, isolate=False)
+    assert result.status == "dry_run" and result.rejection_codes == (("unmapped_row", 1),)
+    assert conn.execute("SELECT COUNT(*) FROM research_table_extraction").fetchone()[0] == 0
+
+
+def test_the_dry_run_command_prints_the_tally_the_reader_and_the_interpreter(cli, capsys):
+    assert main(["research", "import", "banky", str(cli), "--url", "https://banky.example.org/o.pdf",
+                 "--importer", "Owner", "--note", "n"]) == 0  # fmt: skip
+    assert main(["research", "tables", "extract", "1", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "pdf-words-2" in out and "tables-11" in out
+    assert SENTINEL not in out and "Annual CPI" not in out

@@ -163,3 +163,37 @@ def test_headers_made_of_a_month_and_a_year_do_not_run_into_the_next_header():
 
 def test_a_month_and_a_year_drawn_apart_still_form_one_header():
     assert texts(words_of(row(700, [(150, "Dec"), (150 + 17.8 + 3, "2026")]))) == ["Dec 2026"]
+
+
+GOOD = raw_pdf([row(700, [(72, "OCR"), (252, "3.25")])])
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        GOOD[: len(GOOD) // 2],
+        b"%PDF-1.4\n" + b"\x00\xff" * 500,
+        b"%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n",
+    ],
+)
+def test_damaged_or_hostile_bytes_are_a_refusal_not_a_crash(body):
+    for isolate in (False, True):
+        with pytest.raises(IngestError):
+            extract_words(body, LIMITS, isolate=isolate)
+
+
+def test_a_child_that_overruns_its_time_is_stopped():
+    with pytest.raises(IngestError):
+        extract_words(GOOD, LIMITS, isolate=True, timeout=0.001)
+
+
+def test_a_pdf_with_more_pages_than_the_limit_is_refused():
+    pdf = raw_pdf([row(700, [(72, "x")])] * 3)
+    with pytest.raises(IngestError, match="too many pages"):
+        extract_words(pdf, ExtractionLimits(max_pages=2), isolate=False)
+
+
+def test_the_character_limit_is_enforced(monkeypatch):
+    monkeypatch.setattr(table_words, "_MAX_CHARS", 5)
+    with pytest.raises(IngestError, match="pdf_extraction_limit"):
+        words_of(row(700, [(72, "OCR"), (252, "3.25")]))
