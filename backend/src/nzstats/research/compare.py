@@ -76,7 +76,7 @@ _END_OF = re.compile(rf"^(?:(?:by|at) )?(?:the )?end(?:-| of ){_YEAR}$")
 _SPLIT = re.compile(rf"^{_YEAR} ?/ ?(\d{{2}}|\d{{4}})$")
 
 _QUARTERLY = re.compile(r"\bquarterly\b|\bq/q\b|\bqoq\b|quarter[- ]on[- ]quarter", re.IGNORECASE)
-_ANNUAL_AVERAGE = re.compile(r"\bannual\s+average\b|\baapc\b", re.IGNORECASE)
+_ANNUAL_AVERAGE = re.compile(r"\bannual[\s-]+average\b|\baapc\b", re.IGNORECASE)
 _THROUGH_YEAR = re.compile(
     r"through\s+the\s+year|year[- ]on[- ]year|\by/y\b|\byoy\b"
     r"|\bannual\s+(?:%|percent(?:age)?|per\s+cent)\s+change",
@@ -291,6 +291,9 @@ def basis_of(indicator: str, label: str, horizon: str, unit: str | None) -> str 
             return None
         if found:
             return found[0] + suffix
+        # Any other "average" (average annual, an average of quarters) is not the through-the-year rate.
+        if _AVERAGE.search(label):
+            return None
         if _ANNUAL.search(text) or key.startswith("year_to:"):
             return "annual_change" + suffix
         return None

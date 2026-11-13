@@ -26,7 +26,11 @@ _UNADJUSTED = re.compile(
     r"\bnon[- ]?seasonally[- ]adjusted\b|\bun-?adjusted\b|\bnsa\b|\bactual (?:values|series)\b",
     re.IGNORECASE,
 )
-_ADJUSTED = re.compile(r"\bseasonally[- ]adjusted\b|\bs\.a\.?(?=\W|$)|\bsa\b", re.IGNORECASE)
+# "S.A." counts only when it is not the tail of a longer abbreviation ("U.S.A."), and a bare "SA" (a place as often as
+# an adjustment) counts only in brackets: silence is `not_stated`, never a guess.
+_ADJUSTED = re.compile(
+    r"\bseasonally[- ]adjusted\b|(?<![\w.])s\.a\.?(?=\W|$)|\(sa\)", re.IGNORECASE
+)
 
 
 def _stated(text: str) -> set[Adjustment]:
@@ -123,7 +127,7 @@ class NormalizedForecast(BaseModel):
     adjustment: Adjustment
     # The label and evidence state the adjustment both ways: `not_stated` here is a contradiction, not silence.
     adjustment_conflict: bool = False
-    extraction_method: Literal["llm_verified"] = "llm_verified"
+    extraction_method: Literal["llm_verified", "table"] = "llm_verified"
     verifier_version: str
     raw_value: float | None
     conversions: tuple[str, ...] = ()

@@ -17,7 +17,7 @@ export function BankDivergence({ items, indicator }: { items: Divergence[]; indi
           <p className="font-medium">
             {d.indicator_name}, {d.horizon_label}: {d.basis_label}, {ADJUSTMENT_LABELS[d.adjustment] ?? "adjustment not stated"}
           </p>
-          <p className="text-sm text-muted-foreground">Spread {points(d, d.spread)}; median {+d.median.toFixed(2)}{d.unit_label === "%" ? "%" : ` ${d.unit_label}`}.</p>
+          <p className="text-sm text-muted-foreground">Spread {points(d, d.spread)}; median {+d.median.toFixed(2)}{d.unit_label === "%" ? "%" : ` ${d.unit_label}`}. Banks are listed from the highest forecast to the lowest.</p>
           <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
             {d.banks.map((b) => (
               <li key={b.key}>{b.name} <span className="tabular-nums">{signed(b.distance_from_median)}</span> from the median</li>

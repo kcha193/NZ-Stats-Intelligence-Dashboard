@@ -77,6 +77,14 @@ VIEW_REASONS = {
     "claim_has_warning": "The claim raised an automated warning.",
     "third_party_issuer": "The forecast is attributed to another organisation, not to this bank.",
     "no_value": "The claim states a direction but no number.",
+    "table_third_party": "The table attributes the figure to another organisation, not to this bank.",
+    "reconciliation_rounding": (
+        "The table figure differs from the bank's checked claim only by rounding; the claim is used."
+    ),
+    "table_unresolved_reconciliation": (
+        "The table figure and the bank's checked claim differ in unit, horizon or attribution, or cannot be"
+        " matched one-to-one; neither is guessed."
+    ),
 }
 
 
@@ -95,6 +103,8 @@ class BankForecastOut(_Out):
     forecast_author: str | None
     verifier_version: str
     document_version_id: int
+    # How the figure was read: a checked model claim, or read directly from a table in the PDF (Phase 4AF).
+    extraction_method: Literal["llm_verified", "table"] = "llm_verified"
 
 
 class BankComparisonOut(_Out):
@@ -108,6 +118,8 @@ class BankForecastsOut(_Out):
     forecasts: list[BankForecastOut]
     comparison: list[BankComparisonOut]
     excluded: list[BankExclusionOut]
+    # How table-read figures compare with the checked claims, by fixed class (counts only). Agreement is not proof.
+    table_reconciliation: dict[str, int] = {}
 
 
 class BankHistoryOut(_Out):

@@ -19,11 +19,22 @@ function Card({ card }: { card: BankCard }) {
         </p>
       )}
       {card.stance ? (
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{card.stance.label}</p>
-          <p className="max-w-[60ch] text-sm leading-relaxed">{card.stance.text}</p>
-          <p className="text-xs text-muted-foreground">{CLAIM_LABELS[card.stance.claim_status]}</p>
-        </div>
+        card.stance.claim_status === "failed" ? (
+          // A reading that failed its checks is not shown as the bank's view: it stays collapsed behind its label.
+          <details className="space-y-1">
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              {CLAIM_LABELS.failed}: the AI reading is withheld (show it)
+            </summary>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{card.stance.label}</p>
+            <p className="max-w-[60ch] text-sm leading-relaxed">{card.stance.text}</p>
+          </details>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{card.stance.label}</p>
+            <p className="max-w-[60ch] text-sm leading-relaxed">{card.stance.text}</p>
+            <p className="text-xs text-muted-foreground">{CLAIM_LABELS[card.stance.claim_status]}</p>
+          </div>
+        )
       ) : (
         STATE_SENTENCES[card.state] && <p className="text-sm text-muted-foreground">{STATE_SENTENCES[card.state]}</p>
       )}

@@ -311,6 +311,10 @@ def _delete_content(conn, version_ids: Sequence[int]) -> None:
     conn.execute(f"DELETE FROM research_forecast_claim WHERE summary_id IN"
                  f" (SELECT id FROM research_summary WHERE version_id IN ({marks}))", tuple(version_ids))  # fmt: skip
     conn.execute(f"DELETE FROM research_section WHERE version_id IN ({marks})", tuple(version_ids))
+    # Figures read from PDF tables (Phase 4AF) are the source's content too; the extraction row stays as a tombstone.
+    for table in ("research_table_forecast", "research_table_rejection"):
+        conn.execute(f"DELETE FROM {table} WHERE extraction_id IN"
+                     f" (SELECT id FROM research_table_extraction WHERE version_id IN ({marks}))", tuple(version_ids))  # fmt: skip
 
 
 def pending_artifacts(conn: sqlite3.Connection) -> list[sqlite3.Row]:

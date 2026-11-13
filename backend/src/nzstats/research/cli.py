@@ -23,7 +23,7 @@ from nzstats.config import Settings
 from nzstats.research import policy as pol
 from nzstats.research import purge
 from nzstats.research import summary_store as ss
-from nzstats.research.bank_status import bank_metrics, bank_status, bank_status_exit
+from nzstats.research.bank_status import bank_metrics, bank_status, bank_status_exit, render_text
 from nzstats.research.contract import OutlookSummary, Provider
 from nzstats.research.cpi_reconcile import reconcile
 from nzstats.research.drafts import (
@@ -136,6 +136,19 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         "bank-status", help="read-only source state of each bank by report series (Phase 4AE)"
     )
     p_bank.add_argument("--json", action="store_true", help="machine-readable output")
+    p_tables = rsub.add_parser(
+        "tables",
+        help="figures read deterministically from a stored PDF's forecast tables (Phase 4AF; local, no request)",
+    )
+    tsub = p_tables.add_subparsers(dest="tables_command", required=True)
+    p_text = tsub.add_parser("extract", help="read the tables of one stored PDF version")
+    p_text.add_argument("version", type=_positive_int)
+    p_text.add_argument(
+        "--dry-run", action="store_true", help="count what would be stored; write nothing"
+    )
+    p_tshow = tsub.add_parser("show", help="stored figures and rejection codes (no document text)")
+    p_tshow.add_argument("version", type=_positive_int)
+    p_tshow.add_argument("--json", action="store_true", help="machine-readable output")
     rsub.add_parser(
         "cpi-vintages", help="which CPI quarters have a genuine first-published vintage stored (3E)"
     )
@@ -874,14 +887,8 @@ def _bank_status(
         payload = {"banks": [asdict(s) for s in statuses], "exit_code": code}
         print(json.dumps(payload, indent=2, sort_keys=True))
         return code
-    _emit("Bank sources. Read-only: nothing was requested or changed. Dates are UTC as stored.")
-    _emit(f"{'bank':<10} {'state':<18} series")
-    for s in statuses:
-        _emit(f"{s.key:<10} {s.state:<18}")
-        for x in s.series:
-            _emit(f"  {x.series_key:<30} {x.state:<18} published {x.newest_published_on or '-':<11}"
-                  f" ingested {x.ingested_at or '-':<21} analysed {x.analysed_at or '-':<21}"
-                  f" checked {x.last_checked_at or '-'}")  # fmt: skip
+    for line in render_text(statuses):
+        _emit(line)
     return code
 
 
@@ -905,6 +912,67 @@ def _cpi_vintages(
 
 
 _SUFFIXES = {".html": "html", ".htm": "html", ".pdf": "pdf"}
+
+
+def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
+    """`tables extract` reads one stored PDF; `tables show` lists stored figures and codes. Never prints cell or label text."""
+    from nzstats.research.table_ingest import extract_version_tables, version_refusal
+    from nzstats.research.table_store import load_forecasts, load_rejections
+
+    conn = _open(settings)
+    try:
+        if args.tables_command == "extract":
+            result = extract_version_tables(
+                conn,
+                args.version,
+                ArtifactStore(settings.raw_dir),
+                registry,
+                utc_now(),
+                dry_run=args.dry_run,
+            )
+            if result.status == "refused":
+                _emit(f"version {args.version}: refused ({result.reason})")
+                return 1
+            _emit(
+                f"version {args.version}: {result.status}, {result.forecasts} figures, {result.rejections} rejections"
+            )
+            _emit("Read locally from the stored copy. Nothing was requested; no model was used.")
+            return 0
+        row = conn.execute(
+            "SELECT v.purged_at, v.acquisition, i.key FROM research_document_version v"
+            " JOIN research_publication p ON p.id = v.publication_id"
+            " JOIN research_institution i ON i.id = p.institution_id WHERE v.id = ?",
+            (args.version,),
+        ).fetchone()
+        reason, _ = version_refusal(row, registry)
+        if reason:
+            _emit(f"version {args.version}: refused ({reason})")
+            return 1
+        forecasts = [
+            {"indicator": f.indicator, "horizon": f.horizon, "kind": f.kind, "unit": f.unit,
+             "value": None if f.value is None else str(f.value), "missing": f.missing,
+             "author_role": f.author_role, "page": f.page, "table": f.table, "row": f.row, "col": f.col}
+            for f in load_forecasts(conn, args.version)
+        ]  # fmt: skip
+        rejections = [asdict(r) for r in load_rejections(conn, args.version)]
+        if args.json:
+            print(
+                json.dumps(
+                    {"version": args.version, "forecasts": forecasts, "rejections": rejections},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        _emit(f"version {args.version}: {len(forecasts)} figures, {len(rejections)} rejections")
+        for f in forecasts:
+            _emit(f"  p{f['page']} t{f['table']} r{f['row']} c{f['col']} {f['indicator']:<14} {f['kind']:<8}"
+                  f" {f['horizon']:<26} {f['value'] if f['value'] is not None else 'missing'} {f['unit']}")  # fmt: skip
+        for r in rejections:
+            _emit(f"  rejected {r['code']} p{r['page']} t{r['table']} r{r['row']} c{r['col']}")
+        return 0
+    finally:
+        conn.close()
 
 
 def _import(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
@@ -1056,7 +1124,7 @@ def _policy_command(name: str):
 
 _SUMMARY_COMMANDS = {"run-policy": _policy_command("run_policy"), "policy-init": _policy_command("policy_init"),
                      "policy-audit": _policy_command("policy_audit"), "policy-revoke": _policy_command("policy_revoke"),
-                     "cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "bank-status": _bank_status, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
+                     "cpi-reconcile": _cpi_reconcile, "purge": _purge, "orphans": _orphans, "summarise": _summarise, "import": _import, "health": _health, "bank-status": _bank_status, "tables": _tables, "cpi-vintages": _cpi_vintages, "summaries": _list, "summary": _show,
                      "approve": _review, "reject": _review, "publish": _publication,
                      "withdraw": _publication, "readiness": _readiness,
                      "quality": _quality, "evaluate": _evaluate, "check-gold": _check_gold, "gold-worksheet": _gold_worksheet, "owner-review-package": _owner_review_package, "score-gold": _score_gold, "diagnose": _diagnose}  # fmt: skip

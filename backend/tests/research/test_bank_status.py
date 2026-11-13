@@ -95,6 +95,40 @@ def test_permission_outranks_everything(conn):
     )
 
 
+def test_a_series_whose_reports_have_no_dates_is_undated_not_ok(conn):
+    seed(conn, "research/outlook/q4", None)
+    seed(conn, "research/weekly/w45", "2026-11-05")
+    got = bank_status(conn, only("bank_a"), NOW, SYNTH_ADAPTERS)
+    assert states(got) == ("undated", {"outlook": "undated", "weekly": "ok"})
+    assert bank_status_exit(got) == 1
+
+
+def test_one_dated_report_is_enough_to_judge_freshness(conn):
+    seed(conn, "research/outlook/q3", None)
+    seed(conn, "research/outlook/q4", "2026-10-01")
+    got = bank_status(conn, only("bank_a"), NOW, SYNTH_ADAPTERS)
+    assert states(got)[1]["outlook"] == "ok"
+
+
+def test_the_text_report_shows_pacific_auckland_times_and_the_json_keeps_utc(conn):
+    from nzstats.research.bank_status import render_text
+
+    seed(conn, "research/outlook/q4", "2026-10-01")
+    inst_id = conn.execute("SELECT id FROM research_institution WHERE key='bank_a'").fetchone()[0]
+    store.set_health(
+        conn, inst_id, state="ok", now=NOW - timedelta(hours=3), success=True, detail=None
+    )
+    got = bank_status(conn, only("bank_a"), NOW, SYNTH_ADAPTERS)
+    text = "\n".join(render_text(got))
+    assert (
+        "2026-11-10T11:00:00+13:00" in text
+    )  # 22:00 UTC on the 9th is 11:00 on the 10th in Auckland (NZDT)
+    assert "UTC as stored" not in text and "Pacific/Auckland" in text
+    assert (
+        asdict(got[0].series[0])["last_checked_at"] == "2026-11-09T22:00:00Z"
+    )  # machine output stays UTC
+
+
 def test_the_four_dates_are_separate(conn):
     v = seed(conn, "research/outlook/q4", "2026-10-01")
     inst_id = conn.execute("SELECT id FROM research_institution WHERE key='bank_a'").fetchone()[0]
@@ -199,3 +233,12 @@ def test_cli_bank_status_does_not_create_or_migrate_a_database(tmp_path, monkeyp
     assert main(["research", "bank-status"]) == 3
     assert not (tmp_path / "data" / "nzstats.db").exists()
     assert "no database" in capsys.readouterr().out.lower()
+
+
+def test_an_undated_series_counts_as_missing_expected(conn):
+    seed(conn, "research/outlook/q4", None)
+    seed(conn, "research/weekly/w45", "2026-11-05")
+    m = bank_metrics(
+        conn, only("bank_a"), NOW - timedelta(days=30), now=NOW, adapters=SYNTH_ADAPTERS
+    )["bank_a"]
+    assert m.missing_expected == 1  # the outlook series is held but cannot be judged current

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from nzstats.research.api_models import EvidenceOut, ForecastOut, InstitutionOut
@@ -29,11 +29,13 @@ from nzstats.research.banks import ADAPTERS, BankAdapter, report_kind_of
 from nzstats.research.contract import ForecastClaim, IssuerRole
 from nzstats.research.drafts import DraftAllowlist, DraftSummary, draft_summaries
 from nzstats.research.registry import Institution
+from nzstats.research.table_reconcile import Reconciliation
 from nzstats.research.verify import resolve_verifier
 
 ExclusionCode = Literal[
-    "claim_failed_checks", "claim_has_warning", "third_party_issuer", "no_value"
-]
+    "claim_failed_checks", "claim_has_warning", "third_party_issuer", "no_value",
+    "table_third_party", "reconciliation_rounding", "table_unresolved_reconciliation",
+]  # fmt: skip
 _MARKER_KINDS = ("central_bank", "government")
 
 
@@ -54,6 +56,8 @@ class BankView:
     excluded: list[ExcludedClaim]
     markers: list[NormalizedForecast]
     banks: list[Institution]
+    # How table-derived figures compare with the checked claims (Phase 4AF); informational, never an input to analytics.
+    reconciliation: list[Reconciliation] = field(default_factory=list)
 
 
 def _forecast_out(d: DraftSummary, claim: ForecastClaim, label: str) -> ForecastOut:
@@ -145,5 +149,15 @@ def bank_view(
                     else None
                 )
                 excluded.append(ExcludedClaim(d.institution.key, d.id, path, code, own))
+    # Figures read from PDF tables (Phase 4AF) join the same lists, so every later rule applies to them unchanged.
+    from nzstats.research.table_view import (
+        table_forecasts,  # here: table_view imports ExcludedClaim from this module
+    )
+
+    tables, table_excluded, reconciliation = table_forecasts(
+        conn, registry, forecasts, allowlist, adapters
+    )
+    forecasts += tables
+    excluded += table_excluded
     banks = sorted((i for i in registry.values() if i.kind == "bank"), key=lambda i: i.key)
-    return BankView(forecasts, excluded, markers, banks)
+    return BankView(forecasts, excluded, markers, banks, reconciliation)

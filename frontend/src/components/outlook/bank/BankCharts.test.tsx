@@ -76,6 +76,11 @@ describe("BankDivergence", () => {
     expect(items[0]).toHaveTextContent(/Example Bank C.*\+0\.3/);
   });
 
+  it("says banks are listed from the highest forecast to the lowest", () => {
+    renderWithProviders(<BankDivergence items={[CONSENSUS.divergence[0]]} indicator="cpi_inflation" />);
+    expect(screen.getByText(/listed from the highest forecast to the lowest/i)).toBeInTheDocument();
+  });
+
   it("names the measure and the adjustment of each entry, so entries for one target can be told apart", () => {
     const base = CONSENSUS.divergence[0];
     const entries = [

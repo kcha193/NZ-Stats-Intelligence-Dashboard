@@ -698,3 +698,13 @@ Stop (or downgrade) every process that runs the new code first: starting it agai
 the empty tables. The script drops the tables but not the `raw_artifact` rows or the files under `data/raw`; those hold
 third-party document bytes, so delete them too if the source's terms no longer allow storing them. Changing a source to
 `restricted` or `metadata_only` likewise does not remove what was already stored.
+
+
+## Bank table extraction (Phase 4AF)
+
+Figures can also be read deterministically from the numeric forecast tables of a stored text-layer PDF, locally and with no
+model or request (`nzstats research tables extract`). They need only what holding and showing the document needs
+(`manual_import` or the approved crawler route, and `content_policy = full_text`), so every bank is refused today. Rows are in
+migration 015's tables, reconcile against checked model claims by fixed classes, and join the bank analytics through
+`research/table_view.py`. See [phase-4af-pdf-tables.md](../phase-4af-pdf-tables.md) and
+[phase-4af-source-readiness.md](../phase-4af-source-readiness.md). No permission field was changed.

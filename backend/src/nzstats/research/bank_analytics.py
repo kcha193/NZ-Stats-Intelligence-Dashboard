@@ -142,7 +142,7 @@ def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool) -> _Prepar
     for (_, _, key), members in by_identity.items():
         must_agree: dict[tuple, list[NormalizedForecast]] = defaultdict(list)
         for m in members:
-            must_agree[("document", m.forecast.summary_id)].append(m)
+            must_agree[("document", m.document_version_id)].append(m)
             if m.forecast.published_on:
                 must_agree[("day", m.forecast.published_on)].append(m)
         for claims in must_agree.values():
@@ -274,6 +274,7 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
                 unit_label=g.unit_label,
                 spread=g.range,
                 median=g.median,
+                # Ranked: highest forecast first, so the reader sees who is above and who is below the median.
                 banks=[
                     DivergenceBankOut(
                         key=b.key,
@@ -281,7 +282,7 @@ def bank_divergence(c: BankConsensusOut) -> list[DivergenceOut]:
                         value=b.value,
                         distance_from_median=round(b.value - g.median, 6),
                     )
-                    for b in g.contributors
+                    for b in sorted(g.contributors, key=lambda b: (-b.value, b.key))
                 ],
             )
         )

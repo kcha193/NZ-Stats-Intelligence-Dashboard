@@ -3,6 +3,11 @@
 -- hashes, redacted summaries keep their placeholders, and nothing can re-publish them because their text no longer
 -- exists. Run with: sqlite3 data/nzstats.db < scripts/rollback/010_research_purge_down.sql
 BEGIN IMMEDIATE;
+-- Migration 015's triggers read purged_at, so its objects go first (15 is recorded as not applied).
+DROP TABLE IF EXISTS research_table_rejection;
+DROP TABLE IF EXISTS research_table_forecast;
+DROP TABLE IF EXISTS research_table_extraction;
+DELETE FROM schema_version WHERE version = 15;
 DROP TRIGGER research_claim_not_purged;
 DROP TRIGGER research_summary_not_purged;
 DROP TRIGGER research_publication_not_purged;
