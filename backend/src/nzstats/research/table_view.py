@@ -266,9 +266,14 @@ def document_states(
         if report_kind_of(inst.key, row["canonical_url"], row["title"], adapters) != "outlook":
             continue
         vid = int(row["version_id"])
-        tables = _table_state(conn, vid)
         state: DocumentStateName
-        if not _shown(row, inst) or tables == "stale":
+        if not _shown(
+            row, inst
+        ):  # checked first: an unshown report's tables are not read on every request
+            out.append(DocumentState(inst.key, vid, row["published_on"], "not_read"))
+            continue
+        tables = _table_state(conn, vid)
+        if tables == "stale":
             state = "not_read"
         elif tables == "incomplete":
             state = "incomplete"

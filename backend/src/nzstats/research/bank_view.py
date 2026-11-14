@@ -30,10 +30,10 @@ from nzstats.research.contract import ForecastClaim, IssuerRole
 from nzstats.research.drafts import DraftAllowlist, DraftSummary, draft_summaries
 from nzstats.research.registry import Institution
 from nzstats.research.table_reconcile import Reconciliation
+from nzstats.research.verify import resolve_verifier
 
 if TYPE_CHECKING:
     from nzstats.research.table_view import DocumentState
-from nzstats.research.verify import resolve_verifier
 
 ExclusionCode = Literal[
     "claim_failed_checks", "claim_has_warning", "third_party_issuer", "no_value",

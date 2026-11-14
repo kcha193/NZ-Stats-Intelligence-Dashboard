@@ -90,6 +90,23 @@ def test_table_figures_need_the_gate_to_be_on(app):
     assert client(enabled=False).get(f"{BASE}/forecasts", headers=LOCAL).status_code == 404
 
 
+def test_the_revisions_route_keeps_a_vintage_the_current_views_leave_out(app):
+    from .llm_support import seed_version
+
+    client, conn = app
+    # bank_b's report of 1 October has an admitted summary; a newer one of 1 November is held and not read.
+    seed_version(conn, key="bank_b", doc="research/outlook/q5", published_on="2026-11-01")
+    newer = {"newer_report_incomplete", "newer_report_not_read"}
+    current = {
+        (e["institution_key"], e["code"]) for e in get(client(), "forecasts").json()["excluded"]
+    }
+    assert ("bank_b", "newer_report_not_read") in current
+    body = get(client(), "revisions").json()
+    assert not {e["code"] for e in body["excluded"]} & newer
+    banks = {s["institution"]["key"] for h in body["histories"] for s in h["history"]["series"]}
+    assert "bank_b" in banks
+
+
 def test_forecasts_report_latest_published_and_latest_accepted(app):
     from nzstats.research.table_grid import Rejection
 

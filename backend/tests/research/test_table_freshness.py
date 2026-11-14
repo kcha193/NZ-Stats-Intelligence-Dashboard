@@ -16,9 +16,16 @@ from nzstats.research.manual_import import import_document
 from nzstats.research.table_ingest import extract_version_tables
 from nzstats.sources.artifacts import ArtifactStore
 
+from .bank_support import nf
 from .conftest import NOW
 from .pdf_table_support import table_pdf
 from .support import BASE, institution
+from .test_bank_evaluation_adjustment import (  # noqa: F401 (cpi_conn is a fixture)
+    QUARTERLY,
+    cpi,
+    cpi_conn,
+    matched,
+)
 from .test_drafts_auto import auto
 from .test_table_forecast import line, page
 from .test_table_grid import COLS
@@ -468,3 +475,89 @@ def test_latest_accepted_ignores_figures_the_analysis_refuses(conn, artifacts):
     )  # the newest report contradicts itself on every figure
     assert ("2026-11-01", "read") in states(conn)
     assert vintages(view(conn)) == [("example", "2026-11-01", "2026-08-01", "read", False)]
+
+
+# --- review cycle 2: pins the first test set left unguarded (each was shown to fail under a mutation of the rule) ---
+
+
+def test_a_refused_foreign_table_still_makes_the_report_incomplete(conn, artifacts):
+    """Deliberate, fail-closed: a table's geography is decided from its caption text, which can be wrong about a mixed
+    table, so a whole table refused for geography or scope still counts as unread cells (see the Phase 4AH record)."""
+    nz = page([*line(686, "OCR (%)", ["4.25", "3.75", "3.25", "3.00"]),
+               *line(672, "Annual CPI inflation (%)", ["4", "3", "2.4", "2.1"])], extra=[SOURCE])  # fmt: skip
+    au = page(line(686, "Unemployment rate (%)", ["4", "3", "2", "2"]),
+              extra=[SOURCE, (72, 745, "Table 2: Australian forecasts (%)")])  # fmt: skip
+    vid = held(conn, artifacts, table_pdf([nz, au]))
+    codes = {r["code"] for r in conn.execute(
+        "SELECT r.code FROM research_table_rejection r JOIN research_table_extraction e ON e.id = r.extraction_id"
+        " WHERE e.version_id = ?", (vid,))}  # fmt: skip
+    assert codes == {"unsupported_geography"}
+    assert states(conn) == {("2026-11-01", "incomplete")}
+
+
+def test_a_scenario_only_refusal_counts_in_the_named_mode_too(conn, artifacts):
+    central = page(line(686, "OCR (%)", ["4.25", "3.50", "3.00", "2.75"]), extra=[SOURCE])
+    scenario = page(line(686, "OCR (%)", ["4.25", "3.00", "2.50", "2.00"]),
+                    extra=[SOURCE, (72, 730, "Downside scenario")])  # fmt: skip
+    vid = held(conn, artifacts, table_pdf([central, scenario]))
+    assert direct(conn, DraftAllowlist(), {vid}) == {("2026-11-01", "incomplete_scenario")}
+
+
+def doc(state, day="2026-11-01", key="bank_a", vid=99):
+    from nzstats.research.table_view import DocumentState
+
+    return DocumentState(key, vid, day, state)
+
+
+def built(*forecasts, documents):
+    from nzstats.research.bank_view import BankView
+
+    return BankView(list(forecasts), [], [], [], documents=list(documents))
+
+
+def left_out(v, **kw):
+    from nzstats.research.bank_analytics import bank_exclusions
+
+    kw = {"outlook_only": False, "dated_only": False, **kw}
+    return sorted((e.summary_id, e.code) for e in bank_exclusions(v, **kw) if e.code in NEWER)
+
+
+def test_a_restatement_with_another_adjustment_does_not_keep_the_older_figure_current():
+    older = nf(adjustment="seasonally_adjusted", published_on="2026-08-01", summary_id=1, value=2.6)
+    newer = nf(adjustment="unadjusted", published_on="2026-11-01", summary_id=2, value=2.4)
+    v = built(older, newer, documents=[doc("incomplete")])
+    assert left_out(v) == [
+        (1, "newer_report_incomplete")
+    ]  # the seasonally adjusted measure was not restated
+
+
+def test_a_scenario_only_refusal_blocks_an_older_scenario_figure_and_no_central_one():
+    central = nf(published_on="2026-08-01", summary_id=1)
+    downside = nf(published_on="2026-08-01", summary_id=2, scenario="downside", value=1.5)
+    v = built(central, downside, documents=[doc("incomplete_scenario")])
+    assert left_out(v) == [(2, "newer_report_incomplete")]
+
+
+def test_of_two_newer_blocking_reports_the_newest_gives_the_reason():
+    august = nf(published_on="2026-08-01", summary_id=1, value=2.6)
+    reports = [doc("not_read", "2026-09-01", vid=98), doc("incomplete", "2026-11-01")]
+    assert left_out(built(august, documents=reports)) == [(1, "newer_report_incomplete")]
+    reports = [doc("incomplete", "2026-09-01", vid=98), doc("not_read", "2026-11-01")]
+    assert left_out(built(august, documents=reports)) == [(1, "newer_report_not_read")]
+
+
+def test_two_reports_on_the_newest_day_take_the_less_completely_read_state():
+    figure = nf(published_on="2026-11-01", summary_id=1)
+    v = built(figure, documents=[doc("read", vid=97), doc("incomplete", vid=98)])
+    assert vintages(v) == [("bank_a", "2026-11-01", "2026-11-01", "incomplete", False)]
+
+
+def test_evaluation_still_scores_an_older_forecast_beside_a_newer_unread_report(
+    cpi_conn,  # noqa: F811 (the fixture imported above)
+):
+    from nzstats.research.bank_analytics import bank_evaluation
+
+    v = built(cpi("unadjusted", **QUARTERLY), documents=[doc("incomplete", "2026-05-01")])
+    assert matched(bank_evaluation(v, cpi_conn, "cpi_inflation")) == [
+        ("quarterly_change_nsa", "2026-06")
+    ]
