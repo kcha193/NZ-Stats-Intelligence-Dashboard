@@ -112,6 +112,21 @@ class BankComparisonOut(_Out):
     comparison: ForecastComparisonOut
 
 
+class BankVintageOut(_Out):
+    """A bank's newest dated outlook report against the newest one whose figures were accepted (Phase 4AH).
+
+    `state` is the newest report's: `read`, `incomplete` (a table cell refused or printed without a value),
+    `incomplete_scenario` (only scenario cells refused) or `not_read`. `current` is true only when the newest report
+    was read and is also the newest accepted one. Dates and fixed words only, never document text.
+    """
+
+    institution_key: str
+    latest_published_on: str
+    latest_accepted_on: str | None
+    state: Literal["read", "incomplete", "incomplete_scenario", "not_read"]
+    current: bool
+
+
 class BankForecastsOut(_Out):
     notice: str = NOTICE
     banks: list[BankRefOut]
@@ -120,6 +135,8 @@ class BankForecastsOut(_Out):
     excluded: list[BankExclusionOut]
     # How table-read figures compare with the checked claims, by fixed class (counts only). Agreement is not proof.
     table_reconciliation: dict[str, int] = {}
+    # Latest published against latest accepted outlook report, per bank (Phase 4AH); additive.
+    vintages: list[BankVintageOut] = []
 
 
 class BankHistoryOut(_Out):

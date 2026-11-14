@@ -39,7 +39,7 @@ export function BankForecastTable({
     <div role="region" aria-label={`${name} forecasts`} tabIndex={0} className="relative overflow-x-auto">
       <table className="w-full min-w-[32rem] border-collapse text-sm">
         <caption className="sr-only">
-          {name} forecasts by bank, each bank&apos;s latest forecast, by target period. A dash means the bank has no forecast for that period.
+          {name} forecasts by bank, each bank&apos;s latest forecast, by target period. A dash means the bank has no current forecast for that period; a figure left out is listed below with its reason.
         </caption>
         <thead>
           <tr className="border-b-2 border-rule-strong text-left">
