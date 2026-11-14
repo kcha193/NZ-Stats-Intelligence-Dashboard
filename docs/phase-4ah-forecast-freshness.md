@@ -40,7 +40,8 @@ Freshness is judged per document, because the refused cell's identity is unknown
    - `not_read`: it may not be shown (route revoked, content policy or host), its tables were read only by an older
      interpreter (even if a summary was admitted), or nothing usable was read (never extracted, refused by the reader,
      which stores nothing, or no own figure and no admitted summary);
-   - `incomplete_scenario`: only `scenario_table` / `scenario_row` / `scenario_column` refusals;
+   - `incomplete_scenario`: only `scenario_table` / `scenario_row` / `scenario_column` refusals, with an own table
+     forecast or an admitted summary; scenario refusals alone, with neither reading, remain `not_read`;
    - `read` otherwise. Table figures count as read only in the owner's automatic mode, as for the figures themselves;
      without usable tables an admitted summary is the reading (Phase 4AE model path).
 2. `bank_analytics._prepare(..., current=True)` (comparison, consensus, divergence) excludes a bank's figure when the
@@ -151,6 +152,48 @@ mutation otherwise reuses a stale `.pyc` after the file is restored.
 Reviewer's "declined to judge": a fully read newer report that omits a horizon leaves the older figure current
 (pre-existing 4AE behaviour, outside this spec); a malformed `published_on` (ingestion validates dates); `vintages`
 dates for reports that may not be shown (the freshness route already exposes report dates).
+
+## PR #61 review remediation
+
+Review finding [4571507477](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/61#discussion_r4571507477)
+(P2): `_table_state()` discarded scenario refusals when no own table forecasts survived. An admitted summary then made
+the newer report `read`, leaving older, unrestated scenario forecasts current. `_table_state()` now receives the
+summary-admission fact and preserves `incomplete_scenario` in that case. A report with only scenario refusals and no
+admitted summary remains `not_read`, including in automatic mode. Non-scenario refusals, stale interpreters, permissions,
+same-day comparisons, historical revisions and evaluation retain their existing rules.
+
+Added 28 synthetic offline cases to `test_table_freshness.py`. Before the correction, the state and end-to-end tests
+failed in both display modes. Replaying the final tests with the original `_table_state()` reproduced **12 failures**;
+the other **16 boundary cases passed**. With the correction, **28 passed**. The end-to-end test runs the actual draft
+gate over stored synthetic summaries: the newer prose reading omits both the older central CPI and downside forecasts;
+only the older scenario leaves the current comparison, central CPI still contributes to consensus and divergence,
+and the scenario remains in revisions. Same-day reports retain the scenario while still reporting incomplete vintages.
+The boundary matrix covers every scenario rejection code, mixed/non-scenario refusals, no summary, empty/no extraction,
+stale interpreters, named/automatic mode and revoked permission. No rejection identity or missing indicator is inferred.
+
+A fresh, read-only local reviewer examined the fix and adjacent state/analytics paths: no critical, important or minor
+findings. Evaluation still uses `current=False`; its existing regression remains in the full verification suite.
+Current-head GitHub review and CI results are recorded in the PR after the verified commit is pushed.
+
+Local remediation verification, 14 November 2026 (Python 3.14.6; branch source selected with `PYTHONPATH`):
+
+| Command / check | Result |
+|---|---|
+| `PYTHONPATH=src python -m pytest` (from `backend/`) | 7,092 passed, one existing warning; 661.66 seconds |
+| `python -m pytest tests/research/test_table_freshness.py -k 'only_refused_scenario or empty_table_reading or admitted_scenario_refusals'` | 28 passed; original-function replay: 12 failed, 16 passed |
+| Freshness plus Phase 4AG/4X safety, table isolation and publication isolation suites | 111 passed |
+| `ruff check .` / `ruff format --check .` (from `backend/`) | Passed; 433 files formatted |
+| `npm test` / `npm run typecheck` / `npm run lint` / `npm run build` (from `frontend/`) | 630 passed; types, lint and build passed |
+| `npm run gen:api` then `git diff --exit-code -- src/api/schema.d.ts`; `npm audit --audit-level=low` | Schema unchanged; zero vulnerabilities |
+| `npx playwright test` | 204 passed |
+| `npx playwright test -c playwright.research.config.ts` | 18 passed, 3 expected skips |
+| `bash scripts/e2e_static.sh` (from repository root) | 315 passed, 54 expected skips |
+| `git diff HEAD -- <changed files> \| gitleaks stdin --redact`; `git diff --check` | No leaks; clean |
+
+Existing warnings: Starlette/httpx deprecation, eight React Fast Refresh lint warnings, Vite's large-chunk notice and
+the fixture snapshot's dated-calendar notice. The first API-generation attempt used the shell's Python without the
+backend package; rerunning with the existing backend virtual environment on `PATH` passed. No dependency or source
+change was needed. Protected configuration, permission/safety pins and migrations have no diff against the PR baseline.
 
 ## Verification
 

@@ -204,10 +204,11 @@ def table_forecasts(
 
 
 def _table_state(
-    conn: sqlite3.Connection, version_id: int
+    conn: sqlite3.Connection, version_id: int, *, summary_read: bool
 ) -> DocumentStateName | Literal["stale"] | None:
     """What the latest table extraction says about a report: None when there is none (or it read nothing usable),
-    `stale` when it was made by an older interpreter (its tables must be read again)."""
+    `stale` when it was made by an older interpreter (its tables must be read again). An admitted summary preserves
+    scenario refusals even when no own table figures survive; refusals alone do not count as a reading."""
     interpreter = latest_interpreter(conn, version_id)
     if interpreter is None:
         return None  # never extracted, or refused by the reader (which stores nothing)
@@ -222,7 +223,7 @@ def _table_state(
     if codes - _SCENARIO_CODES or any(f.missing for f in own):
         return "incomplete"  # a refused cell or a printed dash: which measure it was is not known, and not guessed
     if not own:
-        return None
+        return "incomplete_scenario" if codes and summary_read else None
     return "incomplete_scenario" if codes else "read"
 
 
@@ -272,7 +273,7 @@ def document_states(
         ):  # checked first: an unshown report's tables are not read on every request
             out.append(DocumentState(inst.key, vid, row["published_on"], "not_read"))
             continue
-        tables = _table_state(conn, vid)
+        tables = _table_state(conn, vid, summary_read=vid in read_versions)
         if tables == "stale":
             state = "not_read"
         elif tables == "incomplete":

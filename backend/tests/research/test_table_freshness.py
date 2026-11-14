@@ -5,6 +5,8 @@ quarterly outlook report that was not fully read hides the bank's older figures 
 later one, does not restate. Nothing is inferred about what a refused cell was. Synthetic PDFs only; no network.
 """
 
+import hashlib
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -561,3 +563,128 @@ def test_evaluation_still_scores_an_older_forecast_beside_a_newer_unread_report(
     assert matched(bank_evaluation(v, cpi_conn, "cpi_inflation")) == [
         ("quarterly_change_nsa", "2026-06")
     ]
+
+
+# --- PR #61: scenario refusals survive even when no own table figures survive ------------------------------------------
+
+
+@pytest.mark.parametrize("automatic", [False, True], ids=["named", "auto"])
+def test_only_refused_scenario_tables_need_an_admitted_summary(conn, artifacts, automatic):
+    from nzstats.research.table_store import load_forecasts, load_rejections
+
+    scenario = page(line(686, "OCR (%)", ["4.25", "3.00", "2.50", "2.00"]),
+                    extra=[SOURCE, (72, 730, "Downside scenario")])  # fmt: skip
+    vid = held(conn, artifacts, table_pdf([scenario]))
+    assert load_forecasts(conn, vid) == []
+    assert {r.code for r in load_rejections(conn, vid)} == {"scenario_table"}
+    allowlist = auto() if automatic else DraftAllowlist()
+    assert direct(conn, allowlist, set()) == {("2026-11-01", "not_read")}
+    assert direct(conn, allowlist, {vid}) == {("2026-11-01", "incomplete_scenario")}
+
+
+@pytest.mark.parametrize("automatic", [False, True], ids=["named", "auto"])
+@pytest.mark.parametrize(
+    ("rejections", "interpreter", "admitted", "expected"),
+    [
+        (["scenario_row"], None, True, "incomplete_scenario"),
+        (["scenario_column"], None, True, "incomplete_scenario"),
+        (["scenario_row", "scenario_column"], None, True, "incomplete_scenario"),
+        (["scenario_row"], None, False, "not_read"),
+        (["unmapped_row"], None, True, "incomplete"),
+        (["scenario_table", "unmapped_row"], None, True, "incomplete"),
+        (["scenario_table"], "tables-12", True, "not_read"),
+        ([], None, True, "read"),
+        ([], None, False, "not_read"),
+        (None, None, True, "read"),
+        (None, None, False, "not_read"),
+    ],
+)
+def test_empty_table_reading_preserves_admission_and_refusal_boundaries(
+    conn, artifacts, automatic, rejections, interpreter, admitted, expected
+):
+    from nzstats.research.table_forecast import INTERPRETER_VERSION
+    from nzstats.research.table_grid import Rejection
+    from nzstats.research.table_store import store_extraction
+
+    from .test_table_store import SHA
+
+    vid = held(conn, artifacts, report(), extract=False)
+    if rejections is not None:
+        store_extraction(conn, vid, NOW, [], [Rejection(code, 1, 0) for code in rejections],
+                         words_sha256=SHA, interpreter_version=interpreter or INTERPRETER_VERSION)  # fmt: skip
+    assert direct(
+        conn, auto() if automatic else DraftAllowlist(), {vid} if admitted else set()
+    ) == {("2026-11-01", expected)}
+
+
+@pytest.mark.parametrize("same_day", [False, True], ids=["newer", "same_day"])
+@pytest.mark.parametrize("automatic", [False, True], ids=["named", "auto"])
+def test_admitted_scenario_refusals_filter_current_figures_but_keep_history(
+    conn, automatic, same_day
+):
+    from nzstats.research.bank_analytics import (
+        bank_comparison,
+        bank_consensus,
+        bank_divergence,
+        bank_revisions,
+    )
+    from nzstats.research.drafts import draft_summaries
+    from nzstats.research.table_grid import Rejection
+    from nzstats.research.table_store import store_extraction
+    from nzstats.research.table_view import document_states
+
+    from .llm_support import SECTIONS, draft
+    from .test_bank_view import REG, SYNTH_ADAPTERS, seed_bank
+    from .test_drafts import named
+    from .test_drafts_auto import RAW, store_hosted
+    from .test_table_store import SHA
+
+    scenario_text = (
+        "In our downside scenario, annual CPI inflation falls to 1.5% in the year to June 2027."
+    )
+    old = seed_bank(conn, doc="research/outlook/old", sections=(*SECTIONS, scenario_text),
+                    published_on="2026-08-01")  # fmt: skip
+    output = draft(old)
+    output["forecasts"].append({**output["forecasts"][1], "value": 1.5, "scenario": "downside",
+                                "evidence": [{"version_id": old, "section_ordinal": 2, "page": 3,
+                                              "quote": scenario_text}]})  # fmt: skip
+    old_sid = store_hosted(conn, old, output=output)
+    new = seed_bank(conn, doc="research/outlook/new",
+                    published_on="2026-08-01" if same_day else "2026-11-01")  # fmt: skip
+    newer_output = draft(new)
+    # The admitted prose reading does not restate the older central CPI either.
+    newer_output["forecasts"] = newer_output["forecasts"][:1]
+    new_sid = store_hosted(conn, new, output=newer_output)
+    store_extraction(conn, new, NOW, [], [Rejection("scenario_table", 1, 0)], words_sha256=SHA)
+    digest = hashlib.sha256(RAW.encode()).hexdigest()
+    allowlist = (
+        auto()
+        if automatic
+        else DraftAllowlist(drafts=(*named(old_sid, digest).drafts, *named(new_sid, digest).drafts))
+    )
+    admitted = draft_summaries(conn, REG, allowlist)
+    assert {d.id for d in admitted} == {old_sid, new_sid}
+    v = bank_view(conn, REG, allowlist, SYNTH_ADAPTERS)
+    assert len(v.forecasts) == 4 and v.excluded == []  # every synthetic claim passed the real gate
+    scenario = next(n for n in v.forecasts if n.forecast.scenario)
+    assert scenario.forecast.summary_id == old_sid and scenario.forecast.value == 1.5
+    comparison = [g for _, c in bank_comparison(v) for g in c.groups]
+    assert [r.forecast.value for g in comparison if g.kind == "scenario" for r in g.rows] == (
+        [1.5] if same_day else []
+    )
+    assert [r.forecast.value for g in comparison if g.kind == "central" for r in g.rows] == [2.1]
+    assert left_out(v) == ([] if same_day else [(old_sid, "newer_report_incomplete")])
+    assert [x.value for g in bank_consensus(v).groups for x in g.contributors] == [2.1]
+    peers = [nf(key, value=value) for key, value in (("bank_b", 2.2), ("bank_c", 2.4))]
+    consensus = bank_consensus(replace(v, forecasts=[*v.forecasts, *peers]))
+    (divergence,) = bank_divergence(consensus)
+    assert (divergence.median, divergence.spread) == (2.2, 0.3)
+    assert [b.key for b in divergence.banks] == ["bank_c", "bank_b", "bank_a"]
+    assert any(x.value == 1.5 for _, h in bank_revisions(v) for s in h.series for x in s.vintages)
+    assert vintages(v) == [("bank_a", "2026-08-01" if same_day else "2026-11-01",
+                            "2026-08-01" if same_day else "2026-11-01", "incomplete_scenario", False)]  # fmt: skip
+    # A revoked route takes precedence over the admitted summary and stored rejection.
+    denied = institution("bank_a", name="Example Bank A", review_status="restricted",
+                         approved_by=None, approved_on=None, approval_note=None)  # fmt: skip
+    states = document_states(conn, {**REG, "bank_a": denied}, allowlist, {old, new}, SYNTH_ADAPTERS)
+    assert {s.state for s in states} == {"not_read"}
