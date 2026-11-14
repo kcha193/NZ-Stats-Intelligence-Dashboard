@@ -79,6 +79,10 @@ tolerance or permission changed. Version gate unchanged: reader `pdf-words-4`, i
   not restate, not only the refused cell's. Real reports often have unmapped rows (for example exchange rates), so in
   practice a bank's current view becomes its newest report's accepted figures. That is the fail-closed reading of
   "the bank's latest forecast".
+- A table refused whole for geography or scope (a foreign or regional table) also makes its report `incomplete`, because
+  the geography is read from caption text that can be wrong about a mixed table (decision recorded in the spec).
+- A report `not_read` only because its tables were read by an older interpreter shows the reason "figures have not been
+  read" even if an admitted summary's figures show; re-extracting under the current interpreter clears it.
 - Only strictly newer reports trigger the rule; two reports on the same day are not compared.
 - A model summary that omits a measure counts as read, and so does a held PDF never table-extracted whose summary was
   admitted (Phase 4AE behaviour; bank model processing is not authorised, so no bank summary exists).
@@ -116,11 +120,58 @@ no older vintage to hide.
 
 ## Independent review
 
-Pending.
+Two independent reviews, each by a fresh reviewer without this session's context, reading the diff against `5934060`.
+
+**Round 1** (on `337e34f`/`23e1c77`): 1 high, 8 medium, 5 low. Its full text was not kept in the repository; the fixes
+are commit `f95721e`: a report read only by an older interpreter is `not_read` even with an admitted summary; a refused
+cell marks a report `incomplete` in either display mode; a held report that may not be shown counts as `not_read`;
+`latest_accepted_on` comes only from figures that survive the conflict rules. The remaining round-1 findings were
+recorded at the time as documented or accepted (the limits above).
+
+**Round 2** (on `f95721e`; mutation-tested the rule). No critical or high finding; verdict "with fixes".
+
+| file:line | severity | finding | disposition |
+|---|---|---|---|
+| `table_view.py:222` | medium | a whole table refused for geography or scope (an Australian table, say) marks a clean NZ report `incomplete` | **Kept, decision recorded** in the spec: geography is read from caption text, which can be wrong about a mixed table; trusting it would infer what refused cells were. Pinned by a test |
+| `bank_analytics.py:147,156` | medium | dropping the adjustment from the freshness identity survived every test | **Test added**, fails under that mutation |
+| `bank_analytics.py:434`, `bank_api.py:206` | medium | making evaluation or the revisions route use the current views survived | **Tests added** (evaluation scores the older forecast; revisions route keeps it), each fails under its mutation |
+| `bank_analytics.py:139,160` | low | scenario-only blocking and newest-report reason untested | **Tests added** |
+| `bank_analytics.py:451` | low | worst-state-wins on a shared day untested | **Test added** |
+| `table_view.py:276` | low | named-mode `incomplete_scenario` untested | **Test added** |
+| `table_view.py:269` | low | tables of reports that may not be shown were read on every request | **Fixed**: the display check runs first; behaviour unchanged |
+| spec line 42 | low | spec still required `_shown` for a state | **Fixed** (spec amended) |
+| `BankForecastTable.tsx:42` | low | the table's caption said a dash means no forecast; a withheld figure is also a dash | **Fixed**: "no current forecast for that period; a figure left out is listed below with its reason" |
+| `bank_analytics.py:138` | low | a report `not_read` only because of an older-interpreter extraction shows "figures have not been read" while its summary's figures show | **Accepted, documented** (limits): no bank summary can exist while `llm_processing` is denied; re-extracting clears it |
+| `table_view.py:222` | low | a printed dash has a known label and horizon but hides more than its own measure | **Accepted**: fail-closed |
+| `bank_view.py:34` | low | `TYPE_CHECKING` block between imports | **Fixed** |
+
+Every new test was shown to fail under the mutation it guards (8 of 8), run with bytecode writing off: a same-length
+mutation otherwise reuses a stale `.pyc` after the file is restored.
+
+Reviewer's "declined to judge": a fully read newer report that omits a horizon leaves the older figure current
+(pre-existing 4AE behaviour, outside this spec); a malformed `published_on` (ingestion validates dates); `vintages`
+dates for reports that may not be shown (the freshness route already exposes report dates).
 
 ## Verification
 
-Pending.
+Local, 14 November 2026, Python 3.14.6, worktree on branch `feat/phase-4ah-forecast-freshness`.
+
+| Check | Result |
+|---|---|
+| Backend full suite at `f95721e` (`PYTHONPATH=src python -m pytest`) | 7055 passed, 0 failed, 0 skipped; one existing Starlette deprecation warning |
+| Backend full suite after the round-2 fixes | **7064 passed**, 0 failed, 0 skipped (exit 0); afterwards only `ruff format` and one `noqa` changed, then the focused suites below were rerun |
+| Focused freshness, table view/API and bank analytics/API tests (final code, bytecode off) | 156 passed |
+| Mutation check of the new tests | 8 of 8 caught |
+| Ruff `check` / `format --check` | clean |
+| Frontend unit / typecheck / build (after the caption change) | 630 passed; clean; built (existing chunk-size warning) |
+| Playwright dashboard (desktop, tablet, mobile; branch backend on `PYTHONPATH`) | 204 passed (before and after the round-2 fixes) |
+| Playwright synthetic research | 18 passed, 3 expected skips |
+| Static site and parity (`scripts/e2e_static.sh`) | 315 passed, 54 expected skips |
+| Gitleaks on the branch diff; `git diff --check` | no leaks; clean |
+| Permissions and pins | `config/`, `test_phase_4x_readiness.py`, `test_phase_4ag_safety.py` and `store/migrations/` have no diff |
+| Network and model isolation | no new network, subprocess or provider import in the diff; the table tests' `no_network` guard is autouse; isolation tests pass in the full suite |
+| API contract | `vintages` is additive with a default; exclusion `code` is a free string in the model; no generated-schema change (`gen:api` not needed) |
+| Migration | none; rollback is reverting the commits |
 
 ## Recommended Phase 4AI
 

@@ -39,18 +39,25 @@ decision (`institutions.anz` unchanged since 4AG; no decision note). Nothing is 
 
 ### Document states (new, `table_view.document_states`)
 
-For every bank publication's current version that passes the same document-level gate as table figures (`_shown`:
-a bank, not purged, current version, not superseded, not a duplicate, route still permitted, `full_text`, allowed
-host), has a publication date and is a quarterly *outlook* report:
+For every bank publication's current version that is a bank's live, unique report (not purged, current version, not
+superseded, not a duplicate), has a publication date and is a quarterly *outlook* report. (Amended after review: the
+first draft also required the display gate `_shown`; a held report that may not be shown, because its route was revoked
+or its content policy or host no longer allows it, is now `not_read`, so it still stops older figures appearing current.)
 
 | State | When |
 |---|---|
 | `read` | its figures were read: a current-interpreter extraction with at least one accepted own forecast and no blocking rejection, or an admitted draft summary (and no blocking table rejection) |
-| `incomplete` | a current-interpreter extraction has a non-scenario rejection, or an own forecast cell printed without a value (dash) |
+| `incomplete` | a current-interpreter extraction has a non-scenario rejection, or an own forecast cell printed without a value (dash), in either display mode |
 | `incomplete_scenario` | the only rejections are `scenario_table`, `scenario_row` or `scenario_column` (they cannot hide a central figure) |
-| `not_read` | none of the above: never extracted, extracted only by an older interpreter, refused by the reader (stores nothing), nothing accepted, or its summary is not admitted (withdrawn, unnamed) |
+| `not_read` | none of the above: may not be shown, never extracted, extracted only by an older interpreter (even with an admitted summary), refused by the reader (stores nothing), nothing accepted, or its summary is not admitted (withdrawn, unnamed) |
 
-Table extractions count only in the owner's automatic mode (the same rule that decides whether table figures show).
+Table refusals for geography or scope (`unsupported_geography`, `unsupported_scope`) are blocking, by decision: the
+geography of a table is read from its caption and header text, and a caption such as "Australia and New Zealand" could
+hold New Zealand figures in a refused table. Treating them as scenario-like would trust that text to say what the
+refused cells were, which this phase does not do. The cost is that a report with a foreign table is `incomplete` (and its
+`vintages` row not `current`); in practice real reports already carry unmapped rows that have the same effect.
+
+Table figures count as read only in the owner's automatic mode (the same rule that decides whether they show).
 Undated documents cannot be placed in time and are not states (they are already excluded from vintage analysis).
 
 `BankView` gains `documents: list[DocumentState]` (default empty, so existing constructors keep working).
