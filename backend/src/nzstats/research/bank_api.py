@@ -24,6 +24,7 @@ from nzstats.research.bank_analytics import (
     bank_evaluation,
     bank_exclusions,
     bank_revisions,
+    bank_vintages,
 )
 from nzstats.research.bank_forecast import NormalizedForecast
 from nzstats.research.bank_models import (
@@ -189,6 +190,7 @@ def bank_router(
             ]
             + bank_exclusions(view, outlook_only=False, dated_only=False),
             table_reconciliation=summary_counts(view.reconciliation),
+            vintages=bank_vintages(view),
         )
 
     @router.get(
@@ -201,7 +203,7 @@ def bank_router(
             return BankRevisionsOut(histories=[], excluded=[])
         return BankRevisionsOut(
             histories=[BankHistoryOut(adjustment=a, history=h) for a, h in bank_revisions(got[2])],
-            excluded=bank_exclusions(got[2], outlook_only=True, dated_only=True),
+            excluded=bank_exclusions(got[2], outlook_only=True, dated_only=True, current=False),
         )
 
     @router.get(

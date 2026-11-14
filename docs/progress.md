@@ -7,6 +7,23 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AH: forecast freshness; ANZ pilot still blocked, 14 November 2026
+
+Branch `feat/phase-4ah-forecast-freshness` from main `5934060` (PR #60 merged). [spec](superpowers/specs/2026-11-14-phase-4ah-forecast-freshness-design.md),
+[plan](superpowers/plans/2026-11-14-phase-4ah-forecast-freshness.md), [record and verdict](phase-4ah-forecast-freshness.md).
+**Verdict: freshness gap fixed (no migration); ANZ not authorised, pilot BLOCKED at step 0. No permission field changed, nothing
+fetched or imported, no model call.**
+
+- Reproduced failing-first: a newer report's refused June CPI cell left August's 2.6 as the bank's latest and in the consensus.
+- `document_states` marks each dated outlook report `read`, `incomplete`, `incomplete_scenario` or `not_read`; the comparison,
+  consensus and divergence drop a bank's older figure (`newer_report_incomplete`, `newer_report_not_read`) unless that report
+  or a later one restates it. Revisions and evaluation keep every accepted vintage. No refused cell's identity is inferred.
+- Internal forecasts route: additive `vintages` (latest published, latest accepted, state, current).
+- Independent review round 1: 1 high, 8 medium, 5 low; the high and four mediums fixed failing-first, the rest documented
+  or accepted. Round 2 (mutation-tested): no critical or high; three mediums: test gaps closed (8 of 8 mutations now
+  caught) and foreign or scope table refusals kept blocking by recorded decision; lows fixed or accepted.
+- Known limit: a partly refused newer report hides every older figure it does not restate (fail-closed by design).
+
 ## Phase 4AG: glyph-level PDF reader and first-bank pilot preparation, 14 November 2026
 
 Branch `feat/phase-4ag-bank-pilot` from main `e0fd037` (PR #59 merged). [spec](superpowers/specs/2026-11-14-phase-4ag-first-bank-pilot-design.md),

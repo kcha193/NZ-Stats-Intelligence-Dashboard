@@ -15,7 +15,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from nzstats.research.api_models import EvidenceOut, ForecastOut, InstitutionOut
 from nzstats.research.bank_forecast import (
@@ -31,6 +31,9 @@ from nzstats.research.drafts import DraftAllowlist, DraftSummary, draft_summarie
 from nzstats.research.registry import Institution
 from nzstats.research.table_reconcile import Reconciliation
 from nzstats.research.verify import resolve_verifier
+
+if TYPE_CHECKING:
+    from nzstats.research.table_view import DocumentState
 
 ExclusionCode = Literal[
     "claim_failed_checks", "claim_has_warning", "third_party_issuer", "no_value",
@@ -58,6 +61,8 @@ class BankView:
     banks: list[Institution]
     # How table-derived figures compare with the checked claims (Phase 4AF); informational, never an input to analytics.
     reconciliation: list[Reconciliation] = field(default_factory=list)
+    # Whether each dated outlook report was read (Phase 4AH): an older figure is not current beside an unread newer one.
+    documents: list[DocumentState] = field(default_factory=list)
 
 
 def _forecast_out(d: DraftSummary, claim: ForecastClaim, label: str) -> ForecastOut:
@@ -123,7 +128,9 @@ def bank_view(
     forecasts: list[NormalizedForecast] = []
     markers: list[NormalizedForecast] = []
     excluded: list[ExcludedClaim] = []
-    for d in drafts if drafts is not None else draft_summaries(conn, registry, allowlist):
+    if drafts is None:
+        drafts = draft_summaries(conn, registry, allowlist)
+    for d in drafts:
         kind = d.institution.kind
         if kind != "bank" and kind not in _MARKER_KINDS:
             continue
@@ -150,8 +157,9 @@ def bank_view(
                 )
                 excluded.append(ExcludedClaim(d.institution.key, d.id, path, code, own))
     # Figures read from PDF tables (Phase 4AF) join the same lists, so every later rule applies to them unchanged.
-    from nzstats.research.table_view import (
-        table_forecasts,  # here: table_view imports ExcludedClaim from this module
+    from nzstats.research.table_view import (  # here: table_view imports ExcludedClaim from this module
+        document_states,
+        table_forecasts,
     )
 
     tables, table_excluded, reconciliation = table_forecasts(
@@ -159,5 +167,7 @@ def bank_view(
     )
     forecasts += tables
     excluded += table_excluded
+    read = {int(d.row["version_id"]) for d in drafts if d.institution.kind == "bank"}
+    documents = document_states(conn, registry, allowlist, read, adapters)
     banks = sorted((i for i in registry.values() if i.kind == "bank"), key=lambda i: i.key)
-    return BankView(forecasts, excluded, markers, banks, reconciliation)
+    return BankView(forecasts, excluded, markers, banks, reconciliation, documents)

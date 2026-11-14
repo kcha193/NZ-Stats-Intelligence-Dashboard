@@ -145,7 +145,7 @@ no permission change, no bank content, no raw error text leaked). Findings and d
 
 - **No real ANZ document was read.** Everything is proven on synthetic PDFs. Real layouts may still refuse tables the reader
   cannot place; that is what the pilot's dry run is for, and refusal is the safe outcome.
-- **Staleness gap (found, not fixed).** If a newer document's figure for a horizon is refused (a footnote, say), an older
+- **Staleness gap (found, not fixed here; fixed in [Phase 4AH](phase-4ah-forecast-freshness.md) without a schema change).** If a newer document's figure for a horizon is refused (a footnote, say), an older
   document's figure for that horizon still appears as that bank's latest, labelled with its own publication date. A refused
   table cell stores only a code, not an identity, so the analytics cannot hide the older figure the way they do for an unusable
   model claim. It is visible (each row carries its publication date) and the first pilot has no older vintage; **check it at the
