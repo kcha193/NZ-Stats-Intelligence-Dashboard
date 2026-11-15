@@ -8,7 +8,11 @@ import re
 import nzstats
 from nzstats.research.registry import load_registry
 
-from .bank_support import synthetic_registry
+from .bank_support import (
+    DENIED_BANK_KEYS,
+    assert_anz_holds_only_the_personal_scope,
+    synthetic_registry,
+)
 from .test_bank_isolation import LOCAL, REPO, SRC, imports
 
 TABLE_MODULES = re.compile(r"^nzstats\.research\.table_[a-z]+(\.|$)")
@@ -84,10 +88,11 @@ def test_the_exporter_and_snapshot_code_know_nothing_of_table_rows():
 
 def test_no_permission_field_of_any_real_bank_changed_and_none_is_permitted():
     registry = load_registry()
-    for key in ("anz", "asb", "bnz", "westpac", "kiwibank"):
+    for key in DENIED_BANK_KEYS:
         inst = registry[key]
         assert not inst.source_permitted and not inst.manual_import_allowed, key
         assert inst.llm_processing.value == "denied", key
+    assert_anz_holds_only_the_personal_scope(registry["anz"])  # Phase 4AI: manual import only
 
 
 def test_synthetic_registry_is_not_a_real_bank():

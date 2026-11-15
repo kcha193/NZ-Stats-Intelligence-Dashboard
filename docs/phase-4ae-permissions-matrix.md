@@ -15,7 +15,7 @@ permission to send content to an outside AI provider. A 403 or challenge is neve
 
 | Bank | `review_status` | `content_policy` | Landing page (registry) | Robots | Terms | Verified on |
 |---|---|---|---|---|---|---|
-| ANZ New Zealand | needs_review | metadata_only | anz.co.nz/about-us/economic-markets-research/ | read (`direct`): no Disallow, names a sitemap | read (`direct`): all rights reserved; store solely for viewing; not for public display or distribution; links need prior permission; silent on automated access | 2026-10-25 |
+| ANZ New Zealand | needs_review | full_text (owner's manual import only, Phase 4AI; crawler off) | anz.co.nz/about-us/economic-markets-research/ | read (`direct`): no Disallow, names a sitemap | read (`direct`): all rights reserved; store solely for viewing, or saving content for your own personal use (wording re-read 2026-11-15); not for public display or distribution; links need prior permission; silent on automated access | 2026-10-25 |
 | ASB | needs_review | metadata_only | asb.co.nz/documents/economic-research.html | read (`direct`): disallows `/content/dam/asb/documents/` (where report PDFs live) and about 200 named bots | not read (`none`) | 2026-10-25 |
 | BNZ | needs_review | none | bnz.co.nz/institutional-banking/research/publications (owner-supplied 2026-11-10, **not probed**) | not examined (`none`) | not examined (`none`) | 2026-10-25 |
 | Westpac New Zealand | needs_review | metadata_only | westpac.co.nz/business/business-base/economics/economic-reports/ | refused (`direct_blocked`): HTTP 403 to the probe | not read (`none`) | 2026-10-25 |

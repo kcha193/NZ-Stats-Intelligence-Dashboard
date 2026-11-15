@@ -18,13 +18,12 @@ from nzstats.research.registry import (
 )
 from nzstats.research.table_words import extract_words
 
+from .bank_support import DENIED_BANK_KEYS, assert_anz_holds_only_the_personal_scope
 from .pdf_stream_support import raw_pdf, row
 from .test_bank_isolation import SRC, imports
 
-REAL_BANKS = ("anz", "asb", "bnz", "westpac", "kiwibank")
 
-
-@pytest.mark.parametrize("key", REAL_BANKS)
+@pytest.mark.parametrize("key", DENIED_BANK_KEYS)
 def test_every_real_bank_permission_field_is_unchanged_and_nothing_is_permitted(key):
     inst = load_registry()[key]
     assert inst.review_status is ReviewStatus.NEEDS_REVIEW
@@ -36,11 +35,8 @@ def test_every_real_bank_permission_field_is_unchanged_and_nothing_is_permitted(
     assert not inst.source_permitted and not inst.manual_import_allowed
 
 
-def test_anz_records_no_approval_of_any_kind():
-    inst = load_registry()["anz"]
-    assert (inst.approved_by, inst.approved_on, inst.approval_note) == (None, None, None)
-    assert (inst.manual_import_approved_on, inst.manual_import_note) == (None, None)
-    assert (inst.public_display_approved_by, inst.private_display_approved_by) == (None, None)
+def test_anz_records_only_the_phase_4ai_personal_research_scope():
+    assert_anz_holds_only_the_personal_scope(load_registry()["anz"])
 
 
 def test_the_pdf_reader_library_is_imported_by_the_words_module_alone():

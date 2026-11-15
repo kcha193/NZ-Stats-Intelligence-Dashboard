@@ -12,7 +12,7 @@ from nzstats.research.drafts_api import internal_drafts_router
 from nzstats.research.private_api import CLIENT_HEADER
 from nzstats.research.registry import RegistryError, load_registry
 
-from .bank_support import BANK_KEYS, SYNTH_ADAPTERS, synthetic_registry
+from .bank_support import BANK_KEYS, DENIED_BANK_KEYS, SYNTH_ADAPTERS, synthetic_registry
 from .llm_support import SECTIONS, draft, seed_version
 from .test_drafts_auto import RAW, store_hosted
 
@@ -234,7 +234,11 @@ def test_the_real_registry_shows_every_bank_permission_denied_and_nothing_else(b
     c = client(registry=lambda: real)
     cards = {x["key"]: x for x in get(c, "summary").json()["cards"]}
     assert sorted(cards) == sorted(BANK_KEYS)
-    assert {x["state"] for x in cards.values()} == {"permission_denied"}
+    # Phase 4AI: ANZ is open to manual import only; with no ANZ report and no ANZ adapter here it shows nothing.
+    assert {k: x["state"] for k, x in cards.items()} == {
+        **dict.fromkeys(DENIED_BANK_KEYS, "permission_denied"),
+        "anz": "unsupported",
+    }
     assert all(x["stance"] is None for x in cards.values())
     assert all(
         x["worst_series"] is None for x in cards.values()

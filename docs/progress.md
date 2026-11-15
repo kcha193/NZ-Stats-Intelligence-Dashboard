@@ -7,6 +7,24 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AI: ANZ personal-research scope recorded; pilot not yet run, 15 November 2026
+
+Branch `proposal/phase-4ai-anz-personal-scope` from main `5fe3db1` (PR #61 merged). [assessment](phase-4ai-authorization-assessment.md).
+**Verdict: the owner's personal-research decision opens ANZ's manual import only; no document imported, nothing fetched, no
+model call.**
+
+- Reassessed under the owner's personal, non-commercial, local use. ANZ's current terms permit "saving ANZ website content, for
+  your own personal use" (the 2026-10-25 record said "solely for viewing"); Copyright Act s 43 is an independent fallback. The owner
+  confirmed the terms and the November 2026 Economic Outlook's Important Notice on 2026-11-15. Not a licence from ANZ.
+- Registry, `anz` only: `content_policy` full_text, `manual_import` approved with approver, date and scope note, `licence` restated.
+  `review_status` (crawler off), `llm_processing` (denied, hosted and local), `public_display` and `private_display` unchanged.
+- Pins: `assert_anz_holds_only_the_personal_scope` (new); the four other banks stay pinned fully refused; `PRE_APPROVAL_SHA256`
+  updated with a key-by-key record. New real-registry test: a hand-imported synthetic ANZ-route PDF is read locally and reaches
+  neither the public feed nor the private research gate. Mutations (ANZ crawler on, ASB import on) fail the pins.
+- `bank-status` now reports ANZ `missing` (exit 1) until the one report is imported. The "one document" limit is procedural:
+  the registry cannot count documents.
+- Next: owner review and merge, then the [pilot procedure](phase-4ag-pilot-procedure.md) from step 1.
+
 ## Phase 4AH: forecast freshness; ANZ pilot still blocked, 14 November 2026
 
 Branch `feat/phase-4ah-forecast-freshness` from main `5934060` (PR #60 merged). [spec](superpowers/specs/2026-11-14-phase-4ah-forecast-freshness-design.md),

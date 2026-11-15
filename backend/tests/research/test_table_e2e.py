@@ -32,7 +32,7 @@ from nzstats.sources.artifacts import ArtifactStore
 from tests.cpi_support import ingest_cpi
 from tests.support import BASE as STATS_BASE
 
-from .bank_support import BANK_KEYS, SYNTH_ADAPTERS, synthetic_registry
+from .bank_support import BANK_KEYS, DENIED_BANK_KEYS, SYNTH_ADAPTERS, synthetic_registry
 from .conftest import NOW
 from .pdf_table_support import table_pdf
 from .support import HOST
@@ -252,9 +252,13 @@ def test_offline_replay_from_pdf_tables_to_the_internal_routes(site, tmp_path, m
     # Real banks stay permission-denied, and nothing about them reaches the page.
     real = extra["real_summary"]["cards"]
     assert sorted(c["key"] for c in real) == sorted(BANK_KEYS)
-    assert {c["state"] for c in real} == {"permission_denied"} and all(
-        c["stance"] is None for c in real
-    )
+    # Phase 4AI: ANZ is open to the owner's manual import, but this replay holds no ANZ report and its synthetic adapters
+    # have no ANZ series, so ANZ is "unsupported" here and shows nothing; every other bank stays refused.
+    assert {c["key"]: c["state"] for c in real} == {
+        **dict.fromkeys(DENIED_BANK_KEYS, "permission_denied"),
+        "anz": "unsupported",
+    }
+    assert all(c["stance"] is None for c in real)
 
     # Deterministic: a second replay from an empty directory gives byte-identical answers.
     second, provider2, extra2 = replay(tmp_path / "two", site, monkeypatch)

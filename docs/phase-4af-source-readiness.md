@@ -13,7 +13,7 @@ not permission to parse, and a 403 or challenge is never worked around.
 
 | Bank | `review_status` | `content_policy` | Landing evidence | Robots | Terms | Verified on |
 |---|---|---|---|---|---|---|
-| ANZ New Zealand | needs_review | metadata_only | read (`direct`) | read (`direct`): no Disallow, names a sitemap | read (`direct`): all rights reserved; store solely for viewing; no public display or distribution; links need prior permission; silent on automated access | 2026-10-25 |
+| ANZ New Zealand | needs_review | full_text (owner's manual import only, Phase 4AI; crawler off) | read (`direct`) | read (`direct`): no Disallow, names a sitemap | read (`direct`): all rights reserved; store solely for viewing, or saving content for your own personal use (wording re-read 2026-11-15); no public display or distribution; links need prior permission; silent on automated access | 2026-10-25 |
 | ASB | needs_review | metadata_only | search results only (`search`) | read (`direct`): disallows `/content/dam/asb/documents/` (where report PDFs live) and about 200 named bots | not read (`none`) | 2026-10-25 |
 | BNZ | needs_review | none | owner-supplied URL, not probed (`none`) | not examined (`none`) | not examined (`none`) | 2026-10-25 |
 | Westpac New Zealand | needs_review | metadata_only | refused (`direct_blocked`): HTTP 403 | refused (`direct_blocked`): HTTP 403; PDFs are on a second host | not read (`none`) | 2026-10-25 |
