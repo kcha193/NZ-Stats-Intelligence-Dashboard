@@ -103,15 +103,14 @@ def score(truth: list[TruthTable], got: list[BenchTable]) -> Score:
     match_counts = [sum(_matches(t, u) for u in truth) for t in got]
     values_truth = present = aligned = stacked_truth = joined = markers_truth = kept = notes_truth = notes_kept = 0
     allowed: dict[int, set[str]] = {}
+    marks: dict[int, set[str]] = {}  # footnote digits: not a figure only in the label column
     for u in truth:
         on_page = [t for t in got if t.page == u.page]
         cells = Counter(_norm(c) for t in on_page for row in t.grid for c in row)
         page_allowed = allowed.setdefault(u.page, set())
         page_allowed |= {f for h in u.col_headers for f in h} | set(u.row_labels)
-        page_allowed |= {m for _, m in u.markers} | set(u.value_markers.values())
-        page_allowed |= {m.translate(_SUP) for _, m in u.markers} | {
-            m.translate(_SUP) for m in u.value_markers.values()
-        }
+        digits = {m for _, m in u.markers} | set(u.value_markers.values())
+        marks.setdefault(u.page, set()).update(digits | {m.translate(_SUP) for m in digits})
         # Present: each truth cell consumes one parsed cell with an accepted text.
         for key in sorted(u.values):
             accept = _accepts(u, key)
@@ -142,10 +141,12 @@ def score(truth: list[TruthTable], got: list[BenchTable]) -> Score:
         )
         notes_kept += sum(_norm(n) in blob for n in u.notes)
     fp = sum(
-        numeric(c) and _norm(c) not in allowed.get(t.page, set())
+        numeric(c)
+        and _norm(c) not in allowed.get(t.page, set())
+        and not (j == 0 and _norm(c) in marks.get(t.page, set()))
         for t in got
         for row in t.grid
-        for c in row
+        for j, c in enumerate(row)
         if c.strip()
     )
     return Score(

@@ -97,3 +97,15 @@ def test_duplicate_values_need_one_cell_each():
     truth = TruthTable(1, BOX, ["A", "B"], [["2026f"]], {(0, 0): "2.25", (1, 0): "2.25"})
     s = score([truth], [_t([["", "2026f"], ["A", "2.25"], ["B", ""]])])
     assert s.values_present == 1 and s.values_aligned == 1
+
+
+def test_a_detached_marker_under_a_value_column_is_a_false_positive():
+    truth = TruthTable(1, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5"}, value_markers={(0, 0): "1"})
+    s = score([truth], [_t([["", "2026f"], ["", "1"], ["Prices", "2.5"]])])
+    assert s.values_aligned == 1 and s.markers_kept == 0
+    assert s.numeric_false_positive == 1  # a lone digit under a period header reads as a figure
+
+
+def test_a_detached_marker_in_the_label_column_is_not_a_figure():
+    s = score([TRUTH], [_t([["", "Current (11 Nov)", "2026f"], ["1", "", ""], *PERFECT[1:]])])
+    assert s.numeric_false_positive == 0
