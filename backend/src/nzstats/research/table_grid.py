@@ -1,9 +1,10 @@
 """Rows, columns and headers from positioned words (Phase 4AF). Geometry only: no meaning is attached here.
 
 A table is a run of *body lines* (a text label followed by value-like or unit-like cells) with the header lines
-directly above it. Columns come from the lowest header line; a group header ("Actual", "Forecast") covers the columns
-from where it starts to where the next group starts. A value belongs to a column only when it overlaps exactly one
-column by at least half its width. Anything else (a value straddling two columns, beyond the last column, a group
+directly above it. Columns come from the period line (the lowest header line, or the line with the most cells when a
+header is stacked across it: Phase 4AK); a group header ("Actual", "Forecast") a full line or more above it covers the
+columns from where it starts to where the next group starts, and two group headers never share a starting column. A
+value belongs to a column only when it overlaps exactly one column by at least half its width. Anything else (a value straddling two columns, beyond the last column, a group
 header that starts in a gap) makes the **whole table** ambiguous and it is rejected rather than repaired. A table that
 continues on the next page is joined only when the next page repeats the same header, or has no header and the table
 had no notes, and in either case carries no caption of its own (or one that says "continued"); a continuation that does not
@@ -177,6 +178,27 @@ class _Candidate:
     notes: list[str]
 
 
+_SUPERSCRIPT = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+# A lone digit at most this fraction of the table's text size is a footnote marker, not a figure.
+_MARKER_RATIO = 0.75
+
+
+def _small_marker(line: list[_Chunk], body: list[list[_Chunk]]) -> bool:
+    """A footnote marker set as a small plain digit (1 to 99) on its own line under a table, at the row labels (Phase 4AK).
+
+    It starts a marker-specific note (written with the superscript digit, as the word reader writes a raised marker), so
+    the note walk reads on to the source and notes beneath instead of stopping there. A small digit elsewhere (a chart
+    tick, a page number) is not a marker.
+    """
+    size = body[-1][0].size
+    return (
+        len(line) == 1
+        and re.fullmatch(r"[1-9]\d?", line[0].text) is not None
+        and line[0].size <= _MARKER_RATIO * size
+        and abs(line[0].x0 - min(row[0].x0 for row in body)) <= size
+    )
+
+
 def _gap(upper: list[_Chunk], lower: list[_Chunk]) -> float:
     return upper[0].y - lower[0].y
 
@@ -229,6 +251,7 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
             j -= 1
         caption = " ".join((*captions, *header_context)) or None
         notes: list[str] = []
+        marker_x1: float | None = None  # right edge of the marker while its note is open
         k = end + 1
         while (
             k < len(lines)
@@ -236,6 +259,7 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
             and not _is_body(lines[k])
             and (
                 _NOTE.match(lines[k][0].text)
+                or _small_marker(lines[k], body)
                 or (
                     notes
                     and len(lines[k]) == 1
@@ -246,8 +270,15 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
             and _gap(lines[k - 1], lines[k]) <= 3 * lines[k][0].size
         ):
             note = " ".join(c.text for c in lines[k])
-            if _NOTE.match(lines[k][0].text):
+            if _small_marker(lines[k], body):
+                notes.append(note.translate(_SUPERSCRIPT))
+                marker_x1 = lines[k][0].x1
+            elif _NOTE.match(lines[k][0].text) or (
+                marker_x1 is not None and lines[k][0].x0 < marker_x1
+            ):
+                # A footnote definition wraps under its own text; a line back under the marker is a new, unmarked note.
                 notes.append(note)
+                marker_x1 = None
             else:
                 notes[-1] += " " + note
             k += 1
@@ -256,20 +287,87 @@ def _candidates(lines: list[list[_Chunk]]) -> list[_Candidate]:
     return out
 
 
+_Span = tuple[float, float, str, str]
+
+
+def _span(x0: float, x1: float, text: str) -> _Span:
+    return (x0, x1, "unit" if _UNIT_HEADER.match(text) else "value", text)
+
+
+def _overlaps(a: _Chunk, b: _Chunk) -> bool:
+    return min(a.x1, b.x1) > max(a.x0, b.x0)
+
+
+def _stacked(header: list[list[_Chunk]]) -> tuple[list[_Span], list[list[_Chunk]]] | None:
+    """Header cells set on two lines that straddle the period line (Phase 4AK); None when that cannot be shown.
+
+    The period line is the one header line with the most cells. A header line less than one font size from it cannot
+    be a row of its own (its glyphs would collide), so its cells are fragments of stacked cells. Each stacked cell is
+    the fragments that all overlap one another horizontally (so one per line: two pieces of one line that overlap are
+    merged earlier), with at least one above and one below the period line. A stacked cell overlapping a period header
+    is refused by `_columns`. Lines a full line or more above are group headers, as before; a full line below is
+    refused, never dropped. A tie for the most cells is refused.
+    """
+    most = max(len(line) for line in header)
+    anchors = [n for n, line in enumerate(header) if len(line) == most]
+    if len(anchors) != 1:
+        return None
+    a = anchors[0]
+    base = header[a]
+    size, y = base[0].size, base[0].y
+    near = [line for n, line in enumerate(header) if n != a and abs(line[0].y - y) < size]
+    if any(abs(line[0].y - y) >= size for line in header[a + 1 :]):
+        return None  # a separate header line below the period line
+    fragments = sorted((c for line in near for c in line), key=lambda c: c.x0)
+    cells: list[list[_Chunk]] = []
+    for f in fragments:  # sorted by x0: overlapping fragments are consecutive groups
+        if cells and any(_overlaps(f, g) for g in cells[-1]):
+            cells[-1].append(f)
+        else:
+            cells.append([f])
+    spans = [_span(c.x0, c.x1, c.text) for c in base]
+    for cell in cells:
+        ys = [f.y for f in cell]
+        # Mutual overlap also means one fragment per line; a side may hold more than one line.
+        if (
+            not all(_overlaps(f, g) for f in cell for g in cell)
+            or not any(v > y for v in ys)
+            or not any(v < y for v in ys)
+        ):
+            return None
+        text = " ".join(f.text for f in sorted(cell, key=lambda f: -f.y))
+        spans.append(_span(min(f.x0 for f in cell), max(f.x1 for f in cell), text))
+    groups = [line for line in header[:a] if abs(line[0].y - y) >= size]
+    return sorted(spans), groups
+
+
 def _columns(header: list[list[_Chunk]]) -> tuple[Column, ...] | None:
-    """Columns from the lowest header line, with group headers above; None when they cannot be told apart."""
-    base = header[-1]
-    tol = base[0].size
-    spans = [(c.x0, c.x1, "unit" if _UNIT_HEADER.match(c.text) else "value", c.text) for c in base]
+    """Columns from the period line, with group headers above; None when they cannot be told apart.
+
+    The period line is the lowest header line, unless another line has more cells: then the lowest line must be part
+    of a header stacked across the period line (`_stacked`), or the table is refused.
+    """
+    tol = header[-1][0].size
+    if len(header[-1]) == max(len(line) for line in header):
+        spans = [_span(c.x0, c.x1, c.text) for c in header[-1]]
+        group_lines = header[:-1]
+        if any(line[0].y - header[-1][0].y < tol for line in group_lines):
+            return None  # less than one font size above the period line: part of a cell, not a group row
+    elif (stacked := _stacked(header)) is not None:
+        spans, group_lines = stacked
+    else:
+        return None
     if any(b[0] < a[1] for a, b in zip(spans, spans[1:], strict=False)):
         return None  # header cells overlap
     groups: list[list[str]] = [[] for _ in spans]
-    for group_line in header[:-1]:
+    for group_line in group_lines:
         starts: list[tuple[int, str]] = []
         for g in group_line:
             start = next((n for n, s in enumerate(spans) if s[1] >= g.x0), None)
             if start is None or not (spans[start][0] - tol <= g.x0 <= spans[start][1]):
                 return None  # a group header that starts in a gap: centred or misplaced
+            if starts and starts[-1][0] == start:
+                return None  # two group headers start over one column: neither may be dropped
             starts.append((start, g.text))
         for n, (start, text) in enumerate(starts):
             stop = starts[n + 1][0] if n + 1 < len(starts) else len(spans)
