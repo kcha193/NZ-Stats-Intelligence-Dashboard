@@ -20,3 +20,4 @@ frontend/dist-static/
 
 # Local Netlify folder
 .netlify
+benchmarks/pdf_tables/.venv/
