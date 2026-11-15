@@ -10,7 +10,9 @@ Today all five banks refuse them ([permissions package](phase-4ag-anz-permission
 | Before (4AF) | Now (4AG) |
 |---|---|
 | word reader `pdf-words-1` (`pypdf`), a `BT..ET` row came back as one string | `pdf-words-4` (`pdfminer.six>=20251230`), every cell is its own word with its true right edge; unresolved glyph overlays refuse the PDF |
-| interpreter `tables-10` | `tables-13`; older extractions, including `tables-11` and `tables-12`, stay stored and stop feeding the analytics, so a held PDF is re-extracted once to appear again |
+| interpreter `tables-10` | `tables-14` (Phase 4AK); older extractions, including `tables-11` to `tables-13`, stay stored and stop feeding the analytics, so a held PDF is re-extracted once to appear again |
+| a header set on two lines straddling the period line was `ambiguous_columns` | read as one column (Phase 4AK, [record](phase-4ak-anz-pdf-compat.md)); a header line less than 1 em above the period line, or two group headers over one column, is now `ambiguous_columns` |
+| notes stopped at a footnote marker set as a small plain digit | that line starts a footnote note and the walk reads on to the source line (Phase 4AK) |
 | dry run printed counts | dry run also prints each rejection code with its count, the reader and the interpreter version |
 | prose beside table rows made the table vanish without a code | reported as `mixed_layout` |
 | `Mar-26` and `Jun-26` in a narrow gutter could merge into one header | period headers, month-only headers and figures are separate cells; double-struck (fake bold) text is read once |
@@ -52,10 +54,12 @@ Reader refusals (fixed wording, shown as `pdf could not be read (...)`): `no_tex
 1. `no_text_layer`: the PDF is scanned or image-only. OCR of bank reports is not authorised. Stop.
 2. `rotated_text_only`: the page text is sideways in display. Not read, by design.
 3. Zero figures and `mixed_layout`: prose shares the table's baselines. Not read, by design; open the PDF to confirm.
-4. Zero figures with `ambiguous_columns` on the table of interest: a layout the grid will not guess. Reproduce the layout with a
+4. Zero figures with `actual_or_forecast_unstated` or `unit_unstated` on a table that is now read (Phase 4AK, page 8): the source prints
+   no marker or unit. Correct by design; never assume `%` or treat a caption's "Forecasts" as a column marker.
+5. Zero figures with `ambiguous_columns` on the table of interest: a layout the grid will not guess. Reproduce the layout with a
    **synthetic** fixture and a failing test before any code changes. Never loosen a rule to extract more.
-5. A figure present in the PDF but absent without any code: that is a defect; stop and add a failing synthetic test.
-6. `ambiguous_glyph_overlap`: unresolved glyph geometry; stop and reproduce with a synthetic fixture. No figure is accepted.
+6. A figure present in the PDF but absent without any code: that is a defect; stop and add a failing synthetic test.
+7. `ambiguous_glyph_overlap`: unresolved glyph geometry; stop and reproduce with a synthetic fixture. No figure is accepted.
 
 ## Freshness: why an older bank figure disappeared (Phase 4AH)
 

@@ -7,6 +7,23 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AK: real ANZ PDF compatibility remediation, NO-GO, 15 November 2026
+
+Branch `feat/phase-4ak-anz-pdf-compat` from main `178ccd7` (PR #63 merged). [record](phase-4ak-anz-pdf-compat.md).
+**Verdict: NO-GO, 0 accepted figures. The extractor improved; nothing was accepted wrongly.** Interpreter `tables-13` → `tables-14`;
+reader `pdf-words-4` unchanged. Version 4 was dry-run only: nothing written, fetched or re-imported, and no model read the document.
+
+- Page 8: a header stacked across the period line ("Current" above, a date below) is read as one column (`table_grid._stacked`).
+  Both market tables are now read, 0 figures: no column carries an Actual/Forecast marker and the OCR row states no unit. These are
+  source facts, not inferred.
+- Review fixes (refusals): two group headers over one column; a line less than 1 em above the period line as a group header.
+- Page 5, rule by rule: the caption walk (A), the editorial PDF title (B), the rate units (C), the GDP footnote (D) and the actuals
+  (E) all stay refused by design. No structural rule separates them safely; the reasons are in the record.
+- Fixed a latent fail-open: notes stopped at a footnote marker set as a small plain digit, so a source line naming another
+  forecaster was never read and the figures were attributed to the publisher.
+- Dry run: 0 figures; 23 → 49 rejections (`ambiguous_columns` 3 → 1; page 8 now refused cell by cell). Snapshot isolation passed.
+- Next (owner): Phase 4AL options in the record (title attestation, the February 2027 outlook). Do not loosen A or B.
+
 ## Phase 4AJ: first real ANZ extraction pilot, NO-GO, 15 November 2026
 
 Branch `fix/phase-4aj-snapshot-relative-data-dir` from main `614131f` (PR #62 merged). [record](phase-4aj-anz-pilot.md).

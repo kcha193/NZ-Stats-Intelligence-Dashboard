@@ -79,7 +79,7 @@ def test_a_stored_pdf_yields_figures_and_a_rerun_is_unchanged(conn, artifacts):
     ) in figures
 
 
-@pytest.mark.parametrize("legacy", ["tables-9", "tables-10", "tables-11", "tables-12"])
+@pytest.mark.parametrize("legacy", ["tables-9", "tables-10", "tables-11", "tables-12", "tables-13"])
 def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts, legacy):
     from nzstats.research.extract import ExtractionLimits
     from nzstats.research.table_store import store_extraction
@@ -93,7 +93,7 @@ def test_reextracting_legacy_words_stores_current_interpretation(conn, artifacts
     )
     result = extract_version_tables(conn, v, artifacts, registry, NOW, isolate=False)
     assert result.status == "stored"
-    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-13"}
+    assert {f.interpreter_version for f in load_forecasts(conn, v)} == {"tables-14"}
 
 
 def test_a_dry_run_reads_and_counts_but_writes_nothing(conn, artifacts):
@@ -361,7 +361,7 @@ def test_the_dry_run_command_prints_the_tally_the_reader_and_the_interpreter(cli
                  "--importer", "Owner", "--note", "n"]) == 0  # fmt: skip
     assert main(["research", "tables", "extract", "1", "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "pdf-words-4" in out and "tables-13" in out
+    assert "pdf-words-4" in out and "tables-14" in out
     assert SENTINEL not in out and "Annual CPI" not in out
 
 
@@ -373,7 +373,7 @@ def test_show_names_the_interpreter_and_says_when_it_is_not_the_current_one(cli,
     assert main(["research", "tables", "show", "1", "--json"]) == 0
     out = capsys.readouterr().out
     data = json.loads(out[out.index("{") :])
-    assert data["interpreter"] == "tables-13" and data["current"] is True
+    assert data["interpreter"] == "tables-14" and data["current"] is True
     # Make the stored extraction look like an older interpreter's.
     from nzstats.config import load_settings
     from nzstats.research.cli import _open

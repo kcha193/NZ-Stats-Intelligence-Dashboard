@@ -3,6 +3,8 @@
 15 November 2026, Pacific/Auckland. Procedure: [phase-4ag-pilot-procedure.md](phase-4ag-pilot-procedure.md). Decision record for step 0:
 [phase-4ai-authorization-assessment.md](phase-4ai-authorization-assessment.md) (PR #62).
 
+**Follow-up: [Phase 4AK](phase-4ak-anz-pdf-compat.md) took option 2 (page-8 header geometry) and reviewed option 3 rule by rule. Page 8 is now read but still gives 0 figures (no marker, no unit); page 5 stays refused. Still NO-GO.**
+
 **Verdict: NO-GO. The pilot is not accepted.** The deterministic extractor read this real ANZ layout safely: it stored nothing
 wrong and refused every cell with a fixed code. But it yields **0 storable figures**, so steps 6 and 7 have nothing to extract
 or reconcile. Nothing was fetched, no model read the document, and nothing reached a snapshot, Git or a public or private gate.

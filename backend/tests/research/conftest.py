@@ -51,6 +51,7 @@ ROW_STYLE_MODULES = {
     "test_table_e2e",
     "test_table_api",
     "test_table_context",
+    "test_table_stacked_headers",
 }
 
 
