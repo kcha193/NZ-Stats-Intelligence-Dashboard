@@ -1,0 +1,250 @@
+"""Truth-free structural diagnostics for a document no one may read: every metric is a count, computed in memory.
+
+`emit` is the only way out. It refuses any key outside a fixed vocabulary and any value that is not a number, a
+boolean, None or a fixed code, so a document string cannot leave this process by accident (a header used as a key,
+an error message, a cell text).
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import math
+import re
+from collections import Counter
+
+from pdfbench.adapters import PARSERS, run
+from pdfbench.metrics import numeric
+from pdfbench.model import BenchTable
+
+CODES = frozenset({"error", "timeout", "refused", "hash_mismatch", "unavailable"})
+KEYS = frozenset(
+    {
+        "pages",
+        "parsers",
+        "error",
+        "seconds",
+        # page facts
+        "lines",
+        "rects",
+        "curves",
+        "value_marker_sites",
+        "label_marker_sites",
+        # per parser and page
+        "tables",
+        "shapes",
+        "numeric_cells",
+        "multi_number_cells",
+        "fused_marker_cells",
+        "detached_marker_cells",
+        "source_lines_in_grid",
+        "notes",
+        "existing_value_cells",
+        "agreement_with_existing",
+        "tables_merged_vs_existing",
+        "bbox_numeric_tokens",
+        "bbox_numeric_tokens_uncovered",
+    }
+)
+_PAGE_KEY = re.compile(r"^\d{1,4}$")
+_FIGURE = set("0123456789.,%")
+_SOURCE = re.compile(r"^(?:sources?|notes?)\b", re.IGNORECASE)
+_MARKER_RATIO = 0.75
+_SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+
+
+def _check(value: object, path: str) -> None:
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            if not isinstance(key, str) or not (key in KEYS or key in PARSERS or _PAGE_KEY.match(key)):
+                raise ValueError(f"key refused at {path}")
+            _check(inner, f"{path}/<key>")
+    elif isinstance(value, list):
+        for inner in value:
+            _check(inner, f"{path}[]")
+    elif isinstance(value, bool) or value is None or isinstance(value, int):
+        return
+    elif isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"non-finite value at {path}")
+    elif isinstance(value, str):
+        if value not in CODES:
+            raise ValueError(f"string value refused at {path}")
+    else:
+        raise ValueError(f"type refused at {path}")
+
+
+def emit(data: dict) -> str:
+    _check(data, "")
+    return json.dumps(data, sort_keys=True)
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _marker_sites(chars: list[dict]) -> tuple[list[tuple[str, str]], int]:
+    """(figure text, marker digit) for each small digit set directly after a figure; and the count after a word."""
+    sites, labels = [], 0
+    normal = [c for c in chars if c["text"].strip()]
+    for c in normal:
+        if not c["text"].isdigit():
+            continue
+        prev = [
+            p
+            for p in normal
+            if p is not c
+            and c["size"] < _MARKER_RATIO * p["size"]
+            and 0 <= c["x0"] - p["x1"] < 0.3 * p["size"]
+            and c["top"] < p["bottom"]
+            and c["bottom"] > p["top"]
+        ]
+        if not prev:
+            continue
+        p = max(prev, key=lambda q: q["x1"])
+        if p["text"] not in _FIGURE:
+            labels += 1
+            continue
+        line = sorted(
+            (
+                q
+                for q in normal
+                if abs(q["bottom"] - p["bottom"]) < 1 and abs(q["size"] - p["size"]) < 0.1 and q["x1"] <= p["x1"]
+            ),
+            key=lambda q: q["x0"],
+        )
+        token = [p]
+        for q in reversed(line[:-1] if line and line[-1] is p else line):
+            if q["text"] in _FIGURE and token[0]["x0"] - q["x1"] < 0.15 * p["size"]:
+                token.insert(0, q)
+            else:
+                break
+        sites.append(("".join(q["text"] for q in token), c["text"]))
+    return sites, labels
+
+
+def _cells(t: BenchTable) -> list[str]:
+    return [_norm(c) for row in t.grid for c in row]
+
+
+def _value_triples(tables: list[BenchTable]) -> list[tuple[str, str, str]]:
+    """(row label without its footnote marker, column header, value text) for each numeric body cell."""
+    out = []
+    for t in tables:
+        header = t.grid[0]
+        for row in t.grid[1:]:
+            label = _norm(row[0]).rstrip(_SUPERSCRIPTS).strip()
+            out += [(label, _norm(header[j]), _norm(row[j])) for j in range(1, len(row)) if numeric(row[j])]
+    return out
+
+
+def _agrees(tables: list[BenchTable], label: str, header: str, text: str) -> bool:
+    for t in tables:
+        for i, row in enumerate(t.grid):
+            for j, cell in enumerate(row):
+                if _norm(cell) != text or not any(label and label in _norm(x) for x in row[:j]):
+                    continue
+                above = " ".join(_norm(t.grid[k][j]) for k in range(i) if j < len(t.grid[k]))
+                if all(token in above for token in header.split()):
+                    return True
+    return False
+
+
+def _labels(t: BenchTable) -> list[str]:
+    return [_norm(r[0]) for r in t.grid[1:] if r and _norm(r[0])]
+
+
+def _page_metrics(
+    tables: list[BenchTable],
+    existing: list[BenchTable] | None,
+    sites: list[tuple[str, str]],
+    words: list[dict],
+    height: float,
+) -> dict:
+    cells = [c for t in tables for c in _cells(t)]
+    nums = [c for c in cells if numeric(c)]
+    fused = Counter(f + d for f, d in sites)
+    have = Counter(cells)
+    out = {
+        "tables": len(tables),
+        "shapes": [[len(t.grid), max((len(r) for r in t.grid), default=0)] for t in tables],
+        "numeric_cells": len(nums),
+        "multi_number_cells": sum(len(c.split()) > 1 for c in nums),
+        "fused_marker_cells": sum(min(n, have[text]) for text, n in fused.items()),
+        "detached_marker_cells": sum(
+            1
+            for t in tables
+            for row in t.grid
+            for j, c in enumerate(row)
+            if j > 0 and re.fullmatch(r"\d{1,2}", _norm(c)) and not any(_norm(x) for k, x in enumerate(row) if k != j)
+        ),
+        "source_lines_in_grid": sum(bool(_SOURCE.match(c)) for c in cells),
+        "notes": sum(len(t.notes) for t in tables),
+    }
+    if existing is None:
+        out.update(existing_value_cells=None, agreement_with_existing=None, tables_merged_vs_existing=None)
+    else:
+        triples = _value_triples(existing)
+        out["existing_value_cells"] = len(triples)
+        out["agreement_with_existing"] = sum(_agrees(tables, *tr) for tr in triples)
+        out["tables_merged_vs_existing"] = sum(
+            sum(
+                bool(ls) and 2 * sum(any(lab in c for c in _cells(t)) for lab in ls) >= len(ls)
+                for ls in (_labels(e) for e in existing)
+            )
+            > 1
+            for t in tables
+        )
+    tokens = Counter(tok for c in cells for tok in c.split())
+    inside = [
+        w["text"]
+        for w in words
+        if numeric(w["text"])
+        and any(
+            t.bbox[0] - 2 <= w["x0"]
+            and w["x1"] <= t.bbox[2] + 2
+            and t.bbox[1] - 2 <= height - w["bottom"] <= t.bbox[3] + 12
+            for t in tables
+        )
+    ]
+    need = Counter(inside)
+    out["bbox_numeric_tokens"] = len(inside)
+    out["bbox_numeric_tokens_uncovered"] = sum(max(0, n - tokens[text]) for text, n in need.items())
+    return out
+
+
+def diagnose(pdf: bytes, pages: list[int], parsers: list[str] | None = None, timeout: float = 120) -> dict:
+    import pdfplumber
+
+    names = parsers or sorted(PARSERS)
+    page_facts, sites, words, heights = {}, {}, {}, {}
+    with pdfplumber.open(io.BytesIO(pdf)) as doc:
+        for number in pages:
+            page = doc.pages[number - 1]
+            found, labels = _marker_sites(page.chars)
+            sites[number], words[number], heights[number] = found, page.extract_words(), float(page.height)
+            page_facts[str(number)] = {
+                "lines": len(page.lines),
+                "rects": len(page.rects),
+                "curves": len(page.curves),
+                "value_marker_sites": len(found),
+                "label_marker_sites": labels,
+            }
+    results = {name: run(name, pdf, pages, timeout) for name in names}
+    existing_tables = results["existing"][0] if "existing" in results else None
+    out: dict = {}
+    for name, (tables, error, seconds) in results.items():
+        entry: dict = {"error": error, "seconds": round(seconds, 2)}
+        if tables is not None:
+            entry["pages"] = {
+                str(p): _page_metrics(
+                    [t for t in tables if t.page == p],
+                    None if existing_tables is None else [t for t in existing_tables if t.page == p],
+                    sites[p],
+                    words[p],
+                    heights[p],
+                )
+                for p in pages
+            }
+        out[name] = entry
+    return {"pages": page_facts, "parsers": out}
