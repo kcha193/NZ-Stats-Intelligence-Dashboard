@@ -74,7 +74,9 @@ def test_recorded_findings_from_the_2026_10_25_probes():
     assert r["rbnz"].review_status is ReviewStatus.NEEDS_REVIEW
     assert r["rbnz"].manual_import is ManualImport.APPROVED
     assert r["rbnz"].content_policy is ContentPolicy.FULL_TEXT
-    assert r["anz"].content_policy is ContentPolicy.METADATA_ONLY
+    # 2026-11-15 (Phase 4AI): the owner's personal-research scope sets full_text for the manual import only
+    assert r["anz"].content_policy is ContentPolicy.FULL_TEXT
+    assert r["anz"].review_status is ReviewStatus.NEEDS_REVIEW
     assert "/content/dam/asb/documents/" in r["asb"].blocked_path_prefixes
     assert set(r["westpac"].allowed_hosts) == {"www.westpac.co.nz", "assets.dam.westpac.co.nz"}
     assert r["infometrics"].allowed_hosts == (

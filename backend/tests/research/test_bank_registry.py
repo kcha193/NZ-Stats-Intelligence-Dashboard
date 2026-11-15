@@ -4,7 +4,7 @@ import pytest
 
 from nzstats.research.registry import ContentPolicy, ReviewStatus, load_registry
 
-from .bank_support import BANK_KEYS
+from .bank_support import DENIED_BANK_KEYS, assert_anz_holds_only_the_personal_scope
 
 
 @pytest.fixture(scope="module")
@@ -12,7 +12,7 @@ def registry():
     return load_registry()
 
 
-@pytest.mark.parametrize("key", BANK_KEYS)
+@pytest.mark.parametrize("key", DENIED_BANK_KEYS)
 def test_every_bank_is_refused_everywhere(registry, key):
     inst = registry[key]
     assert not inst.automated_access_allowed
@@ -24,6 +24,10 @@ def test_every_bank_is_refused_everywhere(registry, key):
     assert inst.private_display_level().value == "none"
     assert inst.content_policy is not ContentPolicy.FULL_TEXT
     assert inst.review_status is ReviewStatus.NEEDS_REVIEW
+
+
+def test_anz_is_open_only_to_the_owners_manual_import(registry):
+    assert_anz_holds_only_the_personal_scope(registry["anz"])
 
 
 def test_bnz_and_kiwibank_landing_urls_are_owner_supplied_and_unprobed(registry):

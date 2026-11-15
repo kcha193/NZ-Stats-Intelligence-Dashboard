@@ -8,6 +8,41 @@ from nzstats.research.registry import Institution
 from .support import institution
 
 BANK_KEYS = ("anz", "asb", "bnz", "westpac", "kiwibank")
+# Phase 4AI: the owner's recorded personal-research scope opens ANZ's manual import only. Every other bank stays refused.
+PERSONAL_SCOPE_BANK = "anz"
+DENIED_BANK_KEYS = tuple(k for k in BANK_KEYS if k != PERSONAL_SCOPE_BANK)
+
+
+def assert_anz_holds_only_the_personal_scope(inst: Institution) -> None:
+    """ANZ may be imported by hand and read locally, and nothing else: no crawler, no model, no public or private display."""
+    from datetime import date
+
+    from nzstats.research.registry import (
+        ContentPolicy,
+        LlmProcessing,
+        ManualImport,
+        PrivateDisplay,
+        PublicDisplay,
+        ReviewStatus,
+    )
+
+    assert inst.key == PERSONAL_SCOPE_BANK
+    assert inst.manual_import is ManualImport.APPROVED and inst.manual_import_allowed
+    assert inst.manual_import_approved_by == "Kevin Chang"
+    assert inst.manual_import_approved_on == date(2026, 11, 15)
+    note = inst.manual_import_note
+    assert "docs/phase-4ai-authorization-assessment.md" in note and "not a licence from ANZ" in note
+    assert "one browser-saved Economic Outlook PDF" in note and "loopback dashboard only" in note
+    assert inst.content_policy is ContentPolicy.FULL_TEXT
+    # The crawler needs review_status approved, which this scope never gives.
+    assert inst.review_status is ReviewStatus.NEEDS_REVIEW and not inst.automated_access_allowed
+    assert (inst.approved_by, inst.approved_on, inst.approval_note) == (None, None, None)
+    assert inst.llm_processing is LlmProcessing.DENIED
+    assert inst.llm_refusal(hosted=True) is not None and inst.llm_refusal(hosted=False) is not None
+    assert inst.public_display is PublicDisplay.NONE and inst.public_display_approved_by is None
+    assert inst.private_display is PrivateDisplay.NONE and inst.private_display_approved_by is None
+    assert inst.display_level().value == "none" and inst.private_display_level().value == "none"
+    assert inst.holds("manual") and not inst.holds("crawler")
 
 
 def nf(

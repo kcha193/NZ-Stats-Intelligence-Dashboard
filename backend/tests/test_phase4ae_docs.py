@@ -35,7 +35,11 @@ def test_the_matrix_row_matches_the_registry(name: str, key: str) -> None:
     row = next(line for line in MATRIX.splitlines() if line.startswith(f"| {name} "))
     assert inst.review_status.value in row and inst.content_policy.value in row
     assert inst.verified_on is not None and inst.verified_on.isoformat() in row
-    assert not inst.source_permitted and inst.llm_refusal(hosted=True) is not None
+    if key == "anz":  # Phase 4AI: the owner's manual import only; the crawler stays off
+        assert inst.manual_import_allowed and not inst.automated_access_allowed
+    else:
+        assert not inst.source_permitted
+    assert inst.llm_refusal(hosted=True) is not None
 
 
 def test_the_matrix_says_the_evidence_is_the_registrys_and_nothing_new_was_read() -> None:

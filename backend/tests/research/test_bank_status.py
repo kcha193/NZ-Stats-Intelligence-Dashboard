@@ -16,7 +16,7 @@ from nzstats.research.bank_status import (
 from nzstats.research.registry import load_registry
 from nzstats.store.db import connect, migrate
 
-from .bank_support import BANK_KEYS, SYNTH_ADAPTERS, synthetic_registry
+from .bank_support import BANK_KEYS, DENIED_BANK_KEYS, SYNTH_ADAPTERS, synthetic_registry
 from .llm_support import SECTIONS, draft, seed_version
 from .support import institution
 from .test_drafts_auto import store_hosted
@@ -38,11 +38,15 @@ def seed(conn, doc, published_on, key="bank_a", sections=SECTIONS):
     return seed_version(conn, sections, key=key, doc=doc, published_on=published_on)
 
 
-def test_every_real_bank_is_permission_denied_and_exits_zero(conn):
+def test_real_banks_are_denied_except_anz_which_is_missing_until_imported(conn):
     got = bank_status(conn, load_registry(), NOW)
     assert [s.key for s in got] == sorted(BANK_KEYS)
-    assert {s.state for s in got} == {"permission_denied"}
-    assert bank_status_exit(got) == 0
+    # Phase 4AI: ANZ's manual import is open, so an empty store is "missing" (attention) until the one report is held.
+    assert {s.key: s.state for s in got} == {
+        **dict.fromkeys(DENIED_BANK_KEYS, "permission_denied"),
+        "anz": "missing",
+    }
+    assert bank_status_exit(got) == 1
 
 
 def test_a_permitted_bank_without_an_adapter_is_unsupported(conn):
@@ -207,12 +211,13 @@ def test_cli_bank_status_on_the_real_registry(tmp_path, monkeypatch, capsys):
     migrate(c)
     c.close()
     monkeypatch.setattr("nzstats.research.cli.build_fetcher", pytest.fail)
-    assert main(["research", "bank-status", "--json"]) == 0
+    assert main(["research", "bank-status", "--json"]) == 1
     payload = json.loads(capsys.readouterr().out)
-    assert {b["key"]: b["state"] for b in payload["banks"]} == dict.fromkeys(
-        BANK_KEYS, "permission_denied"
-    )
-    assert payload["exit_code"] == 0
+    assert {b["key"]: b["state"] for b in payload["banks"]} == {
+        **dict.fromkeys(DENIED_BANK_KEYS, "permission_denied"),
+        "anz": "missing",
+    }
+    assert payload["exit_code"] == 1
 
 
 def test_research_health_json_carries_bank_metrics(tmp_path, monkeypatch, capsys):
