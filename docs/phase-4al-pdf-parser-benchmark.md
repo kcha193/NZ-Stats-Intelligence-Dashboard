@@ -1,0 +1,209 @@
+# Phase 4AL: PDF parser benchmark (pdfplumber, Camelot 2.0, `tables-14`)
+
+15 November 2026, Pacific/Auckland. Branch `bench/phase-4al-pdf-parser-benchmark` from `95be0ad` (Phase 4AK, branch
+`feat/phase-4ak-anz-pdf-compat`, not yet merged). Document: the already-imported ANZ Quarterly Economic Outlook, **version 4**,
+pages 5 and 8. Plan: [2026-11-15-phase-4al-pdf-parser-benchmark.md](superpowers/plans/2026-11-15-phase-4al-pdf-parser-benchmark.md).
+Harness: [`benchmarks/pdf_tables/`](../benchmarks/pdf_tables/README.md).
+
+**Verdict: keep the existing `pdf-words-4` / `tables-14` pipeline. No parser showed a structural improvement on the real
+pages, so production extraction is unchanged.** Camelot 2.0 (`network` flavor) is the only competitive alternative. It
+reproduces every page-8 cell that `tables-14` reads, but it merges page 8's two tables into one. It reads a different
+(one word shorter) label for one page-5 row of 8 figures, and it drops every note and source line. On synthetic layouts it also fuses near-touching
+columns. pdfplumber, as the PDF skill configures it, finds no borderless table. Its `lines` mode builds 27-column grids from
+the pages' filled rectangles. Extraction counts were not the criterion: on structure, `tables-14` is equal or better on
+every real-page measure.
+
+This record describes the document only by counts, grid indices and fixed codes. It holds no ANZ text or figure.
+
+## 1. The official PDF skill
+
+Inspected at `anthropics/skills/skills/pdf` (upstream, fetched 2026-11-15) and its synced local copy (identical files;
+local `SKILL.md` SHA-256 `1c7caf5f35eb…`).
+
+- **Licence:** Apache 2.0 (`LICENSE.txt`; the repository README lists the document skills as open source under Apache 2.0, and
+  adds "provided for demonstration and educational purposes only"). pdfplumber is MIT. Camelot is MIT.
+- **Requirements named:** pypdf, pdfplumber, pandas, reportlab, pypdfium2; pytesseract and pdf2image (OCR); poppler-utils,
+  qpdf, pdftk (CLI); pdf-lib (JavaScript).
+- **Scripts (8):** `check_bounding_boxes.py`, `check_fillable_fields.py`, `convert_pdf_to_images.py`,
+  `create_validation_image.py`, `extract_form_field_info.py`, `extract_form_structure.py`, `fill_fillable_fields.py`,
+  `fill_pdf_form_with_annotations.py`. All are for forms or page images. **None extracts tables**, so none was run.
+- **Table guidance used:** `page.extract_tables()` with defaults (`plumber_default`) and the REFERENCE.md settings
+  `lines`/`lines`, `snap_tolerance` 3, `intersection_tolerance` 15 (`plumber_lines`). pdfplumber's `text` strategy
+  (`plumber_text`) was added for fairness on borderless tables; the skill does not name it.
+- **Guidance not used:** the skill's visual debugging (`page.to_image`), OCR (pytesseract) and page-image conversion. Each one
+  would render the document as an image, and OCR is barred by the brief. reportlab, which the skill recommends for creating
+  PDFs, draws the synthetic fixtures.
+
+## 2. Method and privacy boundary
+
+- **Accuracy is measured against ground truth on synthetic replicas only.** These are reportlab PDFs with invented text and
+  figures. They rebuild the page-5 and page-8 layout facts recorded in [Phase 4AK](phase-4ak-anz-pdf-compat.md): a prose
+  paragraph above the caption, 5 unmarked plus 3 `f` years, a raised footnote marker on one row label, a small-digit marker
+  line, a source line naming another forecaster, and a "Current" header stacked 0.59 em above and 0.61 em below the period
+  line over 9 columns and 6 + 4 rows. The replicas reproduce the recorded `tables-14` outcomes exactly: page 5 gives 8 columns,
+  4 rows, 2 notes and `scenario_table`; page 8 gives `actual_or_forecast_unstated` ×18, `unmapped_row` ×9 and
+  `unit_unstated` ×1. Four control cases follow: a fully ruled grid, a value with a fused raised marker, chart axis ticks
+  beside a table, and columns 0.5 em apart.
+- **The real document was measured only with counts.** `run_masked` opens `data/nzstats.db` read-only, applies the production
+  gate (`table_ingest._VERSION` and `version_refusal`) and checks the stored SHA-256. Every value leaves through `emit`. `emit`
+  refuses any key outside a fixed vocabulary and any string that is not a fixed code. Canary tests prove that no word or figure
+  of a synthetic document reaches the output. Mutating the guard makes 3 tests fail per mutation. The database SHA-256 was the
+  same before and after each run (`a44b929b1ef1…`).
+- **No model, OCR or service touched the document.** Camelot's `ml` flavor (a Table Transformer model) is excluded. A test pins
+  torch, transformers, timm, onnxruntime and pytesseract as absent from the benchmark venv. Camelot `lattice` renders pages in
+  memory to find ruling lines; nothing is written or shown.
+- **Cross-parser agreement is not truth.** On the real pages, `agreement_with_existing` counts the value cells that `tables-14`
+  reads and that a parser reproduces under the same row label and column header. On the replicas this count equals the
+  truth-scored alignment for every parser (network 32 and 90, stream 32 and 54, `plumber_text` 13 and 80). That validates it as
+  a proxy, not as ground truth.
+
+Versions (exact pins, each released at least two weeks earlier): pdfplumber 0.11.10 (pins pdfminer.six 20260107),
+camelot-py 2.0.0 (playa-pdf 1.1.0, opencv-python-headless 5.0.0.93), reportlab 5.1.0, pypdf 6.21.4; Python 3.12 venv.
+
+## 3. Synthetic results (ground truth)
+
+Totals over 8 cases (10 truth tables, 275 truth values, 4 stacked columns, 3 footnote markers, 5 notes). *Aligned* means the
+exact text sits on its own row label and under its own column header, with no other column's header fragment above it.
+
+| Parser | Tables found | Merged | Values aligned | Stacked joined | Markers kept | Notes kept | Numeric false positives | Seconds (median, sum) |
+|---|---|---|---|---|---|---|---|---|
+| **existing (`tables-14`)** | 9/10 | 0 | **271/275** | 4/4 | **3/3** | **5/5** | **0** | 1.19 |
+| camelot_network | 10/10 | 2 | 266/275 | 4/4 | 0/3 | 0/5 | 4 | 3.01 |
+| camelot_hybrid | 10/10 | 2 | 266/275 | 4/4 | 0/3 | 0/5 | 4 | 4.51 |
+| camelot_stream | 8/10 | 0 | 194/275 | 2/4 | 0/3 | 0/5 | 6 | 3.02 |
+| camelot_lattice | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 4.40 |
+| plumber_text | 7/10 | 2 | 190/275 | 0/4 | 0/3 | 0/5 | 18 | 0.38 |
+| plumber_default (skill) | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 0.33 |
+| plumber_lines (skill) | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 0.33 |
+
+Per case (aligned / truth, false positives):
+
+- **p5 replica (borderless and ruled):** existing 32/32, network and hybrid 32/32, stream 32/32 with 1 FP, `plumber_text`
+  13/32 with 3 FP (it splits a figure across two cells, so `0.75 4` and `.25` appear). Lattice and both skill modes find nothing.
+  Only existing keeps the label marker and both notes.
+- **p8 replica:** existing 90/90 as two tables. Network and hybrid read 90/90 but as **one table spanning both**; the first
+  table's caption, which carries "Forecasts", now heads the second table's rows. Stream 54/90 (misses the second table).
+  `plumber_text` 80/90, also merged.
+- **fused_superscript:** existing reads `2.5` with the marker kept separately (`2.5¹`). Camelot reads `2.5` but moves the marker
+  into a row of its own under the period header, where a lone `1` reads as a figure (1 FP). The link between the footnote and
+  its value is lost.
+- **tight_columns:** existing 9/9. All three Camelot text flavors put three figures in one cell (`12.35 13.40 14.65`): 0/9
+  with 3 FP.
+- **axis_noise:** no parser except `plumber_text` reads the chart ticks as a table (10 FP).
+- **ruled_control:** every other parser 4/4. **Existing 0/4:** a stub heading over the label column ("Indicator 2026 2027")
+  reads as a body line, so the table has no header (`no_header`). This is a real `tables-14` gap. It fails closed. See §7.
+
+## 4. Real document, version 4 (masked counts)
+
+Page facts: **neither page has a ruling line or curve.** Page 5 has 104 filled rectangles and page 8 has 343. Page 5 has 1
+footnote marker set after a word (a row label) and none after a figure. Page 8 has none.
+
+| Parser | p5 tables (rows × cols) | p5 cells reproduced | p8 tables (rows × cols) | p8 cells reproduced | Merged | Multi-figure cells | Notes attached |
+|---|---|---|---|---|---|---|---|
+| **existing** | 1 (5×9) | 32/32 | 2 (7×10, 5×10) | 90/90 | 0 | 0 | p5: 2, p8: 1 |
+| camelot_network | 1 (11×9) | 24/32 | 2 (18×10, 28×2) | 90/90 | **1** | 0 | 0 |
+| camelot_hybrid | 1 (11×9) | 24/32 | 2 (18×10, 28×2) | 90/90 | **1** | 0 | 0 |
+| camelot_stream | 1 (8×9) | 24/32 | 1 (46×2) | 0/90 | 1 | 10 | 0 |
+| camelot_lattice | 0 | 0/32 | 0 | 0/90 | 0 | 0 | 0 |
+| plumber_text | 1 (29×12) | 0/32 | 1 (83×16) | 50/90 | 1 | 4 | 0 |
+| plumber_lines (skill) | 1 (2×11) | 0/32 | 2 (5×27, 6×27) | 2/90 | 0 | 0 | 0 |
+| plumber_default (skill) | 1 (1×11) | 0/32 | 2 (2×10, 2×10) | 0/90 | 0 | 0 | 0 |
+
+Why cells were not reproduced (fixed reason codes):
+
+- **Camelot network, hybrid and stream, page 5:** the 8 missing cells are all of grid row 1, one per year column. Each is
+  `label_mismatch`: the figure sits under its correct column header, but the row label differs. A follow-up probe (ints only)
+  found that the `tables-14` label for that row has 6 words. Camelot's label on the same 8 figures is non-empty and holds 5 of
+  them, and no Camelot row holds the full 6-word label. The label does not end in a footnote marker in the `tables-14` reading,
+  so this is a label-reading difference, not a footnote effect. One of the two readings is wrong about the identity of 8
+  figures. **Owner check:** only the PDF can settle which label is printed. The agent did not read it.
+- **Camelot network and hybrid, page 8:** every cell reproduced, but the two market tables come back as one 18-row table (the
+  same merge as the replica), plus a 28×2 table that holds 0 figures. Stream reads 0/90 (`value_missing` ×90): it fuses the page
+  into two columns and puts several figures in one cell (10 cells).
+- **pdfplumber `lines` (the skill's settings):** the filled rectangles become cell edges, so page 8 becomes two 27-column grids
+  (25 `header_mismatch`, 63 `value_missing`). Page 5 gives a 2-row fragment. `default` finds 1- and 2-row fragments.
+- **pdfplumber `text`:** 0/32 on page 5 (28 `label_mismatch`, 4 `header_mismatch`) and 50/90 on page 8 (21 missing, 19 under
+  the wrong header; 41 figure tokens inside its table box are in no cell).
+- **No parser** produced a fused footnote figure on these pages: neither page has a marker after a figure.
+
+## 5. Criteria (brief)
+
+| Criterion | existing `tables-14` | Camelot 2.0 network | pdfplumber (skill) |
+|---|---|---|---|
+| Table detection | p5 1, p8 2; refuses stub-headed tables (synthetic) | p8 tables merged into 1 (real and synthetic) | Borderless: none. Filled rects: false 27-column grids |
+| Cell and column alignment | 122/122 real (reference); 271/275 synthetic | 114/122 real; 266/275 synthetic; fuses columns 0.5 em apart | ≤ 2/122 real |
+| Merged and stacked headers | Stacked "Current" joined (4/4) | Stacked joined (4/4), but table boundaries lost | Not joined (0/4) |
+| Footnote preservation | Marker kept on its cell (3/3); notes walked past small-digit markers | Marker detached into its own row (0/3); a lone digit can read as a figure | Not kept |
+| Source attribution evidence | Notes attached to the table (5/5 synthetic; real p5 2, p8 1) | None: notes and source lines are not part of the table | None |
+| Extraction completeness | Complete on the read tables | Complete on p8 values; p5 row 1 read with a different label (owner check) | Low |
+| False-positive numeric cells | 0 | 4 synthetic (fused columns, detached marker) | `text`: 18 synthetic |
+| Speed | 1.19 s for 8 synthetic cases; real 2.53 s for the **whole document** (words for every page) | 3.01 s synthetic; real 0.40 s for **2 pages** | 0.33 s synthetic |
+| Dependencies | pdfminer.six (already required) | +13 packages, about 278 MB (numpy, pandas, OpenCV, pypdfium2, playa-pdf) | +8 packages, about 47 MB; pins pdfminer.six **exactly** (`==20260107`), against our floor `>=20251230` |
+
+## 6. Recommendation
+
+**Keep `pdfminer.six` + `tables-14` as the production parser.** Adopt neither pdfplumber nor Camelot.
+
+- pdfplumber, as the PDF skill guides it, is built for ruled tables. These bank pages are borderless with filled
+  backgrounds, so it misses every table or invents grids. Its exact pdfminer pin would also freeze our reader's version.
+- Camelot `network` comes closest on figures alone. Its structural failures hit the exact rules our economic validation relies
+  on. A merged table puts two tables under one caption scope; on page 8 only the first caption says "Forecasts" (Phase 4AK),
+  so forecast status would spread to the second. Dropped source lines lose attribution, which is the Phase 4AK fail-open
+  class. A footnote marker detached into its own row (synthetic) loses its link to the figure. Each one would need new repair
+  logic, which is the custom engine we already have, plus about 278 MB of dependencies. The page-5 label difference is open
+  until the owner checks it. Even if Camelot's label is the right one, that single row would not outweigh the failures above.
+- The economic validation (`table_forecast.interpret`: units, dates, attribution, forecast status) stays the gate for any
+  parser. Nothing in this benchmark relaxes it.
+
+The benchmark does give production two inputs. They need separate phases:
+
+1. A `tables-14` gap: stub-headed tables are refused (`no_header`). The fix belongs in `table_grid`, test-first, with the
+   ruled control as its regression case. It is not a parser swap.
+2. The masked harness can be reused: run it on the next outlook (February 2027) before trusting a new layout.
+
+## 7. Integration architecture (if a future document shows a clear win)
+
+The seam is `find_tables(words) -> (GridTable…, Rejection…)` in `table_grid.py`. Everything after it (`table_forecast.interpret`,
+`table_store`, migration 015's immutable tables, `table_view`, the freshness rules) consumes `GridTable` and stays unchanged.
+
+```
+stored PDF bytes ─► table_words.extract_words (pdf-words-4, child process) ─► Word[]
+                    └─► table_grid.find_tables ─► GridTable[] ─► interpret() ─► forecasts / rejections ─► store
+alternative:        <parser>_grid.find_tables(pdf bytes) ─► GridTable[]  (same type, same Rejection codes)
+```
+
+- **Adapter contract:** an alternative must emit `GridTable` with real `Cell` positions, `Column.headers` (group then own),
+  `header_rows` provenance and `notes`. A parser that cannot supply notes (Camelot, pdfplumber) needs a separate note walk over
+  `Word`s below the table. Without one it cannot pass attribution, so it fails closed.
+- **Versioning:** a new interpreter string (for example `tables-15-camelot`) in the existing extraction row. Older extractions
+  stay immutable and stop feeding analytics, as with `tables-13`.
+- **Isolation:** the parser runs in the same child-process sandbox as `table_words` (time, memory and size limits). Its
+  dependencies go in an optional extra, never in the base install. No `ml` flavor and no page images leave the process.
+- **Shadow mode first:** run both parsers, store only `tables-14`, and log the masked disagreement codes from this harness. No
+  output changes until the gate below passes.
+
+## 8. Tests and migration plan
+
+Tests now (benchmark only, `benchmarks/pdf_tables/tests`, 94 passing): replica fidelity (`test_synth.py`), adapters and
+failure isolation (`test_adapters.py`), truth scoring with mutation-checked guards (`test_metrics.py`), the run table
+(`test_run_synthetic.py`), and the privacy schema, canaries, production gate and reason codes (`test_masked.py`). The backend
+suite is unchanged; no production file changed.
+
+Migration plan: **none now.** If a later document shows a win, adopt only when all of these hold:
+
+1. Synthetic: aligned ≥ `tables-14` on every case, 0 numeric false positives, markers and notes kept, 0 merged tables.
+2. Real (masked): 100% of `tables-14` cells reproduced with 0 `label_mismatch` and 0 merges, on every held bank PDF.
+3. End to end: the same `interpret()` outcome, with **zero accepted figures that `tables-14` refuses**, unless the owner
+   reconciles each one against the PDF (procedure step 7).
+4. Shadow mode for at least one new release, a new interpreter version, then switch, with `tables-14` kept as the fallback.
+
+## 9. Limitations
+
+- The replicas follow the recorded geometry, not the real pages' filled rectangles; only the real run measured those.
+- On the real document, "reproduced" means agreement with `tables-14`, not truth. A parser could be right where `tables-14`
+  is wrong; only the page-5 row 1 label case is open, and it is an owner check.
+- The timings measure different scopes (whole document against 2 pages) and include no process start.
+
+## 10. Independent review
+
+See §11 (added after review).
