@@ -27,6 +27,10 @@ If any row is not true: **stop and report BLOCKED**.
 
 ## Step 1: back up (before anything is written)
 
+Run every command in this procedure from the **repository root** (as `scripts/run.sh` does). `.env` sets
+`NZSTATS_DATA_DIR=./data`, which resolves against the working directory: from `backend/` the commands open a different, stale
+database (found in [Phase 4AJ](phase-4aj-anz-pilot.md), finding F1).
+
 ```sh
 nzstats backup --bundle ~/nzstats-backups/pre-anz-pilot-$(date +%Y%m%d)
 nzstats verify-backup ~/nzstats-backups/pre-anz-pilot-$(date +%Y%m%d)
@@ -99,7 +103,7 @@ bracketed figure was read. Also confirm no figure that is in the table is missin
 ## Step 8: check the displayed result
 
 ```sh
-cd backend && NZSTATS_STATIC_DIR=../frontend/dist nzstats serve --no-scheduler   # loopback only
+NZSTATS_STATIC_DIR=frontend/dist nzstats serve --no-scheduler --host 127.0.0.1   # from the repository root; loopback only
 ```
 
 Open the dashboard, "Bank outlooks": the ANZ figures match the sheet; the evidence drawer shows "Read directly from a table in

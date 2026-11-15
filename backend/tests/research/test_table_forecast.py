@@ -469,3 +469,19 @@ def test_a_row_in_a_unit_the_phase_does_not_read_is_refused_even_under_a_percent
     forecasts, rejections = run(page(rows, extra=caption))
     assert {f.indicator for f in forecasts} == {"ocr"}
     assert [(r.code, r.row) for r in rejections] == [("unsupported_unit", 0)]
+
+
+def test_scenario_words_in_prose_above_a_labelled_caption_refuse_the_table():
+    """Phase 4AJ lesson (first real outlook): the caption walk keeps prose above a "Table N" label, because a scope
+    heading there ("Youth unemployment") cannot be told from a paragraph by geometry. A paragraph that discusses
+    upside risks therefore refuses the central table below it. Refused, never guessed: do not narrow the walk."""
+    prose = [
+        (72, 784, "Our central forecasts are little changed, though there are"),
+        (72, 772, "some upside risks to inflation if the exchange rate falls."),
+    ]
+    caption = [(72, 745, "Table 1: Summary of key forecasts (SYNTHETIC)")]
+    forecasts, rejections = run(
+        page(line(686, "OCR (%)", ["4", "3", "2", "2"]), extra=[*prose, *caption])
+    )
+    assert forecasts == ()
+    assert [r.code for r in rejections] == ["scenario_table"]

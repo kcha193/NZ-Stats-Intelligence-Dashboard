@@ -7,6 +7,28 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AJ: first real ANZ extraction pilot, NO-GO, 15 November 2026
+
+Branch `fix/phase-4aj-snapshot-relative-data-dir` from main `614131f` (PR #62 merged). [record](phase-4aj-anz-pilot.md).
+**Verdict: NO-GO, pilot not accepted. One owner-saved ANZ Quarterly Economic Outlook (11 November 2026) imported as version 4;
+the extractor refuses every cell, so 0 figures are stored. Nothing wrong was stored, nothing fetched, no model read the document,
+and nothing reached a snapshot, Git or a gate.**
+
+- Backup `~/nzstats-backups/pre-anz-pilot-20261115` verified before the import; hash `52f22fc4f4d3…` matches the saved file.
+- Dry run: 0 figures, 23 rejections. The four indicators of interest sit in one page-5 table, refused as a scenario because the
+  caption walk keeps the paragraph above "Table 1". That walk is a pinned safety rule: a narrower walk was tried test-first and
+  reverted when `test_two_caption_lines_preserve_earlier_scope` failed. Even narrowed, every cell stays refused by design (an
+  editorial document title, a footnoted GDP row, rate rows without a unit, unmarked actual years). Page 8's OCR path is refused
+  for a two-line "Current" header: a reader capability gap.
+- Examined without a model reading the bank document: an owner-approved masked layout skeleton (positions plus token classes)
+  and content-free scripts outside the repository.
+- Fixed: `export_snapshot` scrubbed the bare relative data-dir name (`data`), so every export from the default `.env` failed;
+  it now scrubs the resolved path (new test). The pilot procedure now says to run from the repository root (from `backend/`
+  the commands open a stale schema-14 `backend/data` database, left in place for the owner).
+- New pin: scenario words in prose above a labelled caption refuse the table.
+- Next (owner): stop, or take one of the documented options (page-8 header geometry first). The import stays in place;
+  revocation is unchanged (procedure step 10).
+
 ## Phase 4AI: ANZ personal-research scope recorded; pilot not yet run, 15 November 2026
 
 Branch `proposal/phase-4ai-anz-personal-scope` from main `5fe3db1` (PR #61 merged). [assessment](phase-4ai-authorization-assessment.md).

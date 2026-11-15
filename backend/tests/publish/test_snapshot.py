@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -181,3 +182,14 @@ def test_ingestion_error_text_never_reaches_the_snapshot(production_dir, tmp_pat
     )
     reason = read(out, f"releases/{failed['id']}.json")["payload"]["unavailable_reason"]
     assert reason and "not been verified" in reason
+
+
+def test_a_relative_data_dir_exports(full_dir, tmp_path, monkeypatch):
+    """`.env` sets NZSTATS_DATA_DIR=./data. The path scrub must check the resolved directory, not the bare
+    relative name: as "data" it matched every payload and refused every export (found in Phase 4AJ)."""
+    shutil.copytree(full_dir, tmp_path / "data")
+    monkeypatch.chdir(tmp_path)
+    manifest = export_snapshot(
+        Path("./data"), tmp_path / "out", now=EXPORT_NOW, allow_fixtures=True
+    )
+    assert manifest["origin"] == "fixture"

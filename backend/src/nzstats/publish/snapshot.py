@@ -279,7 +279,10 @@ def export_snapshot(
             raise SnapshotError(
                 "snapshot does not reconcile with the database: " + "; ".join(problems)
             )
-        report = validate_snapshot(staging, scrub=(str(data_dir), str(work), str(Path.home())))
+        # Resolved: a relative data dir ("./data") would scrub the bare word "data" and refuse every export.
+        report = validate_snapshot(
+            staging, scrub=(str(data_dir.resolve()), str(work), str(Path.home()))
+        )
         if report.errors:
             raise SnapshotError("snapshot failed validation: " + "; ".join(report.errors))
         if out_dir.exists():
