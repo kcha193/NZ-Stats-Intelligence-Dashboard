@@ -204,3 +204,48 @@ def test_unreproduced_reasons_separate_label_header_and_value():
     # 2.5 sits under its header but not on the label's row; 2.6 and 2.7 sit on the label's row under the wrong header.
     assert _reasons(other, existing) == {"label_mismatch": 1, "header_mismatch": 2, "value_missing": 0}
     assert _reasons(existing, existing) == {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 0}
+
+
+# --- review fixes: no side channel around emit --------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"parsers": {"existing": {"pages": {"5": {"2027": 3}}}}},  # a year header as a metric key
+        {"pages": {"5": {"2026": 1}}},  # a digit key below a page
+        {"parsers": {"existing": {"2026": 1}}},  # a digit key outside a pages map
+    ],
+)
+def test_digit_keys_are_allowed_only_as_page_numbers(bad):
+    with pytest.raises(ValueError):
+        emit(bad)
+
+
+BROKEN = b"%PDF-1.4\n1 0 obj << /Kids [ (Kzqwvcanary) 9 0 R ] >> stream\n(Kzqwvcanary) Tj\nendstream\ntrailer << /Root 1 0 R >>\n"
+
+
+def test_a_broken_document_prints_nothing_on_either_stream(capfd):
+    from pdfbench.masked import safe_diagnose
+
+    assert safe_diagnose(BROKEN, [1]) == {"error": "error"}
+    out, err = capfd.readouterr()
+    assert out == "" and err == ""
+
+
+def test_parser_children_print_nothing_on_either_stream(capfd):
+    from pdfbench.adapters import PARSERS, run
+
+    for name in sorted(PARSERS):
+        run(name, BROKEN, [1])
+    out, err = capfd.readouterr()
+    assert "Kzqwvcanary" not in out + err
+    assert out == "" and err == ""
+
+
+def test_a_value_marker_does_not_block_agreement_but_a_fused_digit_does():
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", "2026f"], ["Prices", "2.5¹"]])]
+    separated = [BenchTable(1, (0, 0, 1, 1), [["", "2026f"], ["", "1"], ["Prices", "2.5"]])]
+    fused = [BenchTable(1, (0, 0, 1, 1), [["", "2026f"], ["Prices", "2.51"]])]
+    assert all(_agrees(separated, *t) for t in _value_triples(existing))
+    assert not any(_agrees(fused, *t) for t in _value_triples(existing))

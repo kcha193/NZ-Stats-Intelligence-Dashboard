@@ -18,7 +18,7 @@ from pathlib import Path
 from nzstats.research.table_ingest import _VERSION, version_refusal  # same query and gate as `tables extract`
 from nzstats.sources.artifacts import valid_rel
 
-from pdfbench.masked import diagnose, emit
+from pdfbench.masked import emit, safe_diagnose
 
 
 class VersionUnavailable(Exception):
@@ -46,8 +46,11 @@ def load_version(
 
 
 def main(argv: list[str] | None = None) -> int:
+    import logging
+
     from nzstats.research.registry import load_registry
 
+    logging.disable(logging.CRITICAL)  # a library log line could quote the document
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("version_id", type=int)
     parser.add_argument("--pages", type=int, nargs="+", default=[5, 8])
@@ -60,10 +63,14 @@ def main(argv: list[str] | None = None) -> int:
     except VersionUnavailable as exc:
         sys.stdout.write(emit({"error": str(exc)}) + "\n")
         return 1
+    except Exception:  # noqa: BLE001 - only a fixed code may leave, never a message or traceback
+        sys.stdout.write(emit({"error": "error"}) + "\n")
+        return 1
     finally:
         conn.close()
-    sys.stdout.write(emit(diagnose(body, args.pages)) + "\n")
-    return 0
+    result = safe_diagnose(body, args.pages)
+    sys.stdout.write(emit(result) + "\n")
+    return 1 if "error" in result else 0
 
 
 if __name__ == "__main__":

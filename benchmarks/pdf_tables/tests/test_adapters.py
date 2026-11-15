@@ -72,3 +72,16 @@ def test_no_model_or_ocr_package_is_installed(module):
     import importlib.util
 
     assert importlib.util.find_spec(module) is None
+
+
+def test_a_slow_parser_is_a_timeout():
+    tables, error, seconds = run("camelot_lattice", BY_NAME["p5_annual"].pdf, [1], timeout=0.01)
+    assert (tables, error, seconds) == (None, "timeout", 0.01)
+
+
+def test_a_child_that_dies_without_reporting_is_an_error_not_a_timeout():
+    from tests.crash_helper import die
+
+    tables, error, seconds = run("existing", BY_NAME["p5_annual"].pdf, [1], timeout=30, target=die)
+    assert (tables, error) == (None, "error")
+    assert seconds < 30

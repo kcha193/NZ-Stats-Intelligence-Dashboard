@@ -7,10 +7,14 @@ an error message, a cell text).
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
+import logging
 import math
+import os
 import re
+import sys
 from collections import Counter
 
 from pdfbench.adapters import PARSERS, run
@@ -58,12 +62,16 @@ _MARKER_RATIO = 0.75
 _SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 
 
-def _check(value: object, path: str) -> None:
+def _check(value: object, path: str, parent: str | None = None) -> None:
     if isinstance(value, dict):
         for key, inner in value.items():
-            if not isinstance(key, str) or not (key in KEYS or key in PARSERS or _PAGE_KEY.match(key)):
+            # A number is a key only as a page number, directly under a "pages" map, never anywhere else (a year
+            # header used as a metric key would otherwise pass).
+            text = key if isinstance(key, str) else ""
+            page = parent == "pages" and bool(_PAGE_KEY.match(text))
+            if not text or not (page or (parent != "pages" and (text in KEYS or text in PARSERS))):
                 raise ValueError(f"key refused at {path}")
-            _check(inner, f"{path}/<key>")
+            _check(inner, f"{path}/<key>", None if page else key)
     elif isinstance(value, list):
         for inner in value:
             _check(inner, f"{path}[]")
@@ -134,7 +142,7 @@ def _cells(t: BenchTable) -> list[str]:
 
 def _triple(header: list[str], row: list[str], j: int) -> tuple[str, str, str]:
     """(row label without its footnote marker, column header, value text)."""
-    return _norm(row[0]).rstrip(_SUPERSCRIPTS).strip(), _norm(header[j]), _norm(row[j])
+    return _norm(row[0]).rstrip(_SUPERSCRIPTS).strip(), _norm(header[j]), _norm(row[j]).rstrip(_SUPERSCRIPTS).strip()
 
 
 def _value_triples(tables: list[BenchTable]) -> list[tuple[str, str, str]]:
@@ -147,7 +155,9 @@ def _agrees(tables: list[BenchTable], label: str, header: str, text: str) -> boo
     for t in tables:
         for i, row in enumerate(t.grid):
             for j, cell in enumerate(row):
-                if _norm(cell) != text or not any(label and label in _norm(x) for x in row[:j]):
+                if _norm(cell).rstrip(_SUPERSCRIPTS).strip() != text or not any(
+                    label and label in _norm(x) for x in row[:j]
+                ):
                     continue
                 above = " ".join(_norm(t.grid[k][j]) for k in range(i) if j < len(t.grid[k]))
                 if all(token in above for token in header.split()):
@@ -254,6 +264,36 @@ def _page_metrics(
     out["bbox_numeric_tokens"] = len(inside)
     out["bbox_numeric_tokens_uncovered"] = sum(max(0, n - tokens[text]) for text, n in need.items())
     return out
+
+
+@contextlib.contextmanager
+def silenced():
+    """Send fd 1 and 2 to /dev/null and switch logging off: library warnings and native output can quote the document."""
+    logging.disable(logging.CRITICAL)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    saved = [os.dup(1), os.dup(2)]
+    null = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(null, 1)
+        os.dup2(null, 2)
+        yield
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.dup2(saved[0], 1)
+        os.dup2(saved[1], 2)
+        for fd in (*saved, null):
+            os.close(fd)
+
+
+def safe_diagnose(pdf: bytes, pages: list[int], parsers: list[str] | None = None, timeout: float = 120) -> dict:
+    """`diagnose` with every stream silenced; any failure becomes {"error": "error"} (no message, no traceback)."""
+    with silenced():
+        try:
+            return diagnose(pdf, pages, parsers, timeout)
+        except Exception:  # noqa: BLE001 - the message could quote the document; only the fixed code may leave
+            return {"error": "error"}
 
 
 def diagnose(pdf: bytes, pages: list[int], parsers: list[str] | None = None, timeout: float = 120) -> dict:

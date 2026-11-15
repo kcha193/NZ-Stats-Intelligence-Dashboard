@@ -6,6 +6,7 @@ dependency. Record and results: `docs/phase-4al-pdf-parser-benchmark.md`.
 ```sh
 cd benchmarks/pdf_tables
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+export PYTHONPATH=.:../../backend/src           # without it `existing` cannot import nzstats and scores every case as error
 .venv/bin/python -m pytest                      # synthetic fixtures only
 .venv/bin/python -m pdfbench.run_synthetic      # accuracy against ground truth (synthetic replicas)
 # From the repository root, owner's machine only: masked, counts-only diagnostics of a stored version

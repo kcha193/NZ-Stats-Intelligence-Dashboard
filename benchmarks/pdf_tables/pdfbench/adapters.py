@@ -100,8 +100,15 @@ PARSERS: dict[str, Parser] = {
 
 
 def _child(name: str, pdf: bytes, pages: list[int], queue) -> None:
+    import logging
+    import os
     import warnings
 
+    # Library warnings, log lines and native output can quote the document: nothing from the child reaches a stream.
+    null = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(null, 1)
+    os.dup2(null, 2)
+    logging.disable(logging.CRITICAL)
     warnings.simplefilter("ignore")
     start = time.perf_counter()
     try:
@@ -113,18 +120,26 @@ def _child(name: str, pdf: bytes, pages: list[int], queue) -> None:
 
 
 def run(
-    parser: str, pdf: bytes, pages: list[int], timeout: float = 60
+    parser: str, pdf: bytes, pages: list[int], timeout: float = 60, *, target: Callable = _child
 ) -> tuple[list[BenchTable] | None, str | None, float]:
-    """(tables, error code or None, parse seconds). The parse time excludes process start and imports."""
+    """(tables, error code or None, parse seconds). The parse time excludes process start and imports. A child that
+    dies without reporting (a native crash, a kill) is `error`; one still running at `timeout` is `timeout`."""
     ctx = multiprocessing.get_context("spawn")
     queue = ctx.Queue()
-    proc = ctx.Process(target=_child, args=(parser, pdf, pages, queue))
+    proc = ctx.Process(target=target, args=(parser, pdf, pages, queue))
+    start = time.monotonic()
     proc.start()
-    try:
-        result = queue.get(timeout=timeout)
-    except Empty:
-        proc.kill()
-        proc.join()
-        return None, "timeout", float(timeout)
+    while True:
+        try:
+            result = queue.get(timeout=min(0.2, max(0.0, timeout - (time.monotonic() - start))) or 0.001)
+            break
+        except Empty:
+            if not proc.is_alive() and queue.empty():
+                proc.join()
+                return None, "error", time.monotonic() - start
+            if time.monotonic() - start >= timeout:
+                proc.kill()
+                proc.join()
+                return None, "timeout", float(timeout)
     proc.join()
     return result

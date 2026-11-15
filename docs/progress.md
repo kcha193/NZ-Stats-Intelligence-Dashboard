@@ -17,10 +17,10 @@ no model, OCR or service; database SHA-256 unchanged.
 - Official PDF skill: Apache 2.0, 8 scripts (forms and images only, none for tables). Its pdfplumber table guidance
   (`extract_tables`, `lines` strategy) finds no borderless table and builds 27-column grids from page 8's filled rectangles.
 - Camelot 2.0 `network`: 90/90 page-8 cells but the two tables merged into one; one page-5 row of 8 figures read with a
-  one-word-shorter label (owner check); no notes or source lines; fuses columns 0.5 em apart (synthetic); +278 MB of dependencies.
+  one-word-shorter label (owner check); no notes attached (one page-8 source/note line left as a plain grid cell); fuses columns 0.5 em apart (synthetic); +278 MB of dependencies.
 - Synthetic truth (8 cases, 275 values): `tables-14` 271 aligned, 0 false positives, markers 3/3, notes 5/5. Gap found: a
   stub-headed table ("Indicator 2026 2027") is refused (`no_header`); fails closed; fix belongs in `table_grid` (own phase).
-- Harness `benchmarks/pdf_tables/` (own venv, exact pins, 94 tests) is reusable on the February 2027 outlook.
+- Harness `benchmarks/pdf_tables/` (own venv, exact pins, 102 tests) is reusable on the February 2027 outlook.
 
 ## Phase 4AK: real ANZ PDF compatibility remediation, NO-GO, 15 November 2026
 
