@@ -44,6 +44,11 @@ KEYS = frozenset(
         "tables_merged_vs_existing",
         "bbox_numeric_tokens",
         "bbox_numeric_tokens_uncovered",
+        "unreproduced_existing_cells",
+        "unreproduced_reasons",
+        "label_mismatch",
+        "header_mismatch",
+        "value_missing",
     }
 )
 _PAGE_KEY = re.compile(r"^\d{1,4}$")
@@ -127,15 +132,15 @@ def _cells(t: BenchTable) -> list[str]:
     return [_norm(c) for row in t.grid for c in row]
 
 
+def _triple(header: list[str], row: list[str], j: int) -> tuple[str, str, str]:
+    """(row label without its footnote marker, column header, value text)."""
+    return _norm(row[0]).rstrip(_SUPERSCRIPTS).strip(), _norm(header[j]), _norm(row[j])
+
+
 def _value_triples(tables: list[BenchTable]) -> list[tuple[str, str, str]]:
-    """(row label without its footnote marker, column header, value text) for each numeric body cell."""
-    out = []
-    for t in tables:
-        header = t.grid[0]
-        for row in t.grid[1:]:
-            label = _norm(row[0]).rstrip(_SUPERSCRIPTS).strip()
-            out += [(label, _norm(header[j]), _norm(row[j])) for j in range(1, len(row)) if numeric(row[j])]
-    return out
+    return [
+        _triple(t.grid[0], row, j) for t in tables for row in t.grid[1:] for j in range(1, len(row)) if numeric(row[j])
+    ]
 
 
 def _agrees(tables: list[BenchTable], label: str, header: str, text: str) -> bool:
@@ -148,6 +153,36 @@ def _agrees(tables: list[BenchTable], label: str, header: str, text: str) -> boo
                 if all(token in above for token in header.split()):
                     return True
     return False
+
+
+def _unreproduced(tables: list[BenchTable], existing: list[BenchTable]) -> list[list[int]]:
+    """[table index, grid row, grid column] of each existing value cell that `tables` does not reproduce. Ints only."""
+    return [
+        [ti, i, j]
+        for ti, e in enumerate(existing)
+        for i, row in enumerate(e.grid[1:], start=1)
+        for j in range(1, len(row))
+        if numeric(row[j]) and not _agrees(tables, *_triple(e.grid[0], row, j))
+    ]
+
+
+def _reasons(tables: list[BenchTable], existing: list[BenchTable]) -> dict[str, int]:
+    """Why each unreproduced existing cell failed: its value is nowhere; it sits under its header but off its label's
+    row; or it is never under its own header."""
+    out = {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 0}
+    for label, header, text in _value_triples(existing):
+        if _agrees(tables, label, header, text):
+            continue
+        if not any(_norm(c) == text for t in tables for row in t.grid for c in row):
+            out["value_missing"] += 1
+        elif any(
+            _agrees([BenchTable(t.page, t.bbox, [[label, *r[1:]] for r in t.grid])], label, header, text)
+            for t in tables
+        ):
+            out["label_mismatch"] += 1
+        else:
+            out["header_mismatch"] += 1
+    return out
 
 
 def _labels(t: BenchTable) -> list[str]:
@@ -182,11 +217,19 @@ def _page_metrics(
         "notes": sum(len(t.notes) for t in tables),
     }
     if existing is None:
-        out.update(existing_value_cells=None, agreement_with_existing=None, tables_merged_vs_existing=None)
+        out.update(
+            existing_value_cells=None,
+            agreement_with_existing=None,
+            tables_merged_vs_existing=None,
+            unreproduced_existing_cells=None,
+            unreproduced_reasons=None,
+        )
     else:
         triples = _value_triples(existing)
         out["existing_value_cells"] = len(triples)
         out["agreement_with_existing"] = sum(_agrees(tables, *tr) for tr in triples)
+        out["unreproduced_existing_cells"] = _unreproduced(tables, existing)
+        out["unreproduced_reasons"] = _reasons(tables, existing)
         out["tables_merged_vs_existing"] = sum(
             sum(
                 bool(ls) and 2 * sum(any(lab in c for c in _cells(t)) for lab in ls) >= len(ls)

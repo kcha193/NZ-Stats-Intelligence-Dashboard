@@ -167,3 +167,40 @@ def test_stacked_header_split_over_two_rows_agrees():
 def test_value_under_another_header_does_not_agree():
     other = [BenchTable(1, (0, 0, 1, 1), [["", "Dec-26"], ["Prices", "2.5"]])]
     assert not any(_agrees(other, *t) for t in _value_triples(EXISTING))
+
+
+def test_unreproduced_cells_are_reported_as_grid_positions_only(emitted):
+    page = json.loads(emitted)["parsers"]["existing"]["pages"]["1"]
+    assert page["unreproduced_existing_cells"] == []
+
+
+def test_unreproduced_positions_name_table_row_and_column():
+    from pdfbench.masked import _unreproduced
+
+    other = [BenchTable(1, (0, 0, 1, 1), [["", "Dec-26"], ["Prices", "2.5"]])]
+    assert _unreproduced(other, EXISTING) == [[0, 1, 1]]
+
+
+def test_unreproduced_position_survives_a_blank_cell_earlier_in_the_row():
+    from pdfbench.masked import _unreproduced
+
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", "Dec-26", "Mar-27"], ["Prices", "", "2.5"]])]
+    other = [BenchTable(1, (0, 0, 1, 1), [["", "Dec-26", "Mar-27"], ["Prices", "", "9.9"]])]
+    assert _unreproduced(other, existing) == [[0, 1, 2]]
+    assert _unreproduced(existing, existing) == []
+
+
+def test_unreproduced_reasons_separate_label_header_and_value():
+    from pdfbench.masked import _reasons
+
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", "Dec-26", "Mar-27", "Jun-27"], ["Prices¹", "2.5", "2.6", "2.7"]])]
+    other = [
+        BenchTable(
+            1,
+            (0, 0, 1, 1),
+            [["", "Dec-26", "Jun-27", "Mar-27"], ["1", "2.5", "", ""], ["Prices", "", "2.6", "2.7"]],
+        )
+    ]
+    # 2.5 sits under its header but not on the label's row; 2.6 and 2.7 sit on the label's row under the wrong header.
+    assert _reasons(other, existing) == {"label_mismatch": 1, "header_mismatch": 2, "value_missing": 0}
+    assert _reasons(existing, existing) == {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 0}
