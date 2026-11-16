@@ -249,3 +249,24 @@ def test_a_value_marker_does_not_block_agreement_but_a_fused_digit_does():
     fused = [BenchTable(1, (0, 0, 1, 1), [["", "2026f"], ["Prices", "2.51"]])]
     assert all(_agrees(separated, *t) for t in _value_triples(existing))
     assert not any(_agrees(fused, *t) for t in _value_triples(existing))
+
+
+def test_values_under_a_collapsed_header_do_not_agree():
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", "2026f", "2027f"], ["Prices", "2.5", "2.4"]])]
+    collapsed = [BenchTable(1, (0, 0, 1, 1), [["", "2026f 2027f"], ["Prices", "2.5"], ["Prices", "2.4"]])]
+    assert not any(_agrees(collapsed, *t) for t in _value_triples(existing))
+
+
+def test_a_foreign_header_is_matched_as_a_whole_token():
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", "2026f", "2026"], ["Prices", "2.5", "2.4"]])]
+    assert all(_agrees(existing, *t) for t in _value_triples(existing))
+
+
+@pytest.mark.parametrize(
+    ("headers", "collapsed"),
+    [(["2026", "2027"], "2026f 2027f"), (["Dec", "Jan"], "Dec-26 Jan-27")],
+)
+def test_a_collapsed_header_with_suffixed_periods_does_not_agree(headers, collapsed):
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", *headers], ["Prices", "2.5", "2.4"]])]
+    other = [BenchTable(1, (0, 0, 1, 1), [["", collapsed], ["Prices", "2.5"], ["Prices", "2.4"]])]
+    assert not any(_agrees(other, *t) for t in _value_triples(existing))

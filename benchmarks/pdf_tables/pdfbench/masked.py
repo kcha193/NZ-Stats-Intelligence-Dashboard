@@ -140,18 +140,30 @@ def _cells(t: BenchTable) -> list[str]:
     return [_norm(c) for row in t.grid for c in row]
 
 
-def _triple(header: list[str], row: list[str], j: int) -> tuple[str, str, str]:
-    """(row label without its footnote marker, column header, value text)."""
-    return _norm(row[0]).rstrip(_SUPERSCRIPTS).strip(), _norm(header[j]), _norm(row[j]).rstrip(_SUPERSCRIPTS).strip()
+def _triple(header: list[str], row: list[str], j: int) -> tuple[str, str, str, frozenset[str]]:
+    """(row label without its footnote marker, column header, value text, other columns' header tokens)."""
+    own = _norm(header[j]).split()
+    foreign = frozenset(tok for k, h in enumerate(header) if k not in (0, j) for tok in _norm(h).split()) - set(own)
+    return (
+        _norm(row[0]).rstrip(_SUPERSCRIPTS).strip(),
+        _norm(header[j]),
+        _norm(row[j]).rstrip(_SUPERSCRIPTS).strip(),
+        foreign,
+    )
 
 
-def _value_triples(tables: list[BenchTable]) -> list[tuple[str, str, str]]:
+def _value_triples(tables: list[BenchTable]) -> list[tuple[str, str, str, frozenset[str]]]:
     return [
         _triple(t.grid[0], row, j) for t in tables for row in t.grid[1:] for j in range(1, len(row)) if numeric(row[j])
     ]
 
 
-def _agrees(tables: list[BenchTable], label: str, header: str, text: str) -> bool:
+def _agrees(
+    tables: list[BenchTable], label: str, header: str, text: str, foreign: frozenset[str] = frozenset()
+) -> bool:
+    """`text` on a row holding `label`, under every token of `header`, and under no word that holds another column's
+    header token but none of its own (`2027f` is foreign to `2026`; `2026f` is not foreign to `2026f` beside `2026`)."""
+    own = header.split()
     for t in tables:
         for i, row in enumerate(t.grid):
             for j, cell in enumerate(row):
@@ -160,7 +172,9 @@ def _agrees(tables: list[BenchTable], label: str, header: str, text: str) -> boo
                 ):
                     continue
                 above = " ".join(_norm(t.grid[k][j]) for k in range(i) if j < len(t.grid[k]))
-                if all(token in above for token in header.split()):
+                if all(token in above for token in own) and not any(
+                    any(f in word for f in foreign) and not any(o in word for o in own) for word in above.split()
+                ):
                     return True
     return False
 
@@ -180,13 +194,13 @@ def _reasons(tables: list[BenchTable], existing: list[BenchTable]) -> dict[str, 
     """Why each unreproduced existing cell failed: its value is nowhere; it sits under its header but off its label's
     row; or it is never under its own header."""
     out = {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 0}
-    for label, header, text in _value_triples(existing):
-        if _agrees(tables, label, header, text):
+    for label, header, text, foreign in _value_triples(existing):
+        if _agrees(tables, label, header, text, foreign):
             continue
         if not any(_norm(c) == text for t in tables for row in t.grid for c in row):
             out["value_missing"] += 1
         elif any(
-            _agrees([BenchTable(t.page, t.bbox, [[label, *r[1:]] for r in t.grid])], label, header, text)
+            _agrees([BenchTable(t.page, t.bbox, [[label, *r[1:]] for r in t.grid])], label, header, text, foreign)
             for t in tables
         ):
             out["label_mismatch"] += 1

@@ -193,7 +193,7 @@ alternative:        <parser>_grid.find_tables(pdf bytes) ─► GridTable[]  (sa
 
 ## 8. Tests and migration plan
 
-Tests now (benchmark only, `benchmarks/pdf_tables/tests`, 108 passing): replica fidelity (`test_synth.py`), adapters and
+Tests now (benchmark only, `benchmarks/pdf_tables/tests`, 113 passing): replica fidelity (`test_synth.py`), adapters and
 failure isolation (`test_adapters.py`), truth scoring with mutation-checked guards (`test_metrics.py`), the run table
 (`test_run_synthetic.py`), and the privacy schema, canaries, production gate and reason codes (`test_masked.py`). The backend
 suite is unchanged; no production file changed.
@@ -291,6 +291,31 @@ tables of a page (`test_a_parsed_cell_is_consumed_once_across_truth_tables_on_a_
 instead of 1). Sharing the pool made consumption order matter: a value with a footnote marker took the plain cell first
 and starved a later duplicate without one. A value now tries its marked forms before its plain text
 (`test_a_marked_truth_takes_its_marked_cell_before_a_plain_one`, both orders). The regenerated synthetic run has the same
-non-timing values, so `results/synthetic.md` is unchanged. The suite is 108 passing. Pre-existing and left unchanged:
+non-timing values, so `results/synthetic.md` is unchanged. Pre-existing and left unchanged:
 *aligned* does not consume cells, so two identical truth cells (same label, header and value) can both align to one
 parsed cell.
+
+Third review pass (two P2 findings on the original masked code):
+
+- **Agreement ignored foreign headers.** `_agrees` required only the existing column's header tokens above a value, so a
+  parser that collapsed two period headers into one column (`2026f 2027f`) still agreed on both values. It now also
+  rejects a value when a word above it holds another column's header token and none of its own: `2027f` and `Jan-27`
+  are foreign to `2026` and `Dec`, but `2026f` is not foreign to the column headed `2026f` beside one headed `2026`
+  (`test_values_under_a_collapsed_header_do_not_agree` and
+  `test_a_collapsed_header_with_suffixed_periods_does_not_agree` failed before the fix;
+  `test_a_foreign_header_is_matched_as_a_whole_token` guards the last case). A synthetic probe, not a committed test,
+  re-ran the masked diagnostics on the p5 and p8 replicas: agreement still equals truth-scored alignment for every
+  parser on all 32 case and parser pairs, so the §2 proxy claim stands. Limits: a group header that `tables-14` assigns
+  to one column but a parser repeats over another counts as foreign there; any text above the value counts, so a caption
+  holding another column's period would too; and two columns with identical headers collapsed into one still agree.
+  The replicas have none of these.
+- **Continued tables lost their page.** Production joins a table continued onto the next page into one `GridTable`, but
+  the `existing` adapter filed every row under `page_start`. The adapter now emits one table per page under the same
+  header, with notes on the last page, which is where they end the table
+  (`test_a_table_continued_across_pages_keeps_each_row_on_its_own_page`, which failed before the fix). Every synthetic case
+  is one page, and production joins only consecutive requested pages, so neither the synthetic results nor version 4's
+  recorded page set (5 and 8) can change because of this fix; a run over consecutive pages could.
+
+The synthetic results are unchanged. The suite is 113 passing. The foreign-header rule can lower
+`agreement_with_existing` and change `unreproduced_existing_cells` and `unreproduced_reasons` on the real pages, which
+adds to the owner's re-run above. Until that re-run, §4 shows the earlier rule.

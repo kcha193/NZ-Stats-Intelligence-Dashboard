@@ -27,23 +27,33 @@ def _existing(pdf: bytes, pages: list[int]) -> list[BenchTable]:
 
     words = [w for w in extract_words(pdf, isolate=False) if w.page in pages]
     tables, _ = find_tables(words)
+    return [b for t in tables for b in _bench_tables(t)]
+
+
+def _bench_tables(t) -> list[BenchTable]:  # t: nzstats.research.table_grid.GridTable
+    """One table per page: a table continued onto the next page keeps each row on its own page, under the same header.
+    Notes end the table, so they belong to its last page."""
+    header = ["", *(" ".join(c.headers) for c in t.columns)]
     out = []
-    for t in tables:
-        header = ["", *(" ".join(c.headers) for c in t.columns)]
+    for page in range(t.page_start, t.page_end + 1):
+        rows = [row for row in t.body_rows if row and row[0].page == page]
+        if not rows:
+            continue
         body = []
-        for row in t.body_rows:
+        for row in rows:
             line = [""] * (len(t.columns) + 1)
             for cell in row:
                 line[cell.col + 1] = _clean(cell.text)
             body.append(line)
-        cells = [c for row in t.body_rows for c in row] + [c for row in t.header_rows for c in row]
+        cells = [c for row in rows for c in row] + [c for row in t.header_rows for c in row if c.page == page]
         bbox: BBox = (
             min(c.x0 for c in cells),
             min(c.y for c in cells),
             max(c.x1 for c in cells),
             max(c.y for c in cells),
         )
-        out.append(BenchTable(t.page_start, bbox, [header, *body], header_rows=1, notes=[_clean(n) for n in t.notes]))
+        notes = [_clean(n) for n in t.notes] if page == t.page_end else []
+        out.append(BenchTable(page, bbox, [header, *body], header_rows=1, notes=notes))
     return out
 
 

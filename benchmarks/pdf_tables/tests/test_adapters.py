@@ -85,3 +85,23 @@ def test_a_child_that_dies_without_reporting_is_an_error_not_a_timeout():
     tables, error, seconds = run("existing", BY_NAME["p5_annual"].pdf, [1], timeout=30, target=die)
     assert (tables, error) == (None, "error")
     assert seconds < 30
+
+
+def test_a_table_continued_across_pages_keeps_each_row_on_its_own_page():
+    from nzstats.research.table_grid import Cell, Column, GridTable
+
+    from pdfbench.adapters import _bench_tables
+
+    head = (Cell(5, 0, 0, "2026f", 50.0, 60.0, 700.0),)
+    first = (Cell(5, 0, -1, "Prices", 10.0, 40.0, 680.0), Cell(5, 0, 0, "2.5", 50.0, 60.0, 680.0))
+    second = (Cell(6, 1, -1, "Jobless rate", 10.0, 40.0, 700.0), Cell(6, 1, 0, "4.9", 50.0, 60.0, 700.0))
+    joined = GridTable(
+        0, 5, 6, None, (head,), (Column(0, 50.0, 60.0, "value", ("2026f",)),), (first, second), ("Note",)
+    )
+    tables = _bench_tables(joined)
+    assert [(t.page, t.grid) for t in tables] == [
+        (5, [["", "2026f"], ["Prices", "2.5"]]),
+        (6, [["", "2026f"], ["Jobless rate", "4.9"]]),
+    ]
+    assert [t.notes for t in tables] == [[], ["Note"]]
+    assert tables[1].bbox == (10.0, 700.0, 60.0, 700.0)
