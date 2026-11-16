@@ -1,7 +1,8 @@
 """Score parsed tables against ground truth. Counts only; structure, not extraction volume.
 
 - A value is *present* when a cell on its page reads exactly its text (or its text plus a separable footnote marker).
-  Duplicate texts need one cell each.
+  Duplicate texts need one cell each, across all truth tables of a page; a value tries its marked forms before its plain
+  text, so a plain cell stays free for a duplicate without a marker.
 - A value is *aligned* when, in addition, its grid row holds the row label left of it, and the cells above it in its
   grid column hold every header fragment of its own column and none of another column's.
 - A *numeric false positive* is a numeric-looking cell that is neither a truth value, a header fragment nor a marker:
@@ -104,9 +105,12 @@ def score(truth: list[TruthTable], got: list[BenchTable]) -> Score:
     values_truth = present = aligned = stacked_truth = joined = markers_truth = kept = notes_truth = notes_kept = 0
     allowed: dict[int, set[str]] = {}
     marks: dict[int, set[str]] = {}  # footnote digits: not a figure only in the label column
+    remaining: dict[int, Counter[str]] = {}  # parsed cells not yet consumed, shared by the truth tables of a page
     for u in truth:
         on_page = [t for t in got if t.page == u.page]
-        cells = Counter(_norm(c) for t in on_page for row in t.grid for c in row)
+        if u.page not in remaining:
+            remaining[u.page] = Counter(_norm(c) for t in on_page for row in t.grid for c in row)
+        cells = remaining[u.page]
         page_allowed = allowed.setdefault(u.page, set())
         page_allowed |= {f for h in u.col_headers for f in h} | set(u.row_labels)
         digits = {m for _, m in u.markers} | set(u.value_markers.values())
@@ -116,7 +120,8 @@ def score(truth: list[TruthTable], got: list[BenchTable]) -> Score:
             accept = _accepts(u, key)
             page_allowed |= accept
             values_truth += 1
-            for text in sorted(accept):
+            # Marked forms first: the plain text can serve any duplicate, a marked form only its own marker.
+            for text in sorted(accept, key=lambda a: (a == u.values[key], a)):
                 if cells[text] > 0:
                     cells[text] -= 1
                     present += 1

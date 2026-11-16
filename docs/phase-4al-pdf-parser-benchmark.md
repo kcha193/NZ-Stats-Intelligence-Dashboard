@@ -193,7 +193,7 @@ alternative:        <parser>_grid.find_tables(pdf bytes) ─► GridTable[]  (sa
 
 ## 8. Tests and migration plan
 
-Tests now (benchmark only, `benchmarks/pdf_tables/tests`, 106 passing): replica fidelity (`test_synth.py`), adapters and
+Tests now (benchmark only, `benchmarks/pdf_tables/tests`, 108 passing): replica fidelity (`test_synth.py`), adapters and
 failure isolation (`test_adapters.py`), truth scoring with mutation-checked guards (`test_metrics.py`), the run table
 (`test_run_synthetic.py`), and the privacy schema, canaries, production gate and reason codes (`test_masked.py`). The backend
 suite is unchanged; no production file changed.
@@ -268,7 +268,6 @@ before (`.25`, `-.25`, `−.25`, `(.25)`, `.25%`, `.25 2.5`). `.`, `.abc`, `..25
 New tests in `test_metrics.py` cover both `numeric()` and `score()`: truth `4.25` read as `.25` scores 0 present, 0 aligned
 and 1 numeric false positive. The leading-decimal `numeric()` test and the `score()` test failed before the fix; the
 other two (existing forms stay numeric, non-numbers stay non-numeric) are regression guards that pass on both patterns.
-The suite is 106 passing.
 
 Effect on the synthetic run (regenerated; only these cells changed apart from timings): `plumber_text` on `p5_annual` and
 `p5_annual_hrules` goes from 3 to 4 numeric false positives, so its total goes from 18 to 20. No other parser or metric
@@ -285,3 +284,13 @@ The §10 statement that all 64 rows matched `results/synthetic.md` refers to the
 differs from it only in the two `plumber_text` cells above and in timings. Pre-existing behaviour left unchanged: an
 unbalanced parenthesis (`(2.5`, now also `(.25`) still reads as numeric, and a label-column cell equal to any marker digit
 on its page is not counted as a false positive.
+
+Second finding (P2, automated PR review of the fix): `score()` rebuilt its pool of parsed cells for each truth table, so one
+parsed cell could count as present for the same text in two truth tables on one page. The pool is now shared by all truth
+tables of a page (`test_a_parsed_cell_is_consumed_once_across_truth_tables_on_a_page` failed before the fix: 2 present
+instead of 1). Sharing the pool made consumption order matter: a value with a footnote marker took the plain cell first
+and starved a later duplicate without one. A value now tries its marked forms before its plain text
+(`test_a_marked_truth_takes_its_marked_cell_before_a_plain_one`, both orders). The regenerated synthetic run has the same
+non-timing values, so `results/synthetic.md` is unchanged. The suite is 108 passing. Pre-existing and left unchanged:
+*aligned* does not consume cells, so two identical truth cells (same label, header and value) can both align to one
+parsed cell.

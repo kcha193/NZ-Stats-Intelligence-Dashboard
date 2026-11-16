@@ -156,3 +156,19 @@ def test_leading_decimal_fragment_of_a_truth_value_is_one_false_positive():
     s = score([truth], [_t([["", "2026f"], ["OCR", ".25"]])])
     assert (s.values_present, s.values_aligned) == (0, 0)
     assert s.numeric_false_positive == 1
+
+
+def test_a_parsed_cell_is_consumed_once_across_truth_tables_on_a_page():
+    first = TruthTable(1, BOX, ["A"], [["2026f"]], {(0, 0): "2.5"})
+    second = TruthTable(1, BOX, ["B"], [["2027f"]], {(0, 0): "2.5"})
+    s = score([first, second], [_t([["", "2026f"], ["A", "2.5"]])])
+    assert s.values_truth == 2
+    assert s.values_present == 1
+
+
+def test_a_marked_truth_takes_its_marked_cell_before_a_plain_one():
+    marked = TruthTable(1, BOX, ["A"], [["2026f"]], {(0, 0): "2.5"}, value_markers={(0, 0): "1"})
+    plain = TruthTable(1, BOX, ["B"], [["2027f"]], {(0, 0): "2.5"})
+    got = [_t([["", "2026f", "2027f"], ["A", "2.5¹", ""], ["B", "", "2.5"]])]
+    for order in ([marked, plain], [plain, marked]):
+        assert score(order, got).values_present == 2
