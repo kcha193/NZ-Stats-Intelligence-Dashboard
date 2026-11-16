@@ -18,7 +18,7 @@ from pdfbench.model import BenchTable, TruthTable
 
 _SUP = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 _UNSUP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
-_TOKEN = r"[-−–+(]?\d[\d,]*(?:\.\d+)?%?\)?"
+_TOKEN = r"[-−–+(]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)%?\)?"  # ".25": a figure split from its leading digits
 _NUMERIC = re.compile(rf"{_TOKEN}(?:\s+{_TOKEN})*")
 
 

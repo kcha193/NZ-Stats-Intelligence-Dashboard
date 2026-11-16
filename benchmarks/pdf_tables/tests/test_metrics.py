@@ -1,6 +1,6 @@
 """Scoring against ground truth, on hand-built tables (no parser involved)."""
 
-from pdfbench.metrics import score
+from pdfbench.metrics import numeric, score
 from pdfbench.model import BenchTable, TruthTable
 
 BOX = (0.0, 0.0, 1.0, 1.0)
@@ -109,3 +109,50 @@ def test_a_detached_marker_under_a_value_column_is_a_false_positive():
 def test_a_detached_marker_in_the_label_column_is_not_a_figure():
     s = score([TRUTH], [_t([["", "Current (11 Nov)", "2026f"], ["1", "", ""], *PERFECT[1:]])])
     assert s.numeric_false_positive == 0
+
+
+def test_leading_decimal_fragments_are_numeric():
+    for cell in (".25", "-.25", "+.25", "−.25", "–.25", "(.25)", ".25%", ".25 2.5", " .25 ", ".25¹"):
+        assert numeric(cell), cell
+
+
+def test_existing_number_forms_stay_numeric():
+    for cell in ("2.5", "-2.5", "−2.5", "1,234.56", "2.5%", "(2.5)", "2.5 2.4", "2026", "0.25", "2.5¹"):
+        assert numeric(cell), cell
+
+
+def test_non_numbers_stay_non_numeric():
+    for cell in (
+        ".",
+        "-.",
+        "..25",
+        ".abc",
+        ".25.",
+        ".25.3",
+        "2..5",
+        ".,25",
+        ".-25",
+        "-",
+        "%",
+        "()",
+        "",
+        "Prices",
+        "Dec-26",
+        "2026f",
+        "a.25",
+        ".25-.30",
+        "-.25-.30",
+        ".25/.30",
+        "1/.25",
+        "+.",
+        "(.)",
+        "−.",
+    ):
+        assert not numeric(cell), cell
+
+
+def test_leading_decimal_fragment_of_a_truth_value_is_one_false_positive():
+    truth = TruthTable(1, BOX, ["OCR"], [["2026f"]], {(0, 0): "4.25"})
+    s = score([truth], [_t([["", "2026f"], ["OCR", ".25"]])])
+    assert (s.values_present, s.values_aligned) == (0, 0)
+    assert s.numeric_false_positive == 1

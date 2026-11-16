@@ -74,19 +74,19 @@ exact text sits on its own row label and under its own column header, with no ot
 
 | Parser | Tables found | Merged | Values aligned | Stacked joined | Markers kept | Notes kept | Numeric false positives | Seconds (median, sum) |
 |---|---|---|---|---|---|---|---|---|
-| **existing (`tables-14`)** | 9/10 | 0 | **271/275** | 4/4 | **3/3** | **5/5** | **0** | 1.19 |
-| camelot_network | 10/10 | 2 | 266/275 | 4/4 | 0/3 | 0/5 | 4 | 3.01 |
-| camelot_hybrid | 10/10 | 2 | 266/275 | 4/4 | 0/3 | 0/5 | 4 | 4.51 |
-| camelot_stream | 8/10 | 0 | 194/275 | 2/4 | 0/3 | 0/5 | 6 | 3.02 |
-| camelot_lattice | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 4.40 |
-| plumber_text | 7/10 | 2 | 190/275 | 0/4 | 0/3 | 0/5 | 18 | 0.38 |
-| plumber_default (skill) | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 0.33 |
+| **existing (`tables-14`)** | 9/10 | 0 | **271/275** | 4/4 | **3/3** | **5/5** | **0** | 1.20 |
+| camelot_network | 10/10 | 2 | 266/275 | 4/4 | 0/3 | 0/5 | 4 | 3.30 |
+| camelot_hybrid | 10/10 | 2 | 266/275 | 4/4 | 0/3 | 0/5 | 4 | 4.61 |
+| camelot_stream | 8/10 | 0 | 194/275 | 2/4 | 0/3 | 0/5 | 6 | 3.18 |
+| camelot_lattice | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 4.56 |
+| plumber_text | 7/10 | 2 | 190/275 | 0/4 | 0/3 | 0/5 | 20 | 0.38 |
+| plumber_default (skill) | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 0.34 |
 | plumber_lines (skill) | 1/10 | 0 | 4/275 | 0/4 | 0/3 | 0/5 | 0 | 0.33 |
 
 Per case (aligned / truth, false positives):
 
 - **p5 replica (borderless and ruled):** existing 32/32, network and hybrid 32/32, stream 32/32 with 1 FP, `plumber_text`
-  13/32 with 3 FP (it splits a figure across two cells, so `0.75 4` and `.25` appear). Lattice and both skill modes find nothing.
+  13/32 with 4 FP (it splits a figure across two cells, so `0.75 4` and `.25` appear). Lattice and both skill modes find nothing.
   Only existing keeps the label marker and both notes.
 - **p8 replica:** existing 90/90 as two tables. Network and hybrid read 90/90 but as **one table spanning both**; the first
   table's caption, which carries "Forecasts", now heads the second table's rows. Stream 54/90 (misses the second table).
@@ -145,8 +145,8 @@ Why cells were not reproduced (fixed reason codes):
 | Footnote preservation | Marker kept on its cell (3/3); notes walked past small-digit markers | Marker detached into its own row (0/3); a lone digit can read as a figure | Not kept |
 | Source attribution evidence | Notes attached to the table (5/5 synthetic; real p5 2, p8 1) | No notes attached (0/5 synthetic); real p8: 1 source or note line inside the grid as a plain cell | Skill modes none; `text`: 1 such line per real page, inside the grid |
 | Extraction completeness | Complete on the read tables | Complete on p8 values; p5 row 1 read with a different label (owner check) | Low |
-| False-positive numeric cells | 0 | 4 synthetic (fused columns, detached marker) | Skill modes 0 (they read almost nothing); `text` 18 synthetic |
-| Speed | 1.19 s for 8 synthetic cases; real 2.51 s for the **whole document** (words for every page; 2.5 to 3.4 s across runs) | 3.01 s synthetic; real 0.41 s for **2 pages** (hybrid 0.73, stream 0.38) | 0.33 s synthetic; real 0.13 to 0.21 s for 2 pages |
+| False-positive numeric cells | 0 | 4 synthetic (fused columns, detached marker) | Skill modes 0 (they read almost nothing); `text` 20 synthetic |
+| Speed | 1.20 s for 8 synthetic cases; real 2.51 s for the **whole document** (words for every page; 2.5 to 3.4 s across runs) | 3.30 s synthetic; real 0.41 s for **2 pages** (hybrid 0.73, stream 0.38) | 0.33 to 0.34 s synthetic; real 0.13 to 0.21 s for 2 pages |
 | Dependencies | pdfminer.six (already required) | +13 packages, about 278 MB (numpy, pandas, OpenCV, pypdfium2, playa-pdf) | +8 packages, about 47 MB; pins pdfminer.six **exactly** (`==20260107`), against our floor `>=20251230` |
 
 ## 6. Recommendation
@@ -193,7 +193,7 @@ alternative:        <parser>_grid.find_tables(pdf bytes) ─► GridTable[]  (sa
 
 ## 8. Tests and migration plan
 
-Tests now (benchmark only, `benchmarks/pdf_tables/tests`, 102 passing): replica fidelity (`test_synth.py`), adapters and
+Tests now (benchmark only, `benchmarks/pdf_tables/tests`, 106 passing): replica fidelity (`test_synth.py`), adapters and
 failure isolation (`test_adapters.py`), truth scoring with mutation-checked guards (`test_metrics.py`), the run table
 (`test_run_synthetic.py`), and the privacy schema, canaries, production gate and reason codes (`test_masked.py`). The backend
 suite is unchanged; no production file changed.
@@ -257,3 +257,31 @@ the masked JSON reads version 4 correctly and the database checksums (both under
 licence and upstream facts (measured and fetched by the implementer, §1 and §5); the guard mutations (re-run by the
 implementer: each failed 3 tests); whether 0.5 em column gaps occur in bank PDFs (a domain judgement; the case stays a
 control); the §7 design detail (to be settled if a future phase adopts a parser).
+
+## 12. PR review: leading-decimal fragments (PR #65)
+
+Finding (P2, automated PR review): `numeric()` required an initial digit, so a parser cell such as `.25` (a figure split
+from its leading digits) was not numeric and was never counted as a numeric false positive.
+
+Fix, test-first: a numeric token may now be `.` followed by digits, with the same optional sign, parentheses and `%` as
+before (`.25`, `-.25`, `−.25`, `(.25)`, `.25%`, `.25 2.5`). `.`, `.abc`, `..25`, `.25.`, `2..5` and words stay non-numeric.
+New tests in `test_metrics.py` cover both `numeric()` and `score()`: truth `4.25` read as `.25` scores 0 present, 0 aligned
+and 1 numeric false positive. The leading-decimal `numeric()` test and the `score()` test failed before the fix; the
+other two (existing forms stay numeric, non-numbers stay non-numeric) are regression guards that pass on both patterns.
+The suite is 106 passing.
+
+Effect on the synthetic run (regenerated; only these cells changed apart from timings): `plumber_text` on `p5_annual` and
+`p5_annual_hrules` goes from 3 to 4 numeric false positives, so its total goes from 18 to 20. No other parser or metric
+changed, `tables-14` stays at 0, and the recommendation (§6) is unchanged.
+
+Not re-run: `masked.py` uses the same `numeric()` for its real-document counts: `numeric_cells`, `multi_number_cells`,
+`existing_value_cells`, `agreement_with_existing`, `unreproduced_existing_cells`, `unreproduced_reasons`,
+`bbox_numeric_tokens` and `bbox_numeric_tokens_uncovered`. `results/masked-v4-pages-5-8.json` and §4 were
+produced with the earlier classifier. They change only if version 4 has a leading-decimal cell or word, which was not checked:
+re-running the masked diagnostics on the real document needs the owner's approval. **Owner action:** re-run
+`run_masked 4 --pages 5 8` and compare the non-timing values.
+
+The §10 statement that all 64 rows matched `results/synthetic.md` refers to the run before this fix; the regenerated file
+differs from it only in the two `plumber_text` cells above and in timings. Pre-existing behaviour left unchanged: an
+unbalanced parenthesis (`(2.5`, now also `(.25`) still reads as numeric, and a label-column cell equal to any marker digit
+on its page is not counted as a false positive.
