@@ -304,3 +304,26 @@ def test_matching_a_long_chain_does_not_recurse():
     n = 3000  # value i accepts cells i-1 and i, so the last value's path runs through every other value
     wants = [[(0, 0, 0)]] + [[(0, 0, i - 1), (0, 0, i)] for i in range(1, n)]
     assert len(_match(wants[::-1])) == n
+
+
+# Overlapping period headers: "2026" inside "2026f" is not a foreign header there (PR #65 review).
+OVERLAP = TruthTable(1, BOX, ["Prices"], [["2026f"], ["2026"]], {(0, 0): "2.5", (0, 1): "2.4"})
+
+
+def test_overlapping_headers_align_on_an_exact_grid():
+    for headers in (["2026f", "2026"], ["2026", "2026f"]):
+        truth = TruthTable(1, BOX, ["Prices"], [[h] for h in headers], {(0, 0): "2.5", (0, 1): "2.4"})
+        assert score([truth], [_t([["", *headers], ["Prices", "2.5", "2.4"]])]).values_aligned == 2
+
+
+@pytest.mark.parametrize(
+    "grid",
+    [
+        [["", "", "2026f 2026"], ["Prices", "2.5", "2.4"]],  # both headers collapsed over the second column
+        [["", "2026f 2026", ""], ["Prices", "2.5", "2.4"]],  # ... over the first
+        [["", "2026f2026", ""], ["Prices", "2.5", "2.4"]],  # glued into one word
+    ],
+)
+def test_a_collapsed_overlapping_header_does_not_align(grid):
+    s = score([OVERLAP], [_t(grid)])
+    assert s.values_aligned == 0

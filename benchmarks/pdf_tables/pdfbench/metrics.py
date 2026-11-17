@@ -2,7 +2,8 @@
 
 - A value is *present* when a cell on its page reads exactly its text (or its text plus a separable footnote marker).
 - A value is *aligned* when, in addition, its grid row holds the row label left of it, and the cells above it in its
-  grid column hold every header fragment of its own column and none of another column's.
+  grid column hold every header fragment of its own column and no word holding another column's header token (a token
+  inside one of the column's own, as `2026` inside `2026f`, is not another column's there).
 - One physical parsed cell (parsed table, grid row, grid column) counts for at most one truth value, across all truth
   tables of a page, for presence and for alignment alike. Cells are assigned by a maximum one-to-one matching, so a
   duplicate never takes a cell another value needed, and neither the order of the truth tables nor that of the parsed
@@ -73,12 +74,25 @@ def _matches(table: BenchTable, truth: TruthTable) -> bool:
     return hits >= 1 and 2 * hits >= len(truth.row_labels)
 
 
+def _spans(word: str, token: str) -> list[tuple[int, int]]:
+    """Every (start, end) at which `token` occurs in `word`, overlapping occurrences included."""
+    return [(k, k + len(token)) for k in range(len(word) - len(token) + 1) if token and word.startswith(token, k)]
+
+
+def _foreign_word(word: str, own: list[str], foreign: set[str]) -> bool:
+    """`word` holds another column's header token at a place no own header token covers. `2026` inside `2026f` is
+    covered when `2026f` is this column's header (but not in `2026f2026`), and foreign when `2026f` is another's."""
+    covered = [span for o in own for span in _spans(word, o)]
+    return any(not any(a <= s and e <= b for a, b in covered) for f in foreign for s, e in _spans(word, f))
+
+
 def _aligned(table: BenchTable, truth: TruthTable, key: tuple[int, int], accept: set[str]) -> list[tuple[int, int]]:
     """Grid positions of the cells that read the value at `key` on its row label and under its own column header."""
     r, c = key
     label = truth.row_labels[r]
     own = truth.col_headers[c]
-    foreign = {f for i, h in enumerate(truth.col_headers) if i != c for f in h if f not in own}
+    tokens = [tok for f in own for tok in f.split()]
+    foreign = {tok for i, h in enumerate(truth.col_headers) if i != c for f in h for tok in f.split()} - set(tokens)
     hits = []
     for i, row in enumerate(table.grid):
         for j, cell in enumerate(row):
@@ -87,7 +101,7 @@ def _aligned(table: BenchTable, truth: TruthTable, key: tuple[int, int], accept:
             if not any(label in _norm(x) for x in row[:j]):
                 continue
             above = " ".join(_norm(table.grid[k][j]) for k in range(i) if j < len(table.grid[k]))
-            if all(f in above for f in own) and not any(f in above for f in foreign):
+            if all(f in above for f in own) and not any(_foreign_word(w, tokens, foreign) for w in above.split()):
                 hits.append((i, j))
     return hits
 

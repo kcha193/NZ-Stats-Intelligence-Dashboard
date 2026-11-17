@@ -418,3 +418,10 @@ def test_a_parsed_cell_reproducing_one_value_is_not_evidence_for_another():
     assert (agree, missing) == (1, [[0, 2, 1]])
     assert reasons == {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 1}
     assert _reasons([_prices("2.5", "2.5")], existing)["label_mismatch"] == 1  # a second, unused copy is evidence
+
+
+def test_a_collapsed_overlapping_header_does_not_agree():
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", "2026f", "2026"], ["Prices", "2.5", "2.4"]])]
+    collapsed = [BenchTable(1, (0, 0, 1, 1), [["", "", "2026f 2026"], ["Prices", "", "2.4"]])]
+    assert not any(_agrees(collapsed, *t) for t in _value_triples(existing))
+    assert all(_agrees(existing, *t) for t in _value_triples(existing))

@@ -18,7 +18,7 @@ import sys
 from collections import Counter
 
 from pdfbench.adapters import PARSERS, run
-from pdfbench.metrics import Cell, _match, numeric
+from pdfbench.metrics import Cell, _foreign_word, _match, numeric
 from pdfbench.model import BenchTable
 
 CODES = frozenset({"error", "timeout", "refused", "hash_mismatch", "unavailable"})
@@ -190,8 +190,8 @@ def _agreeing(
     marker: str = "",
 ) -> list[Cell]:
     """(table index, grid row, grid column) of each cell reading `text` on a row holding `label`, under every token of
-    `header`, and under no word that holds another column's header token but none of its own (`2027f` is foreign to
-    `2026`; `2026f` is not foreign to `2026f` beside `2026`)."""
+    `header`, and under no word holding another column's header token at a place no own token covers (`2027f` is
+    foreign to `2026`; `2026` inside `2026f` is not foreign to the column headed `2026f`; see `metrics._foreign_word`)."""
     own = header.split()
     hits = []
     for ti, t in enumerate(tables):
@@ -201,7 +201,7 @@ def _agreeing(
                     continue
                 above = " ".join(_norm(t.grid[k][j]) for k in range(i) if j < len(t.grid[k]))
                 if all(token in above for token in own) and not any(
-                    any(f in word for f in foreign) and not any(o in word for o in own) for word in above.split()
+                    _foreign_word(word, own, foreign) for word in above.split()
                 ):
                     hits.append((ti, i, j))
     return hits

@@ -452,3 +452,27 @@ cell moves from `header_mismatch` to `value_missing` (4 → 3 and 1 → 2), beca
 another existing cell. On version 4 these fixes can change counts. Agreement can fall where a parser reproduced only one
 of two identical existing cells, `fused_marker_cells` can rise on negative figures, and reasons can move to
 `value_missing`. All of this adds to the owner's re-run above. The benchmark suite is 150 passing.
+
+Seventh review pass (P2, `metrics.py`): the foreign-header check in `_aligned` matched any substring, so when two
+columns' headers overlap a correct value was rejected. With truth headers `2026f` and `2026`, an exact grid scored 1 of 2
+aligned, because the foreign `2026` matched inside the correct `2026f`. One rule now serves both scorers,
+`metrics._foreign_word`. A word above a value is foreign when another column's header token occurs in it at a place
+that no own header token covers: `2026` inside `2026f` is covered when `2026f` is the column's own header, but not in
+`2026f2026`, and `2026f` is always foreign to the column headed `2026`. `_aligned` now compares header tokens word by
+word, as `masked._agreeing` did. `masked._agreeing` switches to the same helper; its old rule ("a foreign token and no
+own token in the word") accepted a collapsed `2026f 2026` over the `2026` column. Tests: overlapping headers align on an
+exact grid (both orders); collapsed and glued overlapping headers do not align (three layouts); the masked collapsed
+overlap does not agree. Two tests failed before the fix. A first version of the helper excused every foreign occurrence
+inside a word that held an own token, which a glued `2026f2026` guard test caught before commit.
+
+The synthetic results do not change. A fresh run matches `results/synthetic.md` on every non-timing value, because no
+synthetic truth has overlapping header tokens (checked: 0 pairs). The masked diagnostics on the replicas are unchanged
+too. On version 4 this can change counts where period headers overlap, which adds to the owner's re-run above.
+
+An independent review of this rule (synthetic inputs only) found no bug. It confirmed one further improvement: a header
+token shared by two columns (`Current` over both) no longer rejects either column's values, because shared tokens are
+now removed from the foreign set token by token, not fragment by fragment. It raised one risk that predates this PR and is
+left unchanged. The own-header test is a substring test in both scorers, so a parsed header that extends an own header
+not listed as another column (`Dec-26` over a column headed `Dec`) still counts as that header. In the masked
+diagnostics this is deliberate, because the existing grid and a parser can print one period differently. The suite is 155
+passing.
