@@ -18,7 +18,7 @@ import sys
 from collections import Counter
 
 from pdfbench.adapters import PARSERS, run
-from pdfbench.metrics import numeric
+from pdfbench.metrics import Cell, _match, numeric
 from pdfbench.model import BenchTable
 
 CODES = frozenset({"error", "timeout", "refused", "hash_mismatch", "unavailable"})
@@ -57,6 +57,7 @@ KEYS = frozenset(
 )
 _PAGE_KEY = re.compile(r"^\d{1,4}$")
 _FIGURE = set("0123456789.,%")
+_SIGNS = set("-−–+")  # a sign directly before a figure belongs to it
 _SOURCE = re.compile(r"^(?:sources?|notes?)\b", re.IGNORECASE)
 _MARKER_RATIO = 0.75
 _SUPERSCRIPTS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
@@ -127,12 +128,22 @@ def _marker_sites(chars: list[dict]) -> tuple[list[tuple[str, str]], int]:
             ),
             key=lambda q: q["x0"],
         )
+        before = line[:-1] if line and line[-1] is p else line
+        close = 0.15 * p["size"]
         token = [p]
-        for q in reversed(line[:-1] if line and line[-1] is p else line):
-            if q["text"] in _FIGURE and token[0]["x0"] - q["x1"] < 0.15 * p["size"]:
-                token.insert(0, q)
-            else:
+        for k in range(len(before) - 1, -1, -1):
+            q = before[k]
+            if token[0]["x0"] - q["x1"] >= close:
                 break
+            if q["text"] in _FIGURE:
+                token.insert(0, q)
+                continue
+            # A sign belongs to the figure, unless a figure sits directly before it: then it is a range dash ("2.5–3.0").
+            prior = before[k - 1] if k else None
+            ranged = prior is not None and prior["text"] in _FIGURE and q["x0"] - prior["x1"] < close
+            if q["text"] in _SIGNS and not ranged:
+                token.insert(0, q)
+            break
         sites.append(("".join(q["text"] for q in token), c["text"]))
     return sites, labels
 
@@ -170,18 +181,20 @@ def _reads(cell: str, text: str, marker: str) -> bool:
     return cell.rstrip(_SUPERSCRIPTS).strip() == text or (bool(marker) and cell == f"{text} {marker}")
 
 
-def _agrees(
+def _agreeing(
     tables: list[BenchTable],
     label: str,
     header: str,
     text: str,
     foreign: frozenset[str] = frozenset(),
     marker: str = "",
-) -> bool:
-    """`text` on a row holding `label`, under every token of `header`, and under no word that holds another column's
-    header token but none of its own (`2027f` is foreign to `2026`; `2026f` is not foreign to `2026f` beside `2026`)."""
+) -> list[Cell]:
+    """(table index, grid row, grid column) of each cell reading `text` on a row holding `label`, under every token of
+    `header`, and under no word that holds another column's header token but none of its own (`2027f` is foreign to
+    `2026`; `2026f` is not foreign to `2026f` beside `2026`)."""
     own = header.split()
-    for t in tables:
+    hits = []
+    for ti, t in enumerate(tables):
         for i, row in enumerate(t.grid):
             for j, cell in enumerate(row):
                 if not _reads(cell, text, marker) or not any(label and label in _norm(x) for x in row[:j]):
@@ -190,40 +203,69 @@ def _agrees(
                 if all(token in above for token in own) and not any(
                     any(f in word for f in foreign) and not any(o in word for o in own) for word in above.split()
                 ):
-                    return True
-    return False
+                    hits.append((ti, i, j))
+    return hits
 
 
-def _unreproduced(tables: list[BenchTable], existing: list[BenchTable]) -> list[list[int]]:
-    """[table index, grid row, grid column] of each existing value cell that `tables` does not reproduce. Ints only."""
-    return [
+def _agrees(tables: list[BenchTable], *triple) -> bool:
+    """Some cell of `tables` could reproduce this existing value (see `_agreeing`), whether or not another takes it."""
+    return bool(_agreeing(tables, *triple))
+
+
+def _assess(tables: list[BenchTable], existing: list[BenchTable]) -> tuple[list[list[int]], int, dict[str, int]]:
+    """Compare `tables` with the existing value cells once: (positions [table index, grid row, grid column] of the existing
+    value cells not reproduced, how many are reproduced, why each of the others is not).
+
+    A parsed cell reproduces at most one existing cell (a maximum one-to-one matching, so the order of `tables` does not
+    matter): two identical existing cells need two parsed cells. The reasons are judged on the parsed cells that matching
+    left unused: the value is read by none of them (`value_missing`, which includes a figure whose every copy reproduces
+    another existing cell); one sits under its header but off its label's row (`label_mismatch`); or none is under its
+    own header (`header_mismatch`).
+    """
+    positions = [
         [ti, i, j]
         for ti, e in enumerate(existing)
         for i, row in enumerate(e.grid[1:], start=1)
         for j in range(1, len(row))
-        if numeric(row[j]) and not _agrees(tables, *_triple(e.grid[0], row, j))
+        if numeric(row[j])
     ]
-
-
-def _reasons(tables: list[BenchTable], existing: list[BenchTable]) -> dict[str, int]:
-    """Why each unreproduced existing cell failed: its value is nowhere; it sits under its header but off its label's
-    row; or it is never under its own header."""
-    out = {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 0}
-    for label, header, text, foreign, marker in _value_triples(existing):
-        if _agrees(tables, label, header, text, foreign, marker):
+    triples = _value_triples(existing)
+    hits = _match([_agreeing(tables, *tr) for tr in triples])
+    used = set(hits.values())
+    rest = [  # used cells blanked in place, so rows, columns and headers keep their positions
+        BenchTable(
+            t.page,
+            t.bbox,
+            [["" if (ti, i, j) in used else c for j, c in enumerate(row)] for i, row in enumerate(t.grid)],
+        )
+        for ti, t in enumerate(tables)
+    ]
+    reasons = {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 0}
+    for k, (label, header, text, foreign, marker) in enumerate(triples):
+        if k in hits:
             continue
-        if not any(_reads(c, text, marker) for t in tables for row in t.grid for c in row):
-            out["value_missing"] += 1
+        if not any(_reads(c, text, marker) for t in rest for row in t.grid for c in row):
+            reasons["value_missing"] += 1
         elif any(
             _agrees(
                 [BenchTable(t.page, t.bbox, [[label, *r[1:]] for r in t.grid])], label, header, text, foreign, marker
             )
-            for t in tables
+            for t in rest
         ):
-            out["label_mismatch"] += 1
+            reasons["label_mismatch"] += 1
         else:
-            out["header_mismatch"] += 1
-    return out
+            reasons["header_mismatch"] += 1
+    return [pos for k, pos in enumerate(positions) if k not in hits], len(hits), reasons
+
+
+def _unreproduced(tables: list[BenchTable], existing: list[BenchTable]) -> list[list[int]]:
+    """[table index, grid row, grid column] of each existing value cell that `tables` does not reproduce. Ints only."""
+    return _assess(tables, existing)[0]
+
+
+def _reasons(tables: list[BenchTable], existing: list[BenchTable]) -> dict[str, int]:
+    """Why each unreproduced existing cell is not reproduced (see `_assess`)."""
+    return _assess(tables, existing)[2]
 
 
 def _labels(t: BenchTable) -> list[str]:
@@ -266,11 +308,11 @@ def _page_metrics(
             unreproduced_reasons=None,
         )
     else:
-        triples = _value_triples(existing)
-        out["existing_value_cells"] = len(triples)
-        out["agreement_with_existing"] = sum(_agrees(tables, *tr) for tr in triples)
-        out["unreproduced_existing_cells"] = _unreproduced(tables, existing)
-        out["unreproduced_reasons"] = _reasons(tables, existing)
+        missing, reproduced, reasons = _assess(tables, existing)
+        out["existing_value_cells"] = reproduced + len(missing)
+        out["agreement_with_existing"] = reproduced
+        out["unreproduced_existing_cells"] = missing
+        out["unreproduced_reasons"] = reasons
         out["tables_merged_vs_existing"] = sum(
             sum(
                 bool(ls) and 2 * sum(any(lab in c for c in _cells(t)) for lab in ls) >= len(ls)

@@ -314,3 +314,107 @@ def test_a_marked_value_under_another_header_is_a_header_mismatch(cell):
         "header_mismatch": 1,
         "value_missing": 0,
     }
+
+
+# One parsed cell reproduces at most one existing cell (PR #65 review).
+def _prices(*cells, header="2026f"):
+    return BenchTable(1, (0, 0, 1, 1), [["", header], *(["Prices", c] for c in cells)])
+
+
+def _agreement(tables, existing):
+    from pdfbench.masked import _page_metrics
+
+    m = _page_metrics(tables, existing, [], [], 100.0)
+    return m["agreement_with_existing"], m["unreproduced_existing_cells"], m["unreproduced_reasons"]
+
+
+def test_one_parsed_cell_reproduces_one_of_two_identical_existing_cells():
+    agree, missing, reasons = _agreement([_prices("2.5")], [_prices("2.5"), _prices("2.5")])
+    assert agree == 1 and len(missing) == 1
+    assert reasons == {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 1}
+
+
+def test_two_parsed_cells_reproduce_two_identical_existing_cells():
+    assert _agreement([_prices("2.5"), _prices("2.5")], [_prices("2.5"), _prices("2.5")])[:2] == (2, [])
+    assert _agreement([_prices("2.5", "2.5")], [_prices("2.5", "2.5")])[:2] == (2, [])
+
+
+def test_a_duplicate_inside_one_existing_table_needs_its_own_cell():
+    agree, missing, _ = _agreement([_prices("2.5")], [_prices("2.5", "2.5")])
+    assert agree == 1 and len(missing) == 1
+
+
+def test_agreement_does_not_depend_on_parsed_table_order():
+    existing = [_prices("2.5¹"), _prices("2.5")]
+    tables = [_prices("2.5"), _prices("2.5 1"), _prices("2.4")]
+    first = _agreement(tables, existing)
+    assert first[0] == 2
+    assert _agreement(tables[::-1], existing) == first
+
+
+def test_unreproduced_cells_match_their_reasons_on_random_pages():
+    import random
+
+    from pdfbench.masked import _reasons, _unreproduced
+
+    rng = random.Random(5)
+    for _ in range(300):
+        existing = [
+            _prices(*rng.choices(["2.5", "2.4", "2.5¹"], k=rng.randint(1, 3))) for _ in range(rng.randint(1, 3))
+        ]
+        tables = [
+            _prices(
+                *rng.choices(["2.5", "2.4", "2.5 1", ""], k=rng.randint(0, 3)), header=rng.choice(["2026f", "2027f"])
+            )
+            for _ in range(rng.randint(0, 3))
+        ]
+        agree, missing, reasons = _agreement(tables, existing)
+        total = sum(len(e.grid) - 1 for e in existing)
+        assert agree + len(missing) == total == agree + sum(reasons.values())
+        assert missing == _unreproduced(tables, existing) and reasons == _reasons(tables, existing)
+        assert agree <= sum(1 for t in tables for row in t.grid[1:] for c in row[1:] if c)
+        assert _agreement(tables[::-1], existing)[0] == agree
+
+
+# A marker site keeps the figure's sign, so a fused "-2.51" is counted (PR #65 review).
+def _char(text, x0, x1, size=10.0):
+    return {"text": text, "x0": x0, "x1": x1, "size": size, "top": 0.0, "bottom": size}
+
+
+@pytest.mark.parametrize("sign", ["-", "−", "–", "+"])
+def test_a_marker_site_keeps_the_sign_of_its_figure(sign):
+    from pdfbench.masked import _marker_sites
+
+    chars = [_char(sign, 0, 4), _char("2", 4, 10), _char(".", 10, 12), _char("5", 12, 18), _char("1", 18.5, 22, 6.0)]
+    assert _marker_sites(chars) == ([(f"{sign}2.5", "1")], 0)
+
+
+def test_a_sign_set_apart_from_the_figure_is_not_part_of_it():
+    from pdfbench.masked import _marker_sites
+
+    chars = [_char("-", 0, 2), _char("2", 8, 14), _char(".", 14, 16), _char("5", 16, 22), _char("1", 22.5, 26, 6.0)]
+    assert _marker_sites(chars) == ([("2.5", "1")], 0)
+
+
+def test_a_fused_marker_on_a_negative_figure_is_counted():
+    from pdfbench.masked import _page_metrics
+
+    m = _page_metrics([_prices("-2.51")], None, [("-2.5", "1")], [], 100.0)
+    assert m["fused_marker_cells"] == 1
+
+
+def test_a_dash_after_a_figure_is_a_range_not_a_sign():
+    from pdfbench.masked import _marker_sites
+
+    chars = [_char(c, 6 * k, 6 * k + 6) for k, c in enumerate("2.5–3.0")] + [_char("1", 42.5, 46, 6.0)]
+    assert _marker_sites(chars) == ([("3.0", "1")], 0)
+
+
+def test_a_parsed_cell_reproducing_one_value_is_not_evidence_for_another():
+    from pdfbench.masked import _reasons
+
+    existing = [BenchTable(1, (0, 0, 1, 1), [["", "2026f"], ["Prices", "2.5"], ["Jobless rate", "2.5"]])]
+    agree, missing, reasons = _agreement([_prices("2.5")], existing)
+    assert (agree, missing) == (1, [[0, 2, 1]])
+    assert reasons == {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 1}
+    assert _reasons([_prices("2.5", "2.5")], existing)["label_mismatch"] == 1  # a second, unused copy is evidence

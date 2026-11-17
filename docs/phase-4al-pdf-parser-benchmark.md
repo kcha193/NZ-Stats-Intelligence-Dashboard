@@ -409,3 +409,46 @@ pairs. It raised four risks, left unchanged here:
   only a superscript agrees with an empty cell. The `value_missing` scan also looks at the label column.
 
 The benchmark suite is 137 passing.
+
+Sixth review pass (two P2 findings, `masked.py`):
+
+- **Agreement reused parsed cells.** `_agrees` searched every parsed cell for each existing value, so one parsed cell
+  could reproduce two identical existing cells. Two existing tables holding `Prices / 2026f / 2.5`, with one parsed copy,
+  scored 2 of 2 agreeing and nothing unreproduced. This is the defect fixed in `score()` above, in the masked diagnostics.
+  `_agreeing` now lists the candidate cells, `_reproduced` assigns them one-to-one with the same maximum matching
+  (`metrics._match`), and agreement, the unreproduced positions and their reasons all come from that one assignment. An
+  existing cell left out because every parsed copy in place already reproduces another counts as `value_missing`. Tests:
+  one parsed cell for two identical existing cells, the same inside one table, two parsed cells for two, parsed-table
+  order, and 300 random pages checking that agreement plus unreproduced cells equals the existing cells, that the reasons
+  account for every unreproduced cell, and that agreement never exceeds the parsed value cells.
+- **Marker sites lost the sign.** `_marker_sites` rebuilt the figure before a raised digit from digits, `.`, `,` and `%`
+  only, so `-2.5¹` was recorded as `2.5` + `1` and a parser's fused `-2.51` was never counted in `fused_marker_cells`.
+  The walk now also takes one sign (`-`, `−`, `–`, `+`) set directly before the figure, and then stops. A sign set apart
+  from the figure is not taken.
+
+Seven tests failed before the fixes. An independent review of them (synthetic inputs only) found three more problems,
+fixed test-first:
+
+- The sign walk took a range dash as a sign: `2.5–3.0¹` became `–3.0`, so a fused `3.01` was no longer counted. A sign
+  set directly after a figure is now treated as a range dash and left out
+  (`test_a_dash_after_a_figure_is_a_range_not_a_sign`, which failed before the fix).
+- The reasons reused a parsed cell already taken by the matching as evidence for another existing cell (counted as
+  `label_mismatch`). Reasons are now judged only on the parsed cells the matching left unused, with the used cells
+  blanked in place so rows and headers keep their positions. `value_missing` therefore means that no unused parsed cell
+  reads the value, which includes a figure whose every copy reproduces another existing cell
+  (`test_a_parsed_cell_reproducing_one_value_is_not_evidence_for_another`, which failed before the fix).
+- Agreement, the unreproduced positions and the reasons were each computed separately, three matchings per page. They
+  now come from one assessment (`_assess`). A pathological page of 300 identical cells against 300 takes 2.9 s, down
+  from 8.8 s. Listing every agreeing cell, rather than stopping at the first, is the remaining cost, and it is inherent
+  to a one-to-one assignment.
+
+Also noted: when two different existing cells compete for one parsed cell, the one listed as unreproduced follows the
+order of the existing tables. Counts and reasons do not depend on that order.
+
+A synthetic probe (not a committed test) ran the masked diagnostics with the code before and after this pass on every
+synthetic replica. Agreement did not change anywhere, and on all 32 p5 and p8 case and parser pairs it still equals
+truth-scored alignment. One count did change: for `plumber_text` on `p5_annual` and `p5_annual_hrules`, one unreproduced
+cell moves from `header_mismatch` to `value_missing` (4 → 3 and 1 → 2), because its only parsed copy already reproduces
+another existing cell. On version 4 these fixes can change counts. Agreement can fall where a parser reproduced only one
+of two identical existing cells, `fused_marker_cells` can rise on negative figures, and reasons can move to
+`value_missing`. All of this adds to the owner's re-run above. The benchmark suite is 150 passing.
