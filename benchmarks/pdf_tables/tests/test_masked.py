@@ -270,3 +270,47 @@ def test_a_collapsed_header_with_suffixed_periods_does_not_agree(headers, collap
     existing = [BenchTable(1, (0, 0, 1, 1), [["", *headers], ["Prices", "2.5", "2.4"]])]
     other = [BenchTable(1, (0, 0, 1, 1), [["", collapsed], ["Prices", "2.5"], ["Prices", "2.4"]])]
     assert not any(_agrees(other, *t) for t in _value_triples(existing))
+
+
+# A value marker kept as a separate digit in the cell ("2.5 1") is the same figure as "2.5¹" (PR #65 review).
+MARKED = [BenchTable(1, (0, 0, 1, 1), [["", "2026f"], ["Prices", "2.5¹"]])]
+
+
+def _one(cell, header="2026f"):
+    return [BenchTable(1, (0, 0, 1, 1), [["", header], ["Prices", cell]])]
+
+
+@pytest.mark.parametrize("cell", ["2.5¹", "2.5", "2.5 1", "2.5 ¹", " 2.5  1 "])
+def test_a_separable_value_marker_agrees(cell):
+    from pdfbench.masked import _reasons, _unreproduced
+
+    assert all(_agrees(_one(cell), *t) for t in _value_triples(MARKED))
+    assert _unreproduced(_one(cell), MARKED) == []
+    assert _reasons(_one(cell), MARKED) == {"label_mismatch": 0, "header_mismatch": 0, "value_missing": 0}
+
+
+@pytest.mark.parametrize("cell", ["2.51", "2.5 2", "2.5 1 1", "2.5 12"])
+def test_a_fused_or_foreign_marker_digit_does_not_agree(cell):
+    from pdfbench.masked import _reasons
+
+    assert not any(_agrees(_one(cell), *t) for t in _value_triples(MARKED))
+    assert _reasons(_one(cell), MARKED)["value_missing"] == 1
+
+
+def test_an_unmarked_value_does_not_agree_with_a_trailing_digit():
+    from pdfbench.masked import _reasons
+
+    plain = [BenchTable(1, (0, 0, 1, 1), [["", "2026f"], ["Prices", "2.5"]])]
+    assert not any(_agrees(_one("2.5 1"), *t) for t in _value_triples(plain))
+    assert _reasons(_one("2.5 1"), plain)["value_missing"] == 1
+
+
+@pytest.mark.parametrize("cell", ["2.5¹", "2.5 1"])
+def test_a_marked_value_under_another_header_is_a_header_mismatch(cell):
+    from pdfbench.masked import _reasons
+
+    assert _reasons(_one(cell, header="2027f"), MARKED) == {
+        "label_mismatch": 0,
+        "header_mismatch": 1,
+        "value_missing": 0,
+    }

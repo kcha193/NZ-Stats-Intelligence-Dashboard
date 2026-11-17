@@ -377,3 +377,35 @@ unchanged on purpose:
 - **Truth text is not whitespace-normalised.** Parsed cells are, so a truth value with a trailing or doubled space would
   silently never match. This was true before this PR. Every synthetic truth string is already normalised (checked: none
   differs from its normalised form).
+
+Fifth review pass (P2, `masked.py`): agreement ignored a value's footnote marker when the parser kept it as a separate
+digit in the cell. An existing `Prices / 2026f / 2.5¹` reproduced as `2.5 1` scored `agreement_with_existing=0` and
+`value_missing=1`, though the synthetic scorer counts that form as aligned. The cause: `_triple` stripped the marker and
+dropped it, so `_agrees` could not tell `2.5 1` (the value's own marker) from `2.5 2` (another figure). In addition,
+`_reasons` tested presence with plain equality, unlike `_agrees`, so a correct `2.5¹` under the wrong header was counted
+as `value_missing` rather than `header_mismatch`.
+
+Fix, test-first: `_triple` keeps the value's marker (as plain digits), and one predicate, `_reads`, decides whether a cell
+reads the value, in `_agrees` and in `_reasons` alike. A superscript marker is still ignored, as before. The value's own
+marker may now also follow it as a separate digit (`2.5 1`). A fused digit (`2.51`), another digit (`2.5 2`, `2.5 12`),
+and a trailing digit after an unmarked value still do not agree. Four tests failed before the fix. The output schema is
+unchanged.
+
+A synthetic probe (not a committed test) ran the masked diagnostics with the old and new code on every synthetic
+replica: no count changed, and on all 32 p5 and p8 case and parser pairs agreement still equals truth-scored alignment.
+On version 4 the change can raise `agreement_with_existing` and move cells from `value_missing` to `header_mismatch` or
+`label_mismatch`, where a parser keeps a value marker as a spaced digit or reads a marked value under the wrong header.
+This adds to the owner's re-run above; §4 still shows the earlier rule.
+
+An independent review of this fix (synthetic tables only) found no bug. It checked fused, foreign and multi-digit markers,
+negative and multi-token values, and the emit schema, and found `_unreproduced` and `_reasons` consistent on 2,000 random
+pairs. It raised four risks, left unchanged here:
+
+- A superscript marker is ignored whatever its digit (`2.5²` agrees with `2.5¹`), while a spaced digit must be the
+  value's own. This is deliberate: agreement compares structure, not markers, and a spaced digit is accepted only when it
+  cannot be read as a second figure.
+- Three behaviours predate this PR and do not depend on this fix. A marker after `)` or `%` (`(2.5)¹`) makes the value
+  non-numeric, so it is not compared at all; `numeric()` is shared with the false-positive count. An existing cell holding
+  only a superscript agrees with an empty cell. The `value_missing` scan also looks at the label column.
+
+The benchmark suite is 137 passing.
