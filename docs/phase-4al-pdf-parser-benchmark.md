@@ -291,9 +291,8 @@ tables of a page (`test_a_parsed_cell_is_consumed_once_across_truth_tables_on_a_
 instead of 1). Sharing the pool made consumption order matter: a value with a footnote marker took the plain cell first
 and starved a later duplicate without one. A value now tries its marked forms before its plain text
 (`test_a_marked_truth_takes_its_marked_cell_before_a_plain_one`, both orders). The regenerated synthetic run has the same
-non-timing values, so `results/synthetic.md` is unchanged. Pre-existing and left unchanged:
-*aligned* does not consume cells, so two identical truth cells (same label, header and value) can both align to one
-parsed cell.
+non-timing values, so `results/synthetic.md` is unchanged. *Aligned* still did not consume cells after this fix; the
+fourth review pass below fixes that.
 
 Third review pass (two P2 findings on the original masked code):
 
@@ -319,3 +318,62 @@ Third review pass (two P2 findings on the original masked code):
 The synthetic results are unchanged. The suite is 113 passing. The foreign-header rule can lower
 `agreement_with_existing` and change `unreproduced_existing_cells` and `unreproduced_reasons` on the real pages, which
 adds to the owner's re-run above. Until that re-run, §4 shows the earlier rule.
+
+Fourth review pass (P2, `score()`): *present* consumed parsed cells from a shared per-page text pool, but `_aligned()`
+searched every parsed cell again for each truth value and returned the first hit. Nothing recorded which cell had been
+used, so one physical cell could align several truth values. Two truth tables on one page that both expect
+`Prices / 2026f / 2.5`, with one parsed cell, scored 1 present and 2 aligned. The same happened inside one truth table
+with a repeated row label. A value with a footnote marker could also lose its marker when a plain copy came first.
+
+Fix, test-first: a parsed cell is identified by its parsed table, grid row and grid column, never by its text. On each
+page, truth values are assigned to cells by a maximum one-to-one matching (augmenting paths), once for *present* and once
+for *aligned*. An aligned cell must still read an accepted text, hold the row label to its left, and have every header
+fragment of its own column and none of another column's above it. Alignment first matches the cells that keep a value's
+footnote marker. An augmenting path never frees a matched cell, and a marked cell is accepted only by values printed with
+that marker, so the number of kept markers is as large as it can be. Truth tables are tried in an order built from their
+content, so reordering `truth` cannot change a score. Reordering the parsed tables cannot either: the set of matched
+values depends only on the order values are tried in, not on the order of their candidate cells. A parsed-table sort
+was tried and removed: without it no test result changed, including 400 random pages scored with both lists reversed.
+
+The aligned candidates of a value are a subset of its present candidates, so `values_aligned ≤ values_present ≤
+values_truth` holds by construction. Ten new tests in `test_metrics.py`; seven failed before the fix, and the cases with
+two cells, two pages and a swapped row are regression guards that pass on both versions. They cover: one cell for two
+identical truth tables (1 present, 1 aligned); two cells with the same text (2, 2); a repeated value inside one truth
+table; pages counted on their own; the same figure under the wrong row or column; a misplaced duplicate (2 present,
+1 aligned); a marked value keeping its marker in every truth and parsed-table order; a plain cell alone keeping no marker;
+truth and parsed-table order leaving the whole score unchanged; and 400 seeded random pages checking the bounds and
+order invariance. Mutation checks (each reverted): removing the marker-first round, the truth-order sort, alignment
+consumption or the augmenting step each fails at least one test.
+
+The synthetic results do not change, and `results/synthetic.md` stays as committed: a fresh run matches it on every
+non-timing value in all 64 rows. The reason: no synthetic case repeats a (page, row label, column header, value) key,
+and in no parser's output on any case can a parsed cell align more than one truth value (a synthetic probe, not a
+committed test, counted 0 such cells and 0 values with more than one aligned candidate). The recommendation (§6) is
+unchanged. `masked.py` does not call `score()`, so the real-document diagnostics are unaffected by this fix.
+
+An independent adversarial review of this fix (fresh context, synthetic tables only, barred from `data/`) found two
+problems. Both were fixed test-first.
+
+- **Kept markers could depend on parsed-table order.** When one truth value's text is another value's text plus its
+  footnote marker (`2.5 1` beside `2.5` marked `1`), a cell reading `2.5 1` is a marked cell for one value and a plain
+  cell for the other. The marker-first round could then lose its holder, giving 0 or 1 kept markers for the same
+  content in different orders. Such truth is ambiguous, so `score()` now refuses it with `ValueError`
+  (`test_a_value_reading_as_another_value_plus_its_marker_is_refused`, which failed before the fix). No synthetic case
+  has such a value. With that case excluded, a brute-force check agreed with `_match` on 3,000 random small graphs:
+  cells used at most once, the largest assignment, and the most marked cells within it.
+- **Deep recursion.** The augmenting search was recursive, so a chain of about 1,000 values on one page raised
+  `RecursionError`. It is now iterative (`test_matching_a_long_chain_does_not_recurse`, 3,000 values, which failed
+  before the fix).
+
+After the review fixes, the synthetic run still matches `results/synthetic.md` on every non-timing value. The benchmark
+suite is 125 passing.
+
+A second review of these fixes found no bug. It ran brute force on 4,000 random pages, which matched present, aligned and
+kept exactly, and checked that the iterative search agrees with the recursive one. It raised two risks, both left
+unchanged on purpose:
+
+- **The refusal fires whatever the parser read.** This is deliberate. Ambiguous truth is a fixture error, so every
+  parser fails on the case alike, instead of the refusal depending on which parser happened to read the colliding text.
+- **Truth text is not whitespace-normalised.** Parsed cells are, so a truth value with a trailing or doubled space would
+  silently never match. This was true before this PR. Every synthetic truth string is already normalised (checked: none
+  differs from its normalised form).

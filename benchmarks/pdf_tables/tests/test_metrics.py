@@ -1,6 +1,10 @@
 """Scoring against ground truth, on hand-built tables (no parser involved)."""
 
-from pdfbench.metrics import numeric, score
+import random
+
+import pytest
+
+from pdfbench.metrics import _match, numeric, score
 from pdfbench.model import BenchTable, TruthTable
 
 BOX = (0.0, 0.0, 1.0, 1.0)
@@ -172,3 +176,131 @@ def test_a_marked_truth_takes_its_marked_cell_before_a_plain_one():
     got = [_t([["", "2026f", "2027f"], ["A", "2.5¹", ""], ["B", "", "2.5"]])]
     for order in ([marked, plain], [plain, marked]):
         assert score(order, got).values_present == 2
+
+
+# Alignment consumes physical cells: one parsed cell aligns at most one truth occurrence (PR #65 review).
+PRICES = TruthTable(1, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5"})
+ONE_CELL = [["", "2026f"], ["Prices", "2.5"]]
+
+
+def _counts(s):
+    return s.values_truth, s.values_present, s.values_aligned
+
+
+def test_one_parsed_cell_aligns_one_of_two_identical_truth_tables():
+    s = score([PRICES, PRICES], [_t(ONE_CELL)])
+    assert _counts(s) == (2, 1, 1)
+
+
+def test_two_distinct_cells_with_the_same_text_both_align():
+    s = score([PRICES, PRICES], [_t(ONE_CELL), _t(ONE_CELL)])
+    assert _counts(s) == (2, 2, 2)
+
+
+def test_a_duplicate_within_one_truth_table_needs_its_own_cell():
+    truth = TruthTable(1, BOX, ["Prices", "Prices"], [["2026f"]], {(0, 0): "2.5", (1, 0): "2.5"})
+    assert _counts(score([truth], [_t(ONE_CELL)])) == (2, 1, 1)
+    two_rows = [["", "2026f"], ["Prices", "2.5"], ["Prices", "2.5"]]
+    assert _counts(score([truth], [_t(two_rows)])) == (2, 2, 2)
+
+
+def test_cells_on_each_page_are_counted_on_their_own_page():
+    second = TruthTable(2, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5"})
+    assert _counts(score([PRICES, second], [_t(ONE_CELL), _t(ONE_CELL, page=2)])) == (2, 2, 2)
+    assert _counts(score([PRICES, second], [_t(ONE_CELL)])) == (2, 1, 1)
+    assert _counts(score([PRICES, second], [_t(ONE_CELL, page=2)])) == (2, 1, 1)
+
+
+def test_the_same_figure_aligns_only_under_its_own_row_and_column():
+    truth = TruthTable(
+        1, BOX, ["A", "B"], [["2026f"], ["2027f"]], {(0, 0): "2.5", (0, 1): "1.0", (1, 0): "3.0", (1, 1): "2.5"}
+    )
+    swapped = [["", "2026f", "2027f"], ["A", "2.5", "1.0"], ["B", "2.5", "3.0"]]  # row B's figures swapped
+    assert _counts(score([truth], [_t(swapped)])) == (4, 4, 2)
+
+
+def test_a_misplaced_duplicate_is_present_but_never_aligned_twice():
+    misplaced = [["", "2026f", "2027f"], ["Prices", "", "2.5"]]  # under a foreign column
+    s = score([PRICES, PRICES], [_t(ONE_CELL), _t(misplaced)])
+    assert _counts(s) == (2, 2, 1)
+
+
+def test_a_marked_value_keeps_its_marker_whichever_cell_comes_first():
+    marked = TruthTable(1, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5"}, value_markers={(0, 0): "1"})
+    plain_cell, marked_cell = _t(ONE_CELL), _t([["", "2026f"], ["Prices", "2.5¹"]])
+    for got in ([plain_cell, marked_cell], [marked_cell, plain_cell]):
+        alone = score([marked], got)
+        assert (alone.values_aligned, alone.markers_kept) == (1, 1)
+        for truth in ([marked, PRICES], [PRICES, marked]):
+            s = score(truth, got)
+            assert _counts(s) == (2, 2, 2)
+            assert (s.markers_truth, s.markers_kept) == (1, 1)
+
+
+def test_a_plain_cell_alone_cannot_keep_a_marker():
+    marked = TruthTable(1, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5"}, value_markers={(0, 0): "1"})
+    s = score([marked, PRICES], [_t(ONE_CELL)])
+    assert _counts(s) == (2, 1, 1)
+    assert s.markers_kept == 0
+
+
+def test_truth_order_and_parsed_table_order_do_not_change_the_score():
+    stacked = TruthTable(1, BOX, ["Prices"], [["Annual", "2026f"]], {(0, 0): "2.5"}, stacked=[0])
+    flat = TruthTable(1, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5"})
+    joined = _t([["", "Annual"], ["", "2026f"], ["Prices", "2.5"]])  # one cell both truth tables can claim
+    extra = _t([["", "2027f"], ["Prices", "2.5"]])
+    first = score([stacked, flat], [joined, extra])
+    assert _counts(first) == (2, 2, 1)
+    for truth in ([stacked, flat], [flat, stacked]):
+        for got in ([joined, extra], [extra, joined]):
+            assert score(truth, got) == first
+
+
+def test_scores_keep_their_bounds_and_ignore_order_on_random_tables():
+    rng = random.Random(4)
+    labels, headers, figures = ["A", "B"], ["2026f", "2027f"], ["2.5", "2.4"]
+
+    def truth_table(page):
+        keys = [(r, c) for r in range(2) for c in range(2) if rng.random() < 0.7]
+        values = {k: rng.choice(figures) for k in keys}
+        marked = {k: "1" for k in keys if rng.random() < 0.3}
+        return TruthTable(page, BOX, labels, [[h] for h in headers], values, stacked=[0], value_markers=marked)
+
+    def cell():
+        return rng.choice(["", *figures, "2.5¹", "2.4¹"])
+
+    def parsed(page):
+        grid = [["", rng.choice(headers), rng.choice(headers)]]
+        grid += [[rng.choice(labels), cell(), cell()] for _ in range(rng.randint(1, 3))]
+        return _t(grid, page=page)
+
+    for _ in range(400):
+        truth = [truth_table(rng.choice([1, 2])) for _ in range(rng.randint(1, 4))]
+        got = [parsed(rng.choice([1, 2])) for _ in range(rng.randint(0, 4))]
+        s = score(truth, got)
+        assert 0 <= s.values_aligned <= s.values_present <= s.values_truth
+        assert 0 <= s.markers_kept <= s.markers_truth and 0 <= s.stacked_joined <= s.stacked_truth
+        cells = sum(1 for t in got for row in t.grid for c in row if c in {*figures, "2.5¹", "2.4¹"})
+        assert s.values_present <= cells
+        assert score(truth[::-1], got[::-1]) == s
+
+
+def test_a_value_reading_as_another_value_plus_its_marker_is_refused():
+    # "2.5 1" is both the plain text of one value and "2.5" with marker 1: a cell reading it cannot be attributed, and
+    # the marker count would depend on parsed-table order (independent review, PR #65).
+    truth = TruthTable(
+        1, BOX, ["Prices", "Prices"], [["2026f"]], {(0, 0): "2.5", (1, 0): "2.5 1"}, value_markers={(0, 0): "1"}
+    )
+    plain, marked = _t(ONE_CELL), _t([["", "2026f"], ["Prices", "2.5 1"], ["Prices", "2.5 1"]])
+    for got in ([plain, marked], [marked, plain]):
+        with pytest.raises(ValueError, match="ambiguous"):
+            score([truth], got)
+    other_page = TruthTable(2, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5 1"})
+    plain_truth = TruthTable(1, BOX, ["Prices"], [["2026f"]], {(0, 0): "2.5"}, value_markers={(0, 0): "1"})
+    assert score([plain_truth, other_page], [plain, marked]).markers_kept == 1  # pages are separate
+
+
+def test_matching_a_long_chain_does_not_recurse():
+    n = 3000  # value i accepts cells i-1 and i, so the last value's path runs through every other value
+    wants = [[(0, 0, 0)]] + [[(0, 0, i - 1), (0, 0, i)] for i in range(1, n)]
+    assert len(_match(wants[::-1])) == n
