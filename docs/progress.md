@@ -12,7 +12,9 @@ preserved. Phase 4G live new-release acceptance still awaits the next supported 
 Both P2 comments (4640570866, 4640570879) have synthetic regressions and fixes: worksheet/merged/hyperlink/comment
 expansion is bounded before loading, and streaming XML metadata inspection handles UTF-8 and UTF-16 and fails closed.
 Independent review findings about parser structure and worksheet aliases were fixed test-first; chart/shared-image
-compatibility is covered. Inspector: 89 passed, including five CLI integration tests; Ruff clean; eleven targeted mutants
+compatibility is covered. Follow-up comment 4647935392 fixes external-formula false positives for structured references
+and string literals, with named/quoted workbook, implicit-intersection and sheet-range regressions. Inspector: 108 passed,
+including five CLI integration tests; Ruff clean; thirteen targeted mutants
 killed. Backend: 7,148 passed; backend Ruff clean. Details and limits: [Phase 4AN §9](phase-4an-anz-workbook.md#9-pr-67-review-remediation-21-november-2026).
 **C2W remains pending; no real ANZ workbook access, registry activation, production ingestion, adapter or migration.**
 

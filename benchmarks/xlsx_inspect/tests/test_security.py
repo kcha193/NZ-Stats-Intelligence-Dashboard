@@ -302,3 +302,44 @@ def test_missing_referenced_worksheet_fails_closed(book, monkeypatch):
     assert result["status"] == "refused" and result["archive"]["unreadable"] is True
     assert result["archive"]["external_targets"] is None
     emit(result)
+
+
+@pytest.mark.parametrize(
+    "formula,external",
+    [
+        ("=SUM(Sales[2026])", 0),
+        ('="[1]"', 0),
+        ('=IF(A2="[1]",1,2)', 0),
+        ("=Sales[[2026],[!]]", 0),
+        ("=SUM(Sales[[#Data],[2026]])", 0),
+        ("='Local'!Sales[2026]", 0),
+        ("=SUM(Sales[2026])+Local!A1", 0),
+        ("=Sales[2026!x]", 0),
+        ("='[1]Other'!A1", 1),
+        ("=[1]Other!A1", 1),
+        ("='C:\\local\\[book.xlsx]Sheet'!A1", 1),
+        ("=[book.xlsx]Sheet!A1", 1),
+        ("=[1]!Rate", 1),
+        ("=@[1]Other!A1", 1),
+        ("=SUM([1]First:Last!A1)", 1),
+        ("='[1]O''ther'!A1", 1),
+        ("=\"[1]\"&'[2]Other'!A1", 1),
+    ],
+)
+def test_external_formulas_distinguish_workbook_qualifiers_from_literals_and_tables(tmp_path, formula, external):
+    wb = Workbook()
+    wb.active["A1"] = formula
+    result = inspect(synth.save(wb, tmp_path / "formula.xlsx"))
+    assert result["status"] == "ok"
+    assert result["sheets"][0]["formulas"] == 1
+    assert result["sheets"][0]["formulas_external"] == external
+    emit(result)
+
+
+@pytest.mark.parametrize("formula", ['="unterminated[1]', "=Sales[unterminated"])
+def test_uninspectable_formula_syntax_fails_closed(tmp_path, formula):
+    wb = Workbook()
+    wb.active["A1"] = formula
+    result = inspect(synth.save(wb, tmp_path / "formula.xlsx"))
+    assert result["status"] == "error"
+    emit(result)

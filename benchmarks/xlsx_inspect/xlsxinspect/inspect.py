@@ -56,7 +56,9 @@ _UNITS = {
     "quarterly": re.compile(r"\bq\s*/\s*q\b|\bquarterly\b|quarter on quarter", re.IGNORECASE),
     "seasonal": re.compile(r"seasonally adjusted|\bs\.a\.", re.IGNORECASE),
 }
-_EXTERNAL_REF = re.compile(r"\[\d+\]")
+_WORKBOOK_REF = re.compile(r"\[[^\[\]]+\]")
+_OPERAND_DELIMITERS = frozenset("=+-*/^&<>(){},;:%@ \t\r\n")
+_QUALIFIER_DELIMITERS = (_OPERAND_DELIMITERS - {":"}) | frozenset("[]\"'")
 _COUNTS = (
     "numeric", "text", "booleans", "dates", "percent_format", "literal_percent_format", "year_like_numbers", "formulas",
     "formulas_cached", "formulas_uncached", "formulas_external", "comments", "period_headers",
@@ -330,6 +332,50 @@ def _formula_text(cell) -> str | None:
     return str(value)
 
 
+def _external_formula(formula: str) -> bool:
+    """Recognise workbook-qualified operands in one pass, skipping text and structured references. Never evaluate."""
+    i, size = 0, len(formula)
+    while i < size:
+        char = formula[i]
+        if char in {'"', "'"}:
+            start = i + 1
+            i += 1
+            while i < size:
+                if formula[i] == char:
+                    if i + 1 < size and formula[i + 1] == char:
+                        i += 2
+                        continue
+                    break
+                i += 1
+            if i == size:
+                raise ValueError("unterminated formula quote")
+            end = i
+            i += 1
+            if char == "'" and i < size and formula[i] == "!" and _WORKBOOK_REF.search(formula, start, end):
+                return True
+        elif char == "[":
+            start, depth = i, 1
+            i += 1
+            while i < size and depth:
+                # Apostrophes escape special characters within structured column names.
+                if formula[i] == "'" and i + 1 < size and formula[i + 1] in "[]'#@":
+                    i += 2
+                    continue
+                depth += (formula[i] == "[") - (formula[i] == "]")
+                i += 1
+            if depth:
+                raise ValueError("unterminated formula bracket")
+            if start == 0 or formula[start - 1] in _OPERAND_DELIMITERS:
+                end = i
+                while end < size and formula[end] not in _QUALIFIER_DELIMITERS:
+                    if formula[end] == "!":
+                        return True
+                    end += 1
+        else:
+            i += 1
+    return False
+
+
 _QUOTED = re.compile(r'"[^"]*"|\\.')
 
 
@@ -360,7 +406,7 @@ def _sheet(fws, vws) -> dict:
             s["formulas"] += 1
             cached = vws.cell(row=cell.row, column=cell.column).value is not None
             s["formulas_cached" if cached else "formulas_uncached"] += 1
-            s["formulas_external"] += bool(_EXTERNAL_REF.search(formula))
+            s["formulas_external"] += _external_formula(formula)
     for row in vws.iter_rows():
         for cell in row:
             v = cell.value

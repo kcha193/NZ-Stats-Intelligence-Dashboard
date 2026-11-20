@@ -27,6 +27,9 @@ LE/BE and XML character references. DTDs and entities are refused. Missing, malf
 refuses inspection; incomplete metadata flags remain `null`. Macro-enabled, VBA and legacy macro-sheet content types
 are flagged. Archive refusals keep the existing masked output schema.
 
+Formula classification uses a linear lexer: only workbook-qualified reference operands count as external. Bracketed
+numeric table headers and string literals do not count. Uninspectable quotes or brackets return a fixed error code.
+
 Privacy: output goes only through `xlsxinspect.guard.emit`, which accepts a fixed key set, numbers, booleans, fixed codes,
 lists of ints and the file's SHA-256. It never prints sheet names, cell text, figures, paths or error messages, and no model
 or service reads the workbook.

@@ -250,8 +250,13 @@ Comments **4640570866** and **4640570879** are addressed by preflight checks bef
   but ended before a final verdict; a separate reviewer verified the fixes and reported no remaining scoped findings.
 - Superpowers debugging, planning, TDD and verification were used. The initial regression run produced 15 expected
   failures. Additional review regressions were each observed failing before their corrections.
-- Local inspector verification: **89 synthetic tests passed**, including the five CLI integration cases and output
-  masking checks. Ruff check and format pass. Eleven isolated targeted mutations each fail at least one regression test;
+- Follow-up comment **4647935392** identified formula false positives for numeric structured references and string
+  literals. A linear lexer now distinguishes those from workbook-qualified operands, including named workbooks,
+  escaped quoted sheet names, implicit intersection and sheet ranges. Uninspectable quotes/brackets return the existing
+  fixed error code. The first formula regression run had 11 expected failures; two further review cases also failed
+  before correction. No formula is evaluated and no formula text leaves the inspector.
+- Local inspector verification: **108 synthetic tests passed**, including the five CLI integration cases and output
+  masking checks. Ruff check and format pass. Thirteen isolated targeted mutations each fail at least one regression test;
   this is a targeted mutation exercise, not a claim of exhaustive mutation coverage. Backend: 7,148 tests passed
   (exit 0; one Starlette/httpx deprecation warning); backend Ruff check and format pass.
 
