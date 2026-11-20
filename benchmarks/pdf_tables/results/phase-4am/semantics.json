@@ -1,0 +1,593 @@
+{
+ "p5": [
+  {
+   "caption": {
+    "forecast_word": true,
+    "label_count": 1,
+    "label_found": true,
+    "label_scenario": 0,
+    "label_unknown": 0,
+    "label_who": {
+     "names_publisher": false,
+     "names_stats_agency": false,
+     "other_forecasters": 0,
+     "third_party_rule": false
+    },
+    "label_words": 8,
+    "label_years": 0,
+    "pct": true,
+    "prose_scenario": 2,
+    "prose_unknown": 34,
+    "prose_who": {
+     "names_publisher": false,
+     "names_stats_agency": false,
+     "other_forecasters": 1,
+     "third_party_rule": true
+    },
+    "prose_words": 67,
+    "prose_years": 0
+   },
+   "columns": [
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "contradictory_period"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "contradictory_period"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "contradictory_period"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "contradictory_period"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "contradictory_period"
+    },
+    {
+     "groups": 0,
+     "kind": "forecast",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "calendar"
+    },
+    {
+     "groups": 0,
+     "kind": "forecast",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "contradictory_period"
+    },
+    {
+     "groups": 0,
+     "kind": "forecast",
+     "own_period": "calendar",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "contradictory_period"
+    }
+   ],
+   "notes": [
+    {
+     "marked": true,
+     "months": 0,
+     "names_publisher": false,
+     "names_stats_agency": false,
+     "other_forecasters": 0,
+     "pct": false,
+     "source_line": false,
+     "third_party_rule": false,
+     "unknown_context_rule": true,
+     "unknown_words": 3,
+     "words": 3,
+     "years": 0,
+     "years_matching_columns": 0
+    },
+    {
+     "marked": false,
+     "months": 1,
+     "names_publisher": true,
+     "names_stats_agency": true,
+     "other_forecasters": 1,
+     "pct": false,
+     "source_line": true,
+     "third_party_rule": true,
+     "unknown_context_rule": false,
+     "unknown_words": 11,
+     "words": 28,
+     "years": 1,
+     "years_matching_columns": 1
+    }
+   ],
+   "rows": [
+    {
+     "indicator": "none",
+     "label_footnote": true,
+     "label_unit": "percent",
+     "label_words": 6,
+     "values": 8
+    },
+    {
+     "indicator": "unemployment",
+     "label_footnote": false,
+     "label_unit": "none",
+     "label_words": 5,
+     "values": 8
+    },
+    {
+     "indicator": "cpi_inflation",
+     "label_footnote": false,
+     "label_unit": "percent",
+     "label_words": 7,
+     "values": 8
+    },
+    {
+     "indicator": "ocr",
+     "label_footnote": false,
+     "label_unit": "none",
+     "label_words": 6,
+     "values": 8
+    }
+   ]
+  }
+ ],
+ "p8": [
+  {
+   "caption": {
+    "forecast_word": true,
+    "label_count": 1,
+    "label_found": true,
+    "label_scenario": 0,
+    "label_unknown": 2,
+    "label_who": {
+     "names_publisher": false,
+     "names_stats_agency": false,
+     "other_forecasters": 0,
+     "third_party_rule": false
+    },
+    "label_words": 8,
+    "label_years": 0,
+    "pct": false,
+    "prose_scenario": 0,
+    "prose_unknown": 1,
+    "prose_who": {
+     "names_publisher": false,
+     "names_stats_agency": false,
+     "other_forecasters": 0,
+     "third_party_rule": false
+    },
+    "prose_words": 2,
+    "prose_years": 0
+   },
+   "columns": [
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "unparsed_period",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "unparsed_period"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    }
+   ],
+   "notes": [],
+   "rows": [
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "unsupported_unit",
+     "label_words": 1,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "unsupported_unit",
+     "label_words": 1,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "unsupported_unit",
+     "label_words": 1,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "unsupported_unit",
+     "label_words": 1,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "unsupported_unit",
+     "label_words": 1,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "unsupported_unit",
+     "label_words": 2,
+     "values": 9
+    }
+   ]
+  },
+  {
+   "caption": {
+    "forecast_word": false,
+    "label_count": 0,
+    "label_found": false,
+    "label_scenario": 0,
+    "label_unknown": 2,
+    "label_who": {
+     "names_publisher": false,
+     "names_stats_agency": false,
+     "other_forecasters": 0,
+     "third_party_rule": false
+    },
+    "label_words": 2,
+    "label_years": 0,
+    "pct": false,
+    "prose_scenario": 0,
+    "prose_unknown": 0,
+    "prose_who": {
+     "names_publisher": false,
+     "names_stats_agency": false,
+     "other_forecasters": 0,
+     "third_party_rule": false
+    },
+    "prose_words": 0,
+    "prose_years": 0
+   },
+   "columns": [
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "unparsed_period",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "unparsed_period"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    },
+    {
+     "groups": 0,
+     "kind": "unknown",
+     "own_period": "month_end",
+     "pct_in_header": false,
+     "redefined": false,
+     "with_context": "month_end"
+    }
+   ],
+   "notes": [
+    {
+     "marked": false,
+     "months": 0,
+     "names_publisher": true,
+     "names_stats_agency": false,
+     "other_forecasters": 1,
+     "pct": false,
+     "source_line": true,
+     "third_party_rule": true,
+     "unknown_context_rule": false,
+     "unknown_words": 6,
+     "words": 14,
+     "years": 0,
+     "years_matching_columns": 0
+    }
+   ],
+   "rows": [
+    {
+     "indicator": "ocr",
+     "label_footnote": false,
+     "label_unit": "none",
+     "label_words": 2,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "none",
+     "label_words": 3,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "none",
+     "label_words": 3,
+     "values": 9
+    },
+    {
+     "indicator": "none",
+     "label_footnote": false,
+     "label_unit": "none",
+     "label_words": 3,
+     "values": 9
+    }
+   ]
+  }
+ ],
+ "tables_p5": 1,
+ "tables_p8": 2,
+ "title": {
+  "has_colon": true,
+  "names_publisher": true,
+  "names_stats_agency": false,
+  "other_forecasters": 0,
+  "present": true,
+  "scenario_words": 0,
+  "third_party_rule": false,
+  "unknown_words_after_colon": 5,
+  "unknown_words_before_colon": 0,
+  "years": 1
+ },
+ "what_if": {
+  "baseline": {
+   "accepted": 0,
+   "accepted_p5": 0,
+   "accepted_p8": 0,
+   "by": {},
+   "p5_codes": {
+    "scenario_table": 1
+   },
+   "p8_codes": {
+    "actual_or_forecast_unstated": 18,
+    "unit_unstated": 1,
+    "unmapped_row": 9
+   }
+  },
+  "caption_label_only": {
+   "accepted": 0,
+   "accepted_p5": 0,
+   "accepted_p8": 0,
+   "by": {},
+   "p5_codes": {
+    "actual_or_forecast_unstated": 5,
+    "contradictory_period": 2,
+    "footnote_unresolved": 1,
+    "unit_unstated": 2,
+    "unsupported_context": 1
+   },
+   "p8_codes": {
+    "actual_or_forecast_unstated": 18,
+    "unit_unstated": 1,
+    "unmapped_row": 9
+   }
+  },
+  "label_only_title_blank": {
+   "accepted": 1,
+   "accepted_p5": 1,
+   "accepted_p8": 0,
+   "by": {
+    "cpi_inflation__third_party__forecast": 1
+   },
+   "p5_codes": {
+    "actual_or_forecast_unstated": 5,
+    "contradictory_period": 2,
+    "footnote_unresolved": 1,
+    "unit_unstated": 2
+   },
+   "p8_codes": {
+    "actual_or_forecast_unstated": 18,
+    "unit_unstated": 1,
+    "unmapped_row": 9
+   }
+  },
+  "label_only_title_blank_no_notes": {
+   "accepted": 3,
+   "accepted_p5": 3,
+   "accepted_p8": 0,
+   "by": {
+    "cpi_inflation__author__forecast": 3
+   },
+   "p5_codes": {
+    "actual_or_forecast_unstated": 5,
+    "footnote_unresolved": 1,
+    "unit_unstated": 2
+   },
+   "p8_codes": {
+    "actual_or_forecast_unstated": 18,
+    "unit_unstated": 1,
+    "unmapped_row": 9
+   }
+  },
+  "label_only_title_blank_no_source": {
+   "accepted": 3,
+   "accepted_p5": 3,
+   "accepted_p8": 0,
+   "by": {
+    "cpi_inflation__author__forecast": 3
+   },
+   "p5_codes": {
+    "actual_or_forecast_unstated": 5,
+    "footnote_unresolved": 1,
+    "unit_unstated": 2
+   },
+   "p8_codes": {
+    "actual_or_forecast_unstated": 18,
+    "unit_unstated": 1,
+    "unmapped_row": 9
+   }
+  },
+  "label_only_title_blank_note_years_removed": {
+   "accepted": 3,
+   "accepted_p5": 3,
+   "accepted_p8": 0,
+   "by": {
+    "cpi_inflation__third_party__forecast": 3
+   },
+   "p5_codes": {
+    "actual_or_forecast_unstated": 5,
+    "footnote_unresolved": 1,
+    "unit_unstated": 2
+   },
+   "p8_codes": {
+    "actual_or_forecast_unstated": 18,
+    "unit_unstated": 1,
+    "unmapped_row": 9
+   }
+  },
+  "title_blank": {
+   "accepted": 0,
+   "accepted_p5": 0,
+   "accepted_p8": 0,
+   "by": {},
+   "p5_codes": {
+    "scenario_table": 1
+   },
+   "p8_codes": {
+    "actual_or_forecast_unstated": 18,
+    "unit_unstated": 1,
+    "unmapped_row": 9
+   }
+  }
+ }
+}

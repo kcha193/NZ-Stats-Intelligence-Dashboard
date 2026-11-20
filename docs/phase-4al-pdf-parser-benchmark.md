@@ -8,7 +8,7 @@ Harness: [`benchmarks/pdf_tables/`](../benchmarks/pdf_tables/README.md).
 **Verdict: keep the existing `pdf-words-4` / `tables-14` pipeline. No parser showed a structural improvement on the real
 pages, so production extraction is unchanged.** Camelot 2.0 (`network` flavor) is the only competitive alternative. It
 reproduces every page-8 cell that `tables-14` reads, but it merges page 8's two tables into one. It reads a different
-(one word shorter) label for one page-5 row of 8 figures. It attaches no notes: on page 8 one source or note line sits
+(one word shorter) label for one page-5 row of 8 figures (Phase 4AM: probably a footnote-marker encoding difference). It attaches no notes: on page 8 one source or note line sits
 inside its grid as an ordinary cell, unlinked to any figure. On synthetic layouts it also fuses near-touching columns.
 pdfplumber, as the PDF skill configures it, finds no borderless table. Its `lines` mode builds 27-column grids from the
 pages' rectangles. Extraction counts were not the criterion. Most real-page measures use `tables-14`'s own reading as the
@@ -113,7 +113,7 @@ footnote marker set after a word (a row label) and none after a figure. Page 8 h
 | camelot_hybrid | 1 (11×9) | 24/32 | 2 (18×10, 28×2) | 90/90 | **1** | 0 | 0 |
 | camelot_stream | 1 (8×9) | 24/32 | 1 (46×2) | 0/90 | 1 | 10 | 0 |
 | camelot_lattice | 0 | 0/32 | 0 | 0/90 | 0 | 0 | 0 |
-| plumber_text | 1 (29×12) | 0/32 | 1 (83×16) | 50/90 | 1 | 4 | 0 |
+| plumber_text | 1 (29×12) | 0/32 | 1 (83×16) | 50/90 | 1 | 4 (8 under the final rules, Phase 4AM) | 0 |
 | plumber_lines (skill) | 1 (2×11) | 0/32 | 2 (5×27, 6×27) | 2/90 | 0 | 0 | 0 |
 | plumber_default (skill) | 1 (1×11) | 0/32 | 2 (2×10, 2×10) | 0/90 | 0 | 0 | 0 |
 
@@ -125,6 +125,9 @@ Why cells were not reproduced (fixed reason codes):
   them, and no Camelot row holds the full 6-word label. The label does not end in a footnote marker in the `tables-14` reading,
   so this is a label-reading difference, not a footnote effect. One of the two readings is wrong about the identity of 8
   figures. **Owner check:** only the PDF can settle which label is printed. The agent did not read it.
+  **Revised in [Phase 4AM](phase-4am-anz-root-cause.md) §1:** Camelot's label also has 6 words. The one that differs
+  carries a footnote marker inside the label, which `tables-14` keeps raised and Camelot reads as a plain digit. It is
+  probably a marker-encoding difference, not a wording difference; the owner check there confirms it.
 - **Camelot network and hybrid, page 8:** every cell reproduced, but the two market tables come back as one 18-row table (the
   same merge as the replica), plus a 28×2 table that holds 0 figures (the same uncommitted probe). Its grid also holds 1 source or note line
   (`source_lines_in_grid`), as an ordinary cell. Stream reads 0/90 (`value_missing` ×90): it fuses the page
@@ -132,7 +135,8 @@ Why cells were not reproduced (fixed reason codes):
 - **pdfplumber `lines` (the skill's settings):** the filled rectangles become cell edges, so page 8 becomes two 27-column grids
   (25 `header_mismatch`, 63 `value_missing`). Page 5 gives a 2-row fragment. `default` finds 1- and 2-row fragments.
 - **pdfplumber `text`:** 0/32 on page 5 (28 `label_mismatch`, 4 `header_mismatch`) and 50/90 on page 8 (21 missing, 19 under
-  the wrong header; 41 figure tokens inside its table box are in no cell).
+  the wrong header; 41 figure tokens inside its table box are in no cell). Under the final PR #65 rules (Phase 4AM re-run), the
+  40 unreproduced page-8 cells are all `value_missing`, and its page-8 numeric cells are 116 (108 before) and its multi-figure cells 8 (4 before).
 - **No parser** produced a fused footnote figure on these pages: neither page has a marker after a figure.
 
 ## 5. Criteria (brief)
@@ -144,7 +148,7 @@ Why cells were not reproduced (fixed reason codes):
 | Merged and stacked headers | Stacked "Current" joined (4/4) | Stacked joined (4/4), but table boundaries lost | Not joined (0/4) |
 | Footnote preservation | Marker kept on its cell (3/3); notes walked past small-digit markers | Marker detached into its own row (0/3); a lone digit can read as a figure | Not kept |
 | Source attribution evidence | Notes attached to the table (5/5 synthetic; real p5 2, p8 1) | No notes attached (0/5 synthetic); real p8: 1 source or note line inside the grid as a plain cell | Skill modes none; `text`: 1 such line per real page, inside the grid |
-| Extraction completeness | Complete on the read tables | Complete on p8 values; p5 row 1 read with a different label (owner check) | Low |
+| Extraction completeness | Complete on the read tables | Complete on p8 values; p5 row 1 read with a different label (owner check; Phase 4AM: probably marker encoding) | Low |
 | False-positive numeric cells | 0 | 4 synthetic (fused columns, detached marker) | Skill modes 0 (they read almost nothing); `text` 20 synthetic |
 | Speed | 1.20 s for 8 synthetic cases; real 2.51 s for the **whole document** (words for every page; 2.5 to 3.4 s across runs) | 3.30 s synthetic; real 0.41 s for **2 pages** (hybrid 0.73, stream 0.38) | 0.33 to 0.34 s synthetic; real 0.13 to 0.21 s for 2 pages |
 | Dependencies | pdfminer.six (already required) | +13 packages, about 278 MB (numpy, pandas, OpenCV, pypdfium2, playa-pdf) | +8 packages, about 47 MB; pins pdfminer.six **exactly** (`==20260107`), against our floor `>=20251230` |
@@ -278,7 +282,7 @@ Not re-run: `masked.py` uses the same `numeric()` for its real-document counts: 
 `bbox_numeric_tokens` and `bbox_numeric_tokens_uncovered`. `results/masked-v4-pages-5-8.json` and §4 were
 produced with the earlier classifier. They change only if version 4 has a leading-decimal cell or word, which was not checked:
 re-running the masked diagnostics on the real document needs the owner's approval. **Owner action:** re-run
-`run_masked 4 --pages 5 8` and compare the non-timing values.
+`run_masked 4 --pages 5 8` and compare the non-timing values. (Done in Phase 4AM; see the note at the end of this section.)
 
 The §10 statement that all 64 rows matched `results/synthetic.md` refers to the run before this fix; the regenerated file
 differs from it only in the two `plumber_text` cells above and in timings. Pre-existing behaviour left unchanged: an
@@ -317,7 +321,7 @@ Third review pass (two P2 findings on the original masked code):
 
 The synthetic results are unchanged. The suite is 113 passing. The foreign-header rule can lower
 `agreement_with_existing` and change `unreproduced_existing_cells` and `unreproduced_reasons` on the real pages, which
-adds to the owner's re-run above. Until that re-run, §4 shows the earlier rule.
+adds to the owner's re-run above. Until that re-run, §4 shows the earlier rule. (Re-run done in Phase 4AM: agreement unchanged.)
 
 Fourth review pass (P2, `score()`): *present* consumed parsed cells from a shared per-page text pool, but `_aligned()`
 searched every parsed cell again for each truth value and returned the first hit. Nothing recorded which cell had been
@@ -476,3 +480,7 @@ left unchanged. The own-header test is a substring test in both scorers, so a pa
 not listed as another column (`Dec-26` over a column headed `Dec`) still counts as that header. In the masked
 diagnostics this is deliberate, because the existing grid and a parser can print one period differently. The suite is 155
 passing.
+
+**Owner re-run done (Phase 4AM, 20 November 2026).** `run_masked 4 --pages 5 8` under the final rules changed 4 non-timing
+values, all `plumber_text` on page 8 (see §4 and [Phase 4AM](phase-4am-anz-root-cause.md) §1). No parser's agreement changed,
+and the recommendation stands. `results/masked-v4-pages-5-8.json` holds the re-run.
