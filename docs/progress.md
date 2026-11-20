@@ -7,6 +7,15 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## PR #67 review remediation, 21 November 2026
+
+Both P2 comments (4640570866, 4640570879) have synthetic regressions and fixes: worksheet/merged/hyperlink/comment
+expansion is bounded before loading, and streaming XML metadata inspection handles UTF-8 and UTF-16 and fails closed.
+Independent review findings about parser structure and worksheet aliases were fixed test-first; chart/shared-image
+compatibility is covered. Inspector: 89 passed, including five CLI integration tests; Ruff clean; eleven targeted mutants
+killed. Backend: 7,148 passed; backend Ruff clean. Details and limits: [Phase 4AN §9](phase-4an-anz-workbook.md#9-pr-67-review-remediation-21-november-2026).
+**C2W remains pending; no real ANZ workbook access, registry activation, production ingestion, adapter or migration.**
+
 ## Phase 4AN: ANZ forecasts workbook, conditional approval and masked inspector, 20 November 2026
 
 Branch `feat/phase-4an-anz-workbook` from main `d65ed44` (PR #66 merged). [record](phase-4an-anz-workbook.md).

@@ -10,12 +10,14 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import io
+import posixpath
 import re
 import warnings
 import zipfile
 from collections import Counter
 from datetime import date, datetime, time, timedelta
 from pathlib import Path, PurePosixPath
+from xml.parsers import expat
 
 from nzstats.research.table_parse import column_kind, period_of
 from openpyxl import load_workbook
@@ -26,6 +28,12 @@ MAX_ARCHIVE = 16 * 1024 * 1024
 MAX_UNPACKED = 64 * 1024 * 1024
 MAX_MEMBERS = 200
 MAX_RATIO = 250
+# Diagnostic workbooks must fit these allocation/work budgets before openpyxl runs.
+MAX_WORKBOOK_CELLS = 100_000
+MAX_MERGED_CELLS = 100_000
+MAX_MERGES = 1_000
+MAX_XML_ELEMENTS = 200_000
+MAX_XML_DEPTH = 64
 
 # Copied from backend/src/nzstats/research/table_forecast.py; tests/test_inspect.py fails if the two drift.
 INDICATORS: dict[str, re.Pattern[str]] = {
@@ -64,7 +72,173 @@ _DECLARATIONS = tuple(
     for enc in ("utf-8", "utf-16-le", "utf-16-be", "utf-32-le", "utf-32-be")
 )
 _ACTIVE = re.compile(r"^xl/(?:connections\.xml$|embeddings/|activex/)|^customui/", re.IGNORECASE)
-_EXTERNAL_TARGET = re.compile(rb"TargetMode\s*=\s*[\"']External[\"']")
+_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships}"
+_TYPE_NS = "http://schemas.openxmlformats.org/package/2006/content-types}"
+_DOCUMENT_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+_SHEET_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_CELL_REF = re.compile(r"\$?([A-Za-z]{1,3})\$?([1-9][0-9]{0,6})")
+
+
+class _ExpansionLimit(ValueError):
+    """A fixed refusal; never include input in the exception."""
+
+
+def _coordinate(ref: str) -> tuple[int, int]:
+    match = _CELL_REF.fullmatch(ref)
+    if match is None:
+        raise ValueError("invalid coordinate")
+    col = 0
+    for letter in match[1].upper():
+        col = col * 26 + ord(letter) - ord("A") + 1
+    row = int(match[2])
+    if row > 1_048_576 or col > 16_384:
+        raise _ExpansionLimit()
+    return row, col
+
+
+def _xml(data: bytes, name: str, budget: Counter, targets: dict, sheet_refs: set) -> tuple[int, bool]:
+    """Streaming, encoding-aware inspection. No tree, DTD, entity or external resource is loaded."""
+    parser = expat.ParserCreate(namespace_separator="}")
+    depth = external = rows = cols = row = col = row_depth = 0
+    root = None
+    macro = False
+    parents: list[str] = []
+    sequence_children = {
+        "row": "c",
+        "mergeCells": "mergeCell",
+        "hyperlinks": "hyperlink",
+        "commentList": "comment",
+        "sheets": "sheet",
+    }
+    rels = name.lower().endswith(".rels")
+    types = name == "[Content_Types].xml"
+
+    def reject_declaration(*args):
+        raise ValueError("XML declaration refused")
+
+    def start(tag, attrs):
+        nonlocal depth, root, external, macro, rows, cols, row, col, row_depth
+        depth += 1
+        budget["elements"] += 1
+        if depth > MAX_XML_DEPTH or budget["elements"] > MAX_XML_ELEMENTS:
+            raise _ExpansionLimit()
+        if root is None:
+            root = tag
+            if (rels and root != _REL_NS + "Relationships") or (types and root != _TYPE_NS + "Types"):
+                raise ValueError("invalid metadata root")
+        if rels and depth == 2:
+            if tag != _REL_NS + "Relationship" or not all(attrs.get(k) for k in ("Id", "Type", "Target")):
+                raise ValueError("invalid relationship")
+            mode = attrs.get("TargetMode", "Internal")
+            if mode not in {"Internal", "External"}:
+                raise ValueError("invalid relationship mode")
+            external += mode == "External"
+            budget[(name, "relationship", attrs["Id"])] += 1
+            if budget[(name, "relationship", attrs["Id"])] > 1:
+                raise ValueError("duplicate relationship")
+            if mode == "Internal":
+                target = attrs["Target"]
+                base = str(PurePosixPath(name).parent.parent)
+                target = posixpath.normpath("/" + posixpath.join(base, target).lstrip("/"))
+                budget[("target", target)] += 1
+                targets[(name, attrs["Id"])] = target
+                # Shared images are valid; reused comments multiply cell allocation during loading.
+                if attrs["Type"].rsplit("/", 1)[-1] == "comments" and budget[("target", target)] > 1:
+                    raise ValueError("repeated internal target")
+        if types and depth == 2:
+            if tag not in {_TYPE_NS + "Default", _TYPE_NS + "Override"} or not attrs.get("ContentType"):
+                raise ValueError("invalid content type")
+            macro |= any(
+                marker in attrs["ContentType"].lower() for marker in ("macroenabled", "vbaproject", "macrosheet")
+            )
+        local = tag.rsplit("}", 1)[-1]
+        parent = parents[-1] if parents else ""
+        parent_local = parent.removeprefix(_SHEET_NS)
+        if (
+            parent.startswith(_SHEET_NS)
+            and parent_local in sequence_children
+            and tag != _SHEET_NS + sequence_children[parent_local]
+        ):
+            raise ValueError("invalid sequence child")
+        parents.append(tag)
+        if not tag.startswith(_SHEET_NS):
+            if root.rsplit("}", 1)[-1] in {"worksheet", "comments", "workbook"} and local in {
+                "dimension",
+                "mergeCell",
+                "hyperlink",
+                "comment",
+                "row",
+                "c",
+                "sheet",
+                *sequence_children,
+            }:
+                raise ValueError("invalid spreadsheet namespace")
+            return
+        if local == "sheet":
+            sheet_id = attrs.get(_DOCUMENT_REL_NS + "id")
+            budget[(name, "sheet", sheet_id)] += 1
+            if budget[(name, "sheet", sheet_id)] > 1:
+                raise ValueError("repeated worksheet relationship")
+            source = PurePosixPath(name)
+            sheet_refs.add((str(source.parent / "_rels" / (source.name + ".rels")), sheet_id))
+        # openpyxl dispatches worksheet tags regardless of the document root. Refuse ambiguous structures.
+        if local in {"dimension", "mergeCell", "hyperlink", "comment", "row", "c"}:
+            expected_root = "comments" if local == "comment" else "worksheet"
+            if root.rsplit("}", 1)[-1] != expected_root:
+                raise ValueError("invalid worksheet structure")
+        if row_depth and depth == row_depth + 1 and local != "c":
+            raise ValueError("invalid row child")
+        if local in {"dimension", "mergeCell", "hyperlink", "comment"}:
+            bounds = attrs["ref"].split(":")
+            if len(bounds) not in {1, 2}:
+                raise ValueError("invalid range")
+            first = _coordinate(bounds[0])
+            last = _coordinate(bounds[-1])
+            if first[0] > last[0] or first[1] > last[1]:
+                raise ValueError("reversed range")
+            rows, cols = max(rows, last[0]), max(cols, last[1])
+            if local != "dimension":
+                budget["merges"] += local == "mergeCell"
+                budget["merged"] += (last[0] - first[0] + 1) * (last[1] - first[1] + 1)
+                if budget["merged"] > MAX_MERGED_CELLS or budget["merges"] > MAX_MERGES:
+                    raise _ExpansionLimit()
+        elif local == "row":
+            if row_depth:
+                raise ValueError("nested row")
+            row_depth = depth
+            row, col = int(attrs.get("r", row + 1)), 0
+            if not 1 <= row <= 1_048_576:
+                raise _ExpansionLimit()
+            rows = max(rows, row)
+        elif local == "c":
+            if "r" in attrs:
+                cell_row, col = _coordinate(attrs["r"])
+            else:
+                cell_row, col = row, col + 1
+            rows, cols = max(rows, cell_row), max(cols, col)
+        if rows * max(cols, 1) > MAX_WORKBOOK_CELLS or cols > 16_384:
+            raise _ExpansionLimit()
+
+    def end(tag):
+        nonlocal depth, row_depth
+        parents.pop()
+        if depth == row_depth:
+            row_depth = 0
+        depth -= 1
+
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.StartDoctypeDeclHandler = reject_declaration
+    parser.EntityDeclHandler = reject_declaration
+    parser.ExternalEntityRefHandler = reject_declaration
+    # Feed bounded chunks; Expat handles UTF-8 and UTF-16 LE/BE and rejects unknown/broken encodings.
+    for offset in range(0, len(data), 64 * 1024):
+        parser.Parse(data[offset : offset + 64 * 1024], False)
+    parser.Parse(b"", True)
+    budget["area"] += rows * max(cols, 1)
+    if budget["area"] > MAX_WORKBOOK_CELLS:
+        raise _ExpansionLimit()
+    return external, macro
 
 
 def _archive(raw: bytes) -> dict:
@@ -85,6 +259,8 @@ def _archive(raw: bytes) -> dict:
     try:
         with z:
             _members(z, a)
+    except _ExpansionLimit:
+        a["over_limit"] = True
     except Exception:  # noqa: BLE001 - a corrupt member (bad CRC, zlib error) is a fixed flag; its message may name parts
         a["unreadable"] = True
     return a
@@ -107,15 +283,32 @@ def _members(z: zipfile.ZipFile, a: dict) -> None:
     a["over_limit"] = a["members"] > MAX_MEMBERS or a["unpacked_bytes"] > MAX_UNPACKED or a["max_ratio"] > MAX_RATIO
     if a["over_limit"] or a["encrypted"] or a["unsafe_path"]:
         return
+    names = [m.filename for m in members]
+    if len(set(names)) != len(names) or "[Content_Types].xml" not in names:
+        raise ValueError("ambiguous or missing metadata")
     declarations = external = 0
     macro = False
+    budget = Counter()
+    targets: dict[tuple[str, str], str] = {}
+    sheet_refs: set[tuple[str, str]] = set()
     for m in members:  # every member, whatever its name: a part's extension does not decide how openpyxl parses it
         data = z.read(m)
         declarations += any(d in data for d in _DECLARATIONS)
-        if m.filename.lower().endswith(".rels"):
-            external += len(_EXTERNAL_TARGET.findall(data))
-        if m.filename == "[Content_Types].xml":
-            macro = b"macroEnabled" in data
+        if declarations:
+            a["xml_declarations"] = True
+            return
+        if m.filename.lower().endswith((".xml", ".rels")) or data.lstrip(b"\xef\xbb\xbf\xff\xfe\x00 \t\r\n").startswith(
+            b"<"
+        ):
+            count, has_macro = _xml(data, m.filename, budget, targets, sheet_refs)
+            external += count
+            macro |= has_macro
+    # The reader treats workbook sheet references as worksheets even when a relationship's Type says otherwise.
+    resolved = [targets[ref] for ref in sheet_refs]
+    if len(set(resolved)) != len(resolved):
+        raise ValueError("repeated worksheet target")
+    if any(target.lstrip("/") not in names for target in resolved):
+        raise ValueError("missing worksheet target")
     a["xml_declarations"] = declarations > 0
     a["external_targets"] = external
     a["macro_content_type"] = macro
@@ -149,6 +342,9 @@ def _percent_kind(number_format: str | None) -> str | None:
 
 
 def _sheet(fws, vws) -> dict:
+    # Comments can create additional cells during loading; check the resulting bounds as well.
+    if any(ws.max_row * ws.max_column > MAX_WORKBOOK_CELLS for ws in (fws, vws)):
+        raise _ExpansionLimit()
     s = Counter()
     indicators = Counter({k: 0 for k in INDICATORS})
     kinds = Counter({k: 0 for k in ("quarter", "month_end", "year_to", "calendar")})

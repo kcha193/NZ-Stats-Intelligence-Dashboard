@@ -319,8 +319,12 @@ def test_shared_formulas_count_every_cell_that_uses_them(tmp_path):
     path = synth.save(wb, tmp_path / "f.xlsx")
     xml = synth.sheet1(path).decode()
     xml = xml.replace("<f>A1+1</f>", '<f t="shared" ref="B1:B3" si="0">A1+1</f>')
-    xml = xml.replace('<c r="A2" t="n"><v>1</v></c>', '<c r="A2" t="n"><v>1</v></c><c r="B2"><f t="shared" si="0"/></c>')
-    xml = xml.replace('<c r="A3" t="n"><v>1</v></c>', '<c r="A3" t="n"><v>1</v></c><c r="B3"><f t="shared" si="0"/></c>')
+    xml = xml.replace(
+        '<c r="A2" t="n"><v>1</v></c>', '<c r="A2" t="n"><v>1</v></c><c r="B2"><f t="shared" si="0"/></c>'
+    )
+    xml = xml.replace(
+        '<c r="A3" t="n"><v>1</v></c>', '<c r="A3" t="n"><v>1</v></c><c r="B3"><f t="shared" si="0"/></c>'
+    )
     assert xml.count('si="0"') == 3, "fixture XML shape changed"
     synth.rewrite(path, {"xl/worksheets/sheet1.xml": xml.encode()})
     s = inspect(path)["sheets"][0]

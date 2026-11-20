@@ -230,3 +230,31 @@ A fresh-context reviewer read the code and this record, ran only the synthetic t
 - **Low:** chartsheets are counted apart from worksheets, duration values count as dates, and unchecked flags are `null`.
 
 Not changed: sheet-scoped defined names and hidden rows or columns are not counted. Neither bears on gates G2 to G5.
+
+## 9. PR #67 review remediation, 21 November 2026
+
+Comments **4640570866** and **4640570879** are addressed by preflight checks before either normal-mode workbook load:
+
+- Worksheet rectangles, explicit and implicit coordinates, merged ranges, hyperlinks and comment references have
+  cumulative allocation limits. The archive allows at most 100,000 rectangle cells, 100,000 expanded range cells,
+  1,000 merges, 200,000 XML elements and depth 64. Bounds are checked again before worksheet iteration. A sparse sheet
+  that exceeds the limits is refused, never partially reported.
+- Streaming Expat inspection replaces ASCII metadata searches. UTF-8, UTF-16 LE/BE and escaped attribute values are
+  inspected consistently. Unknown encodings, malformed metadata, duplicate ZIP members and missing content types fail
+  closed. Incomplete checks remain `null`; no raw XML or parser message is emitted. Legacy macro-sheet content types
+  are also flagged.
+- Independent Caveman review found further loader differences: unexpected roots, arbitrary children in parsed
+  sequences, and repeated worksheet targets. These were fixed test-first. Namespace-aware validation preserves normal
+  chart anchors; shared image targets remain allowed. Workbook sheet aliases are checked regardless of relationship
+  type. Missing referenced worksheets are refused instead of silently skipped. The first reviewer supplied findings
+  but ended before a final verdict; a separate reviewer verified the fixes and reported no remaining scoped findings.
+- Superpowers debugging, planning, TDD and verification were used. The initial regression run produced 15 expected
+  failures. Additional review regressions were each observed failing before their corrections.
+- Local inspector verification: **89 synthetic tests passed**, including the five CLI integration cases and output
+  masking checks. Ruff check and format pass. Eleven isolated targeted mutations each fail at least one regression test;
+  this is a targeted mutation exercise, not a claim of exhaustive mutation coverage. Backend: 7,148 tests passed
+  (exit 0; one Starlette/httpx deprecation warning); backend Ruff check and format pass.
+
+No ANZ workbook was accessed. C2W remains pending owner inspection and approval. Source permissions, registry, production
+ingestion, adapter, migration, publication and licensing status are unchanged. The PR remains for owner review; no merge
+is authorised by this remediation.
