@@ -15,6 +15,7 @@ from pathlib import Path
 
 from xlsxinspect.guard import emit
 from xlsxinspect.inspect import MAX_ARCHIVE, inspect
+from xlsxinspect.layout import layout
 
 
 def _run(args: argparse.Namespace) -> tuple[dict, int]:
@@ -24,7 +25,8 @@ def _run(args: argparse.Namespace) -> tuple[dict, int]:
     raw = path.read_bytes()
     if args.expect_sha256 and hashlib.sha256(raw).hexdigest() != args.expect_sha256.lower():
         return {"status": "refused"}, 2
-    result = inspect(path, raw=raw)  # the bytes that were hashed, not a second read
+    # the bytes that were hashed, not a second read
+    result = layout(raw) if args.layout else inspect(path, raw=raw)
     return result, 0 if result["status"] == "ok" else 2
 
 
@@ -32,6 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="xlsxinspect")
     parser.add_argument("path", type=Path)
     parser.add_argument("--expect-sha256", help="refuse unless the file has exactly this SHA-256")
+    parser.add_argument("--layout", action="store_true", help="masked layout probe (Phase 4AO): indices and counts")
     args = parser.parse_args(argv)
     sink = io.StringIO()
     try:

@@ -54,3 +54,12 @@ def test_cli_refuses_an_oversized_file_before_reading_it(tmp_path):
     path.write_bytes(b"\0" * (16 * 1024 * 1024 + 1))
     r = _run(str(path))
     assert r.returncode == 2 and json.loads(r.stdout) == {"status": "refused"}
+
+
+def test_cli_layout_prints_masked_geometry_only(tmp_path):
+    path = synth.save(synth.vertical_book(), tmp_path / "v.xlsx")
+    r = _run(str(path), "--layout")
+    assert r.returncode == 0 and r.stderr == ""
+    out = json.loads(r.stdout)
+    assert out["status"] == "ok" and out["layout"][1]["marker_rows"] == [11]
+    assert synth.SECRET_LABEL not in r.stdout and "Fictional" not in r.stdout
