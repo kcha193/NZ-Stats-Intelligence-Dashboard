@@ -43,7 +43,10 @@ START, END = "<!-- approved-registry:start -->", "<!-- approved-registry:end -->
 # `manual_import_approved_by`, `manual_import_approved_on` and `manual_import_note` added; `licence` restates the current terms
 # ("or saving ANZ website content, for your own personal use"). `review_status`, `llm_processing`, `public_display` and
 # `private_display` are unchanged; see docs/phase-4ai-authorization-assessment.md.
-PRE_APPROVAL_SHA256 = "71269a7198b4d925829b60969ce58817b8700788d0ca97d05240d5defd46da89"
+# Phase 4AO (2026-11-21) updated this pin after the owner recorded condition C2W for the ANZ forecasts workbook, `anz` only,
+# checked key by key against main `c6893ab`: only `manual_import_note` changed (the workbook route moves from "Not covered" to
+# covered). No permission, approval, content-policy, LLM or display field changed; see docs/phase-4ao-anz-workbook.md.
+PRE_APPROVAL_SHA256 = "4d876b6f4d465ef6db2148efd85a70fe292b4a91c68bb47a526aee1db278a9b3"
 REAL_LEDGER = ((None, 0.1798984440), (None, 0.2023797600), ("phase-4n-second-pilot", 0.1261846080),
                ("phase-4s-treasury-v3", 0.1182479760))  # fmt: skip
 
