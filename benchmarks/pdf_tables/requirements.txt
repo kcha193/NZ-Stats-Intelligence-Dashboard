@@ -1,0 +1,9 @@
+# Phase 4AL benchmark only. Never imported by production code (backend/). Exact pins, each released at least two weeks
+# before 2026-11-15. pdfplumber pins pdfminer.six==20260107 itself.
+pdfplumber==0.11.10
+camelot-py==2.0.0
+reportlab==5.1.0
+pypdf==6.21.4
+pydantic==2.14.1  # nzstats.research.table_context imports it (existing-pipeline adapter only)
+httpx==0.28.1  # imported (never called) via nzstats.sources.artifacts, for the production version gate
+pytest==9.2.0

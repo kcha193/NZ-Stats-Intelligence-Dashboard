@@ -7,6 +7,24 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AL: PDF parser benchmark, keep `tables-14`, 15 November 2026
+
+Branch `bench/phase-4al-pdf-parser-benchmark` from `95be0ad` (Phase 4AK, unmerged). [record](phase-4al-pdf-parser-benchmark.md),
+[plan](superpowers/plans/2026-11-15-phase-4al-pdf-parser-benchmark.md). **Verdict: no parser beat `pdf-words-4` / `tables-14` on
+structure; production extraction, dependencies and schema unchanged.** Version 4 read only through a counts-only schema;
+no model, OCR or service; database SHA-256 unchanged.
+
+- Official PDF skill: Apache 2.0, 8 scripts (forms and images only, none for tables). Its pdfplumber table guidance
+  (`extract_tables`, `lines` strategy) finds no borderless table and builds 27-column grids from page 8's filled rectangles.
+- Camelot 2.0 `network`: 90/90 page-8 cells but the two tables merged into one; one page-5 row of 8 figures read with a
+  one-word-shorter label (owner check); no notes attached (one page-8 source/note line left as a plain grid cell); fuses columns 0.5 em apart (synthetic); +278 MB of dependencies.
+- Synthetic truth (8 cases, 275 values): `tables-14` 271 aligned, 0 false positives, markers 3/3, notes 5/5. Gap found: a
+  stub-headed table ("Indicator 2026 2027") is refused (`no_header`); fails closed; fix belongs in `table_grid` (own phase).
+- Harness `benchmarks/pdf_tables/` (own venv, exact pins, 155 tests) is reusable on the February 2027 outlook. PR review: one
+  parsed cell now aligns at most one truth value (maximum one-to-one matching); masked agreement accepts a value marker kept
+  as a separate digit and assigns parsed cells one-to-one; marker sites keep a sign; overlapping headers (`2026f`,
+  `2026`) align. Synthetic results unchanged.
+
 ## Phase 4AK: real ANZ PDF compatibility remediation, NO-GO, 15 November 2026
 
 Branch `feat/phase-4ak-anz-pdf-compat` from main `178ccd7` (PR #63 merged). [record](phase-4ak-anz-pdf-compat.md).
