@@ -7,6 +7,24 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AM: ANZ forecast extraction root-cause audit, NO-GO, 20 November 2026
+
+Branch `audit/phase-4am-anz-root-cause` from main `aba4e4e` (PR #65 merged). [record](phase-4am-anz-root-cause.md).
+**Verdict: NO-GO, 0 accepted figures, no production change.** Version 4 read only through masked probes (ints, booleans,
+codes; `benchmarks/pdf_tables/probes/phase_4am/`) and the dry-run tally; no model, fetch, write or re-import; database
+SHA-256 unchanged.
+
+- 4AL owner re-run done: 4 non-timing changes, all `plumber_text` page 8; agreement unchanged for every parser.
+- The disputed page-5 row label is probably a footnote-marker encoding difference (Camelot reads a raised marker inside the
+  label as a plain digit), not a wording difference. Owner yes/no check in the record.
+- Page 5: three relaxations together (caption prose with scenario words, the editorial title, a dated source line used as
+  period context) give 3 CPI figures, all third-party, so none counts as ANZ's; a fourth (attribution) would be needed.
+  Page 8: no forecast marker and no OCR unit printed, and even with both supplied, caption and title context refuse every cell.
+- In version 4 no column's period is changed by context; the source-line date only refuses.
+- Dry run identical to Phase 4AK (0 figures, 49 rejections). PyMuPDF not tried: no layout defect. Independent review: no
+  Critical finding; NO-GO agreed.
+- Next: the February 2027 outlook through the dry run and masked harness; the generic stub-header `no_header` gap.
+
 ## Phase 4AL: PDF parser benchmark, keep `tables-14`, 15 November 2026
 
 Branch `bench/phase-4al-pdf-parser-benchmark` from `95be0ad` (Phase 4AK, unmerged). [record](phase-4al-pdf-parser-benchmark.md),
