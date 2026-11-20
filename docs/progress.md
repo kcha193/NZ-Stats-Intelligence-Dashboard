@@ -7,6 +7,19 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AN: ANZ forecasts workbook, conditional approval and masked inspector, 20 November 2026
+
+Branch `feat/phase-4an-anz-workbook` from main `d65ed44` (PR #66 merged). [record](phase-4an-anz-workbook.md).
+**Nothing fetched, imported or parsed from ANZ; no production, registry, pin or migration change.**
+
+- Source use: the owner approved one manually saved workbook for local deterministic analysis and loopback display,
+  **conditional on C2W** (inspect first, then read the workbook's own notice). Not a licence from ANZ. Registry change
+  prepared in the record (§2.5), not applied.
+- Workbook suitability: unknown until the owner saves and inspects one. The adapter waits for gates G1 to G5 (§4).
+- Built: `benchmarks/xlsx_inspect/`, a counts-only inspector (stdlib archive checks before `openpyxl`, production
+  `period_of`/`column_kind`, `emit` output guard). 46 synthetic tests pass; ruff clean; independent review findings fixed test-first.
+- Next: owner runbook §6 (save, inspect, C2W, four yes/no answers), then the next phase.
+
 ## Phase 4AM: ANZ forecast extraction root-cause audit, NO-GO, 20 November 2026
 
 Branch `audit/phase-4am-anz-root-cause` from main `aba4e4e` (PR #65 merged). [record](phase-4am-anz-root-cause.md).

@@ -1,0 +1,5 @@
+# Phase 4AN masked workbook inspector only. Never imported by production code (backend/). Exact pins, each released
+# at least two weeks before 2026-11-20.
+openpyxl==3.1.5
+et-xmlfile==2.0.0
+pytest==9.2.0
