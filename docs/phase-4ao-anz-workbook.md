@@ -95,3 +95,22 @@ route; both were changed test-first (the scope test failed before the note chang
 | G5 | Pass (owner plus cover text). Two-release stability is pending the next release |
 
 GO for a narrow adapter. OCR stays unreadable until a unit is printed.
+
+## 4. Status: adapter planned, not built (Stages 4 to 6 pending)
+
+This branch stops at the suitability decision. The adapter plan is
+`docs/superpowers/plans/2026-11-21-phase-4ao-anz-xlsx-adapter.md`: migration 016 (admits `xlsx`; it rebuilds
+`research_document_version`, whose migration 004 CHECK allows only `html` and `pdf`), a bounded stdlib cell reader in the
+hardened child process, the ANZ mapping (interpreter `xlsx-anz-1`), and wiring through import, `tables extract` and the
+internal view. Storing figures will require the owner's reconciliation hash.
+
+**Not done:** no adapter, migration or production module; nothing imported into the database; **0 figures extracted;
+no rejection codes yet; no reconciliation; no real pilot.** Pending owner input: plan review and the workbook's download
+address (for the ANZ series pattern). Verdict for this branch: **GO to build; pilot NO-GO until Stages 4 and 5 run.**
+
+## 5. Verification
+
+- `benchmarks/xlsx_inspect`: 125 passed (17 new layout tests); ruff check and format clean.
+- Backend: full suite and ruff, run before the PR (see the PR description for counts).
+- Privacy: the session read only masked JSON. `phase-4ao.json` and `phase-4ao-layout.json` hold counts, flags, indices,
+  fixed codes and the file's SHA-256.
