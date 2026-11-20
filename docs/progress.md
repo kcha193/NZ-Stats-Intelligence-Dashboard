@@ -7,6 +7,30 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## PR #67 review remediation, 21 November 2026
+
+Both P2 comments (4640570866, 4640570879) have synthetic regressions and fixes: worksheet/merged/hyperlink/comment
+expansion is bounded before loading, and streaming XML metadata inspection handles UTF-8 and UTF-16 and fails closed.
+Independent review findings about parser structure and worksheet aliases were fixed test-first; chart/shared-image
+compatibility is covered. Follow-up comment 4647935392 fixes external-formula false positives for structured references
+and string literals, with named/quoted workbook, implicit-intersection and sheet-range regressions. Inspector: 108 passed,
+including five CLI integration tests; Ruff clean; thirteen targeted mutants
+killed. Backend: 7,148 passed; backend Ruff clean. Details and limits: [Phase 4AN §9](phase-4an-anz-workbook.md#9-pr-67-review-remediation-21-november-2026).
+**C2W remains pending; no real ANZ workbook access, registry activation, production ingestion, adapter or migration.**
+
+## Phase 4AN: ANZ forecasts workbook, conditional approval and masked inspector, 20 November 2026
+
+Branch `feat/phase-4an-anz-workbook` from main `d65ed44` (PR #66 merged). [record](phase-4an-anz-workbook.md).
+**Nothing fetched, imported or parsed from ANZ; no production, registry, pin or migration change.**
+
+- Source use: the owner approved one manually saved workbook for local deterministic analysis and loopback display,
+  **conditional on C2W** (inspect first, then read the workbook's own notice). Not a licence from ANZ. Registry change
+  prepared in the record (§2.5), not applied.
+- Workbook suitability: unknown until the owner saves and inspects one. The adapter waits for gates G1 to G5 (§4).
+- Built: `benchmarks/xlsx_inspect/`, a counts-only inspector (stdlib archive checks before `openpyxl`, production
+  `period_of`/`column_kind`, `emit` output guard). 46 synthetic tests pass; ruff clean; independent review findings fixed test-first.
+- Next: owner runbook §6 (save, inspect, C2W, four yes/no answers), then the next phase.
+
 ## Phase 4AM: ANZ forecast extraction root-cause audit, NO-GO, 20 November 2026
 
 Branch `audit/phase-4am-anz-root-cause` from main `aba4e4e` (PR #65 merged). [record](phase-4am-anz-root-cause.md).
