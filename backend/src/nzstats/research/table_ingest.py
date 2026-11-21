@@ -35,6 +35,7 @@ from nzstats.research.table_words import extract_words, words_sha256
 from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
 from nzstats.research.xlsx_anz import interpret_anz_workbook
 from nzstats.research.xlsx_cells import cells_sha256, read_cells
+from nzstats.research.xlsx_review import review_lines
 from nzstats.sources.artifacts import ArtifactStore, valid_rel
 
 log = logging.getLogger(__name__)
@@ -98,6 +99,64 @@ def version_refusal(
     return None, inst
 
 
+def _checked_version(
+    conn: sqlite3.Connection,
+    version_id: int,
+    artifacts: ArtifactStore,
+    registry: Mapping[str, Institution],
+    adapters: Mapping[str, BankAdapter],
+) -> tuple[str | None, sqlite3.Row | None, Institution | None, bytes | None]:
+    """(refusal, row, institution, verified raw bytes): every check before a stored document's tables are read."""
+    row = conn.execute(_VERSION, (version_id,)).fetchone()
+    reason, inst = version_refusal(row, registry)
+    if reason or inst is None:
+        return reason or "unknown institution", None, None, None
+    if row["format"] not in ("pdf", "xlsx"):
+        return "not a pdf or workbook", None, None, None
+    if row["format"] == "xlsx":
+        adapter = adapters.get(inst.key) if inst.key == _WORKBOOK_SOURCE else None
+        series = adapter.series_of(row["canonical_url"], "") if adapter else None
+        if adapter is None:
+            return "no workbook interpreter for this source", None, None, None
+        if series is None or series.key != _WORKBOOK_SERIES:
+            return "not the ANZ forecasts workbook", None, None, None
+    if not row["path"] or not valid_rel(row["path"]) or not artifacts.exists(row["path"]):
+        return "raw copy unavailable", None, None, None
+    body = (artifacts.root / row["path"]).read_bytes()
+    if hashlib.sha256(body).hexdigest() != row["raw_sha256"]:
+        return "raw copy does not match the stored version", None, None, None
+    return None, row, inst, body
+
+
+def review_version_workbook(
+    conn: sqlite3.Connection,
+    version_id: int,
+    artifacts: ArtifactStore,
+    registry: Mapping[str, Institution],
+    *,
+    isolate: bool | None = None,
+    adapters: Mapping[str, BankAdapter] = ADAPTERS,
+) -> tuple[str | None, list[str]]:
+    """(refusal, lines) of the owner's series review (`xlsx_review`). The lines hold workbook text: terminal only."""
+    reason, row, inst, body = _checked_version(conn, version_id, artifacts, registry, adapters)
+    if reason or row is None or inst is None or body is None:
+        return reason or "unknown institution", []
+    if row["format"] != "xlsx":
+        return "not a workbook", []
+    try:
+        wb = read_cells(body, isolate=isolate)
+    except IngestError as exc:
+        log.warning("workbook review refused for version %s: %s", version_id, exc.error_class.value)
+        return f"workbook could not be read ({exc})", []
+    names = (inst.name, inst.key, inst.name.removesuffix(" New Zealand"))
+    return None, review_lines(
+        wb,
+        publisher_names=names,
+        document_title=_document_title(row),
+        workbook_sha256=row["raw_sha256"],
+    )
+
+
 def extract_version_tables(
     conn: sqlite3.Connection,
     version_id: int,
@@ -110,24 +169,9 @@ def extract_version_tables(
     confirm: str | None = None,
     adapters: Mapping[str, BankAdapter] = ADAPTERS,
 ) -> TableIngestResult:
-    row = conn.execute(_VERSION, (version_id,)).fetchone()
-    reason, inst = version_refusal(row, registry)
-    if reason or inst is None:
+    reason, row, inst, body = _checked_version(conn, version_id, artifacts, registry, adapters)
+    if reason or row is None or inst is None or body is None:
         return _refused(reason or "unknown institution")
-    if row["format"] not in ("pdf", "xlsx"):
-        return _refused("not a pdf or workbook")
-    if row["format"] == "xlsx":
-        adapter = adapters.get(inst.key) if inst.key == _WORKBOOK_SOURCE else None
-        series = adapter.series_of(row["canonical_url"], "") if adapter else None
-        if adapter is None:
-            return _refused("no workbook interpreter for this source")
-        if series is None or series.key != _WORKBOOK_SERIES:
-            return _refused("not the ANZ forecasts workbook")
-    if not row["path"] or not valid_rel(row["path"]) or not artifacts.exists(row["path"]):
-        return _refused("raw copy unavailable")
-    body = (artifacts.root / row["path"]).read_bytes()
-    if hashlib.sha256(body).hexdigest() != row["raw_sha256"]:
-        return _refused("raw copy does not match the stored version")
     if row["format"] == "xlsx":
         return _extract_workbook(conn, version_id, row, inst, body, now, dry_run=dry_run, isolate=isolate,
                                  confirm=confirm)  # fmt: skip

@@ -1,11 +1,21 @@
 # Progress and verification record
 
-Last updated 2026-11-21 (Phase 4AP below; see the repository health review entry below the next paragraph). **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-21 (Phase 4AQ and 4AP below; see the repository health review entry below the next paragraph). **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4AQ: ANZ canonical forecast series, 21 November 2026
+
+Branch `feat/phase-4aq-anz-canonical-series` from main `f0e6fad`. [record](phase-4aq-anz-canonical-series.md).
+**PENDING OWNER MAPPING REVIEW. No figure stored, no validation changed, nothing fetched or sent to a model.**
+
+- Baseline reproduced: version 5 once (`4c2d4b47cdf2`), schema 16, 0 extractions, dry run 0 figures and 97 rejections.
+- New `research tables review V`, real terminal only: sheets, blocks, unit headers, notes, boundaries and per-column
+  results, never a cell value. 9 tests. Research and publish suites: 5,591 passed. Ruff clean.
+- Stage 3 mapping manifest and interpreter `xlsx-anz-4` designed (record §3), not built. Waiting on owner answers A to F.
 
 ## Phase 4AP: ANZ forecasts workbook ingestion, 21 November 2026
 

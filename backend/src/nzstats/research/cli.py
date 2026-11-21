@@ -159,6 +159,11 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         metavar="HASH8",
         help="store a workbook's figures: the code its dry run printed",
     )
+    p_treview = tsub.add_parser(
+        "review",
+        help="the owner's series review of a stored workbook: sheets, blocks, unit headers, notes (real terminal only)",
+    )
+    p_treview.add_argument("version", type=_positive_int)
     p_tshow = tsub.add_parser("show", help="stored figures and rejection codes (no document text)")
     p_tshow.add_argument("version", type=_positive_int)
     p_tshow.add_argument("--json", action="store_true", help="machine-readable output")
@@ -926,6 +931,7 @@ def _cpi_vintages(
 
 _SUFFIXES = {".html": "html", ".htm": "html", ".pdf": "pdf", ".xlsx": "xlsx"}
 _TERMINAL_ONLY = "refused: this prints workbook figures; run it yourself in a real terminal, not through a tool or a pipe"
+_TERMINAL_ONLY_REVIEW = "refused: this prints workbook text; run it yourself in a real terminal, not through a tool or a pipe"
 
 
 def _stdout_is_terminal() -> bool:
@@ -941,7 +947,11 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
     """`tables extract` reads one stored PDF; `tables show` lists stored figures and codes. Never prints cell or label text."""
     from nzstats.research.manual_import import XLSX_EXTRACTOR_VERSION
     from nzstats.research.table_forecast import INTERPRETER_VERSION
-    from nzstats.research.table_ingest import extract_version_tables, version_refusal
+    from nzstats.research.table_ingest import (
+        extract_version_tables,
+        review_version_workbook,
+        version_refusal,
+    )
     from nzstats.research.table_store import latest_interpreter, load_forecasts, load_rejections
     from nzstats.research.table_view import CURRENT_INTERPRETERS
     from nzstats.research.table_words import EXTRACTOR_VERSION
@@ -953,6 +963,21 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
             "SELECT format FROM research_document_version WHERE id = ?", (args.version,)
         ).fetchone()
         workbook = found is not None and found[0] == "xlsx"
+        if args.tables_command == "review":
+            if not _real_terminal():
+                _emit(_TERMINAL_ONLY_REVIEW)
+                return 2
+            reason, lines = review_version_workbook(
+                conn, args.version, ArtifactStore(settings.raw_dir), registry
+            )
+            if reason:
+                _emit(f"version {args.version}: refused ({reason})")
+                return 1
+            for line in lines:
+                _emit(line)
+            _emit(f"Reader {XLSX_EXTRACTOR_VERSION}, interpreter {XLSX_INTERPRETER}.")
+            _emit("Read locally from the stored copy. Nothing was requested; no model was used.")
+            return 0
         if args.tables_command == "extract":
             if args.list and not args.dry_run:
                 _emit("refused: --list needs --dry-run")
