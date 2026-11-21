@@ -22,6 +22,7 @@ from .test_xlsx_anz import (
     TITLE,
     UNEMP,
     data_sheet,
+    run,
     series,
     standard,
 )
@@ -60,6 +61,46 @@ def test_the_review_shows_each_columns_result_from_the_current_interpreter():
     assert out.count("result ambiguous_indicator") == 2
 
 
+def test_the_review_shows_an_untitled_data_column_rejected_by_the_interpreter():
+    baseline_forecasts, baseline_rejections = run(standard())
+    assert len(baseline_forecasts) == 12 and baseline_rejections == ()
+
+    sheets = standard()
+    sheets[1].cells[(8, 4)] = C(17.25, bold=True)
+    forecasts, rejections = run(sheets)
+    assert forecasts == baseline_forecasts
+    assert [(r.page, r.col, r.code) for r in rejections] == [(2, 4, "unmapped_row")]
+
+    assert "  column D: no block title (unmapped_row)" in review(sheets).splitlines()
+
+
+def test_the_review_lists_each_data_column_once_at_title_boundaries():
+    sheets = standard()
+    growth = sheets[1]
+    growth.cells[(8, 4)] = C(17.25, bold=True)  # immediately after the B:C title merge
+    growth.cells[(2, 5)] = C("Fictional unit \u009b2J")
+    growth.cells[(8, 5)] = C(18.25, bold=True)
+    growth.cells[(1, 6)] = C("Other series")
+    growth.cells[(8, 6)] = C(19.25, bold=True)
+    growth.merges += ("G1:H1",)  # a blank title merge already reported by _blocks
+    growth.cells[(8, 8)] = C(20.25, bold=True)
+    growth.cells[(2, 9)] = C("Header only")
+    growth.cells[(11, 10)] = C(21.25)  # metadata after the recognised dates
+
+    out = review(sheets)
+    growth_out = out.split('sheet 2 "Growth"', 1)[1].split('sheet 3 "Prices"', 1)[0]
+    columns = re.findall(r"^ +column ([A-Z]+)[ :]", growth_out, re.MULTILINE)
+    unmapped = re.findall(
+        r"^  column ([A-Z]+): no block title \(unmapped_row\)$", growth_out, re.MULTILINE
+    )
+    assert columns == ["B", "C", "F", "D", "E", "H"]
+    assert unmapped == ["D", "E", "H"]
+    assert 'block 1 "GDP" (columns B to C)' in growth_out
+    assert 'block 2 "Other series" (columns F to F)' in growth_out
+    assert not re.search(r"\d\.\d", growth_out)
+    assert "\u009b" not in growth_out
+
+
 def test_the_review_never_prints_a_cell_value():
     out = review(standard())
     for value in (*GDP_QQ, *GDP_AA, *CPI_AA, *UNEMP):
@@ -73,9 +114,15 @@ def test_a_sheet_the_interpreter_cannot_read_still_lists_its_blocks():
         "Rates", [("Official cash rate", [("% p.a.", series([3.0] * 8))])], dates=QUARTERS
     )
     monthly.cells[(4, 1)] = C(QUARTERS[0].replace(month=4), fmt="d/mm/yyyy")
+    monthly.cells[(8, 3)] = C(17.25, bold=True)
+    monthly.merges += ("D1:E1",)
+    monthly.cells[(8, 5)] = C(18.25, bold=True)
     out = review(standard(extra=[monthly]))
     assert 'sheet 4 "Rates": unsupported_period' in out
     assert 'block 1 "Official cash rate"' in out and 'column B unit "% p.a."' in out
+    rates_out = out.split('sheet 4 "Rates"', 1)[1]
+    assert "column C" not in rates_out
+    assert "column E: no block title (unmapped_row)" in rates_out
 
 
 def test_control_characters_in_workbook_text_are_escaped():
@@ -85,9 +132,17 @@ def test_control_characters_in_workbook_text_are_escaped():
     assert "\u009b" not in out and "\\u009b" in out
 
 
-def test_a_cover_sheet_is_listed_without_blocks():
-    out = review([Sheet("Cover"), *standard()[1:]])
-    assert 'sheet 1 "Cover": no cells' in out
+def test_empty_and_hidden_sheets_are_listed_without_columns():
+    hidden = data_sheet(
+        "Hidden fixture", [("Hidden title", [("% q/q", series(GDP_QQ))])], state="veryHidden"
+    )
+    hidden.cells[(8, 3)] = C(17.25, bold=True)
+    out = review([Sheet("Cover"), hidden])
+    assert out.splitlines() == [
+        f"workbook sha256 {SHA}",
+        'sheet 1 "Cover": no cells',
+        'sheet 2 "Hidden fixture": hidden_sheet (very_hidden)',
+    ]
 
 
 # ---------------------------------------------------------------- command line

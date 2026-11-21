@@ -18,6 +18,7 @@ from nzstats.research.table_parse import Period, unit_of_text
 from nzstats.research.xlsx_anz import (
     _a1,
     _blocks,
+    _data_columns,
     _date_rows,
     _forecast_rows,
     _header,
@@ -71,6 +72,8 @@ def review_lines(
                 lines.append(f"  as at: {_q(vintage) if vintage is not None else '(none)'}")
                 lines.extend(f"  note: {_q(text)}" for text in others)
         blocks, unmapped = _blocks(sheet)
+        if rows is not None:
+            unmapped = (unmapped | _data_columns(sheet, rows)) - blocks.keys()
         by_block: dict[int, list[int]] = defaultdict(list)
         for col, (number, _title) in blocks.items():
             by_block[number].append(col)

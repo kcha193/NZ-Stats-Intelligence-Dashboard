@@ -174,6 +174,12 @@ def _blocks(sheet: XSheet) -> tuple[dict[int, tuple[int, str]], set[int]]:
     return columns, unmapped
 
 
+def _data_columns(sheet: XSheet, rows: list[tuple[int, date]]) -> set[int]:
+    """Columns with cells inside the recognised date range, excluding the date column."""
+    first, last = rows[0][0], rows[-1][0]
+    return {c for r, c in sheet.cells if c != _DATE_COL and first <= r <= last}
+
+
 def _header(sheet: XSheet, col: int) -> str:
     """The column's unit header (row 2), or "" when it holds no text."""
     cell = sheet.cells.get((_HEADER_ROW, col))
@@ -228,10 +234,7 @@ def interpret_anz_workbook(
                 titles.setdefault(next(iter(found)), set()).add(" ".join(title.split()).casefold())
     ambiguous = {indicator for indicator, seen in titles.items() if len(seen) > 1}
     for sheet, rows, (legend, vintage, others), blocks, unmapped in readable:
-        data_cols = {
-            c for (r, c) in sheet.cells if c != _DATE_COL and rows[0][0] <= r <= rows[-1][0]
-        }
-        for col in sorted(data_cols | set(blocks) | unmapped):
+        for col in sorted(_data_columns(sheet, rows) | blocks.keys() | unmapped):
             if col not in blocks:
                 rejections.append(Rejection("unmapped_row", sheet.position, None, None, col))
                 continue
