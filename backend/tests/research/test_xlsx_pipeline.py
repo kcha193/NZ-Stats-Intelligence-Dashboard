@@ -6,6 +6,7 @@ address. Every figure is invented; no ANZ text, value or sheet name appears here
 
 from __future__ import annotations
 
+import hashlib
 import json
 import socket
 from dataclasses import replace
@@ -21,11 +22,13 @@ from nzstats.config import load_settings
 from nzstats.research import purge
 from nzstats.research.api import research_router
 from nzstats.research.drafts_api import internal_drafts_router
-from nzstats.research.manual_import import ImportRefused, import_document
+from nzstats.research.manual_import import ImportRefused, _extract_xlsx, import_document
 from nzstats.research.private_api import CLIENT_HEADER, private_research_router
 from nzstats.research.registry import load_registry
 from nzstats.research.table_ingest import candidate_hash8, extract_version_tables
-from nzstats.research.table_store import load_forecasts, load_rejections
+from nzstats.research.table_store import load_forecasts, load_rejections, store_extraction
+from nzstats.research.xlsx_anz import INTERPRETER_VERSION
+from nzstats.research.xlsx_cells import cells_sha256, read_cells
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.store.db import connect, migrate
 
@@ -35,7 +38,7 @@ from .xlsx_support import build
 
 WORKBOOK_URL = "https://www.anz.co.nz/content/dam/anzconz/documents/economics-and-market-research/Latest-forecasts.xlsx"
 LOCAL = {"host": "127.0.0.1:8000", CLIENT_HEADER: "dashboard"}
-FILLER = " ".join(["Fictional filler for the minimum document length."] * 12)
+FILLER = "Synthetic fixture. " * 32
 
 
 LEGEND = "Figures in bold are ANZ forecasts"  # invented wording
@@ -43,11 +46,13 @@ LEGEND = "Figures in bold are ANZ forecasts"  # invented wording
 REAL_GDP = [("Real GDP", [("% q/q", series(GDP_QQ)), ("Annual % change", series(GDP_AA))])]
 
 
-def workbook(as_at: str = "Data as at 5 November 2026", growth=None) -> bytes:
-    notes = (LEGEND, f"{as_at}. {FILLER}")
-    kw = {"growth_kw": {"notes": notes}, "prices_kw": {"notes": notes}}
+def workbook(
+    as_at: str = "Data as at 5 November 2026", growth=None, *, legend=LEGEND, **pack
+) -> bytes:
+    notes = (legend, as_at, FILLER)
+    kw = {"growth_kw": {"notes": notes, **pack.pop("growth_kw", {})}, "prices_kw": {"notes": notes}}
     kw["growth"] = REAL_GDP if growth is None else growth
-    return build(standard(**kw), drawing_paragraphs=(("Fictional cover text",),))
+    return build(standard(**kw), drawing_paragraphs=(("Fictional cover text",),), **pack)
 
 
 @pytest.fixture(autouse=True)
@@ -118,6 +123,103 @@ def test_a_duplicate_import_is_unchanged(env):
     assert again.outcome == "unchanged" and again.version_id == first.version_id
 
 
+def test_import_identity_is_the_same_canonical_digest_in_both_reader_modes():
+    body = workbook()
+    digest = _extract_xlsx(body).text_sha256
+    assert digest == cells_sha256(read_cells(body, isolate=False))
+    assert digest == cells_sha256(read_cells(body, isolate=True))
+
+
+def test_repacking_unchanged_cells_deduplicates_and_keeps_the_original_artifact(env):
+    original, repacked = workbook(), workbook(extra={"docProps/test.xml": b"<fixture/>"})
+    first = do_import(env, original)
+    same = do_import(env, repacked)
+    assert first.content_sha256 != same.content_sha256
+    assert (same.outcome, same.version_id) == ("unchanged", first.version_id)
+    other_url = WORKBOOK_URL.replace("Latest-forecasts", "Other-forecasts")
+    duplicate = do_import(env, repacked, url=other_url)
+    assert duplicate.outcome == "duplicate"
+    row = env.conn.execute(
+        "SELECT duplicate_of_version_id FROM research_publication WHERE id=?",
+        (duplicate.publication_id,),
+    ).fetchone()
+    assert row[0] == first.version_id
+    assert list(env.artifacts.files()) == [env.artifacts.root / env.artifacts.rel_for(original)]
+
+
+@pytest.mark.parametrize("change", ["bold", "format", "visibility"])
+def test_semantic_only_revision_stores_its_bytes_and_is_used_by_extraction(env, change):
+    original = workbook()
+    if change == "visibility":
+        corrected = workbook(growth_kw={"state": "hidden"})
+    else:
+        revised = series(GDP_QQ, **({"first_bold": 6} if change == "bold" else {"fmt": "0.00"}))
+        corrected = workbook(growth=[("Real GDP", [("% q/q", revised), REAL_GDP[0][1][1]])])
+    assert _extract_xlsx(original).text == _extract_xlsx(corrected).text
+
+    first = do_import(env, original)
+    second = do_import(env, corrected)
+    assert second.outcome == "updated"
+    assert second.publication_id == first.publication_id
+    assert second.version_id != first.version_id
+    versions = env.conn.execute(
+        "SELECT v.id, v.superseded_at IS NOT NULL, v.text_sha256, a.path"
+        " FROM research_document_version v JOIN raw_artifact a ON a.id=v.raw_artifact_id ORDER BY v.id"
+    ).fetchall()
+    assert [(v[0], v[1]) for v in versions] == [(first.version_id, 1), (second.version_id, 0)]
+    assert versions[0][2] != versions[1][2]
+    assert (env.artifacts.root / versions[1][3]).read_bytes() == corrected
+
+    read = extract(env, second.version_id, dry_run=True)
+    gdp = [f for f in read.candidates if f.label == "Real GDP: % q/q"]
+    if change == "visibility":
+        assert not gdp and read.rejection_codes == (("hidden_sheet", 1),)
+    elif change == "bold":
+        assert [f.evidence["cell"] for f in gdp] == ["B9", "B10"]
+    else:
+        assert [f.raw_text for f in gdp] == ["0.10", "0.70", "0.80"]
+    assert all(f.evidence["workbook_sha256"] == second.content_sha256 for f in read.candidates)
+
+    restored = do_import(env, original)
+    assert (restored.outcome, restored.version_id) == ("reactivated", first.version_id)
+    assert (
+        env.conn.execute("SELECT current_version_id FROM research_publication").fetchone()[0]
+        == first.version_id
+    )
+    audit = env.conn.execute("SELECT outcome, version_id FROM research_manual_import ORDER BY id")
+    assert [tuple(r) for r in audit] == [
+        ("new", first.version_id),
+        ("updated", second.version_id),
+        ("reactivated", first.version_id),
+    ]
+
+
+def _legacy_import(env, body):
+    first = do_import(env, body)
+    extracted = _extract_xlsx(body)
+    canonical = "\n".join(
+        " ".join(f"{s.heading or ''}\n{s.text}".split()) for s in extracted.sections
+    )
+    env.conn.execute(
+        "UPDATE research_document_version SET text_sha256=?, extractor_version='xlsx-cells-1' WHERE id=?",
+        (hashlib.sha256(canonical.encode()).hexdigest(), first.version_id),
+    )
+    return first
+
+
+def test_a_legacy_version_reuses_its_id_after_repack_and_after_a_semantic_revision(env):
+    original = workbook()
+    legacy = _legacy_import(env, original)
+    repacked = workbook(extra={"docProps/test.xml": b"<fixture/>"})
+    same = do_import(env, repacked)
+    assert (same.outcome, same.version_id) == ("unchanged", legacy.version_id)
+    corrected = do_import(env, workbook(growth_kw={"state": "hidden"}))
+    assert corrected.outcome == "updated"
+    restored = do_import(env, repacked)
+    assert (restored.outcome, restored.version_id) == ("reactivated", legacy.version_id)
+    assert len(list(env.artifacts.files())) == 2
+
+
 def test_a_dry_run_counts_codes_and_a_hash_and_writes_nothing(env):
     v = do_import(env).version_id
     result = extract(env, v, dry_run=True)
@@ -146,7 +248,7 @@ def test_storing_needs_the_matching_reconciliation_hash(env):
     interpreter = env.conn.execute(
         "SELECT interpreter_version FROM research_table_extraction"
     ).fetchone()[0]
-    assert interpreter == "xlsx-anz-1"
+    assert interpreter == INTERPRETER_VERSION
 
 
 def test_a_workbook_is_read_only_for_anz_and_only_at_the_workbook_address(env):
@@ -194,6 +296,32 @@ def test_stored_figures_reach_the_internal_view_only_under_auto_display(env):
     assert len(got) == 12 and {f["extraction_method"] for f in got.values()} == {"table"}
     assert {f["forecast"]["institution"]["key"] for f in got.values()} == {"anz"}
     assert got[("gdp", "June 2026 quarter")]["forecast"]["value"] == 0.1
+
+
+def test_an_older_workbook_interpretation_stays_stored_and_needs_new_confirmation(env, monkeypatch):
+    v = do_import(env).version_id
+    dry_run = extract(env, v, dry_run=True)
+    with monkeypatch.context() as old:
+        old.setattr("nzstats.research.table_ingest.XLSX_INTERPRETER", "xlsx-anz-1")
+        prior_code = candidate_hash8(dry_run.candidates)
+    store_extraction(
+        env.conn,
+        v,
+        NOW,
+        dry_run.candidates,
+        (),
+        words_sha256=cells_sha256(read_cells(workbook(), isolate=False)),
+        interpreter_version="xlsx-anz-1",
+    )
+    _auto(env)
+    client = _internal(env)
+    url = "/api/internal/bank-intelligence/forecasts"
+    assert client.get(url, headers=LOCAL).json()["forecasts"] == []
+    assert extract(env, v, confirm=prior_code).status == "refused"
+    assert stored_count(env) == 1
+    assert extract(env, v, confirm=dry_run.candidate_hash8).status == "stored"
+    assert stored_count(env) == 2
+    assert len(client.get(url, headers=LOCAL).json()["forecasts"]) == len(dry_run.candidates)
 
 
 def test_a_gdp_figure_whose_label_states_no_price_basis_is_held_back(env):
@@ -281,6 +409,59 @@ def test_purge_removes_the_workbook_figures(env):
     assert extract(env, v, dry_run=True).status == "refused"
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+def test_a_purged_workbook_cannot_be_reimported_verbatim_or_repacked(env, legacy):
+    original = workbook()
+    v = (_legacy_import if legacy else do_import)(env, original).version_id
+    plan = purge.plan_purge(env.conn, "anz", version_ids=[v])
+    purge.apply_purge(
+        env.conn, plan, env.artifacts, reason="permission_withdrawn", purged_by="Owner", note="t", now=NOW,
+    )  # fmt: skip
+    with pytest.raises(ImportRefused, match="this text was purged"):
+        do_import(env, original)
+    repacked = workbook(extra={"docProps/test.xml": b"<fixture/>"})
+    with pytest.raises(ImportRefused, match="this text was purged"):
+        do_import(env, repacked, url=WORKBOOK_URL.replace("Latest-forecasts", "Other-forecasts"))
+    with pytest.raises(ImportRefused, match="this text was purged"):
+        do_import(env, workbook(growth_kw={"state": "hidden"}))
+    assert not list(env.artifacts.files())
+    assert env.conn.execute("SELECT COUNT(*) FROM research_manual_import").fetchone()[0] == 1
+
+
+def test_qualified_workbook_notes_cannot_feed_comparison_or_consensus(env):
+    qualified = "Figures in bold are ANZ downside scenario forecasts"
+    original = workbook(legend=qualified)
+    v = do_import(env, original).version_id
+    result = extract(env, v, dry_run=True)
+    assert result.candidates == () and result.rejection_codes == (("scenario_context", 4),)
+    assert extract(env, v, confirm=result.candidate_hash8).status == "stored"
+    assert load_forecasts(env.conn, v) == []
+
+    # Persist evidence shaped like rows produced before structural notes were checked.
+    plain = do_import(env).version_id
+    accepted = extract(env, plain, dry_run=True).candidates
+    prior = [
+        replace(f, evidence={**f.evidence, "vintage_note": "Data as at 5 November 2026 for youth"})
+        for f in accepted
+    ]
+    store_extraction(
+        env.conn,
+        plain,
+        NOW,
+        prior,
+        (),
+        words_sha256="ab" * 32,
+        interpreter_version=INTERPRETER_VERSION,
+    )
+    _auto(env)
+    client = _internal(env)
+    comparison = client.get("/api/internal/bank-intelligence/forecasts", headers=LOCAL).json()
+    assert comparison["forecasts"] == []
+    assert {e["code"] for e in comparison["excluded"]} == {"table_unresolved_reconciliation"}
+    consensus = client.get("/api/internal/bank-intelligence/consensus", headers=LOCAL).json()
+    assert consensus["consensus"]["groups"] == []
+
+
 def test_public_and_private_routes_carry_no_workbook_figure(env):
     _store(env)
     _auto(env)
@@ -321,7 +502,9 @@ def test_the_dry_run_command_prints_counts_codes_and_the_hash_but_no_value(cli, 
     assert main(["research", "tables", "extract", str(v), "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "dry_run, 12 figures, 0 rejections" in out and "confirmation code " in out
-    assert "0.7" not in out and "GDP" not in out and "Growth" not in out and "xlsx-anz-1" in out
+    assert (
+        "0.7" not in out and "GDP" not in out and "Growth" not in out and INTERPRETER_VERSION in out
+    )
 
 
 def test_listing_candidates_refuses_outside_a_real_terminal(cli, capsys, monkeypatch):

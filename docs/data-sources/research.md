@@ -477,7 +477,8 @@ No request is made. The address must pass the institution's URL policy (https, a
 the link shown if the item is ever displayed. The file (`.html`, `.htm`, `.pdf` or, for ANZ's forecasts workbook only
 (Phase 4AP, [record](../phase-4ap-anz-xlsx-ingestion.md)), `.xlsx`; at most 20 MB) goes through the same
 extraction, wall and challenge detection, minimum length and shrink guard as a crawled one, and the same store: raw
-bytes under `data/raw` (content-addressed), a new version only when the text changes, sections with pages. Each import
+bytes under `data/raw` (content-addressed), versions keyed by normalized text for HTML and PDF or parsed semantics for
+XLSX, and sections with pages. Each import
 that reaches the store adds a row to `research_manual_import` (append-only: who, when, file and text hashes, outcome,
 the permissions in force, the private note) in the same transaction, and the version's `acquisition` is `manual`.
 

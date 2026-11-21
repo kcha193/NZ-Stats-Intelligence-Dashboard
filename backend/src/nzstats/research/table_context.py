@@ -22,7 +22,7 @@ POPULATION = re.compile(
 )
 FOREIGN = re.compile(
     r"\b(?:australia(?:n)?|china|chinese|united states|u\.?s\.?a\.?|american|"
-    r"united kingdom|britain|british|euro(?:zone| area)|japan(?:ese)?)\b",
+    r"united kingdom|britain|british|euro(?:zone| area)|japan(?:ese)?|world(?!\s+bank\b))\b",
     re.IGNORECASE,
 )
 SCENARIO = re.compile(
@@ -40,6 +40,22 @@ _TIMING = re.compile(r"\baverage\b|\bend[- ]of[- ](?:period|quarter|year)\b", re
 _PUBLICATION = re.compile(
     r"\b(?:(?:weekly|monthly|quarterly|annual)\s+)?(?:economic\s+|markets?\s+)?"
     r"(?:outlook|overview|update|review|report|bulletin|commentary)\b",
+    re.IGNORECASE,
+)
+_BOLD_MARKER = re.compile(
+    r"\b(?:(?:shown|printed|marked|displayed|set|highlighted)\s+in\s+bold|"
+    r"bold(?:\s+(?:font|type|text))?(?:\s+(?:indicates?|denotes?|represents?|marks?))?)\b",
+    re.IGNORECASE,
+)
+_MONTH = (
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|"
+    r"Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?"
+)
+_DAY = r"\d{1,2}(?:st|nd|rd|th)?"
+_VINTAGE_DATE = re.compile(
+    rf"\b(?:data\s+)?(?:as\s+at|(?:last\s+)?updated(?:\s+on)?)\s*:?\s*"
+    rf"(?:{_DAY}[\s-]+{_MONTH}[\s,-]+\d{{2,4}}|{_MONTH}\s+{_DAY},?\s+\d{{2,4}}|"
+    r"\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4})\b",
     re.IGNORECASE,
 )
 
@@ -79,11 +95,39 @@ def unmarked_notes(notes: Sequence[str]) -> tuple[str, ...]:
     return tuple(n for n in notes if not FOOTNOTE.match(n.strip()))
 
 
+def _structural_note(text: str, publisher_names: Sequence[str], *, legend: bool = False) -> str:
+    """Remove recognized workbook syntax while retaining scope, units and other qualifiers."""
+    if legend:
+        text = _BOLD_MARKER.sub(" ", text)
+    text = _VINTAGE_DATE.sub(" ", text)
+    for name in sorted(filter(None, publisher_names), key=len, reverse=True):
+        text = re.sub(
+            rf"(?<!\w){re.escape(name)}(?!\w)(?:['’]s\b)?", " ", text, flags=re.IGNORECASE
+        )
+    # A structural note always states context, even if the remaining words start with "Source:".
+    return f"note {text}"
+
+
 def evidence_texts(evidence: Mapping[str, Any]) -> tuple[str, ...]:
     """The same authoritative context in normalization and reconciliation, in source order."""
+    notes = evidence.get("notes", [])
+    boundary = evidence.get("boundary_note")
+    vintage = evidence.get("vintage_note")
+    if boundary or vintage:
+        names = evidence.get("publisher_names", ())
+        notes = (
+            *notes,
+            *(
+                _structural_note(t, names, legend=is_legend)
+                for t, is_legend in ((boundary, True), (vintage, False))
+                if t
+            ),
+        )
+    else:
+        notes = unmarked_notes(notes)
     return (
         evidence.get("caption") or "",
-        *unmarked_notes(evidence.get("notes", [])),
+        *notes,
         *evidence.get("header_texts", []),
         *evidence.get("unit_texts", []),
     )

@@ -324,8 +324,9 @@ def store_document(
     """
     content_sha = hashlib.sha256(fetched.body).hexdigest()
     purged = store.purged_text(
-        conn, inst_id, extracted.text_sha256, content_sha256=content_sha, doc_key=doc_key
-    )
+        conn, inst_id, extracted.text_sha256, content_sha256=content_sha, doc_key=doc_key,
+        normalized_text_sha256=extracted.normalized_text_sha256 if extracted.format == "xlsx" else None,
+    )  # fmt: skip
     if purged is not None:  # checked before any file is written, and again under the write lock
         raise IngestError(ErrorClass.VALIDATION_FAILED, "purged_text")
     raw, created = None, False
@@ -408,6 +409,9 @@ def _store_locked(
             extracted.text_sha256,
             content_sha256=hashlib.sha256(fetched.body).hexdigest(),
             doc_key=doc_key,
+            normalized_text_sha256=extracted.normalized_text_sha256
+            if extracted.format == "xlsx"
+            else None,
         )
         is not None
     ):  # a purge may have committed since the early check

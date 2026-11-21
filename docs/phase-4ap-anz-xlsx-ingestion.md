@@ -59,6 +59,24 @@ components or variants that also name GDP, or headline CPI beside a CPI variant.
 can only remove candidates. Commit `4f5faf4`, tests `test_two_distinct_blocks_naming_one_indicator_*`,
 `test_the_same_indicator_on_two_sheets_*` and `test_one_block_title_repeated_*`.
 
+### 1.5 Review fixes for workbook identity and structural notes
+
+New workbook versions (`xlsx-cells-2`) use `cells_sha256` in the existing version key. It covers the parsed cells,
+including bold flags and number formats, plus sheet positions, names, visibility, merges, the date system and drawing
+text. Repackaging the same parsed workbook reuses its version. Raw artifacts remain keyed by the SHA-256 of their exact
+bytes. HTML and PDF continue to use the normalized text key. The manual import audit keeps the normalized text hash so
+purge still blocks the same text under different workbook formatting or a different address.
+
+Existing `xlsx-cells-1` rows retain their IDs, hashes and artifacts. Within the same publication, an import reuses a
+legacy row when the bytes match or its verified local artifact has the same cell digest. If the stored bytes cannot
+establish a match, the supplied workbook takes the semantic key. Existing publication links and audit rows stay intact.
+The current schema supports both keys, so this requires no migration or replay.
+
+Interpreter `xlsx-anz-2` checks qualifiers in the bold legend and vintage note during extraction and stored-evidence
+revalidation. It keeps the original notes as evidence. Earlier extractions remain recorded. The internal view uses
+the current interpreter and a new owner confirmation code is required to store its extraction. The two-release history
+gate still applies.
+
 ## 2. Real workbook pilot, 21 November 2026
 
 Every command ran from the repository root (`NZSTATS_DATA_DIR=./data`). The session printed counts, codes and hashes

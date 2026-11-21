@@ -75,7 +75,9 @@ def candidate_hash8(forecasts: tuple[TableForecast, ...] | list[TableForecast]) 
          None if f.value is None else str(f.value), f.missing, f.author_role, f.evidence.get("workbook_sha256")]
         for f in forecasts
     ]  # fmt: skip
-    return hashlib.sha256(json.dumps(canonical, ensure_ascii=False).encode()).hexdigest()[:8]
+    return hashlib.sha256(
+        json.dumps([XLSX_INTERPRETER, canonical], ensure_ascii=False).encode()
+    ).hexdigest()[:8]
 
 
 def version_refusal(

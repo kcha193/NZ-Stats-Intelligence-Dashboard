@@ -1,4 +1,4 @@
-"""ANZ's forecasts workbook as table forecasts (Phase 4AP, interpreter `xlsx-anz-1`): fixed rules, no guessing.
+"""ANZ's forecasts workbook as table forecasts (Phase 4AP): fixed rules, no guessing.
 
 Shaped by the masked Phase 4AO structure (docs/phase-4ao-anz-workbook.md §1): one vertical time series per sheet, dates
 in column A from row 3, series titles in row 1 (merged over blocks of columns), unit headers in row 2, and below the table
@@ -12,9 +12,9 @@ data. A unit, period, indicator or author is never inferred; each refusal is a f
 column where it applies to the whole of it. The figure is the text Excel prints under the cell's number format; the
 stored text stays in the evidence. A formula is never evaluated. All workbook text is untrusted data.
 
-The block title and unit header form the label (the identity, as a PDF row label does); the context the shared checks
-read is the sheet name, any other note, the period and the unit header. The legend and the "as at" note are structural
-markers this module consumes, so they are kept under their own evidence keys; they still decide authorship.
+The block title and unit header form the label (the identity, as a PDF row label does). The context includes the
+sheet name, notes, period and unit header. The legend and the "as at" note are kept under their own evidence keys
+and checked for qualifiers as well as authorship.
 """
 
 from __future__ import annotations
@@ -24,13 +24,13 @@ from collections.abc import Sequence
 from datetime import date
 from decimal import ROUND_HALF_UP, Context, Decimal, InvalidOperation
 
-from nzstats.research.table_context import context_rejection
+from nzstats.research.table_context import stored_context_rejection
 from nzstats.research.table_forecast import TableForecast, _horizon, _indicator, _third_party
 from nzstats.research.table_grid import Rejection
 from nzstats.research.table_parse import Period, parse_value, unit_of_text
 from nzstats.research.xlsx_cells import WorkbookCells, XCell, XSheet, serial_date
 
-INTERPRETER_VERSION = "xlsx-anz-1"
+INTERPRETER_VERSION = "xlsx-anz-2"
 
 _TITLE_ROW, _HEADER_ROW, _FIRST_DATE_ROW, _DATE_COL = 1, 2, 3, 1
 _QUARTER_MONTHS = frozenset({3, 6, 9, 12})
@@ -41,7 +41,7 @@ _LEGEND_REFUSED = re.compile(
     r"\b(?:not|non|except|excluding|unless|italics?|underlined?|shaded|shading|colou?red|actuals?|historical)\b",
     re.IGNORECASE,
 )
-_AS_AT = re.compile(r"\bas at\b|\bupdated\b", re.IGNORECASE)
+_AS_AT = re.compile(r"\bas\s+at\b|\bupdated\b", re.IGNORECASE)
 # General, 0, 0.0..., #,##0 and #,##0.0..., with an optional negative section of the same shape and precision.
 _NUMBER_FORMAT = re.compile(
     r"(?P<pos>(?:#,##)?0(?:\.0+)?)(?:;(?:-|\\-)(?P<neg>(?:#,##)?0(?:\.0+)?))?"
@@ -130,7 +130,7 @@ def _date_rows(sheet: XSheet, date1904: bool) -> list[tuple[int, date]] | None:
 def _notes(sheet: XSheet, last_row: int) -> tuple[str | None, str | None, list[str]] | None:
     """(legend, "as at" note, other notes) from the text below the table; None without exactly one plain legend."""
     texts = [
-        c.text.strip()
+        c.text
         for (r, _c), c in sorted(sheet.cells.items())
         if r > last_row and c.kind == "text" and c.text.strip()
     ]
@@ -139,7 +139,7 @@ def _notes(sheet: XSheet, last_row: int) -> tuple[str | None, str | None, list[s
         return None
     as_at = [t for t in texts if t not in legends and _AS_AT.search(t)]
     vintage = as_at[0] if len(as_at) == 1 else None
-    others = [t for t in texts if t not in legends and t != vintage]
+    others = [t.strip() for t in texts if t not in legends and t != vintage]
     return legends[0], vintage, others
 
 
@@ -280,13 +280,17 @@ def _column(
         if horizon is None:
             return [Rejection(code or "unparsed_period", *at)]
         period_text = day.isoformat()
-        if code := context_rejection(
-            label,
-            (sheet.name, *others, period_text, header),
-            publisher_names=publisher_names,
-            document_title=document_title,
-            kind="forecast",
-        ):
+        evidence = {
+            "caption": sheet.name,
+            "header_texts": [period_text],
+            "unit_texts": [header],
+            "notes": list(others),
+            "boundary_note": legend,
+            "vintage_note": vintage,
+            "document_title": document_title,
+            "publisher_names": list(publisher_names),
+        }
+        if code := stored_context_rejection(label, evidence):
             return [Rejection(code, *at)]
         shown, code = _display(cell)
         if shown is None:
@@ -318,6 +322,7 @@ def _column(
                 author_role=role,  # type: ignore[arg-type]
                 footnote=None,
                 evidence={
+                    **evidence,
                     "page": sheet.position,
                     "table": block,
                     "row": row,
@@ -331,18 +336,10 @@ def _column(
                     "number_format": cell.number_format,
                     "bold": cell.bold,
                     "workbook_sha256": workbook_sha256,
-                    "caption": sheet.name,
                     "row_label": label,
                     "block_title": title,
                     "unit_header": header,
-                    "header_texts": [period_text],
-                    "unit_texts": [header],
-                    "notes": list(others),
-                    "boundary_note": legend,
-                    "vintage_note": vintage,
                     "boundary_row": tail[0][0],
-                    "document_title": document_title,
-                    "publisher_names": list(publisher_names),
                 },
             )
         )

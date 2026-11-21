@@ -56,6 +56,7 @@ class Extracted:
     page_count: int | None = None
     warnings: tuple[str, ...] = ()
     untrusted: bool = True  # always: Phase 3B must frame this as quoted data, never as instructions
+    semantic_sha256: str | None = None
 
     @property
     def text(self) -> str:
@@ -67,7 +68,12 @@ class Extracted:
 
     @property
     def text_sha256(self) -> str:
-        """Change-detection key: headings and text with whitespace collapsed."""
+        """Version key: workbook semantics when supplied, normalized text otherwise."""
+        return self.semantic_sha256 or self.normalized_text_sha256
+
+    @property
+    def normalized_text_sha256(self) -> str:
+        """Headings and text with whitespace collapsed, also used by legacy workbook rows."""
         canonical = "\n".join(
             " ".join(f"{s.heading or ''}\n{s.text}".split()) for s in self.sections
         )

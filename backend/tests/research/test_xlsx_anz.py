@@ -1,4 +1,4 @@
-"""The ANZ forecasts workbook mapping (Phase 4AP, interpreter `xlsx-anz-1`). Fictional workbooks shaped like the masked
+"""The ANZ forecasts workbook mapping (Phase 4AP). Fictional workbooks shaped like the masked
 Phase 4AO structure: dates in column A from row 3, titles merged over blocks in row 1, unit headers in row 2, a bold
 forecast tail, a legend note and an "as at" note below the table. Every figure is invented."""
 
@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 
+from nzstats.research.table_context import stored_context_rejection
 from nzstats.research.xlsx_anz import INTERPRETER_VERSION, interpret_anz_workbook
 from nzstats.research.xlsx_cells import read_cells
 
@@ -93,7 +94,7 @@ def codes(rejections) -> list[str]:
 
 
 def test_the_interpreter_version_is_pinned():
-    assert INTERPRETER_VERSION == "xlsx-anz-1"
+    assert INTERPRETER_VERSION == "xlsx-anz-2"
 
 
 def test_the_bold_tail_gives_forecasts_with_exact_evidence():
@@ -353,6 +354,61 @@ def test_a_legend_naming_another_forecaster_makes_the_figures_third_party():
         standard(growth_kw={"notes": ("Figures in bold are Treasury forecasts", AS_AT)})
     )
     assert {f.author_role for f in forecasts if f.page == 2} == {"third_party"}
+
+
+@pytest.mark.parametrize(
+    ("legend", "as_at"),
+    [
+        (LEGEND, AS_AT),
+        ("Baseline forecasts are shown in bold", "Updated: 2026-11-05"),
+        ("Bold font denotes Fictional Bank central projections", "Last updated on 05/11/2026"),
+        (
+            "Figures in bold are Fictional Bank's forecasts",
+            "Fictional Bank data as at 5th November 2026",
+        ),
+        (f"  {LEGEND}  ", f"  {AS_AT}  "),
+    ],
+)
+def test_structural_notes_accept_baseline_markers_authors_and_dates(legend, as_at):
+    forecasts, rejections = run(standard(growth_kw={"notes": (legend, as_at)}))
+    assert not rejections
+    growth = [f for f in forecasts if f.page == 2]
+    assert len(growth) == 6
+    for f in growth:
+        assert f.author_role == "author"
+        assert (f.evidence["boundary_note"], f.evidence["vintage_note"]) == (legend, as_at)
+        assert stored_context_rejection(f.label, f.evidence) is None
+
+
+@pytest.mark.parametrize(
+    ("legend", "as_at", "expected"),
+    [
+        ("Figures in bold are ANZ downside scenario forecasts", AS_AT, "scenario_context"),
+        ("Figures in bold are Australian forecasts", AS_AT, "unsupported_geography"),
+        ("Figures in bold are forecasts for the world", AS_AT, "unsupported_geography"),
+        (LEGEND, f"{AS_AT} (alternative stress case)", "scenario_context"),
+        (LEGEND, f"{AS_AT} – for China", "unsupported_geography"),
+        (LEGEND, f"{AS_AT} – for youth", "unsupported_scope"),
+        (LEGEND, f"{AS_AT} – for the urban population", "unsupported_context"),
+        (LEGEND, f"{AS_AT} – upside", "scenario_context"),
+        (LEGEND, f"{AS_AT}. Source: unknown restricted population", "unsupported_context"),
+        ("Figures in bold are forecasts in basis points", AS_AT, "contradictory_unit"),
+    ],
+)
+def test_structural_qualifiers_are_refused_in_both_consumers(legend, as_at, expected):
+    baseline, _ = run(standard())
+    forecasts, rejections = run(standard(growth_kw={"notes": (legend, as_at)}))
+    assert not [f for f in forecasts if f.page == 2]
+    assert [(r.page, r.code) for r in rejections] == [(2, expected), (2, expected)]
+    for f in baseline:
+        if f.page == 2:
+            prior_evidence = {**f.evidence, "boundary_note": legend, "vintage_note": as_at}
+            assert stored_context_rejection(f.label, prior_evidence) == expected
+
+
+def test_stored_vintage_qualifiers_are_checked_without_a_boundary_note():
+    evidence = {"vintage_note": f"{AS_AT} – downside scenario"}
+    assert stored_context_rejection("GDP: % q/q", evidence) == "scenario_context"
 
 
 def test_a_hidden_sheet_is_refused():

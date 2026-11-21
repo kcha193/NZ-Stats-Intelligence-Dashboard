@@ -1035,8 +1035,9 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
             return 0
         _emit(f"version {args.version}: {len(forecasts)} figures, {len(rejections)} rejections")
         if not current:
+            expected = XLSX_INTERPRETER if workbook else INTERPRETER_VERSION
             _emit(
-                f"  NOT CURRENT: read by {interpreter}, not {INTERPRETER_VERSION}; extract again to refresh. Not used by the analytics."
+                f"  NOT CURRENT: read by {interpreter}, not {expected}; extract again to refresh. Not used by the analytics."
             )
         for f in forecasts:
             _emit(f"  p{f['page']} t{f['table']} r{f['row']} c{f['col']} {f['indicator']:<14} {f['kind']:<8}"

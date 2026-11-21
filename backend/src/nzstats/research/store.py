@@ -190,22 +190,29 @@ def purged_text(
     *,
     content_sha256: str | None = None,
     doc_key: str | None = None,
+    normalized_text_sha256: str | None = None,
 ) -> sqlite3.Row | None:
     """The purged version (any publication of this institution) whose text or file bytes these are, if any.
 
     A purge removes content that may not be held; storing the same text again, under any address, would undo it.
     The file's own hash is matched too, so a changed extractor cannot get the same bytes past it. A publication that
     still holds this text in an unpurged version (`doc_key`) is not refused: that text was not purged for it.
+    A workbook can have the same text under different semantic keys. Its original import audit retains the
+    normalized text hash. Legacy workbook rows already use that hash as the key.
     """
     if doc_key is not None and conn.execute(
         "SELECT 1 FROM research_document_version v JOIN research_publication p ON p.id = v.publication_id"
         " WHERE p.doc_key=? AND v.text_sha256=? AND v.purged_at IS NULL", (doc_key, text_sha256)).fetchone():  # fmt: skip
         return None
+    normalized = normalized_text_sha256 or text_sha256
     return conn.execute(
         "SELECT v.id, v.purged_at, v.purge_id FROM research_document_version v"
         " JOIN research_publication p ON p.id = v.publication_id"
-        " WHERE p.institution_id=? AND v.purged_at IS NOT NULL AND (v.text_sha256=? OR v.content_sha256=?) LIMIT 1",
-        (institution_id, text_sha256, content_sha256 or text_sha256),
+        " WHERE p.institution_id=? AND v.purged_at IS NOT NULL AND (v.text_sha256 IN (?, ?) OR v.content_sha256=?"
+        " OR (v.format='xlsx' AND EXISTS (SELECT 1 FROM research_manual_import m"
+        " WHERE m.institution_id=p.institution_id AND m.version_id=v.id AND m.outcome IN ('new', 'updated')"
+        " AND m.content_sha256=v.content_sha256 AND m.text_sha256=?))) LIMIT 1",
+        (institution_id, text_sha256, normalized, content_sha256 or text_sha256, normalized),
     ).fetchone()
 
 

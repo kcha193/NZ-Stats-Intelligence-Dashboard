@@ -50,6 +50,7 @@ from nzstats.research.consensus import consensus
 from nzstats.research.history import forecast_history
 from nzstats.research.macro_outcomes import gdp_actuals, unemployment_actuals
 from nzstats.research.outcomes import CpiActuals, Outcome, Target
+from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
 
 ADJUSTMENTS: tuple[Adjustment, ...] = ("seasonally_adjusted", "unadjusted", "not_stated")
 REASONS = {
@@ -78,7 +79,7 @@ REASONS = {
 }
 # Readers whose figures stay out of the history views (revisions, evaluation) until two-release stability is verified
 # (Phase 4AP: the ANZ forecasts workbook; docs/phase-4ap-anz-xlsx-ingestion.md).
-HISTORY_UNVERIFIED = frozenset({"xlsx-anz-1"})
+HISTORY_UNVERIFIED = frozenset({XLSX_INTERPRETER})
 
 
 @dataclass(frozen=True)
