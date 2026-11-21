@@ -15,7 +15,8 @@ from .bank_support import (
 )
 from .test_bank_isolation import LOCAL, REPO, SRC, imports
 
-TABLE_MODULES = re.compile(r"^nzstats\.research\.table_[a-z]+(\.|$)")
+# Phase 4AP: the workbook reader and mapping (xlsx_*) are held to the same boundary as the PDF table modules.
+TABLE_MODULES = re.compile(r"^nzstats\.research\.(table|xlsx)_[a-z]+(\.|$)")
 GATES = ("public.py", "api.py", "private.py", "private_api.py")
 
 
@@ -51,7 +52,7 @@ def test_the_table_modules_never_import_the_network_a_provider_or_the_stats_pipe
         "policy",
         "policy_run",
     }
-    for path in (SRC / "research").glob("table_*.py"):
+    for path in [*(SRC / "research").glob("table_*.py"), *(SRC / "research").glob("xlsx_*.py")]:
         for name in imports(path):
             assert not banned.match(name), (path.name, name)
             parts = name.split(".")

@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import sqlite3
+import sys
 from contextlib import closing
 from dataclasses import asdict
 from datetime import date, timedelta
@@ -141,10 +142,22 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         help="figures read deterministically from a stored PDF's forecast tables (Phase 4AF; local, no request)",
     )
     tsub = p_tables.add_subparsers(dest="tables_command", required=True)
-    p_text = tsub.add_parser("extract", help="read the tables of one stored PDF version")
+    p_text = tsub.add_parser(
+        "extract", help="read the tables of one stored PDF version or ANZ forecasts workbook"
+    )
     p_text.add_argument("version", type=_positive_int)
     p_text.add_argument(
         "--dry-run", action="store_true", help="count what would be stored; write nothing"
+    )
+    p_text.add_argument(
+        "--list",
+        action="store_true",
+        help="with --dry-run: print each workbook candidate for the owner's reconciliation (real terminal only)",
+    )
+    p_text.add_argument(
+        "--confirm",
+        metavar="HASH8",
+        help="store a workbook's figures: the code its dry run printed",
     )
     p_tshow = tsub.add_parser("show", help="stored figures and rejection codes (no document text)")
     p_tshow.add_argument("version", type=_positive_int)
@@ -160,7 +173,7 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         "import", help="store an owner-supplied copy of one document (Phase 3E; no request is made)"
     )
     p_imp.add_argument("key")
-    p_imp.add_argument("file", help="the saved document (.html, .htm or .pdf)")
+    p_imp.add_argument("file", help="the saved document (.html, .htm, .pdf or .xlsx)")
     p_imp.add_argument("--url", required=True, help="the document's address on an allowed host")
     p_imp.add_argument("--importer", required=True, help="who obtained and is importing the copy")
     p_imp.add_argument("--note", required=True, help="where and how it was obtained (private)")
@@ -911,19 +924,45 @@ def _cpi_vintages(
     return 0
 
 
-_SUFFIXES = {".html": "html", ".htm": "html", ".pdf": "pdf"}
+_SUFFIXES = {".html": "html", ".htm": "html", ".pdf": "pdf", ".xlsx": "xlsx"}
+_TERMINAL_ONLY = "refused: this prints workbook figures; run it yourself in a real terminal, not through a tool or a pipe"
+
+
+def _stdout_is_terminal() -> bool:
+    return sys.stdout.isatty()
+
+
+def _real_terminal() -> bool:
+    """Both ends are a terminal: figures printed for the owner's reconciliation are not captured by another program."""
+    return sys.stdin.isatty() and _stdout_is_terminal()
 
 
 def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
     """`tables extract` reads one stored PDF; `tables show` lists stored figures and codes. Never prints cell or label text."""
+    from nzstats.research.manual_import import XLSX_EXTRACTOR_VERSION
     from nzstats.research.table_forecast import INTERPRETER_VERSION
     from nzstats.research.table_ingest import extract_version_tables, version_refusal
     from nzstats.research.table_store import latest_interpreter, load_forecasts, load_rejections
+    from nzstats.research.table_view import CURRENT_INTERPRETERS
     from nzstats.research.table_words import EXTRACTOR_VERSION
+    from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
 
     conn = _open(settings)
     try:
+        found = conn.execute(
+            "SELECT format FROM research_document_version WHERE id = ?", (args.version,)
+        ).fetchone()
+        workbook = found is not None and found[0] == "xlsx"
         if args.tables_command == "extract":
+            if args.list and not args.dry_run:
+                _emit("refused: --list needs --dry-run")
+                return 2
+            if args.confirm and args.dry_run:
+                _emit("refused: --confirm stores; it cannot be combined with --dry-run")
+                return 2
+            if args.list and not _real_terminal():
+                _emit(_TERMINAL_ONLY)
+                return 2
             result = extract_version_tables(
                 conn,
                 args.version,
@@ -931,6 +970,7 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
                 registry,
                 utc_now(),
                 dry_run=args.dry_run,
+                confirm=args.confirm,
             )
             if result.status == "refused":
                 _emit(f"version {args.version}: refused ({result.reason})")
@@ -940,9 +980,24 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
             )
             for code, count in result.rejection_codes:
                 _emit(f"  rejected {code} x{count}")
-            _emit(f"Reader {EXTRACTOR_VERSION}, interpreter {INTERPRETER_VERSION}.")
+            if result.candidate_hash8:
+                _emit(
+                    f"  confirmation code {result.candidate_hash8} (over exactly these {result.forecasts} candidates)"
+                )
+            if args.list:
+                for f in result.candidates:
+                    cell = f.evidence.get("cell", "?")
+                    _emit(f"  sheet {f.page} {cell} {f.indicator:<14} {f.horizon:<26} {f.raw_text:>8} {f.unit}"
+                          f" {f.author_role} | {f.label}")  # fmt: skip
+            if workbook:
+                _emit(f"Reader {XLSX_EXTRACTOR_VERSION}, interpreter {XLSX_INTERPRETER}.")
+            else:
+                _emit(f"Reader {EXTRACTOR_VERSION}, interpreter {INTERPRETER_VERSION}.")
             _emit("Read locally from the stored copy. Nothing was requested; no model was used.")
             return 0
+        if workbook and not _real_terminal():
+            _emit(_TERMINAL_ONLY)
+            return 2
         row = conn.execute(
             "SELECT v.purged_at, v.acquisition, i.key FROM research_document_version v"
             " JOIN research_publication p ON p.id = v.publication_id"
@@ -955,7 +1010,7 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
             return 1
         stored = load_forecasts(conn, args.version)
         interpreter = latest_interpreter(conn, args.version)
-        current = interpreter in (None, INTERPRETER_VERSION)
+        current = interpreter is None or interpreter in CURRENT_INTERPRETERS
         forecasts = [
             {"indicator": f.indicator, "horizon": f.horizon, "kind": f.kind, "unit": f.unit,
              "value": None if f.value is None else str(f.value), "missing": f.missing,
@@ -1005,7 +1060,7 @@ def _import(args: argparse.Namespace, settings: Settings, registry: dict[str, In
     path = Path(args.file)
     file_format = _SUFFIXES.get(path.suffix.lower())
     if file_format is None:
-        _emit("refused: the file must be .html, .htm or .pdf (html or pdf)")
+        _emit("refused: the file must be .html, .htm, .pdf or .xlsx (html, pdf or xlsx)")
         return 2
     if not path.is_file():
         _emit("refused: the file does not exist")

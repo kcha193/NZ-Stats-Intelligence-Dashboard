@@ -48,7 +48,7 @@ class Section:
 
 @dataclass(frozen=True)
 class Extracted:
-    format: Literal["html", "pdf"]
+    format: Literal["html", "pdf", "xlsx"]
     title: str | None
     sections: tuple[Section, ...]
     published_hint: str | None

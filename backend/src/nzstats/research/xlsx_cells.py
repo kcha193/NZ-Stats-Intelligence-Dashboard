@@ -548,16 +548,19 @@ def cells_sha256(wb: WorkbookCells) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def render_sheet(sheet: XSheet) -> str:
+    """One tab-separated line per row of a sheet's cell texts (stored text; a formula's cached text)."""
+    rows: dict[int, list[str]] = {}
+    for (r, _c), cell in sorted(sheet.cells.items()):
+        rows.setdefault(r, []).append(cell.text)
+    return "\n".join("\t".join(texts) for _, texts in sorted(rows.items()))
+
+
 def render_text(wb: WorkbookCells) -> str:
-    """The document text manual import stores: each sheet's name, then one tab-separated line per row."""
-    lines: list[str] = []
-    for sheet in wb.sheets:
-        lines.append(sheet.name)
-        rows: dict[int, list[str]] = {}
-        for (r, _c), cell in sorted(sheet.cells.items()):
-            rows.setdefault(r, []).append(cell.text)
-        lines.extend("\t".join(texts) for _, texts in sorted(rows.items()))
-    return "\n".join(lines)
+    """The workbook as text: each sheet's name, then its rows (see `render_sheet`)."""
+    return "\n".join(
+        part for sheet in wb.sheets for part in (sheet.name, render_sheet(sheet)) if part
+    )
 
 
 def _limit_error() -> IngestError:

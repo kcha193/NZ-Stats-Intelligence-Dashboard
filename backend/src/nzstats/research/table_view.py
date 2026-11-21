@@ -46,6 +46,7 @@ from nzstats.research.table_store import (
     load_forecasts,
     load_rejections,
 )
+from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
 
 _VERSIONS = (
     "SELECT e.id AS extraction_id, v.id AS version_id, v.title, v.acquisition, v.superseded_at, v.purged_at,"
@@ -54,10 +55,12 @@ _VERSIONS = (
     " JOIN research_publication p ON p.id = v.publication_id"
     " JOIN research_institution i ON i.id = p.institution_id"
     " WHERE e.id = (SELECT MAX(id) FROM research_table_extraction WHERE version_id = e.version_id)"
-    " AND e.interpreter_version = ?"
+    " AND e.interpreter_version IN (?, ?)"
     " ORDER BY v.id"
 )
 _QUOTE_MAX = 300
+# The current interpreter of each stored format: a PDF's tables (Phase 4AF) and ANZ's forecasts workbook (Phase 4AP).
+CURRENT_INTERPRETERS = (INTERPRETER_VERSION, XLSX_INTERPRETER)
 _UNRESOLVED = frozenset(
     {"units_mismatch", "horizon_mismatch", "attribution_mismatch", "ambiguous_or_unsupported"}
 )
@@ -159,7 +162,7 @@ def table_forecasts(
     usable: list[NormalizedForecast] = []
     excluded: list[ExcludedClaim] = []
     recs: list[Reconciliation] = []
-    for row in conn.execute(_VERSIONS, (INTERPRETER_VERSION,)).fetchall():
+    for row in conn.execute(_VERSIONS, CURRENT_INTERPRETERS).fetchall():
         inst = registry.get(row["institution"])
         if not _shown(row, inst):
             continue
@@ -212,7 +215,7 @@ def _table_state(
     interpreter = latest_interpreter(conn, version_id)
     if interpreter is None:
         return None  # never extracted, or refused by the reader (which stores nothing)
-    if interpreter != INTERPRETER_VERSION:
+    if interpreter not in CURRENT_INTERPRETERS:
         return "stale"
     codes = {r.code for r in load_rejections(conn, version_id)}
     own = [

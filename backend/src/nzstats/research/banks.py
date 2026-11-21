@@ -56,6 +56,10 @@ ADAPTERS: Mapping[str, BankAdapter] = {
     "anz": BankAdapter("anz", (
         Series("economic_outlook", "Quarterly Economic Outlook", "outlook", 100,
                url_pattern=r"/economics-and-market-research/\d{4}/ANZ-QEO-\d{8}\.pdf$"),
+        # Phase 4AP: the forecasts workbook, at the address the owner's browser recorded for the saved copy (one
+        # stable "latest" address: each release is a new version of the same document).
+        Series("forecasts_workbook", "ANZ Forecasts", "outlook", 100,
+               url_pattern=r"^https://www\.anz\.co\.nz/content/dam/anzconz/documents/economics-and-market-research/Latest-forecasts\.xlsx$"),
     )),
     "asb": BankAdapter("asb", (
         Series("quarterly_economic_forecasts", "Quarterly Economic Forecasts", "outlook", 100,

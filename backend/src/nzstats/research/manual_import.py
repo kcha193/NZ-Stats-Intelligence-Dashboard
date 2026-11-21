@@ -27,7 +27,7 @@ from nzstats.domain import IngestError
 from nzstats.research import store
 from nzstats.research.dates import DateParseError, PublishedDate, parse_published
 from nzstats.research.discover import Candidate
-from nzstats.research.extract import Extracted, ExtractionLimits
+from nzstats.research.extract import Extracted, ExtractionLimits, Section, clean_text
 from nzstats.research.extract_html import extract_html
 from nzstats.research.extract_pdf import extract_pdf
 from nzstats.research.fetch import DEFAULT_MAX_BYTES
@@ -35,12 +35,18 @@ from nzstats.research.ingest import ItemOutcome, store_document
 from nzstats.research.registry import Institution
 from nzstats.research.safety import HostPolicy, UnsafeUrl
 from nzstats.research.validate import PreviousVersion, safe_detail, validate_document
+from nzstats.research.xlsx_cells import read_cells, render_sheet
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.sources.fetcher import FetchResult
 from nzstats.store.db import transaction
 
 log = logging.getLogger(__name__)
-FORMATS = {"html": "text/html; charset=utf-8", "pdf": "application/pdf"}
+FORMATS = {
+    "html": "text/html; charset=utf-8",
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+XLSX_EXTRACTOR_VERSION = "xlsx-cells-1"
 
 
 class ImportRefused(ValueError):
@@ -68,7 +74,26 @@ def check_address(inst: Institution, url: str) -> str:
         raise ImportRefused(f"the document address is not allowed for {inst.key} ({exc})") from None
 
 
+def _extract_xlsx(body: bytes) -> Extracted:
+    """A workbook's cells as text, one section per sheet that holds cells (page = sheet position). Read in the
+    hardened child process; no formula is evaluated. Figures are read separately, by `research tables extract`."""
+    if body[:4] != b"PK\x03\x04":
+        raise ImportRefused("the file is not an XLSX workbook")
+    wb = read_cells(body)
+    sections = tuple(
+        Section(i, sheet.name, text, sheet.position, sheet.position)
+        for i, (sheet, text) in enumerate(
+            (s, clean_text(render_sheet(s))) for s in wb.sheets if s.cells
+        )
+    )
+    return Extracted(
+        "xlsx", None, sections, None, XLSX_EXTRACTOR_VERSION, page_count=len(wb.sheets)
+    )
+
+
 def _extract(body: bytes, file_format: str, limits: ExtractionLimits) -> Extracted:
+    if file_format == "xlsx":
+        return _extract_xlsx(body)
     if file_format == "pdf":
         if body[:5] != b"%PDF-":
             raise ImportRefused("the file is not a PDF")
@@ -116,7 +141,7 @@ def import_document(
     if not note or not note.strip():
         raise ImportRefused("a note is required (where and how the copy was obtained)")
     if file_format not in FORMATS:
-        raise ImportRefused(f"unsupported format {file_format!r} (html or pdf)")
+        raise ImportRefused(f"unsupported format {file_format!r} (html, pdf or xlsx)")
     if len(body) > max_bytes:
         raise ImportRefused(f"the file is larger than {max_bytes} bytes")
     address = check_address(inst, url)
