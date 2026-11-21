@@ -298,11 +298,14 @@ def test_stored_figures_reach_the_internal_view_only_under_auto_display(env):
     assert got[("gdp", "June 2026 quarter")]["forecast"]["value"] == 0.1
 
 
-def test_an_older_workbook_interpretation_stays_stored_and_needs_new_confirmation(env, monkeypatch):
+@pytest.mark.parametrize("prior_interpreter", ["xlsx-anz-1", "xlsx-anz-2"])
+def test_an_older_workbook_interpretation_stays_stored_and_needs_new_confirmation(
+    env, monkeypatch, prior_interpreter
+):
     v = do_import(env).version_id
     dry_run = extract(env, v, dry_run=True)
     with monkeypatch.context() as old:
-        old.setattr("nzstats.research.table_ingest.XLSX_INTERPRETER", "xlsx-anz-1")
+        old.setattr("nzstats.research.table_ingest.XLSX_INTERPRETER", prior_interpreter)
         prior_code = candidate_hash8(dry_run.candidates)
     store_extraction(
         env.conn,
@@ -311,7 +314,7 @@ def test_an_older_workbook_interpretation_stays_stored_and_needs_new_confirmatio
         dry_run.candidates,
         (),
         words_sha256=cells_sha256(read_cells(workbook(), isolate=False)),
-        interpreter_version="xlsx-anz-1",
+        interpreter_version=prior_interpreter,
     )
     _auto(env)
     client = _internal(env)
@@ -460,6 +463,26 @@ def test_qualified_workbook_notes_cannot_feed_comparison_or_consensus(env):
     assert {e["code"] for e in comparison["excluded"]} == {"table_unresolved_reconciliation"}
     consensus = client.get("/api/internal/bank-intelligence/consensus", headers=LOCAL).json()
     assert consensus["consensus"]["groups"] == []
+
+
+def test_explicit_unknown_source_stays_out_of_baseline_comparison(env):
+    notes = (LEGEND, "Data as at 5 November 2026", "Source: Independent Analytics", FILLER)
+    version = _store(env, workbook(growth_kw={"notes": notes}))
+    figures = load_forecasts(env.conn, version)
+    assert {f.author_role for f in figures if f.indicator == "gdp"} == {"third_party"}
+    _auto(env)
+    client = _internal(env)
+    comparison = client.get("/api/internal/bank-intelligence/forecasts", headers=LOCAL).json()
+    assert {f["forecast"]["indicator"] for f in comparison["forecasts"]} == {
+        "cpi_inflation",
+        "unemployment",
+    }
+    assert {e["code"] for e in comparison["excluded"]} == {"table_third_party"}
+    consensus = client.get("/api/internal/bank-intelligence/consensus", headers=LOCAL).json()
+    assert {g["indicator"] for g in consensus["consensus"]["groups"]} == {
+        "cpi_inflation",
+        "unemployment",
+    }
 
 
 def test_public_and_private_routes_carry_no_workbook_figure(env):

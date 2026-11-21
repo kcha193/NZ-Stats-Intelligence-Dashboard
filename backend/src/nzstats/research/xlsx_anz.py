@@ -25,12 +25,18 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Context, Decimal, InvalidOperation
 
 from nzstats.research.table_context import stored_context_rejection
-from nzstats.research.table_forecast import TableForecast, _horizon, _indicator, _third_party
+from nzstats.research.table_forecast import (
+    TableForecast,
+    _horizon,
+    _indicator,
+    _source_names_other_forecaster,
+    _third_party,
+)
 from nzstats.research.table_grid import Rejection
 from nzstats.research.table_parse import Period, parse_value, unit_of_text
 from nzstats.research.xlsx_cells import WorkbookCells, XCell, XSheet, serial_date
 
-INTERPRETER_VERSION = "xlsx-anz-2"
+INTERPRETER_VERSION = "xlsx-anz-3"
 
 _TITLE_ROW, _HEADER_ROW, _FIRST_DATE_ROW, _DATE_COL = 1, 2, 3, 1
 _QUARTER_MONTHS = frozenset({3, 6, 9, 12})
@@ -271,8 +277,14 @@ def _column(
     tail = _forecast_rows(sheet, col, rows)
     if tail is None:
         return [Rejection("forecast_boundary_unclear", *at)]
-    role_text = " ".join((label, sheet.name, document_title, legend, vintage or "", *others))
-    role = "third_party" if _third_party(role_text, publisher_names) else "author"
+    notes = (legend, vintage or "", *others)
+    role_text = " ".join((label, sheet.name, document_title, *notes))
+    role = (
+        "third_party"
+        if _source_names_other_forecaster(notes, publisher_names)
+        or _third_party(" ".join(role_text.split()), publisher_names)
+        else "author"
+    )
     out: list[TableForecast | Rejection] = []
     for row, day, cell in tail:
         period = Period("month_end", day.year, day.month)

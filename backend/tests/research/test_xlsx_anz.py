@@ -94,7 +94,7 @@ def codes(rejections) -> list[str]:
 
 
 def test_the_interpreter_version_is_pinned():
-    assert INTERPRETER_VERSION == "xlsx-anz-2"
+    assert INTERPRETER_VERSION == "xlsx-anz-3"
 
 
 def test_the_bold_tail_gives_forecasts_with_exact_evidence():
@@ -342,16 +342,28 @@ def test_a_text_or_bool_in_the_tail_is_refused_never_guessed():
     assert codes(rejections) == ["unrecognised_suffix", "unsupported_number_format"]
 
 
-def test_a_note_naming_another_forecaster_makes_the_figures_third_party():
-    forecasts, _ = run(standard(growth_kw={"notes": (LEGEND, AS_AT, "Source: RBNZ")}))
+@pytest.mark.parametrize(
+    ("source", "role"),
+    [
+        ("RBNZ", "third_party"),
+        ("Independent Analytics", "third_party"),
+        ("Independent\nAnalytics", "third_party"),
+        ("Fictional Bank", "author"),
+        ("Fictional\nBank", "author"),
+    ],
+)
+def test_a_source_note_determines_authorship_even_for_an_unknown_forecaster(source, role):
+    forecasts, rejections = run(standard(growth_kw={"notes": (LEGEND, AS_AT, f"Source: {source}")}))
     growth = [f for f in forecasts if f.page == 2]
-    assert growth and {f.author_role for f in growth} == {"third_party"}
+    assert not rejections and len(growth) == 6
+    assert {f.author_role for f in growth} == {role}
     assert {f.author_role for f in forecasts if f.page == 3} == {"author"}
 
 
-def test_a_legend_naming_another_forecaster_makes_the_figures_third_party():
+@pytest.mark.parametrize("forecaster", ["Treasury", "World\nBank"])
+def test_a_legend_naming_another_forecaster_makes_the_figures_third_party(forecaster):
     forecasts, _ = run(
-        standard(growth_kw={"notes": ("Figures in bold are Treasury forecasts", AS_AT)})
+        standard(growth_kw={"notes": (f"Figures in bold are {forecaster} forecasts", AS_AT)})
     )
     assert {f.author_role for f in forecasts if f.page == 2} == {"third_party"}
 
@@ -360,6 +372,7 @@ def test_a_legend_naming_another_forecaster_makes_the_figures_third_party():
     ("legend", "as_at"),
     [
         (LEGEND, AS_AT),
+        ("Figures in bold are Fictional\nBank forecasts", AS_AT),
         ("Baseline forecasts are shown in bold", "Updated: 2026-11-05"),
         ("Bold font denotes Fictional Bank central projections", "Last updated on 05/11/2026"),
         (

@@ -72,10 +72,10 @@ legacy row when the bytes match or its verified local artifact has the same cell
 establish a match, the supplied workbook takes the semantic key. Existing publication links and audit rows stay intact.
 The current schema supports both keys, so this requires no migration or replay.
 
-Interpreter `xlsx-anz-2` checks qualifiers in the bold legend and vintage note during extraction and stored-evidence
-revalidation. It keeps the original notes as evidence. Earlier extractions remain recorded. The internal view uses
-the current interpreter and a new owner confirmation code is required to store its extraction. The two-release history
-gate still applies.
+Interpreter `xlsx-anz-3` checks qualifiers in the bold legend and vintage note during extraction and stored-evidence
+revalidation. It keeps the original notes as evidence and uses the PDF interpreter's explicit source check to attribute
+workbook forecasts. Earlier extractions remain recorded. The internal view uses the current interpreter and a new owner
+confirmation code is required to store its extraction. The two-release history gate still applies.
 
 ## 2. Real workbook pilot, 21 November 2026
 

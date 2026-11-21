@@ -97,6 +97,7 @@ def unmarked_notes(notes: Sequence[str]) -> tuple[str, ...]:
 
 def _structural_note(text: str, publisher_names: Sequence[str], *, legend: bool = False) -> str:
     """Remove recognized workbook syntax while retaining scope, units and other qualifiers."""
+    text = " ".join(text.split())
     if legend:
         text = _BOLD_MARKER.sub(" ", text)
     text = _VINTAGE_DATE.sub(" ", text)
