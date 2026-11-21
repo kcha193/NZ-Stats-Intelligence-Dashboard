@@ -85,3 +85,43 @@ def with_cached_formula(path: Path, cell: str, cached: str) -> Path:
 def sheet1(path: Path) -> bytes:
     with zipfile.ZipFile(path) as z:
         return z.read("xl/worksheets/sheet1.xml")
+
+
+def drawing(*shapes: str) -> bytes:
+    bodies = "".join(f"<xdr:sp><xdr:txBody>{shape}</xdr:txBody></xdr:sp>" for shape in shapes)
+    return (
+        '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" '
+        f'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">{bodies}</xdr:wsDr>'
+    ).encode()
+
+
+def vertical_book() -> Workbook:
+    """Fictional vertical time series: dates down column A, one block of three series, a forecast marker merged down the
+    forecast rows, shading from the first forecast row and a source note. Every label and figure is invented."""
+    from openpyxl.styles import PatternFill
+
+    wb = Workbook()
+    wb.active.title = "cover"
+    ws = wb.create_sheet("Fictional data")
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "Fictional outlook data"
+    ws["B2"] = "GDP (production), real"
+    ws["C2"] = "Quarterly % change"
+    ws["D2"] = "Annual % change"
+    shade = PatternFill("solid", fgColor="DDDDDD")
+    for i in range(12):  # quarter ends from March 2024
+        row = 3 + i
+        year, q = 2024 + i // 4, i % 4
+        month = 3 * (q + 1)
+        day = 31 if month in (3, 12) else 30
+        ws.cell(row=row, column=1, value=datetime(year, month, day))
+        for col in (2, 3, 4):
+            cell = ws.cell(row=row, column=col, value=100.0 + i + col / 10)
+            if row >= 11:
+                cell.fill = shade
+    ws.merge_cells("E11:E14")
+    ws["E11"] = "Forecast"
+    ws["F5"] = SECRET_LABEL
+    ws["G5"] = SECRET_VALUE
+    ws["A16"] = "Source: Fictional Stats, Fictional Bank"
+    return wb

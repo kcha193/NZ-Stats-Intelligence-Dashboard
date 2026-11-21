@@ -7,6 +7,19 @@ and hosted processing stays refused. The Claude Code session doing the work read
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
 
+## Phase 4AO: ANZ forecasts workbook, suitability (Stages 1 to 3), 21 November 2026
+
+Branch `feat/phase-4ao-anz-workbook` from main `c6893ab`. [record](phase-4ao-anz-workbook.md).
+**C2W met (owner, 21 November 2026); registry note covers the workbook route; no adapter, migration or import yet.**
+
+- Real workbook inspected masked: archive safe, no formulas, six visible sheets, vertical quarterly series, forecasts
+  marked bold with a legend note (one switch row per column). GDP, CPI inflation and unemployment pass G3.
+- PR #68 extended the masked probes to cover split drawing runs, worksheet print headers and footers, and annual basis
+  wording. Both modes passed on the authorised SHA-pinned copy. Zero recognised hints in the scanned OCR locations
+  leave the OCR unit **UNVERIFIED** and OCR ineligible. Inspector: 150 synthetic tests passed after remediation.
+- GO to build the [narrow adapter](superpowers/plans/2026-11-21-phase-4ao-anz-xlsx-adapter.md). Real pilot stays
+  NO-GO pending the required gates and owner reconciliation. 0 figures extracted.
+
 ## PR #67 review remediation, 21 November 2026
 
 Both P2 comments (4640570866, 4640570879) have synthetic regressions and fixes: worksheet/merged/hyperlink/comment

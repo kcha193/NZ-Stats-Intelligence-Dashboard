@@ -33,6 +33,18 @@ def assert_anz_holds_only_the_personal_scope(inst: Institution) -> None:
     note = inst.manual_import_note
     assert "docs/phase-4ai-authorization-assessment.md" in note and "not a licence from ANZ" in note
     assert "one browser-saved Economic Outlook PDF" in note and "loopback dashboard only" in note
+    # Phase 4AO: C2W met, so the Phase 4AN workbook route is covered. Everything automated or shared stays excluded.
+    assert "one browser-saved forecasts workbook (XLSX)" in note
+    assert "docs/phase-4an-anz-workbook.md" in note and "conditions C2W met on 2026-11-21" in note
+    assert "the forecasts workbook" not in note.split("Not covered:", 1)[1]
+    for excluded in (
+        "automated fetching",
+        "any model",
+        "public or shared display",
+        "snapshots",
+        "scheduling",
+    ):
+        assert excluded in note.split("Not covered:", 1)[1], excluded
     assert inst.content_policy is ContentPolicy.FULL_TEXT
     # The crawler needs review_status approved, which this scope never gives.
     assert inst.review_status is ReviewStatus.NEEDS_REVIEW and not inst.automated_access_allowed
