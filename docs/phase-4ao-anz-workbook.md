@@ -111,6 +111,6 @@ address (for the ANZ series pattern). Verdict for this branch: **GO to build; pi
 ## 5. Verification
 
 - `benchmarks/xlsx_inspect`: 125 passed (17 new layout tests); ruff check and format clean.
-- Backend: full suite and ruff, run before the PR (see the PR description for counts).
+- Backend: 7,148 passed, 0 failed (exit 0); ruff check and format clean.
 - Privacy: the session read only masked JSON. `phase-4ao.json` and `phase-4ao-layout.json` hold counts, flags, indices,
   fixed codes and the file's SHA-256.

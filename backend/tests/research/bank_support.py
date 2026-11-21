@@ -37,7 +37,13 @@ def assert_anz_holds_only_the_personal_scope(inst: Institution) -> None:
     assert "one browser-saved forecasts workbook (XLSX)" in note
     assert "docs/phase-4an-anz-workbook.md" in note and "conditions C2W met on 2026-11-21" in note
     assert "the forecasts workbook" not in note.split("Not covered:", 1)[1]
-    for excluded in ("automated fetching", "any model", "public or shared display", "snapshots", "scheduling"):
+    for excluded in (
+        "automated fetching",
+        "any model",
+        "public or shared display",
+        "snapshots",
+        "scheduling",
+    ):
         assert excluded in note.split("Not covered:", 1)[1], excluded
     assert inst.content_policy is ContentPolicy.FULL_TEXT
     # The crawler needs review_status approved, which this scope never gives.
