@@ -1,0 +1,78 @@
+{
+ "sheets": [
+  {
+   "blocks": 14,
+   "blocks_whose_title_alone_maps": 10,
+   "distinct_titles": 14,
+   "position": 2,
+   "sheet_name_names_an_indicator": true,
+   "sheet_name_unknown_words": 2,
+   "sheet_name_unknown_words_in_every_title": 0,
+   "sheet_name_unknown_words_in_some_title": 0,
+   "sheet_name_words": 4,
+   "title_word_counts": [
+    3,
+    3,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    5,
+    6,
+    6,
+    6,
+    7
+   ],
+   "titles_gdp_variant": 0,
+   "titles_stating_nominal": 0,
+   "titles_stating_real": 10
+  },
+  {
+   "blocks": 8,
+   "blocks_whose_title_alone_maps": 4,
+   "distinct_titles": 8,
+   "position": 3,
+   "sheet_name_names_an_indicator": true,
+   "sheet_name_unknown_words": 1,
+   "sheet_name_unknown_words_in_every_title": 0,
+   "sheet_name_unknown_words_in_some_title": 1,
+   "sheet_name_words": 4,
+   "title_word_counts": [
+    2,
+    2,
+    2,
+    3,
+    3,
+    5,
+    7,
+    7
+   ],
+   "titles_gdp_variant": 0,
+   "titles_stating_nominal": 0,
+   "titles_stating_real": 0
+  },
+  {
+   "blocks": 4,
+   "blocks_whose_title_alone_maps": 0,
+   "distinct_titles": 4,
+   "position": 4,
+   "sheet_name_names_an_indicator": false,
+   "sheet_name_unknown_words": 2,
+   "sheet_name_unknown_words_in_every_title": 0,
+   "sheet_name_unknown_words_in_some_title": 1,
+   "sheet_name_words": 3,
+   "title_word_counts": [
+    2,
+    2,
+    2,
+    2
+   ],
+   "titles_gdp_variant": 0,
+   "titles_stating_nominal": 0,
+   "titles_stating_real": 0
+  }
+ ]
+}

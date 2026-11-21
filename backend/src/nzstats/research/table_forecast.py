@@ -99,13 +99,21 @@ def _third_party(text: str, publisher_names: Sequence[str]) -> bool:
     return _names(text, others)
 
 
+def _source_names_other_forecaster(notes: Sequence[str], publisher_names: Sequence[str]) -> bool:
+    """An explicit source line can name a forecaster outside the known vocabulary."""
+    return any(
+        (source := _SOURCE.match(" ".join(note.split()))) is not None
+        and not _names(source[1], publisher_names)
+        for note in notes
+    )
+
+
 def _author_role(
     t: GridTable, publisher_names: Sequence[str], document_title: str
 ) -> Literal["author", "third_party"]:
     """The bank unless a source line or the caption points at someone else and does not name the bank."""
-    for note in t.notes:
-        if (m := _SOURCE.match(note.strip())) and not _names(m[1], publisher_names):
-            return "third_party"
+    if _source_names_other_forecaster(t.notes, publisher_names):
+        return "third_party"
     caption = " ".join((document_title, t.caption or ""))
     if _third_party(" ".join((caption, *unmarked_notes(t.notes))), publisher_names):
         return "third_party"

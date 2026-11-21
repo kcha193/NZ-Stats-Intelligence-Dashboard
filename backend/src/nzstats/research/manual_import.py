@@ -7,8 +7,8 @@ automated access. Nothing is requested: the document's address is checked agains
 (https, allowed host and path, no blocked prefix) without a DNS lookup, so only approved source URLs are recorded.
 
 The file goes through the crawler's extraction and validation (access walls, challenge pages, minimum length, the
-shrink guard) and its store: content-addressed raw bytes, a version per distinct text (a revert reuses the old one),
-sections with offsets and pages. Each import that reaches the store writes an append-only audit record (who, when,
+shrink guard) and its store: content-addressed raw bytes, versions keyed by distinct text or workbook semantics, and
+sections with offsets and pages. A revert reuses the old version. Each import that reaches the store writes an append-only audit record (who, when,
 hashes, outcome, the registry permissions in force, a private note) in the same transaction. LLM processing, public
 display, review and publication remain separate gates, exactly as for crawled documents.
 """
@@ -19,7 +19,7 @@ import hashlib
 import json
 import logging
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 
 from nzstats.clock import to_utc_iso
@@ -27,7 +27,7 @@ from nzstats.domain import IngestError
 from nzstats.research import store
 from nzstats.research.dates import DateParseError, PublishedDate, parse_published
 from nzstats.research.discover import Candidate
-from nzstats.research.extract import Extracted, ExtractionLimits
+from nzstats.research.extract import Extracted, ExtractionLimits, Section, clean_text
 from nzstats.research.extract_html import extract_html
 from nzstats.research.extract_pdf import extract_pdf
 from nzstats.research.fetch import DEFAULT_MAX_BYTES
@@ -35,12 +35,18 @@ from nzstats.research.ingest import ItemOutcome, store_document
 from nzstats.research.registry import Institution
 from nzstats.research.safety import HostPolicy, UnsafeUrl
 from nzstats.research.validate import PreviousVersion, safe_detail, validate_document
+from nzstats.research.xlsx_cells import MAX_ARCHIVE, cells_sha256, read_cells, render_sheet
 from nzstats.sources.artifacts import ArtifactStore
 from nzstats.sources.fetcher import FetchResult
 from nzstats.store.db import transaction
 
 log = logging.getLogger(__name__)
-FORMATS = {"html": "text/html; charset=utf-8", "pdf": "application/pdf"}
+FORMATS = {
+    "html": "text/html; charset=utf-8",
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+XLSX_EXTRACTOR_VERSION = "xlsx-cells-2"
 
 
 class ImportRefused(ValueError):
@@ -68,7 +74,66 @@ def check_address(inst: Institution, url: str) -> str:
         raise ImportRefused(f"the document address is not allowed for {inst.key} ({exc})") from None
 
 
+def _extract_xlsx(body: bytes) -> Extracted:
+    """A workbook's cells as text, one section per sheet that holds cells (page = sheet position). Read in the
+    hardened child process; no formula is evaluated. Figures are read separately, by `research tables extract`."""
+    if body[:4] != b"PK\x03\x04":
+        raise ImportRefused("the file is not an XLSX workbook")
+    wb = read_cells(body)
+    sections = tuple(
+        Section(i, sheet.name, text, sheet.position, sheet.position)
+        for i, (sheet, text) in enumerate(
+            (s, clean_text(render_sheet(s))) for s in wb.sheets if s.cells
+        )
+    )
+    return Extracted(
+        "xlsx", None, sections, None, XLSX_EXTRACTOR_VERSION,
+        page_count=len(wb.sheets), semantic_sha256=cells_sha256(wb),
+    )  # fmt: skip
+
+
+def _reuse_legacy_workbook_key(
+    conn: sqlite3.Connection,
+    doc_key: str,
+    extracted: Extracted,
+    content_sha: str,
+    artifacts: ArtifactStore | None,
+) -> Extracted:
+    """Reuse a pre-semantic version in this publication only after verifying equivalent cells."""
+    legacy = conn.execute(
+        "SELECT v.content_sha256, a.path FROM research_document_version v"
+        " JOIN research_publication p ON p.id=v.publication_id"
+        " LEFT JOIN raw_artifact a ON a.id=v.raw_artifact_id"
+        " WHERE p.doc_key=? AND v.format='xlsx' AND v.extractor_version='xlsx-cells-1'"
+        " AND v.text_sha256=? AND v.purged_at IS NULL"
+        " AND NOT EXISTS (SELECT 1 FROM research_document_version newer"
+        " WHERE newer.publication_id=p.id AND newer.text_sha256=?)",
+        (doc_key, extracted.normalized_text_sha256, extracted.text_sha256),
+    ).fetchone()
+    if legacy is None:
+        return extracted
+    if legacy["content_sha256"] != content_sha:
+        if artifacts is None or not legacy["path"] or not artifacts.exists(legacy["path"]):
+            return extracted
+        try:
+            with (artifacts.root / legacy["path"]).open("rb") as handle:
+                prior = handle.read(MAX_ARCHIVE + 1)
+            if (
+                len(prior) > MAX_ARCHIVE
+                or hashlib.sha256(prior).hexdigest() != legacy["content_sha256"]
+            ):
+                return extracted
+            if cells_sha256(read_cells(prior)) != extracted.semantic_sha256:
+                return extracted
+        except (OSError, IngestError):
+            log.warning("legacy workbook raw copy could not be verified")
+            return extracted
+    return replace(extracted, semantic_sha256=None)
+
+
 def _extract(body: bytes, file_format: str, limits: ExtractionLimits) -> Extracted:
+    if file_format == "xlsx":
+        return _extract_xlsx(body)
     if file_format == "pdf":
         if body[:5] != b"%PDF-":
             raise ImportRefused("the file is not a PDF")
@@ -116,7 +181,7 @@ def import_document(
     if not note or not note.strip():
         raise ImportRefused("a note is required (where and how the copy was obtained)")
     if file_format not in FORMATS:
-        raise ImportRefused(f"unsupported format {file_format!r} (html or pdf)")
+        raise ImportRefused(f"unsupported format {file_format!r} (html, pdf or xlsx)")
     if len(body) > max_bytes:
         raise ImportRefused(f"the file is larger than {max_bytes} bytes")
     address = check_address(inst, url)
@@ -144,6 +209,8 @@ def import_document(
     except IngestError as exc:
         raise ImportRefused(f"validation failed: {safe_detail(exc)}") from None
     content_sha = hashlib.sha256(body).hexdigest()
+    if extracted.format == "xlsx":
+        extracted = _reuse_legacy_workbook_key(conn, doc_key, extracted, content_sha, artifacts)
     snapshot = json.dumps(inst.licence_snapshot(), sort_keys=True)
     with transaction(conn):
         inst_id = store.upsert_institution(conn, key=inst.key, name=inst.name,
@@ -156,13 +223,14 @@ def import_document(
             " file_format, content_sha256, text_sha256, imported_by, note, licence_snapshot, imported_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (inst_id, address, item.publication_id, item.version_id, item.outcome, file_format, content_sha,
-             extracted.text_sha256, importer.strip(), note.strip(), snapshot, to_utc_iso(now)),
+             extracted.normalized_text_sha256, importer.strip(), note.strip(), snapshot, to_utc_iso(now)),
         )  # fmt: skip
 
     purged_msg = "this text was purged and cannot be stored again (see `research purge`)"
     if store.purged_text(
-        conn, inst_id, extracted.text_sha256, content_sha256=content_sha, doc_key=doc_key
-    ):
+        conn, inst_id, extracted.text_sha256, content_sha256=content_sha, doc_key=doc_key,
+        normalized_text_sha256=extracted.normalized_text_sha256 if extracted.format == "xlsx" else None,
+    ):  # fmt: skip
         raise ImportRefused(purged_msg)
     fetched = FetchResult(
         address, 0, FORMATS[file_format], body, now

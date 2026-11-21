@@ -131,6 +131,41 @@ def test_bank_forecasts_and_automatic_drafts_never_reach_a_snapshot(full_dir, co
         assert leaked not in blob, leaked
 
 
+def test_stored_workbook_figures_never_reach_a_snapshot(full_dir, copy_of, tmp_path):
+    """Phase 4AP: an owner-confirmed ANZ-shaped workbook extraction, shown in the bank view, changes no snapshot byte."""
+    from datetime import date
+
+    from nzstats.research.manual_import import import_document
+    from nzstats.research.registry import load_registry
+    from nzstats.research.table_ingest import extract_version_tables
+    from nzstats.sources.artifacts import ArtifactStore
+    from tests.research.test_xlsx_pipeline import WORKBOOK_URL, workbook
+
+    with_workbook = copy_of(full_dir)
+    conn = connect(with_workbook / "nzstats.db")
+    migrate(conn)
+    registry, artifacts = load_registry(), ArtifactStore(with_workbook / "raw")
+    v = import_document(
+        conn, registry["anz"], body=workbook(), file_format="xlsx", url=WORKBOOK_URL, importer="Test Owner",
+        note="synthetic", now=NOW, artifacts=artifacts, title="ANZ Forecasts", published_on=date(2026, 11, 5),
+    ).version_id  # fmt: skip
+    code = extract_version_tables(conn, v, artifacts, registry, NOW, dry_run=True, isolate=False)
+    stored = extract_version_tables(
+        conn, v, artifacts, registry, NOW, confirm=code.candidate_hash8, isolate=False
+    )
+    assert stored.status == "stored" and stored.forecasts > 0
+    conn.close()
+    (with_workbook / "internal-drafts.json").write_text(json.dumps({"auto_display": {
+        "enabled": True, "enabled_by": "Test Owner", "enabled_on": "2026-11-21", "note": TEXT}}))  # fmt: skip
+    plain = export_snapshot(full_dir, tmp_path / "plain", now=EXPORT_NOW, allow_fixtures=True)
+    mixed = export_snapshot(with_workbook, tmp_path / "mixed", now=EXPORT_NOW, allow_fixtures=True)
+    assert plain["snapshot_id"] == mixed["snapshot_id"]
+    assert _files(tmp_path / "plain") == _files(tmp_path / "mixed")
+    blob = b"".join(_files(tmp_path / "mixed").values())
+    for leaked in (b"Latest-forecasts", b"Test Owner", b"anz.co.nz"):
+        assert leaked not in blob, leaked
+
+
 @pytest.mark.parametrize("path", ["/api/health", "/api/overview", "/api/releases", "/api/cpi"])
 def test_stats_nz_api_answers_are_unchanged_by_research_rows(full_dir, copy_of, path):
     def answer(data_dir: Path):

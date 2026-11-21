@@ -282,7 +282,7 @@ def test_an_older_schema_set_restores_and_asks_for_a_migrate(tmp_path) -> None:
         ).fetchone()
         is not None
     )
-    assert migrate(copy) == 15
+    assert migrate(copy) == 16
     copy.close()
     assert verify_backup(tmp_path / "restored" / "nzstats.db").ok
 

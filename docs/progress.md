@@ -1,11 +1,28 @@
 # Progress and verification record
 
-Last updated 2026-11-09 (see the repository health review entry below the next paragraph). **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-21 (Phase 4AP below; see the repository health review entry below the next paragraph). **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4AP: ANZ forecasts workbook ingestion, 21 November 2026
+
+Branch `feat/phase-4ap-anz-xlsx-ingestion` from main `597b16d`. [record](phase-4ap-anz-xlsx-ingestion.md).
+**Built and piloted. The real workbook gives 0 candidates (fail closed), so nothing was stored. NO-GO for figures until
+the owner decides the items in record §2.2.**
+
+- Migration 016 admits `xlsx`, with a rehearsed rollback. The bounded stdlib cell reader runs in the hardened child.
+  Mapping `xlsx-anz-1` covers GDP, CPI inflation and unemployment; OCR stays excluded. Wiring: `.xlsx` manual import,
+  ANZ `forecasts_workbook` series, `tables extract --dry-run [--list]` / `--confirm HASH8` (the owner's
+  reconciliation code), the internal loopback view only, and `history_unverified` in revisions and evaluation.
+- Pilot: version 5 (SHA `4c2d4b47…`, address from saved download provenance, no date guessed). Dry run: 97 rejections
+  (`ambiguous_indicator` ×52, `unmapped_row` ×42, `unsupported_period` ×2, `unit_unstated` ×1). Masked probes found 10
+  distinct real-GDP blocks and 3 CPI blocks. The mapping now refuses such indicators rather than picking one. The live
+  database is at schema 16; the snapshot is byte-identical to the pre-import copy.
+- Pending owner input: headline block selection, the unemployment unit, the sheet-name words, and the publication date
+  (re-import with `--published-on`).
 
 ## Phase 4AO: ANZ forecasts workbook, suitability (Stages 1 to 3), 21 November 2026
 

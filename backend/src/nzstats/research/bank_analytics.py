@@ -50,6 +50,7 @@ from nzstats.research.consensus import consensus
 from nzstats.research.history import forecast_history
 from nzstats.research.macro_outcomes import gdp_actuals, unemployment_actuals
 from nzstats.research.outcomes import CpiActuals, Outcome, Target
+from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
 
 ADJUSTMENTS: tuple[Adjustment, ...] = ("seasonally_adjusted", "unadjusted", "not_stated")
 REASONS = {
@@ -71,7 +72,14 @@ REASONS = {
         "This bank has a newer report whose figures have not been read,"
         " so its older figure is not shown as current."
     ),
+    "history_unverified": (
+        "Figures read from this bank's forecasts workbook are not used for revisions or evaluation until its"
+        " layout has been checked stable across two releases."
+    ),
 }
+# Readers whose figures stay out of the history views (revisions, evaluation) until two-release stability is verified
+# (Phase 4AP: the ANZ forecasts workbook; docs/phase-4ap-anz-xlsx-ingestion.md).
+HISTORY_UNVERIFIED = frozenset({XLSX_INTERPRETER})
 
 
 @dataclass(frozen=True)
@@ -164,11 +172,15 @@ def _not_current(
     return out
 
 
-def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool, current: bool) -> _Prepared:
+def _prepare(
+    view: BankView, *, outlook_only: bool, dated_only: bool, current: bool, history: bool = False
+) -> _Prepared:
     excluded: list[BankExclusionOut] = []
     eligible: list[NormalizedForecast] = []
     for n in view.forecasts:
-        if outlook_only and n.report_kind != "outlook":
+        if history and n.extraction_method == "table" and n.verifier_version in HISTORY_UNVERIFIED:
+            excluded.append(_exclusion(n, "history_unverified"))
+        elif outlook_only and n.report_kind != "outlook":
             excluded.append(_exclusion(n, "not_outlook_report"))
         elif dated_only and not n.forecast.published_on:
             excluded.append(_exclusion(n, "no_publication_date"))
@@ -236,14 +248,20 @@ def _prepare(view: BankView, *, outlook_only: bool, dated_only: bool, current: b
 
 
 def bank_exclusions(
-    view: BankView, *, outlook_only: bool, dated_only: bool, current: bool = True
+    view: BankView,
+    *,
+    outlook_only: bool,
+    dated_only: bool,
+    current: bool = True,
+    history: bool = False,
 ) -> list[BankExclusionOut]:
     """What an analysis with these settings leaves out, with fixed codes and reasons (never document text).
 
-    `current` is False for the history views (revisions, evaluation), which keep every accepted vintage.
+    `current` is False for the history views (revisions, evaluation), which keep every accepted vintage; `history`
+    is True for them, which leaves out readers not yet verified across two releases.
     """
     return _prepare(
-        view, outlook_only=outlook_only, dated_only=dated_only, current=current
+        view, outlook_only=outlook_only, dated_only=dated_only, current=current, history=history
     ).excluded
 
 
@@ -259,7 +277,7 @@ def bank_comparison(view: BankView) -> list[tuple[Adjustment, ForecastComparison
 
 
 def bank_revisions(view: BankView) -> list[tuple[Adjustment, ForecastHistoryOut]]:
-    prepared = _prepare(view, outlook_only=True, dated_only=True, current=False)
+    prepared = _prepare(view, outlook_only=True, dated_only=True, current=False, history=True)
     return [(adj, forecast_history(fs)) for adj, fs in _ordered(prepared)]
 
 
@@ -431,7 +449,7 @@ class _AdjustmentAwareActuals:
 def bank_evaluation(
     view: BankView, conn: sqlite3.Connection, indicator: str
 ) -> ForecastEvaluationOut:
-    prepared = _prepare(view, outlook_only=True, dated_only=True, current=False)
+    prepared = _prepare(view, outlook_only=True, dated_only=True, current=False, history=True)
     members = [n for adjustment in ADJUSTMENTS for n in prepared.partitions.get(adjustment, [])]
     forecasts = [n.forecast for n in members]
     inner = {"gdp": gdp_actuals, "unemployment": unemployment_actuals}.get(indicator, CpiActuals)(

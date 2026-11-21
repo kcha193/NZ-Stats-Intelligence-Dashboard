@@ -1,0 +1,1991 @@
+{
+ "codes": {
+  "ambiguous_indicator": 52,
+  "unit_unstated": 1,
+  "unmapped_row": 42,
+  "unsupported_period": 2
+ },
+ "sheets": [
+  {
+   "cells": 0,
+   "position": 1,
+   "quarterly_dates": false,
+   "rejections": {},
+   "visible": true
+  },
+  {
+   "cells": 6332,
+   "columns": [
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 2,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 3,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 4,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 5,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 6,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 7,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 8,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 9,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 10,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 11,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 12,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 13,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "boundary_ok": true,
+     "col": 14,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "boundary_ok": true,
+     "col": 15,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "boundary_ok": true,
+     "col": 16,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "boundary_ok": true,
+     "col": 17,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "boundary_ok": true,
+     "col": 18,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "boundary_ok": true,
+     "col": 19,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "boundary_ok": true,
+     "col": 20,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "boundary_ok": true,
+     "col": 21,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 6,
+     "boundary_ok": true,
+     "col": 22,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 6,
+     "boundary_ok": true,
+     "col": 23,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 6,
+     "boundary_ok": true,
+     "col": 24,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 6,
+     "boundary_ok": true,
+     "col": 25,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "boundary_ok": true,
+     "col": 26,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "boundary_ok": true,
+     "col": 27,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "boundary_ok": true,
+     "col": 28,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "boundary_ok": true,
+     "col": 29,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "boundary_ok": true,
+     "col": 30,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "boundary_ok": true,
+     "col": 31,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "boundary_ok": true,
+     "col": 32,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "boundary_ok": true,
+     "col": 33,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 9,
+     "boundary_ok": true,
+     "col": 34,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 9,
+     "boundary_ok": true,
+     "col": 35,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 9,
+     "boundary_ok": true,
+     "col": 36,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 9,
+     "boundary_ok": true,
+     "col": 37,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 10,
+     "boundary_ok": true,
+     "col": 38,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 10,
+     "boundary_ok": true,
+     "col": 39,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 10,
+     "boundary_ok": true,
+     "col": 40,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 10,
+     "boundary_ok": true,
+     "col": 41,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "gdp"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 11,
+     "col": 42,
+     "header_present": false,
+     "indicator": [],
+     "unit": [
+      null,
+      null
+     ],
+     "unit_parts": [
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "block": 12,
+     "col": 43,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 12,
+     "col": 44,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 12,
+     "col": 45,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 12,
+     "col": 46,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 13,
+     "col": 47,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 13,
+     "col": 48,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 13,
+     "col": 49,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 13,
+     "col": 50,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 14,
+     "col": 51,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 14,
+     "col": 52,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 14,
+     "col": 53,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 14,
+     "col": 54,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      "unsupported_unit",
+      "ok",
+      null
+     ]
+    }
+   ],
+   "legend_found": true,
+   "other_notes": 0,
+   "other_notes_unknown_words": 0,
+   "position": 2,
+   "quarterly_dates": true,
+   "rejections": {
+    "ambiguous_indicator": 40,
+    "unmapped_row": 13
+   },
+   "sheet_name_unknown_words": true,
+   "unmapped_columns": 0,
+   "vintage_found": true,
+   "visible": true
+  },
+  {
+   "cells": 3166,
+   "columns": [
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 2,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 3,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 4,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "boundary_ok": true,
+     "col": 5,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 6,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 7,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 8,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "boundary_ok": true,
+     "col": 9,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 10,
+     "context_label_only": "unsupported_unit",
+     "context_whole": "unsupported_unit",
+     "context_without_header": "unsupported_unit",
+     "context_without_notes": "unsupported_unit",
+     "context_without_sheet_name": "unsupported_unit",
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 11,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 12,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": false,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "boundary_ok": true,
+     "col": 13,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": true,
+     "header_unknown_words": true,
+     "indicator": [
+      "cpi_inflation"
+     ],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "boundary_ok": true,
+     "col": 14,
+     "context_label_only": null,
+     "context_whole": "unsupported_context",
+     "context_without_header": "unsupported_context",
+     "context_without_notes": "unsupported_context",
+     "context_without_sheet_name": null,
+     "header_present": false,
+     "header_unknown_words": false,
+     "indicator": [
+      "unemployment"
+     ],
+     "unit": [
+      null,
+      null
+     ],
+     "unit_parts": [
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "col": 15,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "col": 16,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "col": 17,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 5,
+     "col": 18,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 6,
+     "col": 19,
+     "header_present": false,
+     "indicator": [],
+     "unit": [
+      null,
+      null
+     ],
+     "unit_parts": [
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "col": 20,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "col": 21,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "col": 22,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 7,
+     "col": 23,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "col": 24,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "col": 25,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "col": 26,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 8,
+     "col": 27,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    }
+   ],
+   "legend_found": true,
+   "other_notes": 0,
+   "other_notes_unknown_words": 0,
+   "position": 3,
+   "quarterly_dates": true,
+   "rejections": {
+    "ambiguous_indicator": 12,
+    "unit_unstated": 1,
+    "unmapped_row": 13
+   },
+   "sheet_name_unknown_words": true,
+   "unmapped_columns": 0,
+   "vintage_found": true,
+   "visible": true
+  },
+  {
+   "cells": 1898,
+   "columns": [
+    {
+     "block": 1,
+     "col": 2,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "col": 3,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "col": 4,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 1,
+     "col": 5,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "col": 6,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "col": 7,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "col": 8,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 2,
+     "col": 9,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "col": 10,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "col": 11,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "col": 12,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 3,
+     "col": 13,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "col": 14,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      null,
+      "unsupported_unit"
+     ],
+     "unit_parts": [
+      null,
+      "unsupported_unit",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "col": 15,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "col": 16,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    },
+    {
+     "block": 4,
+     "col": 17,
+     "header_present": true,
+     "indicator": [],
+     "unit": [
+      "percent",
+      null
+     ],
+     "unit_parts": [
+      null,
+      "ok",
+      null
+     ]
+    }
+   ],
+   "legend_found": true,
+   "other_notes": 0,
+   "other_notes_unknown_words": 0,
+   "position": 4,
+   "quarterly_dates": true,
+   "rejections": {
+    "unmapped_row": 16
+   },
+   "sheet_name_unknown_words": true,
+   "unmapped_columns": 0,
+   "vintage_found": true,
+   "visible": true
+  },
+  {
+   "cells": 5708,
+   "position": 5,
+   "quarterly_dates": false,
+   "rejections": {
+    "unsupported_period": 1
+   },
+   "visible": true
+  },
+  {
+   "cells": 1546,
+   "position": 6,
+   "quarterly_dates": false,
+   "rejections": {
+    "unsupported_period": 1
+   },
+   "visible": true
+  }
+ ]
+}

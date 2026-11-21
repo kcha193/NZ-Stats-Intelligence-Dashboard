@@ -203,7 +203,9 @@ def bank_router(
             return BankRevisionsOut(histories=[], excluded=[])
         return BankRevisionsOut(
             histories=[BankHistoryOut(adjustment=a, history=h) for a, h in bank_revisions(got[2])],
-            excluded=bank_exclusions(got[2], outlook_only=True, dated_only=True, current=False),
+            excluded=bank_exclusions(
+                got[2], outlook_only=True, dated_only=True, current=False, history=True
+            ),
         )
 
     @router.get(

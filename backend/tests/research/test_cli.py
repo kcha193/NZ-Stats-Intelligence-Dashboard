@@ -519,7 +519,7 @@ def test_import_infers_the_format_from_the_file_suffix_and_refuses_others(env, t
     doc = _doc(tmp_path, "outlook.docx")
     assert main(["research", "import", "manualonly", str(doc), "--url", "https://docs.example.org/o",
                  "--importer", "Owner", "--note", "n"]) == 2  # fmt: skip
-    assert "html or pdf" in capsys.readouterr().out
+    assert "html, pdf or xlsx" in capsys.readouterr().out
 
 
 def test_health_reports_each_source_and_exits_1_when_attention_is_needed(env, capsys):

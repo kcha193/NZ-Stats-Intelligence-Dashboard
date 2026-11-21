@@ -129,6 +129,8 @@ when a candidate lacks an explicit supported unit. The OCR-bearing sheet also fa
 
 ## 4. Status: adapter planned, not built (Stages 4 to 6 pending)
 
+**Update:** Phase 4AP built and piloted the adapter. See [phase-4ap-anz-xlsx-ingestion.md](phase-4ap-anz-xlsx-ingestion.md).
+
 This branch stops at the suitability decision. The adapter plan is
 `docs/superpowers/plans/2026-11-21-phase-4ao-anz-xlsx-adapter.md`: migration 016 (admits `xlsx`; it rebuilds
 `research_document_version`, whose migration 004 CHECK allows only `html` and `pdf`), a bounded stdlib cell reader in the
