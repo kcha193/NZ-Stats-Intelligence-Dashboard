@@ -373,6 +373,36 @@ def test_unmapped_and_ambiguous_blocks_are_refused_once_per_column(title, code):
     assert not [f for f in forecasts if f.page == 2]
 
 
+def test_two_distinct_blocks_naming_one_indicator_are_both_refused_as_ambiguous():
+    """Phase 4AP pilot: the real workbook holds several distinct series that each name GDP (or CPI). Only one can be
+    the headline measure and the mapping cannot tell which, so every such column is refused, never picked."""
+    growth = [
+        ("Fictional GDP", [("% q/q", series(GDP_QQ)), ("Annual % change", series(GDP_AA))]),
+        ("Fictional GDP subset", [("% q/q", series(GDP_QQ))]),
+    ]
+    forecasts, rejections = run(standard(growth=growth))
+    assert codes(rejections) == ["ambiguous_indicator"] * 3
+    assert {f.indicator for f in forecasts} == {"cpi_inflation", "unemployment"}
+
+
+def test_the_same_indicator_on_two_sheets_under_distinct_titles_is_ambiguous():
+    extra = data_sheet(
+        "Inflation", [("Fictional CPI variant", [("Annual % change", series(CPI_AA))])]
+    )
+    forecasts, rejections = run(standard(extra=[extra]))
+    assert codes(rejections) == ["ambiguous_indicator"] * 2
+    assert {f.indicator for f in forecasts} == {"gdp", "unemployment"}
+
+
+def test_one_block_title_repeated_over_its_columns_is_not_ambiguous():
+    forecasts, rejections = run(standard())
+    assert rejections == () and {f.indicator for f in forecasts} == {
+        "gdp",
+        "cpi_inflation",
+        "unemployment",
+    }
+
+
 def test_a_number_column_outside_any_block_is_unmapped():
     sheets = standard()
     sheets[1].cells.update(

@@ -168,6 +168,12 @@ def _blocks(sheet: XSheet) -> tuple[dict[int, tuple[int, str]], set[int]]:
     return columns, unmapped
 
 
+def _header(sheet: XSheet, col: int) -> str:
+    """The column's unit header (row 2), or "" when it holds no text."""
+    cell = sheet.cells.get((_HEADER_ROW, col))
+    return cell.text.strip() if cell is not None and cell.kind == "text" else ""
+
+
 def _forecast_rows(
     sheet: XSheet, col: int, rows: list[tuple[int, date]]
 ) -> list[tuple[int, date, XCell]] | None:
@@ -190,6 +196,7 @@ def interpret_anz_workbook(
 ) -> tuple[tuple[TableForecast, ...], tuple[Rejection, ...]]:
     forecasts: list[TableForecast] = []
     rejections: list[Rejection] = []
+    readable = []
     for sheet in wb.sheets:
         if sheet.state != "visible":
             rejections.append(Rejection("hidden_sheet", sheet.position))
@@ -204,8 +211,17 @@ def interpret_anz_workbook(
         if notes is None:
             rejections.append(Rejection("forecast_marker_missing", sheet.position))
             continue
-        legend, vintage, others = notes
-        blocks, unmapped = _blocks(sheet)
+        readable.append((sheet, rows, notes, *_blocks(sheet)))
+    # Distinct block titles that name one indicator (a headline series beside its components or variants): the
+    # mapping cannot tell which is the headline measure, so all of them are refused, never one picked.
+    titles: dict[str, set[str]] = {}
+    for sheet, *_, blocks, _ in readable:
+        for col, (_block, title) in blocks.items():
+            found = _indicator(f"{title}: {_header(sheet, col)}")
+            if len(found) == 1:
+                titles.setdefault(next(iter(found)), set()).add(" ".join(title.split()).casefold())
+    ambiguous = {indicator for indicator, seen in titles.items() if len(seen) > 1}
+    for sheet, rows, (legend, vintage, others), blocks, unmapped in readable:
         data_cols = {
             c for (r, c) in sheet.cells if c != _DATE_COL and rows[0][0] <= r <= rows[-1][0]
         }
@@ -214,6 +230,11 @@ def interpret_anz_workbook(
                 rejections.append(Rejection("unmapped_row", sheet.position, None, None, col))
                 continue
             block, title = blocks[col]
+            if _indicator(f"{title}: {_header(sheet, col)}") & ambiguous:
+                rejections.append(
+                    Rejection("ambiguous_indicator", sheet.position, block, None, col)
+                )
+                continue
             forecasts_or_code = _column(
                 sheet, col, block, title, rows, legend, vintage, others,
                 publisher_names=publisher_names, document_title=document_title, workbook_sha256=workbook_sha256,
@@ -238,10 +259,7 @@ def _column(
     workbook_sha256: str,
 ) -> list[TableForecast | Rejection]:
     at = (sheet.position, block, None, col)
-    header_cell = sheet.cells.get((_HEADER_ROW, col))
-    header = (
-        header_cell.text.strip() if header_cell is not None and header_cell.kind == "text" else ""
-    )
+    header = _header(sheet, col)
     label = f"{title}: {header}"
     found = _indicator(label)
     if len(found) != 1:
