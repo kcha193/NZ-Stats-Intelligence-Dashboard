@@ -87,6 +87,14 @@ def sheet1(path: Path) -> bytes:
         return z.read("xl/worksheets/sheet1.xml")
 
 
+def drawing(*shapes: str) -> bytes:
+    bodies = "".join(f"<xdr:sp><xdr:txBody>{shape}</xdr:txBody></xdr:sp>" for shape in shapes)
+    return (
+        '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" '
+        f'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">{bodies}</xdr:wsDr>'
+    ).encode()
+
+
 def vertical_book() -> Workbook:
     """Fictional vertical time series: dates down column A, one block of three series, a forecast marker merged down the
     forecast rows, shading from the first forecast row and a source note. Every label and figure is invented."""

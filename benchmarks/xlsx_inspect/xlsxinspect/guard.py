@@ -26,7 +26,7 @@ KEYS = frozenset(
         "formulas", "formulas_cached", "formulas_uncached", "formulas_external", "merged", "comments",
         "indicator_labels", "label_columns", "period_headers", "period_header_rows", "period_header_cols",
         "period_kinds", "forecast_markers", "actual_markers", "anz_mentions", "other_forecaster_mentions",
-        "notice_cells", "unit_hints",
+        "notice_cells", "unit_hints", "header_unit_hints", "footer_unit_hints",
         # layout probe (Phase 4AO): row/column indices and counts only
         "layout", "drawing", "date_cols", "date_col_counts", "date_first_row", "date_last_row", "date_steps",
         "date_monotonic", "date_month_end", "date_month_start", "date_gaps", "marker_rows", "marker_cols",
@@ -36,7 +36,8 @@ KEYS = frozenset(
         "drawing_dates", "drawing_sources", "font_change_rows", "note_rows", "note_source_rows",
         "note_forecast_rows", "note_period_index", "note_period_quarter_index", "note_period_count", "date_months",
         "note_wording", "col_fill_change_cols", "col_fill_change_rows", "col_font_change_cols", "col_font_change_rows",
-        "col_font_change_attr", "note_style", "title_units", "title_indicators", "drawing_units", "drawing_indicators",
+        "col_font_change_attr", "note_style", "title_units", "title_unit_hints", "title_indicators", "drawing_units",
+        "drawing_indicators", "drawing_unit_hints",
         # nested vocabularies
         "ocr", "cpi_inflation", "gdp", "unemployment",
         "quarter", "month_end", "year_to", "calendar",

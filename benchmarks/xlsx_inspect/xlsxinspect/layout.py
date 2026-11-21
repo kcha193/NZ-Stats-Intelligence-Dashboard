@@ -22,7 +22,7 @@ from xml.parsers import expat
 from nzstats.research.table_parse import column_kind
 from openpyxl import load_workbook
 
-from xlsxinspect.inspect import _ANZ, _NOTICE, _UNITS, INDICATORS, inspect
+from xlsxinspect.inspect import _ANZ, _NOTICE, _UNITS, INDICATORS, _unit_hints, inspect
 
 MAX_TEXT_ROWS = 200
 _SOURCE = re.compile(r"^\s*sources?\s*:", re.IGNORECASE)
@@ -32,6 +32,11 @@ _DATE_TEXT = re.compile(
     rf"\b\d{{1,2}}\s+{_MON}\s+\d{{4}}\b|\b{_MON}\s+\d{{4}}\b|\b\d{{4}}-\d{{2}}-\d{{2}}\b", re.IGNORECASE
 )
 _DRAWING = re.compile(r"^xl/drawings/[^/]+\.xml$")
+_DRAW_NS = "http://schemas.openxmlformats.org/drawingml/2006/main}"
+_TEXT_BODIES = {
+    "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}txBody",
+    _DRAW_NS + "txBody",
+}
 _SOURCE_WORD = re.compile(r"\bsources?\b", re.IGNORECASE)
 _MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 _P_MONTH = re.compile(rf"\b({'|'.join(_MONTHS)})[a-z]*\.?[\s\-']*(\d{{4}}|\d{{2}})\b", re.IGNORECASE)
@@ -211,7 +216,8 @@ def _sheet_layout(ws) -> dict:
     out["note_forecast_rows"] = [r for r, _ in noted]
     out["note_wording"] = [_wording(v) for _, v in noted]
     out["note_style"] = [_style(v) for _, v in noted]
-    out["title_units"] = sum(bool(p.search(ws.title)) for p in _UNITS.values())
+    out["title_unit_hints"] = _unit_hints(ws.title)
+    out["title_units"] = sum(out["title_unit_hints"].values())
     out["title_indicators"] = sum(bool(p.search(ws.title)) for p in INDICATORS.values())
     exact: list[int] = []
     quarter: list[int] = []
@@ -234,55 +240,82 @@ def _sheet_layout(ws) -> dict:
     return out
 
 
-def _drawing_texts(data: bytes) -> list[str]:
-    """The text runs (`<a:t>`) of one drawing part. DTDs and entities are refused."""
-    texts: list[str] = []
-    buf: list[str] | None = None
+def _drawing_texts(data: bytes) -> tuple[list[str], list[str]]:
+    """Collect text runs and their logical paragraphs from one archive-validated drawing part."""
+    runs: list[str] = []
+    paragraphs: list[str] = []
+    parents: list[str] = []
+    paragraph: list[str] = []
+    paragraph_depth = 0
+    run: list[str] = []
 
     def refuse(*_a):
         raise ValueError("declaration")
 
     def start(tag, _attrs):
-        nonlocal buf
-        if tag.rsplit(" ", 1)[-1] == "t":
-            buf = []
+        nonlocal paragraph_depth
+        if parser.CharacterDataHandler is not None:
+            raise ValueError("invalid drawing text")
+        depth = len(parents)
+        if not paragraph_depth and tag == _DRAW_NS + "p" and parents and parents[-1] in _TEXT_BODIES:
+            paragraph_depth = depth + 1
+        if paragraph_depth and depth == paragraph_depth and tag in {_DRAW_NS + "br", _DRAW_NS + "fld"}:
+            paragraph.append("\n")
+        if (
+            paragraph_depth
+            and depth == paragraph_depth + 1
+            and parents[-1] in {_DRAW_NS + "r", _DRAW_NS + "fld"}
+            and tag == _DRAW_NS + "t"
+        ):
+            parser.CharacterDataHandler = run.append
+        parents.append(tag)
 
     def end(tag):
-        nonlocal buf
-        if tag.rsplit(" ", 1)[-1] == "t" and buf is not None:
-            texts.append("".join(buf))
-            buf = None
+        nonlocal paragraph_depth
+        if parser.CharacterDataHandler is not None:
+            parser.CharacterDataHandler = None
+            text = "".join(run)
+            runs.append(text)
+            paragraph.append(text)
+            run.clear()
+        if paragraph_depth and len(parents) == paragraph_depth + 1 and tag == _DRAW_NS + "fld":
+            paragraph.append("\n")
+        if len(parents) == paragraph_depth:
+            paragraphs.append("".join(paragraph))
+            paragraph.clear()
+            paragraph_depth = 0
+        parents.pop()
 
-    def chars(s):
-        if buf is not None:
-            buf.append(s)
-
-    parser = expat.ParserCreate(namespace_separator=" ")
+    parser = expat.ParserCreate(namespace_separator="}")
     parser.StartDoctypeDeclHandler = refuse
     parser.EntityDeclHandler = refuse
-    parser.StartElementHandler, parser.EndElementHandler, parser.CharacterDataHandler = start, end, chars
+    parser.ExternalEntityRefHandler = refuse
+    parser.StartElementHandler, parser.EndElementHandler = start, end
     parser.Parse(data, True)
-    return texts
+    return runs, paragraphs
 
 
 def drawing_counts(parts: list[bytes]) -> dict:
-    """Count text runs in drawing parts (cover text boxes) by fixed pattern. No text leaves."""
-    counts = Counter({k: 0 for k in ("runs", "anz", "notice", "forecast", "dates", "sources", "units", "indicators")})
+    """Count fixed patterns in drawing runs, with unit hints counted once per paragraph."""
+    counts = Counter()
+    units = Counter(_unit_hints(""))
     for data in parts:
-        texts = _drawing_texts(data)
-        for t in texts:
+        runs, paragraphs = _drawing_texts(data)
+        for t in runs:
             counts["runs"] += 1
             counts["anz"] += bool(_ANZ.search(t))
             counts["notice"] += bool(_NOTICE.search(t))
             counts["forecast"] += bool(_FORECAST_WORD.search(t))
             counts["dates"] += bool(_DATE_TEXT.search(t))
             counts["sources"] += bool(_SOURCE.search(t))
-            counts["units"] += bool(_UNITS["percent"].search(t))
             counts["indicators"] += any(p.search(t) for p in INDICATORS.values())
+        for paragraph in paragraphs:
+            matches = {kind for line in paragraph.splitlines() for kind, count in _unit_hints(line).items() if count}
+            units.update(matches)
     return {
         "drawing_text_runs": counts["runs"], "drawing_anz": counts["anz"], "drawing_notice": counts["notice"],
         "drawing_forecast": counts["forecast"], "drawing_dates": counts["dates"], "drawing_sources": counts["sources"],
-        "drawing_units": counts["units"], "drawing_indicators": counts["indicators"],
+        "drawing_units": units["percent"], "drawing_indicators": counts["indicators"], "drawing_unit_hints": dict(units),
     }  # fmt: skip
 
 
@@ -301,7 +334,12 @@ def layout(raw: bytes) -> dict:
             with zipfile.ZipFile(io.BytesIO(raw)) as z:
                 parts = [z.read(n) for n in z.namelist() if _DRAWING.match(n)]
             drawing = drawing_counts(parts)
-        out.update(layout=sheets, drawing=drawing)
+        out.update(
+            layout=sheets,
+            drawing=drawing,
+            header_unit_hints=base["header_unit_hints"],
+            footer_unit_hints=base["footer_unit_hints"],
+        )
     except Exception:  # noqa: BLE001 - untrusted input: only a fixed code leaves
         out = {"sha256": out["sha256"], "status": "error"}
     return out

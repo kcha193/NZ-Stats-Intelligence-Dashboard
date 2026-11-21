@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from tests import synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,3 +65,44 @@ def test_cli_layout_prints_masked_geometry_only(tmp_path):
     out = json.loads(r.stdout)
     assert out["status"] == "ok" and out["layout"][1]["marker_rows"] == [11]
     assert synth.SECRET_LABEL not in r.stdout and "Fictional" not in r.stdout
+
+
+def test_cli_unit_coverage_is_masked(tmp_path):
+    wb = synth.forecast_book()
+    ws = wb.active
+    ws.title = "PRIVATE-TITLE percent"
+    ws["C6"] = "=1+123456789"
+    ws.oddHeader.center.text = "PRIVATE-HEADER per cent"
+    ws.oddFooter.left.text = "PRIVATE-FOOTER per annum"
+    path = synth.save(wb, tmp_path / "PRIVATE-PATH.xlsx")
+    drawing = synth.drawing("<a:p><a:r><a:t>PRIVATE-DRAWING p.a.</a:t></a:r></a:p>")
+    synth.rewrite(path, {}, {"xl/drawings/drawing1.xml": drawing})
+
+    for args in ((), ("--layout",)):
+        r = _run(str(path), *args)
+        assert r.returncode == 0 and r.stderr == ""
+        out = json.loads(r.stdout)
+        assert out["header_unit_hints"]["percent"] == 1
+        assert out["footer_unit_hints"]["annual"] == 1
+        if args:
+            assert out["drawing"]["drawing_unit_hints"]["annual"] == 1
+        assert "PRIVATE-" not in r.stdout
+        assert synth.SECRET_LABEL not in r.stdout and "987.654321" not in r.stdout and "123456789" not in r.stdout
+
+
+@pytest.mark.parametrize(
+    "drawing",
+    [
+        b"<PRIVATE-XML></mismatch>",
+        b"<PRIVATE-XML>" * 65 + b"</PRIVATE-XML>" * 65,
+        b'<!DOCTYPE x [<!ENTITY unit "PRIVATE-ENTITY per cent">]><x>&unit;</x>',
+    ],
+)
+def test_cli_layout_refuses_bad_drawing_xml_without_diagnostics(tmp_path, drawing):
+    path = synth.save(synth.forecast_book(), tmp_path / "PRIVATE-PATH.xlsx")
+    synth.rewrite(path, {}, {"xl/drawings/PRIVATE-PART.xml": drawing})
+    r = _run(str(path), "--layout")
+    assert r.returncode == 2 and r.stderr == ""
+    out = json.loads(r.stdout)
+    assert out == {"sha256": out["sha256"], "status": "refused"}
+    assert "PRIVATE-" not in r.stdout

@@ -13,9 +13,12 @@ Branch `feat/phase-4ao-anz-workbook` from main `c6893ab`. [record](phase-4ao-anz
 **C2W met (owner, 21 November 2026); registry note covers the workbook route; no adapter, migration or import yet.**
 
 - Real workbook inspected masked: archive safe, no formulas, six visible sheets, vertical quarterly series, forecasts
-  marked bold with a legend note (one switch row per column). GDP, CPI inflation and unemployment pass G3; OCR fails on
-  units (none printed). New masked layout probe `xlsxinspect --layout`; inspector 125 passed.
-- Adapter plan: `docs/superpowers/plans/2026-11-21-phase-4ao-anz-xlsx-adapter.md`. 0 figures extracted; pilot not run.
+  marked bold with a legend note (one switch row per column). GDP, CPI inflation and unemployment pass G3.
+- PR #68 extended the masked probes to cover split drawing runs, worksheet print headers and footers, and annual basis
+  wording. Both modes passed on the authorised SHA-pinned copy. Zero recognised hints in the scanned OCR locations
+  leave the OCR unit **UNVERIFIED** and OCR ineligible. Inspector: 150 synthetic tests passed after remediation.
+- GO to build the [narrow adapter](superpowers/plans/2026-11-21-phase-4ao-anz-xlsx-adapter.md). Real pilot stays
+  NO-GO pending the required gates and owner reconciliation. 0 figures extracted.
 
 ## PR #67 review remediation, 21 November 2026
 

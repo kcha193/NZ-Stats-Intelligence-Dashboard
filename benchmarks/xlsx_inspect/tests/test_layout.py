@@ -1,9 +1,14 @@
 """Masked layout probe (Phase 4AO): cell coordinates and counts only, on SYNTHETIC workbooks."""
 
 import json
+import zipfile
+from pathlib import Path
+
+import pytest
 
 from tests import synth
 from xlsxinspect.guard import emit
+from xlsxinspect.inspect import inspect
 from xlsxinspect.layout import drawing_counts, layout
 
 
@@ -58,19 +63,156 @@ def test_a_refused_archive_is_never_laid_out(tmp_path):
 
 
 def test_drawing_counts_read_text_runs_only():
-    xml = (
-        b'<?xml version="1.0" encoding="UTF-8"?><xdr:wsDr xmlns:xdr="x" xmlns:a="a"><xdr:sp><xdr:txBody>'
-        b"<a:p><a:r><a:t>Fictional ANZ outlook, published 5 November 2026</a:t></a:r></a:p>"
-        b"<a:p><a:r><a:t>Important notice: copyright applies</a:t></a:r></a:p>"
-        b"<a:p><a:r><a:t>Forecasts are shaded</a:t></a:r></a:p>"
-        b"<a:p><a:r><a:t>Source: Fictional Stats</a:t></a:r></a:p>"
-        b"<a:p><a:r><a:t>Interest rates are in per cent</a:t></a:r></a:p>"
-        b"</xdr:txBody></xdr:sp></xdr:wsDr>"
+    xml = synth.drawing(
+        "<a:p><a:r><a:t>Fictional ANZ outlook, published 5 November 2026</a:t></a:r></a:p>"
+        "<a:p><a:r><a:t>Important notice: copyright applies</a:t></a:r></a:p>"
+        "<a:p><a:r><a:t>Forecasts are shaded</a:t></a:r></a:p>"
+        "<a:p><a:r><a:t>Source: Fictional Stats</a:t></a:r></a:p>"
+        "<a:p><a:r><a:t>Interest rates are in per cent</a:t></a:r></a:p>"
     )
     assert drawing_counts([xml]) == {
         "drawing_text_runs": 5, "drawing_anz": 1, "drawing_notice": 1, "drawing_forecast": 1,
         "drawing_dates": 1, "drawing_sources": 1, "drawing_units": 1, "drawing_indicators": 0,
+        "drawing_unit_hints": {"percent": 1, "annual": 0, "quarterly": 0, "seasonal": 0},
     }  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("runs", "percent", "annual", "quarterly", "seasonal"),
+    [
+        (("%",), 1, 0, 0, 0),
+        (("percent",), 1, 0, 0, 0),
+        (("5percent",), 1, 0, 0, 0),
+        (("5per cent",), 1, 0, 0, 0),
+        (("supercent",), 0, 0, 0, 0),
+        (("per ", "cent"), 1, 0, 0, 0),
+        (("per", "centage"), 0, 0, 0, 0),
+        (("p.a.",), 0, 1, 0, 0),
+        (("5p.a.",), 0, 1, 0, 0),
+        (("p. a.",), 0, 1, 0, 0),
+        (("per annum",), 0, 1, 0, 0),
+        (("% p.", "a."), 1, 1, 0, 0),
+        (("annual q/q seasonally adjusted",), 0, 1, 1, 1),
+    ],
+)
+def test_drawing_units_match_logical_paragraph_text(runs, percent, annual, quarterly, seasonal):
+    text = "".join(f'<a:r><a:rPr b="1"/><a:t>{run}</a:t></a:r>' for run in runs)
+    out = drawing_counts([synth.drawing(f"<a:p>{text}</a:p>")])
+    assert out["drawing_text_runs"] == len(runs)
+    assert out["drawing_units"] == percent
+    assert out["drawing_unit_hints"] == {
+        "percent": percent,
+        "annual": annual,
+        "quarterly": quarterly,
+        "seasonal": seasonal,
+    }
+
+
+def test_drawing_paragraphs_shapes_and_line_breaks_are_boundaries():
+    first = "<a:r><a:t>per </a:t></a:r>"
+    second = "<a:r><a:t>cent</a:t></a:r>"
+    out = drawing_counts(
+        [
+            synth.drawing(f"<a:p>{first}</a:p><a:p>{second}</a:p>"),
+            synth.drawing(f"<a:p>{first}</a:p>", f"<a:p>{second}</a:p>"),
+            synth.drawing(f"<a:p>{first}<a:br/>{second}</a:p>"),
+        ]
+    )
+    assert out["drawing_text_runs"] == 6
+    assert out["drawing_units"] == 0
+
+
+def test_drawing_ignores_text_outside_drawingml_paragraph_runs():
+    xml = synth.drawing("<a:p><xdr:t>percent</xdr:t><a:r><a:t>per</a:t></a:r></a:p>")
+    out = drawing_counts([xml])
+    assert out["drawing_text_runs"] == 1
+    assert out["drawing_units"] == 0
+
+
+def test_drawing_fields_keep_their_own_text_boundary():
+    xml = synth.drawing(
+        '<a:p><a:r><a:t>per </a:t></a:r><a:fld id="id"><a:t/></a:fld><a:r><a:t>cent</a:t></a:r></a:p>'
+        '<a:p><a:fld id="id"><a:t>% p.a.</a:t></a:fld></a:p>'
+    )
+    out = drawing_counts([xml])
+    assert out["drawing_text_runs"] == 4
+    assert out["drawing_unit_hints"] == {"percent": 1, "annual": 1, "quarterly": 0, "seasonal": 0}
+
+
+def test_print_headers_and_footers_detect_units_by_section(tmp_path):
+    path = synth.save(synth.vertical_book(), tmp_path / "v.xlsx")
+    page_text = (
+        b'<headerFooter differentOddEven="1" differentFirst="1">'
+        b"<oddHeader>per cent</oddHeader>"
+        b"<evenHeader>&amp;Lper &amp;Rcent</evenHeader>"
+        b"<firstHeader>&amp;Cper &amp;Acent</firstHeader>"
+        b"<oddFooter>&amp;Lper &amp;Bcent&amp;B&amp;Cper annum</oddFooter>"
+        b"<evenFooter>&amp;C&amp;&quot;percent,Regular&quot;q/q</evenFooter>"
+        b"<firstFooter>&amp;Cp. a.&amp;R&amp;KFF0000%</firstFooter>"
+        b"</headerFooter>"
+    )
+    sheet = synth.sheet1(path).replace(b"</worksheet>", page_text + b"</worksheet>")
+    raw = synth.rewrite(path, {"xl/worksheets/sheet1.xml": sheet}).read_bytes()
+    for out in (inspect(Path(), raw=raw), layout(raw)):
+        assert out["status"] == "ok"
+        assert out["header_unit_hints"] == {"percent": 1, "annual": 0, "quarterly": 0, "seasonal": 0}
+        assert out["footer_unit_hints"] == {"percent": 2, "annual": 2, "quarterly": 1, "seasonal": 0}
+
+
+def test_print_text_ignores_unreferenced_worksheets(tmp_path):
+    path = synth.save(synth.vertical_book(), tmp_path / "v.xlsx")
+    page_text = b"<headerFooter><oddHeader>per cent</oddHeader></headerFooter>"
+    sheet = synth.sheet1(path).replace(b"</worksheet>", page_text + b"</worksheet>")
+    synth.rewrite(path, {}, {"xl/worksheets/unreferenced.xml": sheet})
+    out = inspect(path)
+    assert out["status"] == "ok"
+    assert out["header_unit_hints"] == {"percent": 0, "annual": 0, "quarterly": 0, "seasonal": 0}
+
+
+@pytest.mark.parametrize("workbook_part", ["xl/workbook.xml", "xl/primary.xml"])
+def test_print_text_uses_only_the_selected_workbook_part(tmp_path, workbook_part):
+    path = synth.save(synth.vertical_book(), tmp_path / "v.xlsx")
+    with zipfile.ZipFile(path) as archive:
+        package = archive.read("[Content_Types].xml")
+        root_rels = archive.read("_rels/.rels")
+        book = archive.read("xl/workbook.xml")
+        book_rels = archive.read("xl/_rels/workbook.xml.rels")
+
+    valid_header = b"<headerFooter><oddHeader>per annum</oddHeader></headerFooter>"
+    unused_header = b"<headerFooter><oddHeader>percent</oddHeader></headerFooter>"
+    sheet = synth.sheet1(path)
+    edits = {"xl/worksheets/sheet1.xml": sheet.replace(b"</worksheet>", valid_header + b"</worksheet>")}
+    added = {
+        "xl/unused.xml": book,
+        "xl/_rels/unused.xml.rels": book_rels.replace(b"/xl/worksheets/sheet", b"/xl/worksheets/unused"),
+        "xl/worksheets/unused1.xml": sheet.replace(b"</worksheet>", unused_header + b"</worksheet>"),
+        "xl/worksheets/unused2.xml": sheet,
+    }
+    if workbook_part != "xl/workbook.xml":
+        edits["[Content_Types].xml"] = package.replace(b"/xl/workbook.xml", b"/xl/primary.xml")
+        edits["_rels/.rels"] = root_rels.replace(b"xl/workbook.xml", b"xl/primary.xml")
+        edits["xl/workbook.xml"] = edits["xl/_rels/workbook.xml.rels"] = None
+        added.update({workbook_part: book, "xl/_rels/primary.xml.rels": book_rels})
+    synth.rewrite(path, edits, added)
+    out = inspect(path)
+    assert out["status"] == "ok"
+    assert out["header_unit_hints"] == {"percent": 0, "annual": 1, "quarterly": 0, "seasonal": 0}
+
+
+def test_cell_and_title_annual_basis_does_not_imply_percent(tmp_path):
+    wb = synth.vertical_book()
+    ws = wb.active
+    ws.title = "Fictional rates p. a."
+    ws["B2"] = "p.a."
+    ws["B3"] = "per cent"
+    ws["B4"] = "q/q"
+    path = synth.save(wb, tmp_path / "v.xlsx")
+    base = inspect(path)
+    assert base["sheets"][0]["unit_hints"] == {"percent": 1, "annual": 1, "quarterly": 1, "seasonal": 0}
+    sheet = layout(path.read_bytes())["layout"][0]
+    assert (sheet["unit_rows"], sheet["unit_cols"]) == ([2, 3, 4], [2, 2, 2])
+    assert sheet["title_units"] == 1
+    assert sheet["title_unit_hints"] == {"percent": 0, "annual": 1, "quarterly": 0, "seasonal": 0}
 
 
 def _noted(tmp_path, note: str, *, shade=True):

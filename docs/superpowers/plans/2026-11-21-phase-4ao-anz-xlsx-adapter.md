@@ -20,6 +20,10 @@ structure this mapping is shaped by).
 
 - Never evaluate a formula or follow an external reference. Any formula cell in a read block is rejected `formula_cell`.
 - Never infer a unit, a period, an actual/forecast status or an author. Reject with a fixed code.
+- OCR remains ineligible on current evidence. The masked replay (§1.2 of the Phase 4AO record) leaves its unit
+  **UNVERIFIED** and the OCR-bearing sheet is outside the quarterly layout. Keep `unit_unstated` for an otherwise
+  eligible column that lacks a stated unit. A time-basis qualifier such as `p.a.` or a percentage elsewhere in the
+  workbook does not establish a series' unit.
 - Rejection and refusal text is fixed wording: never workbook text or an exception message.
 - Store forecasts only: non-bold (historical) cells are neither stored nor shown; workbook actuals are never official data.
 - Tests use synthetic workbooks only ("Fictional" names, invented figures). No ANZ text, value or sheet name in Git.
@@ -136,7 +140,8 @@ is `display`. Label: `f"{title}: {header}"`. Evidence: `sheet_position`, `cell` 
 
 - [ ] Step 1: tests: normal block gives forecasts for the bold tail only, with exact evidence;
   `test_historical_cells_are_never_emitted`; wrong unit (`$m` level column) `unsupported_unit`; OCR without a unit
-  `unit_unstated`; monthly sheet `unsupported_period`; missing legend `forecast_marker_missing`; bold gap
+  `unit_unstated` (including an otherwise eligible OCR column with only an annual basis qualifier); monthly sheet
+  `unsupported_period`; missing legend `forecast_marker_missing`; bold gap
   `forecast_boundary_unclear` (Review Focus 2); formula in tail `formula_cell`; float artefact gives `2.1`
   (Review Focus 3); a note naming another forecaster gives `third_party`; hidden sheet `hidden_sheet`;
   `q/q` header gives `Mmm YYYY quarter`, `annual % change` gives `year to Mmm YYYY`, unemployment gives a quarter horizon.

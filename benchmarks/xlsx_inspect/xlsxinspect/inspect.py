@@ -21,7 +21,9 @@ from xml.parsers import expat
 
 from nzstats.research.table_parse import column_kind, period_of
 from openpyxl import load_workbook
+from openpyxl.utils.escape import unescape
 from openpyxl.worksheet.formula import ArrayFormula, DataTableFormula
+from openpyxl.xml.constants import ARC_WORKBOOK, XLSM, XLSX, XLTM, XLTX
 
 # The same limits as the CPI workbook reader (backend/src/nzstats/adapters/cpi/workbook.py).
 MAX_ARCHIVE = 16 * 1024 * 1024
@@ -51,8 +53,12 @@ _ANZ = re.compile(r"\banz\b", re.IGNORECASE)
 _OTHERS = re.compile(r"\b(?:" + "|".join(re.escape(n) for n in OTHER_FORECASTERS if n != "anz") + r")\b", re.IGNORECASE)
 _NOTICE = re.compile(r"copyright|disclaimer|©|important notice|all rights reserved", re.IGNORECASE)
 _UNITS = {
-    "percent": re.compile(r"%|per ?cent\b|\bpercent\b", re.IGNORECASE),
-    "annual": re.compile(r"\bannual\b|\by\s*/\s*y\b|year on year|\byoy\b|\bannual average\b", re.IGNORECASE),
+    "percent": re.compile(r"%|(?<![^\W\d])per[^\S\r\n]*cent\b", re.IGNORECASE),
+    "annual": re.compile(
+        r"\bannual\b|\by\s*/\s*y\b|year on year|\byoy\b|"
+        r"(?<![^\W\d])(?:p\.[^\S\r\n]*a\.(?!\w)|per[^\S\r\n]+annum\b)",
+        re.IGNORECASE,
+    ),
     "quarterly": re.compile(r"\bq\s*/\s*q\b|\bquarterly\b|quarter on quarter", re.IGNORECASE),
     "seasonal": re.compile(r"seasonally adjusted|\bs\.a\.", re.IGNORECASE),
 }
@@ -78,7 +84,15 @@ _REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships}"
 _TYPE_NS = "http://schemas.openxmlformats.org/package/2006/content-types}"
 _DOCUMENT_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 _SHEET_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_WORKBOOK_TYPES = (XLTM, XLTX, XLSM, XLSX)  # same override priority as the pinned openpyxl reader
 _CELL_REF = re.compile(r"\$?([A-Za-z]{1,3})\$?([1-9][0-9]{0,6})")
+_PRINT_TEXT = {
+    _SHEET_NS + page + kind.capitalize(): kind for page in ("odd", "even", "first") for kind in ("header", "footer")
+}
+_PRINT_CONTROL = re.compile(
+    r'&&|(?P<style>&"[^"\r\n]*"|&K(?:[0-9A-Fa-f]{2}[+-][0-9]{3}|[0-9A-Fa-f]{6})|&[0-9]+ ?|&[BEHIOUSXY])'
+    r"|&\[(?:Tab|Pages?|Date|Path|Time|File|Picture)\]|&[A-Z]"
+)
 
 
 class _ExpansionLimit(ValueError):
@@ -98,13 +112,43 @@ def _coordinate(ref: str) -> tuple[int, int]:
     return row, col
 
 
-def _xml(data: bytes, name: str, budget: Counter, targets: dict, sheet_refs: set) -> tuple[int, bool]:
+def _unit_hints(text: str) -> dict[str, int]:
+    return {kind: int(bool(pattern.search(text))) for kind, pattern in _UNITS.items()}
+
+
+def _print_text_hints(text: str, counts: Counter) -> None:
+    """Read literal print text, keeping page sections, dynamic fields and line breaks separate."""
+
+    def control(match: re.Match[str]) -> str:
+        if match["style"]:
+            return ""
+        return "&" if match[0] == "&&" else "\n"
+
+    for line in _PRINT_CONTROL.sub(control, unescape(text)).splitlines():
+        counts.update(_unit_hints(line))
+
+
+def _rels_path(name: str) -> str:
+    source = PurePosixPath(name)
+    return str(source.parent / "_rels" / (source.name + ".rels"))
+
+
+def _xml(
+    data: bytes,
+    name: str,
+    budget: Counter,
+    targets: dict,
+    sheet_refs: dict[tuple[str, str | None], bool],
+    print_units: dict[str, Counter[str]],
+    workbook_parts: dict[str | None, str],
+) -> tuple[int, bool]:
     """Streaming, encoding-aware inspection. No tree, DTD, entity or external resource is loaded."""
     parser = expat.ParserCreate(namespace_separator="}")
     depth = external = rows = cols = row = col = row_depth = 0
     root = None
     macro = False
     parents: list[str] = []
+    print_text: list[str] = []
     sequence_children = {
         "row": "c",
         "mergeCells": "mergeCell",
@@ -128,6 +172,10 @@ def _xml(data: bytes, name: str, budget: Counter, targets: dict, sheet_refs: set
             root = tag
             if (rels and root != _REL_NS + "Relationships") or (types and root != _TYPE_NS + "Types"):
                 raise ValueError("invalid metadata root")
+        if parser.CharacterDataHandler is not None:
+            raise ValueError("invalid header or footer text")
+        if depth == 3 and parents == [_SHEET_NS + "worksheet", _SHEET_NS + "headerFooter"] and tag in _PRINT_TEXT:
+            parser.CharacterDataHandler = print_text.append
         if rels and depth == 2:
             if tag != _REL_NS + "Relationship" or not all(attrs.get(k) for k in ("Id", "Type", "Target")):
                 raise ValueError("invalid relationship")
@@ -150,9 +198,13 @@ def _xml(data: bytes, name: str, budget: Counter, targets: dict, sheet_refs: set
         if types and depth == 2:
             if tag not in {_TYPE_NS + "Default", _TYPE_NS + "Override"} or not attrs.get("ContentType"):
                 raise ValueError("invalid content type")
-            macro |= any(
-                marker in attrs["ContentType"].lower() for marker in ("macroenabled", "vbaproject", "macrosheet")
-            )
+            content_type = attrs["ContentType"]
+            macro |= any(marker in content_type.lower() for marker in ("macroenabled", "vbaproject", "macrosheet"))
+            if content_type in _WORKBOOK_TYPES:
+                if tag == _TYPE_NS + "Override":
+                    workbook_parts.setdefault(content_type, attrs["PartName"][1:])
+                else:
+                    workbook_parts.setdefault(None, ARC_WORKBOOK)
         local = tag.rsplit("}", 1)[-1]
         parent = parents[-1] if parents else ""
         parent_local = parent.removeprefix(_SHEET_NS)
@@ -181,8 +233,7 @@ def _xml(data: bytes, name: str, budget: Counter, targets: dict, sheet_refs: set
             budget[(name, "sheet", sheet_id)] += 1
             if budget[(name, "sheet", sheet_id)] > 1:
                 raise ValueError("repeated worksheet relationship")
-            source = PurePosixPath(name)
-            sheet_refs.add((str(source.parent / "_rels" / (source.name + ".rels")), sheet_id))
+            sheet_refs[(_rels_path(name), sheet_id)] = parents == [_SHEET_NS + "workbook", _SHEET_NS + "sheets", tag]
         # openpyxl dispatches worksheet tags regardless of the document root. Refuse ambiguous structures.
         if local in {"dimension", "mergeCell", "hyperlink", "comment", "row", "c"}:
             expected_root = "comments" if local == "comment" else "worksheet"
@@ -223,6 +274,10 @@ def _xml(data: bytes, name: str, budget: Counter, targets: dict, sheet_refs: set
 
     def end(tag):
         nonlocal depth, row_depth
+        if parser.CharacterDataHandler is not None:
+            parser.CharacterDataHandler = None
+            _print_text_hints("".join(print_text), print_units.setdefault(_PRINT_TEXT[tag], Counter()))
+            print_text.clear()
         parents.pop()
         if depth == row_depth:
             row_depth = 0
@@ -243,7 +298,7 @@ def _xml(data: bytes, name: str, budget: Counter, targets: dict, sheet_refs: set
     return external, macro
 
 
-def _archive(raw: bytes) -> dict:
+def _archive(raw: bytes, print_units: dict[str, Counter[str]]) -> dict:
     """Stdlib checks before any XML parser runs. A check not reached is None, never False."""
     a = {
         "bytes": len(raw), "members": 0, "unpacked_bytes": 0, "max_ratio": 0.0, "encrypted": False,
@@ -260,7 +315,7 @@ def _archive(raw: bytes) -> dict:
         return a
     try:
         with z:
-            _members(z, a)
+            _members(z, a, print_units)
     except _ExpansionLimit:
         a["over_limit"] = True
     except Exception:  # noqa: BLE001 - a corrupt member (bad CRC, zlib error) is a fixed flag; its message may name parts
@@ -268,7 +323,7 @@ def _archive(raw: bytes) -> dict:
     return a
 
 
-def _members(z: zipfile.ZipFile, a: dict) -> None:
+def _members(z: zipfile.ZipFile, a: dict, print_units: dict[str, Counter[str]]) -> None:
     members = z.infolist()
     a["members"] = len(members)
     a["unpacked_bytes"] = sum(m.file_size for m in members)
@@ -292,7 +347,9 @@ def _members(z: zipfile.ZipFile, a: dict) -> None:
     macro = False
     budget = Counter()
     targets: dict[tuple[str, str], str] = {}
-    sheet_refs: set[tuple[str, str]] = set()
+    sheet_refs: dict[tuple[str, str | None], bool] = {}
+    worksheet_print_units: dict[str, dict[str, Counter[str]]] = {}
+    workbook_parts: dict[str | None, str] = {}
     for m in members:  # every member, whatever its name: a part's extension does not decide how openpyxl parses it
         data = z.read(m)
         declarations += any(d in data for d in _DECLARATIONS)
@@ -302,7 +359,10 @@ def _members(z: zipfile.ZipFile, a: dict) -> None:
         if m.filename.lower().endswith((".xml", ".rels")) or data.lstrip(b"\xef\xbb\xbf\xff\xfe\x00 \t\r\n").startswith(
             b"<"
         ):
-            count, has_macro = _xml(data, m.filename, budget, targets, sheet_refs)
+            part_print_units: dict[str, Counter[str]] = {}
+            count, has_macro = _xml(data, m.filename, budget, targets, sheet_refs, part_print_units, workbook_parts)
+            if part_print_units:
+                worksheet_print_units[m.filename] = part_print_units
             external += count
             macro |= has_macro
     # The reader treats workbook sheet references as worksheets even when a relationship's Type says otherwise.
@@ -311,6 +371,13 @@ def _members(z: zipfile.ZipFile, a: dict) -> None:
         raise ValueError("repeated worksheet target")
     if any(target.lstrip("/") not in names for target in resolved):
         raise ValueError("missing worksheet target")
+    workbook_part = next((workbook_parts[k] for k in _WORKBOOK_TYPES if k in workbook_parts), workbook_parts.get(None))
+    if workbook_part is not None:
+        workbook_rels = _rels_path(workbook_part)
+        for ref, direct_sheet in sheet_refs.items():
+            if direct_sheet and ref[0] == workbook_rels:
+                for kind, counts in worksheet_print_units.get(targets[ref].lstrip("/"), {}).items():
+                    print_units[kind].update(counts)
     a["xml_declarations"] = declarations > 0
     a["external_targets"] = external
     a["macro_content_type"] = macro
@@ -394,7 +461,7 @@ def _sheet(fws, vws) -> dict:
     s = Counter()
     indicators = Counter({k: 0 for k in INDICATORS})
     kinds = Counter({k: 0 for k in ("quarter", "month_end", "year_to", "calendar")})
-    units = Counter({k: 0 for k in _UNITS})
+    units = Counter(_unit_hints(""))
     label_cols: set[int] = set()
     period_rows: set[int] = set()
     period_cols: set[int] = set()
@@ -475,14 +542,14 @@ def _text(v, cell, s, indicators, kinds, units, label_cols, period_rows, period_
     s["anz_mentions"] += bool(_ANZ.search(v))
     s["other_forecaster_mentions"] += bool(_OTHERS.search(v))
     s["notice_cells"] += bool(_NOTICE.search(v))
-    for name, pattern in _UNITS.items():
-        units[name] += bool(pattern.search(v))
+    units.update(_unit_hints(v))
 
 
 def inspect(path: Path, raw: bytes | None = None) -> dict:
     """Inspect `raw` when given (the bytes whose hash was checked), else the file at `path`."""
     raw = Path(path).read_bytes() if raw is None else raw
-    out: dict = {"sha256": hashlib.sha256(raw).hexdigest(), "status": "refused", "archive": _archive(raw)}
+    print_units = {kind: Counter(_unit_hints("")) for kind in ("header", "footer")}
+    out: dict = {"sha256": hashlib.sha256(raw).hexdigest(), "status": "refused", "archive": _archive(raw, print_units)}
     if _refused(out["archive"]):
         return out
     sink = io.StringIO()
@@ -508,6 +575,7 @@ def inspect(path: Path, raw: bytes | None = None) -> dict:
             "warnings": len(caught),
         }
         out["sheets"] = sheets
+        out.update({f"{kind}_unit_hints": dict(counts) for kind, counts in print_units.items()})
         out["status"] = "ok"
     except Exception:  # noqa: BLE001 - untrusted input: the reason may quote the document, so only a fixed code leaves
         out = {"sha256": out["sha256"], "status": "error", "archive": out["archive"]}

@@ -14,16 +14,17 @@ layout probe. The owner answered yes/no questions by eye.
 | Workbook held | **Yes.** One browser-saved file, outside the repository | §1 |
 | Archive safety (G2) | **Pass.** No VBA, macro type, active content, external-link part or external formula | §1 |
 | Source authorization (C2W, G1) | **Met, 21 November 2026** (owner). Registry note changed on this branch; in effect when merged | §2 |
-| Boundary, periods, units (G3) | **Pass for GDP, CPI inflation and unemployment. OCR fails on units:** no unit is printed anywhere a deterministic reader can see | §3 |
+| Boundary, periods, units (G3) | **Pass for GDP, CPI inflation and unemployment. OCR unit is UNVERIFIED.** | §3 |
 | Indicators and cached values (G4) | **Pass.** All four labelled; no formulas at all (values only) | §1 |
 | Attribution (G5) | **Pass** (owner, corroborated by 32 ANZ mentions in the cover text). Stability across two releases is checked on the next release before any trend is shown | §2, §3 |
-| Adapter | **GO for a narrow ANZ-specific adapter.** OCR cells are rejected `unit_unstated` | §4 |
+| Adapter | **GO for a narrow ANZ-specific adapter.** OCR is ineligible for extraction on current evidence | §4 |
 
 ## 1. Real workbook inspection (Stage 1)
 
 File: `ANZ-Forecasts.xlsx`, 178,346 bytes, SHA-256 `4c2d4b47cdf2afa24b72636cafaf6d5d29e4d3fcfa8eb81bedf46db9a6da7358`,
-internal modified date 2026-11-05. Masked outputs: `benchmarks/xlsx_inspect/results/phase-4ao.json` (inspector) and
-`phase-4ao-layout.json` (layout probe). Both hold numbers and fixed codes only.
+internal modified date 2026-11-05. Both masked reports hold counts, flags, indices, fixed codes and the file's SHA-256.
+[Inspector report](../benchmarks/xlsx_inspect/results/phase-4ao.json) ·
+[Layout report](../benchmarks/xlsx_inspect/results/phase-4ao-layout.json)
 
 | Check | Result |
 |---|---|
@@ -37,7 +38,7 @@ internal modified date 2026-11-05. Masked outputs: `benchmarks/xlsx_inspect/resu
 | Indicators | GDP on sheet 2 (11 labelled blocks); CPI inflation (3) and unemployment (1) on sheet 3; OCR (1) on sheet 5. Sheets 4 and 6 carry none of the four |
 | Forecast versus actual | Each data sheet has an undated note naming forecasts and "bold" (style code 1), and every column turns **bold at exactly one date row** and stays bold. Sheet 2 turns at date index 106; sheet 3 at 107; sheet 5 at 262; sheet 6 at 166; sheet 4 splits by block (106, 107). No shading is involved |
 | Vintage | A second, dated note on each data sheet uses "as at / updated" wording (code 3). It is a vintage date, not the boundary |
-| Units | Sheets 2 to 4: row-2 headers state percent with annual or quarterly basis on 3 of every 4 columns. Sheet 5 (OCR) and sheet 6: no unit text in any cell, the sheet title, the header/footer or the cover text |
+| Units | Sheets 2 to 4: row-2 headers state percent with annual or quarterly basis on 3 of every 4 columns. On the OCR sheet, the cells and title yielded 0 recognised unit hints. Workbook-wide print header, footer and drawing checks also yielded 0 hints (§1.2) |
 | Attribution and notice | No cell names ANZ or any other forecaster, and no cell holds a notice. The cover drawing (107 text runs) names ANZ 32 times, carries 3 notice runs and 1 date |
 | Publication date | Only the "as at" notes and file metadata; the owner confirms the workbook states a date (§2) |
 
@@ -51,7 +52,38 @@ The Phase 4AN counts could not say where the boundary was, so `benchmarks/xlsx_i
 month-of-year set, marker and note rows, a parsed period in a forecast note reported as a **date-row index** (never the
 period), fixed-pattern codes for note wording (from / to / as at) and style words (bold / italic / colour / shading),
 per-column font and fill change rows with an attribute bitmask, sheet-title and cover-text unit and indicator counts.
-It runs only on a workbook `inspect` accepted. 17 synthetic tests; the inspector suite is 125 passed.
+It runs only on a workbook `inspect` accepted. The initial layout probe added 17 synthetic tests, bringing the suite
+to 125 before the unit recheck.
+
+### 1.2 PR #68 masked unit recheck
+
+The original matcher missed `p.a.`, `p. a.` and `per annum`, the probes skipped worksheet print headers and footers,
+and the drawing check matched individual runs. A formatting change could therefore hide even `per cent`. The original
+probe could not settle the owner's observation about the OCR unit.
+
+The updated probes distinguish explicit percentage wording (`%`, `percent`, `per cent`) from annual and quarterly
+basis and seasonal adjustment hints. Drawing units are counted within each DrawingML paragraph with formatting runs
+joined in order. Paragraphs, shapes, line breaks and dynamic fields keep their own boundaries. The archive pass reads
+literal print text from the workbook's referenced worksheets, covering odd, even and first-page headers and footers.
+It handles formatting codes and keeps page sections and dynamic fields separate. Cell and sheet-title checks use the
+same vocabulary. All output goes through the fixed guard.
+
+Both modes ran on the authorised local copy with `--expect-sha256` set to the hash in §1. Both returned `ok`, with the
+same archive safety flags. The linked JSON files contain these results:
+
+| Masked source | Percent | Annual | Quarterly | Seasonal |
+|---|---:|---:|---:|---:|
+| OCR sheet cells | 0 | 0 | 0 | 0 |
+| OCR sheet title | 0 | 0 | 0 | 0 |
+| Worksheet print headers (workbook-wide) | 0 | 0 | 0 | 0 |
+| Worksheet print footers (workbook-wide) | 0 | 0 | 0 | 0 |
+| Drawing paragraphs (workbook-wide) | 0 | 0 | 0 | 0 |
+
+These are fixed-pattern counts. They cannot establish that a unit is absent or assign a workbook-wide candidate to a
+series. The production reader treats percentage points, basis points and percent of GDP as distinct units. The masked
+probe only reports the percentage wording and qualifiers above, so an adapter must still validate the series unit in
+context. The owner's observation remains unreconciled. Any reconsideration requires an explicit supported unit tied
+to the OCR series. An annual basis alone leaves the unit unverified.
 
 ## 2. Owner approval (Stage 2)
 
@@ -70,10 +102,8 @@ owner's own reading. ANZ has not issued a separate licence.
 Two answers were checked mechanically:
 
 - **Attribution:** the cover text names ANZ 32 times. Consistent.
-- **OCR unit:** the owner said the cover text box states it. No cover text run, cell, sheet title or header/footer
-  contains `%`, `per cent`, `percent`, `p.a.` or `per annum`. The adapter therefore rejects OCR cells
-  (`unit_unstated`), as the project never infers a unit. The owner may re-check; a printed form the patterns miss would
-  need a reviewed change, not a default.
+- **OCR unit:** the owner said the cover text box states it. The masked recheck in §1.2 found no recognised hint in the
+  scanned locations. OCR remains **UNVERIFIED** and ineligible for extraction.
 
 ### 2.1 Registry change (applied, Phase 4AN §2.5)
 
@@ -90,11 +120,12 @@ route; both were changed test-first (the scope test failed before the note chang
 |---|---|
 | G1 | C2W recorded; registry change on this branch, effective on merge |
 | G2 | Pass |
-| G3 | Boundary: explicit legend plus one bold switch per column, verified per column. Periods: dates inside calendar quarters (quarterly sheets) or months. Units: stated for GDP, CPI and unemployment; **not for OCR** |
+| G3 | Boundary: explicit legend plus one bold switch per column, verified per column. Periods: dates inside calendar quarters (quarterly sheets) or months. Units: stated for GDP, CPI and unemployment. **OCR unit UNVERIFIED.** |
 | G4 | Pass: the four indicators are labelled and every value is a stored constant |
 | G5 | Pass (owner plus cover text). Two-release stability is pending the next release |
 
-GO for a narrow adapter. OCR stays unreadable until a unit is printed.
+GO for a narrow adapter. OCR stays excluded. For supported layouts the planned `unit_unstated` rejection still applies
+when a candidate lacks an explicit supported unit. The OCR-bearing sheet also falls outside the planned quarterly layout.
 
 ## 4. Status: adapter planned, not built (Stages 4 to 6 pending)
 
@@ -106,11 +137,15 @@ internal view. Storing figures will require the owner's reconciliation hash.
 
 **Not done:** no adapter, migration or production module; nothing imported into the database; **0 figures extracted;
 no rejection codes yet; no reconciliation; no real pilot.** Pending owner input: plan review and the workbook's download
-address (for the ANZ series pattern). Verdict for this branch: **GO to build; pilot NO-GO until Stages 4 and 5 run.**
+address (for the ANZ series pattern). **GO to build the narrow adapter. NO-GO for a real extraction pilot until the
+required gates and owner reconciliation are complete.**
 
 ## 5. Verification
 
-- `benchmarks/xlsx_inspect`: 125 passed (17 new layout tests); ruff check and format clean.
+- `benchmarks/xlsx_inspect`: 150 synthetic tests passed after the unit coverage fix. The initial targeted run produced
+  14 expected failures. Seven further cases failed before the independent review fixes. Regression coverage includes
+  split runs, basis-only wording, print sections and worksheet references, malformed and over-limit XML, DTD refusal
+  and masked diagnostics. Ruff check and format pass.
 - Backend: 7,148 passed, 0 failed (exit 0); ruff check and format clean.
 - Privacy: the session read only masked JSON. `phase-4ao.json` and `phase-4ao-layout.json` hold counts, flags, indices,
   fixed codes and the file's SHA-256.
