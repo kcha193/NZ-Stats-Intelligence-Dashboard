@@ -3,6 +3,7 @@ Fictional workbooks from the Phase 4AP mapping tests; every figure is invented."
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 
 from nzstats.cli import main
@@ -11,11 +12,15 @@ from nzstats.research.xlsx_review import review_lines
 
 from .test_xlsx_anz import (
     AS_AT,
+    CPI_AA,
+    GDP_AA,
+    GDP_QQ,
     LEGEND,
     PUBLISHER,
     QUARTERS,
     SHA,
     TITLE,
+    UNEMP,
     data_sheet,
     series,
     standard,
@@ -57,8 +62,10 @@ def test_the_review_shows_each_columns_result_from_the_current_interpreter():
 
 def test_the_review_never_prints_a_cell_value():
     out = review(standard())
-    for value in ("0.5", "0.7", "2.9", "4.8", "1.6"):
-        assert value not in out
+    for value in (*GDP_QQ, *GDP_AA, *CPI_AA, *UNEMP):
+        assert not re.search(rf"(?<![\d.]){re.escape(str(value))}(?![\d.])", out), value
+    # Structure (dates, hashes, counts, codes) never needs a decimal, so any decimal is a leaked value.
+    assert not re.search(r"\d\.\d", out)
 
 
 def test_a_sheet_the_interpreter_cannot_read_still_lists_its_blocks():
