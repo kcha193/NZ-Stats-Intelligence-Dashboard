@@ -45,7 +45,10 @@ def test_the_migration_adds_tables_and_changes_nothing_that_exists(tmp_path):
     ]
     before = {t: conn.execute(f"SELECT * FROM {t}").fetchall() for t in tables}
     schema = {r[0]: r[1] for r in conn.execute("SELECT name, sql FROM sqlite_master")}
-    migrate(conn)
+    conn.executescript(next(MIGRATIONS_DIR.glob("015_*.sql")).read_text(encoding="utf-8"))
+    conn.execute(
+        "INSERT INTO schema_version(version) VALUES (15)"
+    )  # 015 alone: 016 rebuilds two tables
     assert {n: conn.execute(f"SELECT * FROM {n}").fetchall() for n in tables} == before
     after = {r[0]: r[1] for r in conn.execute("SELECT name, sql FROM sqlite_master")}
     assert {k: v for k, v in after.items() if k in schema} == schema
