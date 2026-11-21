@@ -50,6 +50,10 @@ _GENERAL_DIGITS = (
     10  # beyond this many significant digits Excel's General rendering is not the stored text
 )
 _EXCEL_DIGITS = Context(prec=15, rounding=ROUND_HALF_UP)  # Excel keeps 15 significant digits
+_MIN_EXPONENT, _MAX_EXPONENT = (
+    -30,
+    15,
+)  # a rate or growth figure is never outside this (a computed zero may be ~1e-17)
 
 
 def _a1(row: int, col: int) -> str:
@@ -72,18 +76,23 @@ def _display(cell: XCell) -> tuple[str | None, str | None]:
         stored = Decimal(cell.text)
     except InvalidOperation:
         return None, "unsupported_number_format"
-    if not stored.is_finite():
+    # Bounded before any rendering: a hostile exponent must not expand into a huge string or overflow the context.
+    if not stored.is_finite() or not _MIN_EXPONENT <= stored.adjusted() <= _MAX_EXPONENT:
         return None, "unsupported_number_format"
     if cell.number_format == "General":
-        shown = format(stored.normalize(), "f")
         if len(stored.normalize().as_tuple().digits) > _GENERAL_DIGITS:
             return None, "unsupported_number_format"
-        return shown, None
+        return format(stored.normalize(), "f"), None
     match = _NUMBER_FORMAT.fullmatch(cell.number_format)
     if match is None or (match["neg"] is not None and match["neg"] != match["pos"]):
         return None, "unsupported_number_format"
     places = len(match["pos"].partition(".")[2])
-    value = _EXCEL_DIGITS.plus(stored).quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+    try:
+        value = _EXCEL_DIGITS.plus(stored).quantize(
+            Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP
+        )
+    except InvalidOperation:
+        return None, "unsupported_number_format"
     if value == 0:
         value = abs(value)  # Excel prints 0.0, never -0.0
     return format(value, ",f" if match["pos"].startswith("#") else "f"), None
@@ -146,9 +155,12 @@ def _blocks(sheet: XSheet) -> tuple[dict[int, tuple[int, str]], set[int]]:
                 starts[c] = c
     columns: dict[int, tuple[int, str]] = {}
     unmapped: set[int] = set()
+    occupied = sorted({c for (_r, c) in sheet.cells if c != _DATE_COL})
     for number, (first, last) in enumerate(sorted(starts.items()), start=1):
         title = sheet.cells.get((_TITLE_ROW, first))
-        for c in range(first, last + 1):
+        for c in (
+            c for c in occupied if first <= c <= last
+        ):  # a merge wider than the data adds no columns
             if title is None or title.kind != "text" or not title.text.strip():
                 unmapped.add(c)
             else:

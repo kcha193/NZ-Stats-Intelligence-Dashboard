@@ -399,3 +399,22 @@ def test_a_sheet_without_a_column_a_date_run_is_an_unsupported_period():
 def test_an_empty_sheet_produces_nothing():
     forecasts, rejections = run([Sheet("Cover")])
     assert forecasts == () and rejections == ()
+
+
+@pytest.mark.parametrize(
+    ("stored", "fmt"),
+    [("1E+999999", "General"), ("1E+999999", "0.0"), ("1E+30", "0.0"), ("1E-999999", "0.00")],
+)
+def test_extreme_exponents_are_refused_without_expanding_them(stored, fmt):
+    cells = series(GDP_QQ)
+    cells[7] = C(stored, bold=True, fmt=fmt, kind="number")
+    _, rejections = run(standard(growth=[("GDP", [("% q/q", cells)])]))
+    assert codes(rejections) == ["unsupported_number_format"]
+
+
+def test_a_title_merge_wider_than_the_data_only_covers_occupied_columns():
+    sheets = standard(growth=[("GDP", [("% q/q", series(GDP_QQ))])])
+    sheets[1].merges = ("B1:XFD1",)
+    forecasts, rejections = run(sheets)
+    assert rejections == ()
+    assert {f.col for f in forecasts if f.page == 2} == {2}
