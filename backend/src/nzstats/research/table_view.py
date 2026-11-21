@@ -47,6 +47,7 @@ from nzstats.research.table_store import (
     load_rejections,
 )
 from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
+from nzstats.research.xlsx_anz import MAPPED_INTERPRETER_VERSION as XLSX_MAPPED_INTERPRETER
 
 _VERSIONS = (
     "SELECT e.id AS extraction_id, v.id AS version_id, v.title, v.acquisition, v.superseded_at, v.purged_at,"
@@ -55,12 +56,13 @@ _VERSIONS = (
     " JOIN research_publication p ON p.id = v.publication_id"
     " JOIN research_institution i ON i.id = p.institution_id"
     " WHERE e.id = (SELECT MAX(id) FROM research_table_extraction WHERE version_id = e.version_id)"
-    " AND e.interpreter_version IN (?, ?)"
+    " AND e.interpreter_version IN (?, ?, ?)"
     " ORDER BY v.id"
 )
 _QUOTE_MAX = 300
-# The current interpreter of each stored format: a PDF's tables (Phase 4AF) and ANZ's forecasts workbook (Phase 4AP).
-CURRENT_INTERPRETERS = (INTERPRETER_VERSION, XLSX_INTERPRETER)
+# The current interpreter of each stored format: a PDF's tables (Phase 4AF) and ANZ's forecasts workbook (Phase 4AP),
+# read without or with the owner's canonical series mapping (Phase 4AR).
+CURRENT_INTERPRETERS = (INTERPRETER_VERSION, XLSX_INTERPRETER, XLSX_MAPPED_INTERPRETER)
 _UNRESOLVED = frozenset(
     {"units_mismatch", "horizon_mismatch", "attribution_mismatch", "ambiguous_or_unsupported"}
 )

@@ -109,6 +109,33 @@ def _structural_note(text: str, publisher_names: Sequence[str], *, legend: bool 
     return f"note {text}"
 
 
+_MAPPING_SHA256 = re.compile(r"[0-9a-f]{64}")
+
+
+def _reviewed_caption(evidence: Mapping[str, Any]) -> str | None:
+    """The caption when the owner's mapping (Phase 4AR) reviewed this exact sheet name as editorial; else None.
+
+    The review counts only on mapped evidence (`mapping_entry`), when it names the same caption and carries the same
+    mapping hash as the evidence. It exempts the caption from the unknown-word rule only: every other check still
+    reads it, and a title, header or note is never exempted.
+    """
+    caption = evidence.get("caption") or ""
+    review = evidence.get("caption_review")
+    sha = evidence.get("mapping_sha256")
+    if (
+        caption
+        and isinstance(evidence.get("mapping_entry"), Mapping)
+        and isinstance(review, Mapping)
+        and review.get("classification") == "editorial"
+        and review.get("sheet_name") == caption
+        and isinstance(sha, str)
+        and _MAPPING_SHA256.fullmatch(sha)
+        and review.get("mapping_sha256") == sha
+    ):
+        return caption
+    return None
+
+
 def evidence_texts(evidence: Mapping[str, Any]) -> tuple[str, ...]:
     """The same authoritative context in normalization and reconciliation, in source order."""
     notes = evidence.get("notes", [])
@@ -141,8 +168,12 @@ def context_rejection(
     publisher_names: Sequence[str] = (),
     document_title: str = "",
     kind: str = "forecast",
+    reviewed_caption: str | None = None,
 ) -> str | None:
-    """Return a fixed refusal code when context cannot safely use the row's identity."""
+    """Return a fixed refusal code when context cannot safely use the row's identity.
+
+    `reviewed_caption` (Phase 4AR): a sheet name the owner reviewed as editorial, exempt from the unknown-word rule only.
+    """
     document_title = _PUBLICATION.sub(" ", document_title)
     all_texts = (label, document_title, *texts)
     text = " ".join(all_texts)
@@ -197,7 +228,9 @@ def context_rejection(
     if code:
         return code
     # `contextual` has had the label's own, already validated basis removed.
-    if any(t and _unknown_context(t, publisher_names) for t in contextual):
+    if any(
+        t and t != reviewed_caption and _unknown_context(t, publisher_names) for t in contextual
+    ):
         return "unsupported_context"
     return None
 
@@ -209,4 +242,5 @@ def stored_context_rejection(label: str, evidence: Mapping[str, Any]) -> str | N
         evidence_texts(evidence),
         publisher_names=evidence.get("publisher_names", ()),
         document_title=evidence.get("document_title") or "",
+        reviewed_caption=_reviewed_caption(evidence),
     )

@@ -9,6 +9,10 @@ fixed wording. Re-running on the same document and interpreter is a no-op.
 A workbook's figures are stored only with the owner's reconciliation: a dry run gives the candidates and an 8-character
 code over exactly those candidates; the owner checks every one against the original workbook (in their own terminal)
 and stores them with that code. A different code, or none, stores nothing.
+
+The owner's canonical series mapping (Phase 4AR) is passed as the file's exact bytes. Any mapping failure refuses the
+whole run with a fixed code; with a valid one, the extraction is stored as `xlsx-anz-4` under a digest of the cells and
+the mapping, so a changed mapping is always a new extraction with its own confirmation code.
 """
 
 from __future__ import annotations
@@ -30,11 +34,13 @@ from nzstats.research.extract import ExtractionLimits
 from nzstats.research.registry import ContentPolicy, Institution
 from nzstats.research.table_forecast import TableForecast, interpret
 from nzstats.research.table_grid import find_tables
-from nzstats.research.table_store import store_extraction
+from nzstats.research.table_store import ExtractionSuperseded, store_extraction
 from nzstats.research.table_words import extract_words, words_sha256
 from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
-from nzstats.research.xlsx_anz import interpret_anz_workbook
+from nzstats.research.xlsx_anz import MAPPED_INTERPRETER_VERSION as XLSX_MAPPED_INTERPRETER
+from nzstats.research.xlsx_anz import interpret_anz_workbook, mapping_from_positions
 from nzstats.research.xlsx_cells import cells_sha256, read_cells
+from nzstats.research.xlsx_mapping import MappingRefused, parse_mapping
 from nzstats.research.xlsx_review import review_lines
 from nzstats.sources.artifacts import ArtifactStore, valid_rel
 
@@ -59,6 +65,10 @@ class TableIngestResult:
     # Workbooks only: the reconciliation code over the candidates, and (dry run) the candidates for the owner's terminal.
     candidate_hash8: str | None = None
     candidates: tuple[TableForecast, ...] = ()
+    mapping_sha256: str | None = None  # the owner's mapping applied (Phase 4AR), if any
+
+
+_SUPERSEDED = "an older identical extraction exists; restore a backup to return to it"
 
 
 def _refused(reason: str) -> TableIngestResult:
@@ -69,16 +79,25 @@ def _refused(reason: str) -> TableIngestResult:
 _WORKBOOK_SOURCE, _WORKBOOK_SERIES = "anz", "forecasts_workbook"
 
 
-def candidate_hash8(forecasts: tuple[TableForecast, ...] | list[TableForecast]) -> str:
-    """8 hex characters over every candidate's cell, identity, printed text and value: what the owner reconciles."""
+def candidate_hash8(
+    forecasts: tuple[TableForecast, ...] | list[TableForecast], *, mapping_sha256: str | None = None
+) -> str:
+    """8 hex characters over every candidate's cell, identity, printed text and value: what the owner reconciles.
+
+    With the owner's mapping (Phase 4AR), the code also covers the interpreter `xlsx-anz-4` and the mapping's hash,
+    so a changed mapping always needs a new reconciliation. Without one, the code is unchanged from `xlsx-anz-3`.
+    """
     canonical = [
         [f.page, f.table, f.row, f.col, f.indicator, f.label, f.period_text, f.horizon, f.kind, f.unit, f.raw_text,
          None if f.value is None else str(f.value), f.missing, f.author_role, f.evidence.get("workbook_sha256")]
         for f in forecasts
     ]  # fmt: skip
-    return hashlib.sha256(
-        json.dumps([XLSX_INTERPRETER, canonical], ensure_ascii=False).encode()
-    ).hexdigest()[:8]
+    payload = (
+        [XLSX_INTERPRETER, canonical]
+        if mapping_sha256 is None
+        else [XLSX_MAPPED_INTERPRETER, mapping_sha256, canonical]
+    )
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False).encode()).hexdigest()[:8]
 
 
 def version_refusal(
@@ -157,6 +176,46 @@ def review_version_workbook(
     )
 
 
+def map_version_workbook(
+    conn: sqlite3.Connection,
+    version_id: int,
+    artifacts: ArtifactStore,
+    registry: Mapping[str, Institution],
+    *,
+    decided_on: str,
+    series: list[tuple[str, int, int, str, str]],
+    unit_evidence: tuple[int, str] | None,
+    sheet_context: list[tuple[int, str]],
+    published: tuple[str, int, str] | None,
+    isolate: bool | None = None,
+    adapters: Mapping[str, BankAdapter] = ADAPTERS,
+) -> tuple[str | None, bytes]:
+    """(refusal, mapping file bytes) built from the owner's positions (`xlsx_anz.mapping_from_positions`).
+
+    The same version, permission and raw-hash checks as extraction. The bytes hold workbook text: they are written to
+    the owner's file and never printed."""
+    reason, row, _inst, body = _checked_version(conn, version_id, artifacts, registry, adapters)
+    if reason or row is None or body is None:
+        return reason or "unknown institution", b""
+    if row["format"] != "xlsx":
+        return "not a workbook", b""
+    try:
+        wb = read_cells(body, isolate=isolate)
+    except IngestError as exc:
+        log.warning(
+            "workbook mapping refused for version %s: %s", version_id, exc.error_class.value
+        )
+        return f"workbook could not be read ({exc})", b""
+    try:
+        raw = mapping_from_positions(
+            wb, workbook_sha256=row["raw_sha256"], decided_on=decided_on, series=series,
+            unit_evidence=unit_evidence, sheet_context=sheet_context, published=published,
+        )  # fmt: skip
+    except MappingRefused as exc:
+        return exc.code, b""
+    return None, raw
+
+
 def extract_version_tables(
     conn: sqlite3.Connection,
     version_id: int,
@@ -167,6 +226,7 @@ def extract_version_tables(
     dry_run: bool = False,
     isolate: bool | None = None,
     confirm: str | None = None,
+    mapping: bytes | None = None,
     adapters: Mapping[str, BankAdapter] = ADAPTERS,
 ) -> TableIngestResult:
     reason, row, inst, body = _checked_version(conn, version_id, artifacts, registry, adapters)
@@ -174,7 +234,9 @@ def extract_version_tables(
         return _refused(reason or "unknown institution")
     if row["format"] == "xlsx":
         return _extract_workbook(conn, version_id, row, inst, body, now, dry_run=dry_run, isolate=isolate,
-                                 confirm=confirm)  # fmt: skip
+                                 confirm=confirm, mapping=mapping)  # fmt: skip
+    if mapping is not None:
+        return _refused("a mapping applies only to the ANZ forecasts workbook")
     try:
         words = extract_words(body, ExtractionLimits(), isolate=isolate)
     except IngestError as exc:
@@ -195,6 +257,8 @@ def extract_version_tables(
         stored = store_extraction(
             conn, version_id, now, forecasts, rejections, words_sha256=words_sha256(words)
         )
+    except ExtractionSuperseded:
+        return _refused(_SUPERSEDED)
     except sqlite3.IntegrityError:
         # The only refusal the schema makes here is a purge that landed while the (slow) parse ran.
         log.warning("table figures for version %s were refused by the store", version_id)
@@ -223,7 +287,12 @@ def _extract_workbook(
     dry_run: bool,
     isolate: bool | None,
     confirm: str | None,
+    mapping: bytes | None,
 ) -> TableIngestResult:
+    try:
+        reviewed = None if mapping is None else parse_mapping(mapping)
+    except MappingRefused as exc:
+        return _refused(exc.code)
     try:
         wb = read_cells(body, isolate=isolate)
     except IngestError as exc:
@@ -232,17 +301,22 @@ def _extract_workbook(
         )
         return _refused(f"workbook could not be read ({exc})")
     names = (inst.name, inst.key, inst.name.removesuffix(" New Zealand"))
-    forecasts, rejections = interpret_anz_workbook(
-        wb,
-        publisher_names=names,
-        document_title=_document_title(row),
-        workbook_sha256=row["raw_sha256"],
-    )
+    try:
+        forecasts, rejections = interpret_anz_workbook(
+            wb,
+            publisher_names=names,
+            document_title=_document_title(row),
+            workbook_sha256=row["raw_sha256"],
+            mapping=reviewed,
+        )
+    except MappingRefused as exc:
+        return _refused(exc.code)
+    mapping_sha256 = None if reviewed is None else reviewed.sha256
     codes = tuple(sorted(Counter(r.code for r in rejections).items()))
-    code = candidate_hash8(forecasts)
+    code = candidate_hash8(forecasts, mapping_sha256=mapping_sha256)
     if dry_run:
         return TableIngestResult(
-            "dry_run", None, len(forecasts), len(rejections), codes, code, forecasts
+            "dry_run", None, len(forecasts), len(rejections), codes, code, forecasts, mapping_sha256
         )
     if confirm is None:
         return _refused(
@@ -250,13 +324,20 @@ def _extract_workbook(
         )
     if confirm != code:
         return _refused("confirmation does not match the current candidates")
+    digest = cells_sha256(wb)
+    if mapping_sha256 is not None:  # the input is the cells and the reviewed mapping together
+        digest = hashlib.sha256(f"{digest}:{mapping_sha256}".encode()).hexdigest()
     try:
         stored = store_extraction(
-            conn, version_id, now, forecasts, rejections, words_sha256=cells_sha256(wb),
-            interpreter_version=XLSX_INTERPRETER,
+            conn, version_id, now, forecasts, rejections, words_sha256=digest,
+            interpreter_version=XLSX_INTERPRETER if reviewed is None else XLSX_MAPPED_INTERPRETER,
         )  # fmt: skip
+    except ExtractionSuperseded:
+        return _refused(_SUPERSEDED)
     except sqlite3.IntegrityError:
         log.warning("workbook figures for version %s were refused by the store", version_id)
         return _refused("purged")
     status = "stored" if stored is not None else "unchanged"
-    return TableIngestResult(status, None, len(forecasts), len(rejections), codes, code)
+    return TableIngestResult(
+        status, None, len(forecasts), len(rejections), codes, code, (), mapping_sha256
+    )

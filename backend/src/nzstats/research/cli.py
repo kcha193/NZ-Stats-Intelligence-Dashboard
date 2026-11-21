@@ -9,15 +9,18 @@ characters escaped and is labelled as interpretation, not an official statistic.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
+import re
 import sqlite3
 import sys
 from contextlib import closing
 from dataclasses import asdict
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 from nzstats.clock import to_akl_iso, utc_now
 from nzstats.config import Settings
@@ -158,6 +161,38 @@ def add_research_parser(sub: argparse._SubParsersAction) -> None:
         "--confirm",
         metavar="HASH8",
         help="store a workbook's figures: the code its dry run printed",
+    )
+    p_text.add_argument(
+        "--mapping",
+        metavar="FILE",
+        help="apply the owner's canonical series mapping (Phase 4AR, interpreter xlsx-anz-4); ANZ workbook only",
+    )
+    p_tmap = tsub.add_parser(
+        "map",
+        help="write the owner's canonical series mapping from positions (Phase 4AR); prints only its hash and counts",
+    )
+    p_tmap.add_argument("version", type=_positive_int)
+    p_tmap.add_argument(
+        "--series", action="append", default=[], metavar="INDICATOR:SHEET:BLOCK:COLUMN:BASIS",
+        help="e.g. gdp:2:1:C:quarterly; indicator gdp, cpi_inflation or unemployment; repeat per series",
+    )  # fmt: skip
+    p_tmap.add_argument(
+        "--unit-evidence", metavar="SHEET:CELL", help="the unemployment unit note, e.g. 3:A44"
+    )
+    p_tmap.add_argument(
+        "--sheet-context", action="append", default=[], metavar="SHEET:CLASS",
+        help="the owner's sheet-name review, e.g. 2:editorial or 2:substantive; repeat per sheet",
+    )  # fmt: skip
+    p_tmap.add_argument(
+        "--published-on",
+        metavar="YYYY-MM-DD@SHEET:CELL",
+        help="the date the workbook states, and where",
+    )
+    p_tmap.add_argument(
+        "--decided-on", required=True, metavar="YYYY-MM-DD", help="the date of the owner's review"
+    )
+    p_tmap.add_argument(
+        "--out", required=True, metavar="FILE", help="new file to write; never overwritten"
     )
     p_treview = tsub.add_parser(
         "review",
@@ -943,6 +978,101 @@ def _real_terminal() -> bool:
     return sys.stdin.isatty() and _stdout_is_terminal()
 
 
+_MAPPING_MAX_BYTES = 256 * 1024
+_SERIES_ARG = re.compile(r"([a-z_]+):([1-9][0-9]{0,3}):([1-9][0-9]{0,3}):([A-Z]{1,3}):([a-z_]+)")
+_CELL_ARG = re.compile(r"([1-9][0-9]{0,3}):([A-Z]{1,3}[1-9][0-9]{0,6})")
+_CONTEXT_ARG = re.compile(r"([1-9][0-9]{0,3}):([a-z]+)")
+_PUBLISHED_ARG = re.compile(r"(\d{4}-\d{2}-\d{2})@([1-9][0-9]{0,3}):([A-Z]{1,3}[1-9][0-9]{0,6})")
+
+
+def _map_positions(args: argparse.Namespace) -> dict[str, Any] | None:
+    """The owner's positions as typed values, or None when any argument is malformed. Never workbook text."""
+    series = [_SERIES_ARG.fullmatch(s) for s in args.series]
+    contexts = [_CONTEXT_ARG.fullmatch(c) for c in args.sheet_context]
+    unit = None if args.unit_evidence is None else _CELL_ARG.fullmatch(args.unit_evidence)
+    published = None if args.published_on is None else _PUBLISHED_ARG.fullmatch(args.published_on)
+    if (
+        not series
+        or not all(series)
+        or not all(contexts)
+        or (args.unit_evidence is not None and unit is None)
+        or (args.published_on is not None and published is None)
+    ):
+        return None
+    return {
+        "series": [(m[1], int(m[2]), int(m[3]), m[4], m[5]) for m in series if m],
+        "sheet_context": [(int(m[1]), m[2]) for m in contexts if m],
+        "unit_evidence": None if unit is None else (int(unit[1]), unit[2]),
+        "published": None if published is None else (published[1], int(published[2]), published[3]),
+    }
+
+
+def _write_new(path: Path, body: bytes) -> bool:
+    """Write a new owner-only file; False when it already exists (a reviewed mapping is never overwritten)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return False
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(body)
+    return True
+
+
+def _tables_map(
+    args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]
+) -> int:
+    from nzstats.research.table_ingest import map_version_workbook
+
+    positions = _map_positions(args)
+    if positions is None:
+        _emit("refused: positions must be INDICATOR:SHEET:BLOCK:COLUMN:BASIS, SHEET:CELL, SHEET:CLASS"
+              " and YYYY-MM-DD@SHEET:CELL")  # fmt: skip
+        return 2
+    out = Path(args.out).resolve()
+    if not out.is_relative_to(settings.data_dir.resolve()):
+        # The file holds workbook text: it lives only under the Git-ignored data directory.
+        _emit(
+            "refused: write the mapping under the data directory (NZSTATS_DATA_DIR), e.g. data/research/"
+        )
+        return 2
+    if out.exists():
+        _emit("refused: the mapping file already exists; a reviewed mapping is never overwritten")
+        return 1
+    conn = _open(settings)
+    try:
+        reason, body = map_version_workbook(
+            conn,
+            args.version,
+            ArtifactStore(settings.raw_dir),
+            registry,
+            decided_on=args.decided_on,
+            **positions,
+        )
+    finally:
+        conn.close()
+    if reason:
+        _emit(f"version {args.version}: refused ({reason})")
+        return 1
+    if not _write_new(out, body):
+        _emit("refused: the mapping file already exists; a reviewed mapping is never overwritten")
+        return 1
+    n_series, n_context = len(positions["series"]), len(positions["sheet_context"])
+    _emit(f"version {args.version}: mapping written, {n_series} series, {n_context} sheet review"
+          f"{'' if n_context == 1 else 's'}, sha256 {hashlib.sha256(body).hexdigest()}")  # fmt: skip
+    _emit(
+        "The file holds workbook text: keep it under data/ and out of any hosted session. Nothing was requested."
+    )
+    return 0
+
+
+def _read_mapping(path: str) -> bytes | None:
+    p = Path(path)
+    if not p.is_file() or p.stat().st_size > _MAPPING_MAX_BYTES:
+        return None
+    return p.read_bytes()
+
+
 def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, Institution]) -> int:
     """`tables extract` reads one stored PDF; `tables show` lists stored figures and codes. Never prints cell or label text."""
     from nzstats.research.manual_import import XLSX_EXTRACTOR_VERSION
@@ -956,7 +1086,16 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
     from nzstats.research.table_view import CURRENT_INTERPRETERS
     from nzstats.research.table_words import EXTRACTOR_VERSION
     from nzstats.research.xlsx_anz import INTERPRETER_VERSION as XLSX_INTERPRETER
+    from nzstats.research.xlsx_anz import MAPPED_INTERPRETER_VERSION as XLSX_MAPPED_INTERPRETER
 
+    if args.tables_command == "map":
+        return _tables_map(args, settings, registry)
+    mapping = None
+    if getattr(args, "mapping", None) is not None:
+        mapping = _read_mapping(args.mapping)
+        if mapping is None:
+            _emit(f"refused: the mapping file is missing or larger than {_MAPPING_MAX_BYTES} bytes")
+            return 2
     conn = _open(settings)
     try:
         found = conn.execute(
@@ -996,6 +1135,7 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
                 utc_now(),
                 dry_run=args.dry_run,
                 confirm=args.confirm,
+                mapping=mapping,
             )
             if result.status == "refused":
                 _emit(f"version {args.version}: refused ({result.reason})")
@@ -1014,8 +1154,15 @@ def _tables(args: argparse.Namespace, settings: Settings, registry: dict[str, In
                     cell = f.evidence.get("cell", "?")
                     _emit(f"  sheet {f.page} {cell} {f.indicator:<14} {f.horizon:<26} {f.raw_text:>8} {f.unit}"
                           f" {f.author_role} | {f.label}")  # fmt: skip
+            if result.mapping_sha256:
+                _emit(
+                    f"  mapping {result.mapping_sha256[:12]} (the owner's reviewed canonical series)"
+                )
             if workbook:
-                _emit(f"Reader {XLSX_EXTRACTOR_VERSION}, interpreter {XLSX_INTERPRETER}.")
+                used = (
+                    XLSX_INTERPRETER if result.mapping_sha256 is None else XLSX_MAPPED_INTERPRETER
+                )
+                _emit(f"Reader {XLSX_EXTRACTOR_VERSION}, interpreter {used}.")
             else:
                 _emit(f"Reader {EXTRACTOR_VERSION}, interpreter {INTERPRETER_VERSION}.")
             _emit("Read locally from the stored copy. Nothing was requested; no model was used.")

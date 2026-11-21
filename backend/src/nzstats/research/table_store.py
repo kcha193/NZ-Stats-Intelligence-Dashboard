@@ -47,6 +47,10 @@ class StoredTableForecast:
     evidence: dict[str, Any]
 
 
+class ExtractionSuperseded(Exception):
+    """This exact extraction is stored but a newer one supersedes it, so storing it again would change nothing."""
+
+
 def store_extraction(
     conn: sqlite3.Connection,
     version_id: int,
@@ -57,13 +61,23 @@ def store_extraction(
     words_sha256: str,
     interpreter_version: str = INTERPRETER_VERSION,
 ) -> int | None:
-    """The new extraction's id, or None when this exact extraction is already stored. All or nothing."""
+    """The new extraction's id, or None when this exact extraction is already the latest. All or nothing.
+
+    An identical extraction that is no longer the latest (an earlier mapping re-applied, or a mapping withdrawn,
+    Phase 4AR) raises `ExtractionSuperseded`: the unique key forbids a second copy, and "unchanged" would be false.
+    """
     with transaction(conn):
-        if conn.execute(
-            "SELECT 1 FROM research_table_extraction WHERE version_id=? AND interpreter_version=?"
+        same = conn.execute(
+            "SELECT id FROM research_table_extraction WHERE version_id=? AND interpreter_version=?"
             " AND words_sha256=?",
             (version_id, interpreter_version, words_sha256),
-        ).fetchone():
+        ).fetchone()
+        if same:
+            latest = conn.execute(
+                "SELECT MAX(id) FROM research_table_extraction WHERE version_id=?", (version_id,)
+            ).fetchone()[0]
+            if same[0] != latest:
+                raise ExtractionSuperseded
             return None
         cur = conn.execute(
             "INSERT INTO research_table_extraction(version_id, interpreter_version, words_sha256, extracted_at,"
