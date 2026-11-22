@@ -15,17 +15,28 @@ stored text stays in the evidence. A formula is never evaluated. All workbook te
 The block title and unit header form the label (the identity, as a PDF row label does). The context includes the
 sheet name, notes, period and unit header. The legend and the "as at" note are kept under their own evidence keys
 and checked for qualifiers as well as authorship.
+
+Phase 4AR (`xlsx-anz-4`): with the owner's reviewed mapping (`xlsx_mapping`), only the listed columns may stand for
+their indicator; every other column naming a mapped indicator is `not_canonical_series`, never a second copy. A listed
+column must still match its recorded structure exactly and pass every rule above. The mapping never supplies a word the
+workbook does not print: its basis must equal the basis the column states, an unemployment unit comes only from a
+verified note on the same sheet, and a sheet name reviewed as editorial is dropped from the context rule for that
+exact sheet only. Without a mapping, the result is exactly `xlsx-anz-3`.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from datetime import date
 from decimal import ROUND_HALF_UP, Context, Decimal, InvalidOperation
+from typing import Any
 
+from nzstats.research.compare import _ANNUAL, _ANNUAL_AVERAGE, _QUARTERLY, _THROUGH_YEAR
 from nzstats.research.table_context import stored_context_rejection
 from nzstats.research.table_forecast import (
+    _RATE_INDICATORS,
     TableForecast,
     _horizon,
     _indicator,
@@ -35,8 +46,19 @@ from nzstats.research.table_forecast import (
 from nzstats.research.table_grid import Rejection
 from nzstats.research.table_parse import Period, parse_value, unit_of_text
 from nzstats.research.xlsx_cells import WorkbookCells, XCell, XSheet, serial_date
+from nzstats.research.xlsx_mapping import (
+    SCHEMA,
+    AnzMapping,
+    MappingEntry,
+    MappingRefused,
+    UnitEvidence,
+    cell_position,
+    column_number,
+    parse_mapping,
+)
 
-INTERPRETER_VERSION = "xlsx-anz-3"
+INTERPRETER_VERSION = "xlsx-anz-3"  # no mapping
+MAPPED_INTERPRETER_VERSION = "xlsx-anz-4"  # with the owner's reviewed mapping
 
 _TITLE_ROW, _HEADER_ROW, _FIRST_DATE_ROW, _DATE_COL = 1, 2, 3, 1
 _QUARTER_MONTHS = frozenset({3, 6, 9, 12})
@@ -203,9 +225,156 @@ def _forecast_rows(
     return tail
 
 
+def _norm(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _sheet_at(wb: WorkbookCells, position: int) -> XSheet | None:
+    return next((s for s in wb.sheets if s.position == position), None)
+
+
+def _text_at(wb: WorkbookCells, position: int, a1: str) -> str | None:
+    """The exact text of a text cell, or None when there is no such sheet, cell or text."""
+    sheet, at = _sheet_at(wb, position), cell_position(a1)
+    cell = None if sheet is None or at is None else sheet.cells.get(at)
+    return cell.text if cell is not None and cell.kind == "text" and cell.text.strip() else None
+
+
+def mapping_refusal(mapping: AnzMapping, wb: WorkbookCells, workbook_sha256: str) -> str | None:
+    """A fixed code when the whole mapping does not belong to this workbook; None when it does."""
+    if mapping.workbook_sha256 != workbook_sha256:
+        return "mapping_hash_mismatch"
+    published = mapping.published_on
+    if published is not None:
+        text = _text_at(wb, published["sheet"], published["cell"])
+        if text is None or _norm(text) != _norm(published["text"]):
+            return "mapping_structure_mismatch"
+    return None
+
+
+def _stated_basis(label: str, indicator: str) -> str | None:
+    """The growth basis the column's own title and header state, as `_horizon` reads it; None when unclear."""
+    average = bool(_ANNUAL_AVERAGE.search(label))
+    annual = bool(_ANNUAL.search(label) or _THROUGH_YEAR.search(label))
+    quarterly = bool(_QUARTERLY.search(label))
+    if quarterly and (annual or average):
+        return None
+    if average:
+        return "annual_average"
+    if annual:
+        return "annual"
+    if quarterly:
+        return "quarterly"
+    return (
+        "quarterly" if indicator in _RATE_INDICATORS else None
+    )  # `_horizon` reads a rate by its quarter
+
+
+def _entry_matches(
+    entry: MappingEntry, sheet: XSheet, blocks: dict[int, tuple[int, str]], col: int
+) -> bool:
+    """The listed column is where, and what, the owner reviewed: whitespace is the only allowed difference."""
+    return (
+        _norm(sheet.name) == _norm(entry.sheet_name)
+        and col in blocks
+        and blocks[col][0] == entry.block
+        and _norm(blocks[col][1]) == _norm(entry.block_title)
+        and _norm(_header(sheet, col)) == _norm(entry.unit_header)
+    )
+
+
+def _evidence_unit(sheet: XSheet, evidence: UnitEvidence, last_row: int) -> str | None:
+    """`percent` when the cited cell is a note below the table on this sheet (so the context rule reads it too), says
+    exactly what was reviewed, and names percent alone."""
+    at = cell_position(evidence.cell)
+    below = at is not None and at[0] > last_row
+    cell = None if not below or evidence.sheet != sheet.position else sheet.cells.get(at)
+    if cell is None or cell.kind != "text" or _norm(cell.text) != _norm(evidence.text):
+        return None
+    return "percent" if unit_of_text(cell.text) == ("percent", None) else None
+
+
+def mapping_from_positions(
+    wb: WorkbookCells,
+    *,
+    workbook_sha256: str,
+    decided_on: str,
+    series: Sequence[tuple[str, int, int, str, str]],
+    unit_evidence: tuple[int, str] | None,
+    sheet_context: Sequence[tuple[int, str]],
+    published: tuple[str, int, str] | None,
+) -> bytes:
+    """The owner's mapping file, built from positions only: every text in it is copied from the workbook here.
+
+    `series`: (indicator, sheet, block, column letters, basis). `unit_evidence`: (sheet, A1) of the unemployment
+    unit note. `sheet_context`: (sheet, classification). `published`: (YYYY-MM-DD, sheet, A1) or None.
+    """
+
+    def invalid_position() -> MappingRefused:
+        return MappingRefused("mapping_position_invalid")
+
+    entries: list[dict[str, Any]] = []
+    for indicator, position, block, column, basis in series:
+        sheet = _sheet_at(wb, position)
+        if sheet is None or not re.fullmatch(r"[A-Z]{1,3}", column):
+            raise invalid_position()
+        blocks, _ = _blocks(sheet)
+        col = column_number(column)
+        if col not in blocks or blocks[col][0] != block:
+            raise invalid_position()
+        entry: dict[str, Any] = {
+            "indicator": indicator, "basis": basis, "sheet": position, "sheet_name": sheet.name, "block": block,
+            "block_title": blocks[col][1], "column": column, "unit_header": _header(sheet, col), "unit_evidence": None,
+        }  # fmt: skip
+        if indicator == "unemployment" and unit_evidence is not None:
+            text = _text_at(wb, *unit_evidence)
+            if text is None:
+                raise invalid_position()
+            entry["unit_evidence"] = {
+                "sheet": unit_evidence[0],
+                "cell": unit_evidence[1],
+                "text": text,
+            }
+        entries.append(entry)
+    if unit_evidence is not None and not any(e["indicator"] == "unemployment" for e in entries):
+        raise MappingRefused("mapping_invalid")
+    context = []
+    for position, classification in sheet_context:
+        sheet = _sheet_at(wb, position)
+        if sheet is None:
+            raise invalid_position()
+        context.append(
+            {"sheet": position, "sheet_name": sheet.name, "classification": classification}
+        )
+    published_on: Any = "not_stated"
+    if published is not None:
+        day, position, a1 = published
+        text = _text_at(wb, position, a1)
+        if text is None:
+            raise invalid_position()
+        published_on = {"date": day, "sheet": position, "cell": a1, "text": text}
+    doc = {
+        "schema": SCHEMA, "workbook_sha256": workbook_sha256, "reviewer": "owner", "decided_on": decided_on,
+        "published_on": published_on, "series": entries, "sheet_context": context,
+    }  # fmt: skip
+    raw = (json.dumps(doc, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+    parse_mapping(raw)  # the reader's own checks, so an invalid file is never written
+    return raw
+
+
 def interpret_anz_workbook(
-    wb: WorkbookCells, *, publisher_names: Sequence[str], document_title: str, workbook_sha256: str
+    wb: WorkbookCells,
+    *,
+    publisher_names: Sequence[str],
+    document_title: str,
+    workbook_sha256: str,
+    mapping: AnzMapping | None = None,
 ) -> tuple[tuple[TableForecast, ...], tuple[Rejection, ...]]:
+    if mapping is not None and (code := mapping_refusal(mapping, wb, workbook_sha256)):
+        raise MappingRefused(code)
+    listed = {} if mapping is None else {(e.sheet, e.col): e for e in mapping.series}
+    mapped = set() if mapping is None else {e.indicator for e in mapping.series}
+    visited: set[tuple[int, int]] = set()
     forecasts: list[TableForecast] = []
     rejections: list[Rejection] = []
     readable = []
@@ -235,10 +404,35 @@ def interpret_anz_workbook(
     ambiguous = {indicator for indicator, seen in titles.items() if len(seen) > 1}
     for sheet, rows, (legend, vintage, others), blocks, unmapped in readable:
         for col in sorted(_data_columns(sheet, rows) | blocks.keys() | unmapped):
+            entry = listed.get((sheet.position, col))
+            if entry is not None and mapping is not None:
+                visited.add((sheet.position, col))
+                if not _entry_matches(entry, sheet, blocks, col):
+                    rejections.append(
+                        Rejection(
+                            "mapping_structure_mismatch", sheet.position, entry.block, None, col
+                        )
+                    )
+                    continue
+                block, title = blocks[col]
+                forecasts_or_code = _column(
+                    sheet, col, block, title, rows, legend, vintage, others,
+                    publisher_names=publisher_names, document_title=document_title, workbook_sha256=workbook_sha256,
+                    reviewed=(mapping, entry),
+                )  # fmt: skip
+                for item in forecasts_or_code:
+                    (forecasts if isinstance(item, TableForecast) else rejections).append(item)
+                continue
             if col not in blocks:
                 rejections.append(Rejection("unmapped_row", sheet.position, None, None, col))
                 continue
             block, title = blocks[col]
+            if _indicator(f"{title}: {_header(sheet, col)}") & mapped:
+                # The owner named the canonical column for this indicator; this one is a variant or another basis.
+                rejections.append(
+                    Rejection("not_canonical_series", sheet.position, block, None, col)
+                )
+                continue
             if _indicator(f"{title}: {_header(sheet, col)}") & ambiguous:
                 rejections.append(
                     Rejection("ambiguous_indicator", sheet.position, block, None, col)
@@ -250,6 +444,11 @@ def interpret_anz_workbook(
             )  # fmt: skip
             for item in forecasts_or_code:
                 (forecasts if isinstance(item, TableForecast) else rejections).append(item)
+    for (position, col), entry in listed.items():
+        if (position, col) not in visited:  # its sheet is unreadable, or the column is gone
+            rejections.append(
+                Rejection("mapping_structure_mismatch", position, entry.block, None, col)
+            )
     return tuple(forecasts), tuple(rejections)
 
 
@@ -266,6 +465,7 @@ def _column(
     publisher_names: Sequence[str],
     document_title: str,
     workbook_sha256: str,
+    reviewed: tuple[AnzMapping, MappingEntry] | None = None,
 ) -> list[TableForecast | Rejection]:
     at = (sheet.position, block, None, col)
     header = _header(sheet, col)
@@ -275,6 +475,37 @@ def _column(
         return [Rejection("ambiguous_indicator" if found else "unmapped_row", *at)]
     (indicator,) = found
     unit, code = unit_of_text(title, header, sheet.name)
+    provenance: dict[str, Any] = {}
+    if reviewed is not None:
+        mapping, entry = reviewed
+        if indicator != entry.indicator:
+            return [Rejection("mapping_indicator_mismatch", *at)]
+        if _stated_basis(label, indicator) != entry.basis:
+            return [Rejection("mapping_basis_mismatch", *at)]
+        provenance = {
+            "mapping_sha256": mapping.sha256,
+            "mapping_reviewer": mapping.reviewer,
+            "mapping_decided_on": mapping.decided_on,
+            "mapping_entry": entry.raw,
+        }
+        if mapping.sheet_context.get((sheet.position, sheet.name)) == "editorial":
+            provenance["caption_review"] = {
+                "classification": "editorial",
+                "sheet_name": sheet.name,
+                "mapping_sha256": mapping.sha256,
+                "decided_on": mapping.decided_on,
+            }
+        if entry.unit_evidence is not None and code is None:
+            stated = _evidence_unit(sheet, entry.unit_evidence, rows[-1][0])
+            if stated is None:
+                return [
+                    Rejection("unit_unstated", *at)
+                ]  # never assumed: the cited note must say it
+            if unit is not None and unit != stated:
+                return [Rejection("contradictory_unit", *at)]
+            unit = stated
+            ev = entry.unit_evidence
+            provenance["unit_evidence"] = {"sheet": ev.sheet, "cell": ev.cell, "text": ev.text}
     if unit is None:
         return [Rejection(code or "unit_unstated", *at)]
     tail = _forecast_rows(sheet, col, rows)
@@ -304,6 +535,7 @@ def _column(
             "vintage_note": vintage,
             "document_title": document_title,
             "publisher_names": list(publisher_names),
+            **provenance,
         }
         if code := stored_context_rejection(label, evidence):
             return [Rejection(code, *at)]

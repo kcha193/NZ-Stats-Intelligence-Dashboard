@@ -1,11 +1,27 @@
 # Progress and verification record
 
-Last updated 2026-11-21 (Phase 4AQ and 4AP below; see the repository health review entry below the next paragraph). **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
+Last updated 2026-11-22 (Phase 4AR, 4AQ and 4AP below; see the repository health review entry below the next paragraph). **Phase 4Y is OFFLINE READY — LIVE ACCEPTANCE PENDING: October ECT rehearsal and independent reconciliation are tested; genuine publication and an owner-authorised bounded batch remain gated.** **Phase 4X (below) verified backup and restore, confirmed migration 014 and the ledger, and prepared the first new-report run. On 8 November the owner approved Treasury hosted processing for the bounded policy workflow; it is submitted for review in one PR with the generic `summarise` guard. No inference ran.** **Phase 4W (below) built the operator-run inference policy workflow and ran no inference.** **Phase 4U (below) records the one Treasury version 3 inference: executed, complete JSON, failed `verify-4` (13 errors); nothing is independently validated.** **Phase 4T made human gold and per-summary naming optional for internal drafts, and ran no inference.** **Phase 4S prepared, and did not run, the Treasury version 3 experiment.** **Phase 4R found and reconciled the first real on-open new-release ingestion, and ran no inference.** **Phase 4Q added prompt `outlook-v5` and `verify-4` without any inference, and imported the 29 October 2026 Treasury FEU as its own document. No pipeline or OpenRouter request has processed it,
 and hosted processing stays refused. The Claude Code session doing the work read it.** Phase 4O started from main `26612a4`, after merged
 [PR #40](https://github.com/kcha193/NZ-Stats-Intelligence-Dashboard/pull/40).
 **One approved Treasury request ran: complete, schema-valid JSON, rejected by the verifier. RBNZ was not run. NO-GO for economic
 intelligence and private display.** Human review of the rejected output is pending. All earlier attempts and costs are
 preserved. Phase 4G live new-release acceptance still awaits the next supported release. Earlier entries are historical.
+
+## Phase 4AR: ANZ canonical mapping, 22 November 2026
+
+Branch `feat/phase-4ar-anz-canonical-mapping` from main `880742b`. [record](phase-4ar-anz-canonical-mapping.md).
+**Mechanism built; pilot pending the owner's answers A to F. NO-GO for figures. No figure stored, nothing fetched or
+sent to a model, no GDP or CPI block chosen by an agent.**
+
+- Owner approved the Phase 4AQ §3 design. Built: manifest parser `xlsx_mapping.py`, interpreter `xlsx-anz-4` (only
+  with a mapping), owner command `tables map`, `tables extract --mapping`, caption-review revalidation, and a
+  confirmation code over the mapping hash. Without a mapping, the results equal `xlsx-anz-3` (goldens `fdc24865`,
+  `439ccf98`; real version 5 still `e3f56a46`).
+- Synthetic tests for every Phase 4AQ §3.3 scenario, watched failing first, plus mutation checks on eight key rules.
+- Two independent reviews (Superpowers and Caveman), no Critical findings. Fixed test-first: re-applying an
+  earlier mapping is refused, not reported `unchanged`; the sheet review is narrowed to the unknown-word rule; unit
+  evidence must be a note below the table; `tables map --out` must be under the data directory. Full backend suite:
+  7,408 passed. Ruff clean.
 
 ## Phase 4AQ: ANZ canonical forecast series, 21 November 2026
 
